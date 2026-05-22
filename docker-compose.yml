@@ -1,0 +1,19 @@
+# CIB seven 2.1 + React human-tasks POC.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:3000
+services:
+  backend:
+    build: ./backend
+    container_name: cib7-poc-backend
+    ports:
+      - "8080:8080" # CIB seven REST API at http://localhost:8080/engine-rest
+
+  frontend:
+    build: ./frontend
+    container_name: cib7-poc-frontend
+    ports:
+      - "3000:80" # React app at http://localhost:3000
+    depends_on:
+      - backend
