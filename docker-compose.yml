@@ -5,7 +5,11 @@
 # Then open http://localhost:3000
 services:
   backend:
-    build: ./backend
+    # Built from the repo root so the build sees both the backend module
+    # and the project-local lib/ Maven repository.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: cib7-poc-backend
     ports:
       - "8080:8080" # CIB seven REST API at http://localhost:8080/engine-rest

@@ -1,0 +1,10 @@
+# Backend image is built with the repo root as context — keep it small.
+.git
+**/target
+**/node_modules
+**/dist
+frontend
+docs
+*.iml
+.idea
+.settings

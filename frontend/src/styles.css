@@ -282,6 +282,12 @@ body {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
+.field-input:disabled {
+  background: var(--bg);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .summary {
   margin: 0 0 24px;
   border: 1px solid var(--border);

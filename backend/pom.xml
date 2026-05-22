@@ -44,7 +44,71 @@
       <artifactId>h2</artifactId>
       <scope>runtime</scope>
     </dependency>
+
+    <!-- CIB seven Connect plugin: makes the engine parse and run
+         <camunda:connector> service tasks. Brings cibseven-connect-core. -->
+    <dependency>
+      <groupId>org.cibseven.bpm</groupId>
+      <artifactId>cibseven-engine-plugin-connect</artifactId>
+      <version>${cibseven.version}</version>
+    </dependency>
+
+    <!-- The REST + DataSonnet connector — built as the sibling reactor
+         module 'connector' (a git submodule). -->
+    <dependency>
+      <groupId>org.cibseven.community</groupId>
+      <artifactId>rest-datasonnet-connector</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- HTTP client the connector uses; it declares httpclient5 as
+         'provided', so the runtime classpath must supply it. -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+      <version>5.5</version>
+    </dependency>
+
+    <!-- DataSonnet 2.5.2's Java format plugin loads javax.xml.bind classes in
+         its static initializer. Spring Boot 3's dependency management upgrades
+         the connector's transitive jakarta.xml.bind-api to the Jakarta-4
+         namespace, which no longer ships javax.xml.bind.*. Pin the standalone
+         javax JAXB 2.3.1 API + impl explicitly (Spring Boot 3 does not manage
+         these coordinates) so com.datasonnet.spi.DataFormatService initializes. -->
+    <dependency>
+      <groupId>javax.xml.bind</groupId>
+      <artifactId>jaxb-api</artifactId>
+      <version>2.3.1</version>
+    </dependency>
+    <dependency>
+      <groupId>com.sun.xml.bind</groupId>
+      <artifactId>jaxb-impl</artifactId>
+      <version>2.3.1</version>
+      <scope>runtime</scope>
+    </dependency>
   </dependencies>
+
+  <!--
+    Project-local Maven repository for the rest-datasonnet connector, which is
+    not yet published to a public repository. lib/ holds the connector JAR and
+    POM in standard repository layout. Once the connector is published, delete
+    this <repositories> block and the lib/ folder — the <dependency> above is
+    a normal dependency and stays unchanged.
+  -->
+  <repositories>
+    <repository>
+      <id>project-local-lib</id>
+      <name>Project-local library repository</name>
+      <url>file://${project.basedir}/../lib</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+        <checksumPolicy>ignore</checksumPolicy>
+      </snapshots>
+    </repository>
+  </repositories>
 
   <build>
     <plugins>
