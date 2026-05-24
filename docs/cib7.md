@@ -1,8 +1,12 @@
-# Backend
+# CIB seven engine module (`cib7/`)
 
-**When to read this:** before editing anything under `backend/`; when changing
+**When to read this:** before editing anything under `cib7/`; when changing
 the BPMN, the engine config, the connector wiring, or `pom.xml`; when
 investigating a startup failure or a service-task execution issue.
+
+This module is the embedded CIB seven 2.1 process engine + REST API. The
+directory is named `cib7/` (not `cib7/`) so the name is free for a real
+cib7/BFF module if and when one is added.
 
 **Contents**
 1. [Stack](#stack)
@@ -11,9 +15,10 @@ investigating a startup failure or a service-task execution issue.
 4. [Engine configuration (`application.yaml`)](#engine-configuration-applicationyaml)
 5. [BPMN files](#bpmn-files)
 6. [Connect plugin and connector](#connect-plugin-and-connector)
-7. [Maven, JDK, and the vendored connector](#maven-jdk-and-the-vendored-connector)
-8. [Run, build, package](#run-build-package)
-9. [Conventions](#conventions)
+7. [Authentication and authorization](#authentication-and-authorization)
+8. [Maven, JDK, and the vendored connector](#maven-jdk-and-the-vendored-connector)
+9. [Run, build, package](#run-build-package)
+10. [Conventions](#conventions)
 
 ---
 
@@ -31,7 +36,7 @@ investigating a startup failure or a service-task execution issue.
 ## File layout
 
 ```
-backend/
+cib7/
 ├── pom.xml
 ├── Dockerfile
 └── src/main/
@@ -87,7 +92,7 @@ camunda.bpm:
 
 ## BPMN files
 
-**Location.** `backend/src/main/resources/processes/`. Anything matching
+**Location.** `cib7/src/main/resources/processes/`. Anything matching
 `classpath*:**/*.bpmn` is auto-deployed on startup, but keep BPMN under
 `processes/` for sanity.
 
@@ -111,6 +116,16 @@ this point; see the deviations table in the top-level
 must match a key in `frontend/src/forms/registry.ts`. There is no publish-time
 manifest validation — if the key is wrong, the TaskDetail page renders an
 error. See [`frontend.md` — Forms](frontend.md#forms).
+
+**Task gating — `candidateGroups`.** Both user tasks in
+`person-registration.bpmn` carry
+`camunda:candidateGroups="/task-executor"`. Engine authorization is on
+(`camunda.bpm.authorization.enabled: true`), so the engine refuses
+`claim`/`complete` from any authenticated user who is not a member of the
+Keycloak group `/task-executor`. The leading slash matches the plugin's
+`useGroupPathAsCamundaGroupId: true` setting — Camunda's group id is the
+Keycloak group's path, not its name or UUID. See
+[Authentication and authorization](#authentication-and-authorization).
 
 **Variables.** Plain typed variables (`firstName: String`, `objectId: String`,
 `price: Double`, `decision: String`, …), not a single `json` Spin variable.
@@ -163,6 +178,72 @@ after the previous user task is completed, the call happens on a background
 thread; the next user task appears a moment later. The Tasks page **Refresh**
 button is the polling mechanism.
 
+## Authentication and authorization
+
+End-to-end Keycloak: every `/engine-rest/*` request must carry a valid Bearer
+JWT issued by Keycloak, and the engine enforces `candidateGroups` based on the
+caller's Keycloak group membership.
+
+### Pieces, by role
+
+| Role | Implementation | Where |
+|---|---|---|
+| OIDC identity provider | Keycloak (realm `cib7-poc`) | `keycloak/realm-export.json`, compose service |
+| Identity Provider Plugin | `org.cibseven.bpm.extension:cibseven-keycloak:2.1.0` | declared in `pom.xml`; activated by `KeycloakIdentityProvider.java` |
+| JWT validation | `spring-boot-starter-oauth2-resource-server` | `RestApiSecurityConfig.java` |
+| Audience pin | `AudienceValidator` (rejects tokens without `cib7-rest-api` in `aud`) | `AudienceValidator.java` |
+| Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
+| Engine authorization | `camunda.bpm.authorization.enabled: true` | `application.yaml` |
+| BPMN gating | `camunda:candidateGroups="/task-executor"` on each user task | `person-registration.bpmn` |
+
+The five Java files under `com/poc/cib7/keycloak/` are **verbatim copies of
+the plugin's reference example** (`examples/sso-kubernetes/.../rest/` and
+`.../plugin/` packages, repackaged). They are not custom logic — they are the
+plugin author's published recipe for wiring Spring Security to the engine's
+`IdentityService`. Keep them in sync with the upstream plugin when bumping
+its version.
+
+### Configuration surface (`application.yaml`)
+
+| Block | Purpose |
+|---|---|
+| `app.keycloak.{issuer-uri,jwk-set-uri,user-name-attribute}` | Read by `RestApiSecurityConfig`. Custom prefix (not `spring.security.oauth2.client.*`) so Spring Boot's auto-config doesn't try OIDC discovery against an URL the engine container can't reach. |
+| `rest.security.{enabled,provider,required-audience}` | Activates the filter chain and the audience claim check |
+| `plugin.identity.keycloak.*` | All Keycloak Admin REST API config — issuer URL, admin URL, client credentials, `useUsernameAsCamundaUserId`, `useGroupPathAsCamundaGroupId` |
+| `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
+| `camunda.bpm.admin-user.id: homer` | Bootstraps admin authorizations on the seeded user so the engine doesn't 403 the very first call |
+
+All Keycloak URLs are env-driven (`KEYCLOAK_URL`, `KEYCLOAK_ISSUER_URL`,
+`KEYCLOAK_REALM`, `KEYCLOAK_BACKEND_CLIENT_ID`,
+`KEYCLOAK_BACKEND_CLIENT_SECRET`, `KEYCLOAK_REST_AUDIENCE`) with localhost
+defaults that work for `mvn spring-boot:run` against a
+`docker compose up keycloak`. Inside Docker, `KEYCLOAK_URL` is the internal
+docker-network URL (`http://keycloak:8080`) while `KEYCLOAK_ISSUER_URL` is
+the public URL the browser uses (`http://localhost:8180`); see
+[architecture.md § Deployment topology](architecture.md#deployment-topology)
+for the rationale.
+
+### Mental model: who's calling?
+
+The engine has three concepts of "who" for a given REST call:
+
+1. **HTTP-layer principal** — `JwtAuthenticationToken` populated by
+   spring-security after JWT validation. Identifies the bearer of the token.
+2. **Engine identity** — `IdentityService.setAuthentication(userId, groups)`
+   set by `KeycloakAuthenticationFilter` before the handler runs and cleared
+   after. This is what `taskService.complete()` checks against candidate
+   groups, what `task.assignee = "${currentUser()}"` resolves to, and what
+   ends up in history.
+3. **Looked-up identity** — when the engine needs full user/group records
+   (Cockpit listings, candidate-group membership), the plugin queries
+   Keycloak's Admin REST API live and exposes the results through
+   `IdentityService.createUserQuery()` / `createGroupQuery()`.
+
+The chain only works end to end if **all three** are wired. Removing any one
+of: the resource-server filter chain, the authentication filter, the identity
+provider plugin, or `authorization.enabled`, breaks the model — usually
+silently.
+
 ## Maven, JDK, and the vendored connector
 
 ### JDK 17
@@ -176,7 +257,7 @@ depend on the host JDK.
 
 `rest-datasonnet-connector` is not yet published to a public Maven repository.
 It is vendored in `lib/` (repo root) in standard Maven repository layout. The
-backend POM declares `lib/` as an extra `<repository>` and the connector as a
+module POM declares `lib/` as an extra `<repository>` and the connector as a
 normal `<dependency>`:
 
 ```xml
@@ -188,7 +269,7 @@ normal `<dependency>`:
 ```
 
 Docker build implication: the build context in `docker-compose.yml` is the
-**repo root** (`context: .`), not `backend/`, so the Docker daemon can see
+**repo root** (`context: .`), not `cib7/`, so the Docker daemon can see
 `lib/`. Don't change that without also publishing the connector.
 
 When the connector is published to Maven Central / a remote repo, delete
@@ -207,22 +288,22 @@ unless the connector is upgraded to a DataSonnet version that uses
 ### HttpClient 5
 
 The connector declares `httpcomponents.client5:httpclient5` as `provided`, so
-the backend POM supplies it at runtime. Keep it.
+the module POM supplies it at runtime. Keep it.
 
 ## Run, build, package
 
 ```bash
-cd backend
+cd cib7
 
 # Run from source — auto-deploys the BPMN on startup
 mvn spring-boot:run
 
 # Package (single jar)
 mvn package
-java -jar target/cib7-react-poc-backend-0.1.0.jar
+java -jar target/cib7-react-poc-cib7-0.1.0.jar
 
 # Docker — but build from the repo root so lib/ is in the context
-docker build -f backend/Dockerfile -t cib7-poc-backend .
+docker build -f cib7/Dockerfile -t cib7-poc-cib7 .
 # …or just:  docker compose up --build
 ```
 

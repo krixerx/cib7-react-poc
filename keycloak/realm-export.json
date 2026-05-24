@@ -1,0 +1,101 @@
+{
+  "realm": "cib7-poc",
+  "enabled": true,
+  "displayName": "CIB seven POC",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+
+  "roles": {
+    "realm": [
+      { "name": "task-executor", "description": "May claim and complete person-registration user tasks" },
+      { "name": "cib7-admin",    "description": "Engine administrators (mapped to CIB seven admin authorizations)" }
+    ]
+  },
+
+  "groups": [
+    { "name": "task-executor", "path": "/task-executor", "realmRoles": ["task-executor"] },
+    { "name": "cib7-admin",    "path": "/cib7-admin",    "realmRoles": ["cib7-admin"] }
+  ],
+
+  "users": [
+    {
+      "username": "homer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Homer",
+      "lastName": "Simpson",
+      "email": "homer@example.com",
+      "credentials": [
+        { "type": "password", "value": "homer", "temporary": false }
+      ],
+      "groups": ["/task-executor", "/cib7-admin"],
+      "realmRoles": ["task-executor", "cib7-admin"]
+    },
+    {
+      "username": "service-account-cib7-backend",
+      "enabled": true,
+      "serviceAccountClientId": "cib7-backend",
+      "clientRoles": {
+        "realm-management": ["query-users", "view-users", "query-groups", "query-clients", "view-clients"]
+      }
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "cib7-frontend",
+      "name": "CIB seven React SPA",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-cib7-rest-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "cib7-rest-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "cib7-backend",
+      "name": "CIB seven Backend (Identity Provider Plugin)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-backend-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "use.refresh.tokens": "false"
+      }
+    }
+  ]
+}

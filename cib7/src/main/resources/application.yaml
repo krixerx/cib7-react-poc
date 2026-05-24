@@ -1,0 +1,70 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: cib7-react-poc
+  # No datasource is declared on purpose: with H2 on the classpath and no
+  # explicit datasource, Spring Boot provisions an in-memory H2 database.
+  # All process data is therefore lost on restart — fine for a POC.
+
+
+# Custom Keycloak config consumed only by RestApiSecurityConfig.
+# Intentionally NOT placed under spring.security.oauth2.client.provider.*
+# because that path triggers oauth2-client auto-config OIDC discovery, which
+# fetches the issuer URL at startup — fatal in docker-compose where the
+# backend cannot reach the browser's public Keycloak URL.
+app:
+  keycloak:
+    # issuer-uri = the value Keycloak stamps into JWT `iss`. Driven by
+    # KEYCLOAK_ISSUER_URL (public) because that matches the browser's view
+    # and Keycloak's pinned KC_HOSTNAME_URL. Used for `iss` validation only
+    # — no HTTP call.
+    issuer-uri:  ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}
+    # jwk-set-uri = where the backend actually fetches signing keys.
+    # Driven by KEYCLOAK_URL (internal docker network) because the backend
+    # can't reach localhost:8180.
+    jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
+    user-name-attribute: preferred_username
+
+camunda.bpm:
+  # Auto-deploy every BPMN file found on the classpath on startup.
+  deployment-resource-pattern: classpath*:**/*.bpmn
+  database:
+    schema-update: true
+  # Engine authorization must be on for candidateGroups on userTasks to
+  # actually be enforced. Without this flag, the engine accepts any
+  # claim/complete regardless of who the authenticated user is.
+  authorization:
+    enabled: true
+  # Bootstrap admin permissions for the one POC user so the engine doesn't
+  # 403 the very first /engine-rest call. The user must exist in Keycloak;
+  # the engine grants the admin authorizations on first startup.
+  admin-user:
+    id: homer
+
+# CIB seven REST API security — wired in
+# com/poc/cib7/keycloak/RestApiSecurityConfig.java.
+rest.security:
+  enabled: true
+  provider: keycloak
+  required-audience: ${KEYCLOAK_REST_AUDIENCE:cib7-rest-api}
+
+# CIB seven Keycloak Identity Provider Plugin — registered as a
+# ProcessEnginePlugin via com/poc/cib7/keycloak/KeycloakIdentityProvider.java.
+# Properties documented in the plugin README; see
+# https://github.com/cibseven-community-hub/cibseven-keycloak.
+plugin.identity.keycloak:
+  keycloakIssuerUrl: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}
+  keycloakAdminUrl:  ${KEYCLOAK_URL:http://localhost:8180}/admin/realms/${KEYCLOAK_REALM:cib7-poc}
+  clientId:          ${KEYCLOAK_BACKEND_CLIENT_ID:cib7-backend}
+  clientSecret:      ${KEYCLOAK_BACKEND_CLIENT_SECRET:cib7-backend-secret}
+  useUsernameAsCamundaUserId: true
+  useGroupPathAsCamundaGroupId: true
+  administratorGroupName: cib7-admin
+  disableSSLCertificateValidation: true
+
+logging:
+  level:
+    org.cibseven: INFO
+    org.springframework.security: INFO

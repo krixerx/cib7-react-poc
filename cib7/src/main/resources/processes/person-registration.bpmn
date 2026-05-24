@@ -36,7 +36,9 @@
 
     <bpmn:sequenceFlow id="Flow_Start_Submit" sourceRef="StartEvent_1" targetRef="Task_SubmitDetails" />
 
-    <bpmn:userTask id="Task_SubmitDetails" name="Submit personal details" camunda:formKey="react:personal-details">
+    <bpmn:userTask id="Task_SubmitDetails" name="Submit personal details"
+                   camunda:formKey="react:personal-details"
+                   camunda:candidateGroups="/task-executor">
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
       <bpmn:outgoing>Flow_Submit_GetPrice</bpmn:outgoing>
     </bpmn:userTask>
@@ -66,7 +68,9 @@ payload.data.price
 
     <bpmn:sequenceFlow id="Flow_GetPrice_Review" sourceRef="Task_GetPrice" targetRef="Task_Review" />
 
-    <bpmn:userTask id="Task_Review" name="Review application" camunda:formKey="react:review-application">
+    <bpmn:userTask id="Task_Review" name="Review application"
+                   camunda:formKey="react:review-application"
+                   camunda:candidateGroups="/task-executor">
       <bpmn:incoming>Flow_GetPrice_Review</bpmn:incoming>
       <bpmn:outgoing>Flow_Review_Gateway</bpmn:outgoing>
     </bpmn:userTask>

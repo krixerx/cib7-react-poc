@@ -8,6 +8,16 @@ It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
 see [Deviations from the spec](#deviations-from-the-spec) below.
 
+## Test login
+
+> **App:** <http://localhost:3000> — **username** `homer` · **password** `homer`
+>
+> **Keycloak admin console:** <http://localhost:8180> — `admin` / `admin`
+
+`homer` (Homer Simpson) is a member of the `/task-executor` group, which is
+the candidate group on both user tasks in `person-registration.bpmn`. Full
+realm in `keycloak/realm-export.json`.
+
 ---
 
 ## What it does
@@ -45,20 +55,40 @@ Person Registration (BPMN)
 ## Architecture
 
 ```
-  React SPA  ──/engine-rest──▶  CIB seven 2.1 engine + REST API
-  (nginx / Vite proxy)          (Spring Boot, embedded, in-memory H2)
-                                       │
-                                       ▼  rest-datasonnet connector
-                                  api.restful-api.dev   (external REST API)
+  React SPA ──OIDC PKCE──▶ Keycloak ◀──Admin REST── CIB seven backend
+   │   (keycloak-js)         │                      (identity provider plugin)
+   │                         │
+   │   Bearer JWT
+   ▼
+  /engine-rest  ──▶  CIB seven 2.1 engine + REST API
+  (nginx / Vite proxy)  (Spring Boot, embedded engine, in-memory H2)
+                                │
+                                ▼  rest-datasonnet connector
+                          api.restful-api.dev   (external REST API)
 ```
 
-- The browser only ever calls the same-origin path `/engine-rest/...`.
-  In Docker, **nginx** proxies it to the backend; in dev, the **Vite** dev
-  server does. No CORS configuration and no authentication — per the POC scope.
+- The browser logs in against **Keycloak** (OIDC, PKCE) and then calls the
+  same-origin path `/engine-rest/...` with a Bearer JWT on every request. In
+  Docker, **nginx** proxies it to the backend; in dev, the **Vite** dev server
+  does. No CORS configuration needed.
+- The backend validates JWTs (Spring Security OAuth2 Resource Server) and the
+  **CIB seven Keycloak Identity Provider Plugin** (`cibseven-keycloak` 2.1.0)
+  reads users and groups from Keycloak's Admin REST API. Engine authorization
+  is on, so `candidateGroups` on user tasks is enforced.
 - The BPMN file lives in the backend and is **auto-deployed on startup**.
 - The **Get price** service task calls the external API server-side, from the
   engine — via the rest-datasonnet connector.
 - The database is **in-memory H2** — all data is lost when the backend stops.
+
+### Default credentials
+
+The pre-seeded Keycloak realm (`keycloak/realm-export.json`) ships with:
+
+- **Realm:** `cib7-poc`
+- **User:** `homer` / `homer` (Homer Simpson) — member of the
+  `/task-executor` group, which is the candidate group on both user tasks.
+- **Keycloak admin:** `admin` / `admin` (at <http://localhost:8180>) — only
+  used for inspecting the realm; the app itself does not use it.
 
 ## Project layout
 
@@ -66,13 +96,14 @@ Person Registration (BPMN)
 cib7-react-poc/
 ├── docker-compose.yml
 ├── lib/                            project-local Maven repo — the connector JAR
-├── backend/                        CIB seven 2.1 Spring Boot app
+├── cib7/                           CIB seven 2.1 Spring Boot engine module
 │   ├── pom.xml
 │   ├── Dockerfile
 │   └── src/main/
 │       ├── java/com/poc/cib7/
 │       │   ├── Cib7PocApplication.java
-│       │   └── ConnectorConfiguration.java   registers the Connect plugin
+│       │   ├── ConnectorConfiguration.java   registers the Connect plugin
+│       │   └── keycloak/                     Spring Security + Keycloak identity wiring
 │       └── resources/
 │           ├── application.yaml
 │           └── processes/person-registration.bpmn
@@ -98,6 +129,12 @@ docker compose up --build
 
 - React app → <http://localhost:3000>
 - CIB seven REST API → <http://localhost:8080/engine-rest>
+- Keycloak → <http://localhost:8180> (admin: `admin` / `admin`)
+
+When the SPA loads it redirects to Keycloak's login form. Use
+`homer` / `homer`. After login, every `/engine-rest` call carries the issued
+JWT and the engine enforces `candidateGroups` against the user's
+`/task-executor` membership.
 
 On the **Services** page, pick a service to start a process and fill in the
 applicant form. Then open the **Tasks** page — the service's human tasks are
@@ -108,10 +145,10 @@ to validate and complete it.
 
 Requires **Java 17+** and **Node.js 20+**.
 
-**Backend** (terminal 1):
+**Engine** (terminal 1):
 
 ```bash
-cd backend
+cd cib7
 mvn spring-boot:run
 ```
 
@@ -159,7 +196,7 @@ with [DataSonnet](https://datasonnet.com). It is wired in three places:
 
 - **Connector JAR** — the connector is not yet published to a public Maven
   repository, so its built JAR is vendored in `lib/`, a project-local Maven
-  repository in standard layout. `backend/pom.xml` declares `lib/` as a
+  repository in standard layout. `cib7/pom.xml` declares `lib/` as a
   `<repository>` and the connector as a normal `<dependency>`. When the
   connector is published, delete `lib/` and the `<repository>` block — the
   `<dependency>` is unchanged.
@@ -189,7 +226,7 @@ moment later (use the Tasks page **Refresh** button).
 > **Note on DataSonnet + Spring Boot 3.** DataSonnet 2.5.2's Java format plugin
 > loads `javax.xml.bind` classes. Spring Boot 3's dependency management upgrades
 > the connector's transitive JAXB to the Jakarta-4 namespace, so the backend
-> pins the standalone javax JAXB 2.3.1 explicitly (see `backend/pom.xml`).
+> pins the standalone javax JAXB 2.3.1 explicitly (see `cib7/pom.xml`).
 
 ## REST endpoints used
 
@@ -215,19 +252,21 @@ This POC intentionally simplifies `docs/human-role-react-forms-spec.md`:
 | Spec | This POC | Why |
 |------|----------|-----|
 | `cib:` BPMN namespace (§5.3) | Standard **`camunda:`** namespace | CIB seven 2.1 uses `camunda:` — confirmed against the official `cibseven-get-started-spring-boot` example. The spec's §5.3 is inaccurate. |
-| BFF between React and engine (D11) | React calls **`/engine-rest` directly** | Requested scope: a simple POC, no auth. |
+| BFF between React and engine (D11) | React calls **`/engine-rest` directly** with a Bearer JWT | Bearer auth + the resource-server filter chain in front of the engine is the production-acceptable middle ground until a BFF is added. |
 | Form manifest + publish-time validation (§11) | Omitted | The BPMN is a single static file, not dynamically generated. |
 | Single `json` Spin variable (§10) | Plain typed variables (`firstName`, `objectId`, `price`, `decision`, …) | Simpler; no Spin needed for a POC. |
 | Separate edit/view form components (§8.2–8.3) | One component per form | The "entry then review" flow already gives one edit form and one read-only review form. |
-| IdP groups → candidate groups | No authentication | Requested scope. |
+| IdP groups → candidate groups | **Keycloak group `/task-executor` → `candidateGroups`** | Implemented via `cibseven-keycloak` 2.1.0 with `useGroupPathAsCamundaGroupId: true`. |
 
-For a production system the spec's BFF, manifest validation and authorization
-would be reinstated.
+For a production system the spec's BFF and manifest validation would be
+reinstated.
 
 ## Notes & limitations
 
 - In-memory H2 means **process state is lost on backend restart**.
-- No authentication: anyone who can reach the app can start and complete tasks.
+- Keycloak runs in `start-dev` mode with its own in-memory H2 — the realm is
+  re-imported from `keycloak/realm-export.json` on every container start, so
+  user-created users/groups are also lost on restart.
 - The **Get price** service task calls the public `api.restful-api.dev` — an
   internet connection is needed for that step.
 - The connector JAR in `lib/` is a vendored build; rebuild it from

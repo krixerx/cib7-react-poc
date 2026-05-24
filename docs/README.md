@@ -5,10 +5,11 @@ repo for the first time. The top-level `README.md` is the human onboarding
 entry point; these docs add the deeper, structured detail an AI needs to make
 correct changes without re-deriving everything from source.
 
-**Repo shape — monorepo.** Backend (Spring Boot, `backend/`), frontend
-(React + Vite, `frontend/`), the vendored connector JAR (`lib/`), Docker
-orchestration (`docker-compose.yml`), and these docs (`docs/`) all live in a
-single git repository and are versioned, built, and shipped together.
+**Repo shape — monorepo.** CIB seven engine module (Spring Boot, `cib7/`),
+frontend (React + Vite, `frontend/`), the vendored connector JAR (`lib/`), the
+Keycloak realm export (`keycloak/`), Docker orchestration
+(`docker-compose.yml`), and these docs (`docs/`) all live in a single git
+repository and are versioned, built, and shipped together.
 
 Each topic doc below starts with a **When to read this** block and a stable
 table of contents so it can be opened, skimmed, and closed in one pass.
@@ -21,8 +22,9 @@ table of contents so it can be opened, skimmed, and closed in one pass.
 | If you need to … | Read |
 |---|---|
 | Understand the runtime topology, request flow, deployment model | [`architecture.md`](architecture.md) |
-| Touch React code: pages, forms, the form registry, the REST client | [`frontend.md`](frontend.md) |
-| Touch Java code: Spring Boot wiring, engine config, the BPMN file, the connector | [`backend.md`](backend.md) |
+| Touch React code: pages, forms, the form registry, the REST client, auth | [`frontend.md`](frontend.md) |
+| Touch Java code: Spring Boot wiring, engine config, the BPMN file, the connector, Keycloak | [`cib7.md`](cib7.md) |
+| Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
 | Reference the original long-form design spec | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
 | Run / build the app, see the high-level overview | top-level [`../README.md`](../README.md) |
 
@@ -33,8 +35,8 @@ table of contents so it can be opened, skimmed, and closed in one pass.
   TypeScript / React follows the
   [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
   When in doubt, match the surrounding code.
-- **BPMN files** live under `backend/src/main/resources/processes/` and are
-  auto-deployed on startup. See [`backend.md`](backend.md#bpmn-files) for the
+- **BPMN files** live under `cib7/src/main/resources/processes/` and are
+  auto-deployed on startup. See [`cib7.md`](cib7.md#bpmn-files) for the
   one-file-per-process rule and how `formKey` wires a user task to a React form.
 - **Form id contract.** A BPMN user task carries `camunda:formKey="react:<id>"`;
   the React app strips the `react:` prefix and looks `<id>` up in

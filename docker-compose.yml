@@ -2,22 +2,88 @@
 #
 #   docker compose up --build
 #
-# Then open http://localhost:3000
+# Then open http://localhost:3000 and log in with homer / homer.
 services:
-  backend:
-    # Built from the repo root so the build sees both the backend module
+  keycloak:
+    # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
+    # plugin 2.1.0 was last tested against (see the plugin README).
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: cib7-poc-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      # Pin a single canonical issuer URL so tokens carry the same `iss`
+      # whether they're inspected by the browser (at localhost:8180) or by
+      # the backend container (which reaches the same URL via
+      # host.docker.internal). This is the standard fix for the
+      # docker-internal vs browser hostname mismatch on JWT validation.
+      KC_HOSTNAME_URL: http://localhost:8180
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    # KC_HEALTH_ENABLED=true exposes /health/* on the management port (9000
+    # in Keycloak 26+). A bash TCP probe is enough: once port 9000 is
+    # listening, the server has finished its early init and the realm
+    # import has at least started. The cib7 engine waits on this — without
+    # it, the engine races Keycloak on cold start and dies with
+    # "Connection refused" on the first identity-provider plugin call.
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && exit 0 || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 60
+      start_period: 20s
+
+  cib7:
+    # Built from the repo root so the build sees both the cib7 engine module
     # and the project-local lib/ Maven repository.
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    container_name: cib7-poc-backend
+      dockerfile: cib7/Dockerfile
+    container_name: cib7-poc-cib7
     ports:
       - "8080:8080" # CIB seven REST API at http://localhost:8080/engine-rest
+    environment:
+      # Two URLs intentionally, because they serve different roles:
+      #
+      # - KEYCLOAK_URL is the *internal* docker-network URL the engine uses
+      #   for server-to-server calls (identity-provider plugin's Admin REST
+      #   API + JWKS fetch). It must be reachable from inside the engine
+      #   container.
+      #
+      # - KEYCLOAK_ISSUER_URL is the *public* URL the browser uses to log in,
+      #   and therefore the value Keycloak stamps into tokens as `iss`. The
+      #   resource-server filter validates `iss` against this string with a
+      #   simple equality check — no HTTP call — so it doesn't matter that
+      #   the engine can't reach localhost:8180 itself.
+      #
+      # This is the standard production pattern when Keycloak sits behind a
+      # reverse proxy / ingress: services use the internal hostname, browsers
+      # use the external one, and the `iss` claim follows the browser's view.
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ISSUER_URL: http://localhost:8180
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_BACKEND_CLIENT_ID: cib7-backend
+      KEYCLOAK_BACKEND_CLIENT_SECRET: cib7-backend-secret
+      KEYCLOAK_REST_AUDIENCE: cib7-rest-api
+    depends_on:
+      keycloak:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
     container_name: cib7-poc-frontend
     ports:
       - "3000:80" # React app at http://localhost:3000
+    # Keycloak URL/realm/client-id are baked into the SPA at build time
+    # (frontend/src/auth/keycloak.ts reads VITE_KEYCLOAK_* with defaults
+    # of http://localhost:8180 / cib7-poc / cib7-frontend). To override
+    # for a different environment, pass them as Docker build args.
     depends_on:
-      - backend
+      - cib7

@@ -3,7 +3,11 @@
  *
  * The browser always calls the same-origin path `/engine-rest/...`; the Vite
  * dev server (vite.config.ts) and nginx (nginx.conf) proxy it to the backend.
+ * Each request carries a Keycloak-issued bearer token; the backend's
+ * RestApiSecurityConfig validates it before any handler runs.
  */
+
+import { ensureFreshToken } from '../auth/keycloak';
 
 const BASE = '/engine-rest';
 
@@ -40,9 +44,15 @@ export interface CamundaVariable {
 export type CamundaVariables = Record<string, CamundaVariable>;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await ensureFreshToken();
+
   const res = await fetch(BASE + path, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(init?.headers ?? {}),
+    },
   });
 
   if (!res.ok) {

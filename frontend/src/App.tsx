@@ -2,8 +2,11 @@ import { Routes, Route, Link, NavLink } from 'react-router-dom';
 import ServicesPage from './pages/ServicesPage';
 import TasksPage from './pages/TasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
+import { useAuth } from './auth/AuthProvider';
 
 export default function App() {
+  const { username, logout } = useAuth();
+
   return (
     <div className="app">
       <header className="app-header">
@@ -15,6 +18,12 @@ export default function App() {
             Services
           </NavLink>
           <NavLink to="/tasks">Tasks</NavLink>
+          <span className="app-user">
+            <span className="muted">{username}</span>
+            <button className="btn btn-link" onClick={logout}>
+              Log out
+            </button>
+          </span>
         </nav>
       </header>
 
