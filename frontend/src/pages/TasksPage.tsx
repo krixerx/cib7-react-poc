@@ -15,112 +15,113 @@ import {
 } from '../api/camundaClient';
 import { parseUserTasks, type UserTaskDef } from '../api/bpmn';
 
-interface ServiceOverview {
+interface ServiceTree {
   def: ProcessDefinition;
   userTasks: UserTaskDef[];
-  /** Active tasks across all running instances of this service. */
-  activeTasks: CamundaTask[];
+  /** taskDefinitionKey → number of currently-active tasks. */
+  taskCounts: Map<string, number>;
   incidents: Incident[];
   activeInstanceCount: number;
 }
+
+const ICONS = {
+  service: '📋',
+  task: '📝',
+  incidents: '⚠️',
+};
 
 function shortId(id: string): string {
   return id.length > 8 ? `…${id.slice(-8)}` : id;
 }
 
 /**
- * Hierarchical view of tasks: a service dropdown selects which service to look
- * at; below that, a list of that service's user-task names (plus an Incidents
- * row), each badged with its active count. Clicking a row drills down to a
- * list of task instances (active + completed) or the incident list.
+ * Tree-style task explorer: every service is collapsible in a left sidebar;
+ * picking a service expands its user tasks + an Incidents row. The right
+ * pane shows whatever's selected — a service summary, a task drill-down, or
+ * the per-service incident list.
  *
- * State lives in the URL search params (`?service=…&section=…`) so navigation
+ * Selection state lives in URL search params (?service=…&section=…) so
  * back/forward and bookmarks work.
  */
 export default function TasksPage() {
   const [params, setParams] = useSearchParams();
   const serviceKey = params.get('service') ?? '';
-  const section = params.get('section'); // null | taskDefinitionKey | 'incidents'
+  const section = params.get('section');
 
-  const [services, setServices] = useState<ProcessDefinition[]>([]);
-  const [overview, setOverview] = useState<ServiceOverview | null>(null);
-  const [sectionTasks, setSectionTasks] = useState<HistoricTask[]>([]);
-  const [busyIncident, setBusyIncident] = useState<string | null>(null);
-  const [loadingServices, setLoadingServices] = useState(true);
-  const [loadingOverview, setLoadingOverview] = useState(false);
-  const [loadingSection, setLoadingSection] = useState(false);
+  const [trees, setTrees] = useState<ServiceTree[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sectionTasks, setSectionTasks] = useState<HistoricTask[]>([]);
+  const [loadingSection, setLoadingSection] = useState(false);
+  const [busyIncident, setBusyIncident] = useState<string | null>(null);
 
-  // Load the service dropdown options once.
-  useEffect(() => {
-    listProcessDefinitions()
-      .then((defs) => setServices(defs))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoadingServices(false));
-  }, []);
-
-  const selectedDef = useMemo(
-    () => services.find((d) => d.key === serviceKey) ?? null,
-    [services, serviceKey],
-  );
-
-  // Load per-service overview (task names + counts + incidents) when the
-  // selected service changes.
-  const loadOverview = useCallback(async () => {
-    if (!selectedDef) {
-      setOverview(null);
-      return;
-    }
-    setLoadingOverview(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     setError(null);
     try {
-      const [xml, activeTasks, incidents, instanceCount] = await Promise.all([
-        getProcessDefinitionXml(selectedDef.key),
-        listTasks(),
-        listIncidents(selectedDef.id),
-        countActiveProcessInstances(selectedDef.id),
-      ]);
-      setOverview({
-        def: selectedDef,
-        userTasks: parseUserTasks(xml.bpmn20Xml),
-        activeTasks: activeTasks.filter((t) => t.processDefinitionId === selectedDef.id),
-        incidents,
-        activeInstanceCount: instanceCount.count,
-      });
+      const defs = await listProcessDefinitions();
+      const allActiveTasks = await listTasks();
+      const enriched = await Promise.all(
+        defs.map(async (def) => {
+          const [xml, incidents, instanceCount] = await Promise.all([
+            getProcessDefinitionXml(def.key),
+            listIncidents(def.id),
+            countActiveProcessInstances(def.id),
+          ]);
+          const userTasks = parseUserTasks(xml.bpmn20Xml);
+          const taskCounts = new Map<string, number>();
+          allActiveTasks
+            .filter((t) => t.processDefinitionId === def.id)
+            .forEach((t) =>
+              taskCounts.set(
+                t.taskDefinitionKey,
+                (taskCounts.get(t.taskDefinitionKey) ?? 0) + 1,
+              ),
+            );
+          return {
+            def,
+            userTasks,
+            taskCounts,
+            incidents,
+            activeInstanceCount: instanceCount.count,
+          };
+        }),
+      );
+      setTrees(enriched);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoadingOverview(false);
+      setLoading(false);
     }
-  }, [selectedDef]);
+  }, []);
 
   useEffect(() => {
-    loadOverview();
-  }, [loadOverview]);
+    load();
+  }, [load]);
 
-  // Load the drill-down list when a user-task section is selected.
+  const selectedTree = useMemo(
+    () => trees.find((t) => t.def.key === serviceKey) ?? null,
+    [trees, serviceKey],
+  );
+
   useEffect(() => {
-    if (!overview || !section || section === 'incidents') {
+    if (!selectedTree || !section || section === 'incidents') {
       setSectionTasks([]);
       return;
     }
     setLoadingSection(true);
-    listHistoricTasksByDefinition(overview.def.id, section)
+    listHistoricTasksByDefinition(selectedTree.def.id, section)
       .then(setSectionTasks)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoadingSection(false));
-  }, [overview, section]);
+  }, [selectedTree, section]);
 
   function pickService(key: string) {
-    if (key) setParams({ service: key });
-    else setParams({});
+    setParams({ service: key });
   }
 
-  function pickSection(value: string | null) {
-    const next = new URLSearchParams(params);
-    if (value) next.set('section', value);
-    else next.delete('section');
-    setParams(next);
+  function pickSection(key: string, sec: string) {
+    setParams({ service: key, section: sec });
   }
 
   async function retryIncident(inc: Incident) {
@@ -129,7 +130,7 @@ export default function TasksPage() {
     setError(null);
     try {
       await setJobRetries(inc.configuration, 1);
-      await loadOverview();
+      await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -137,200 +138,253 @@ export default function TasksPage() {
     }
   }
 
-  const activeBySectionKey = useMemo(() => {
-    const m = new Map<string, number>();
-    overview?.activeTasks.forEach((t) =>
-      m.set(t.taskDefinitionKey, (m.get(t.taskDefinitionKey) ?? 0) + 1),
-    );
-    return m;
-  }, [overview]);
-
-  const selectedUserTask = section
-    ? overview?.userTasks.find((ut) => ut.id === section) ?? null
+  const selectedTask = selectedTree && section
+    ? selectedTree.userTasks.find((ut) => ut.id === section) ?? null
     : null;
 
   return (
-    <div className="card card-wide">
-      <div className="card-head">
-        <h1 className="card-title">Tasks</h1>
-        <button
-          className="btn"
-          onClick={loadOverview}
-          disabled={!selectedDef || loadingOverview}
-        >
-          Refresh
-        </button>
-      </div>
+    <div className="tasks-layout">
+      <aside className="tasks-sidebar">
+        <div className="tasks-sidebar-head">
+          <h2 className="tasks-sidebar-title">Services</h2>
+          <button className="btn btn-link" onClick={load} disabled={loading}>
+            {loading ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
 
-      <label className="field">
-        <span className="field-label">Service</span>
-        <select
-          className="field-input"
-          value={serviceKey}
-          onChange={(e) => pickService(e.target.value)}
-          disabled={loadingServices}
-        >
-          <option value="">— select a service —</option>
-          {services.map((s) => (
-            <option key={s.id} value={s.key}>
-              {s.name ?? s.key}
-            </option>
-          ))}
-        </select>
-      </label>
+        {error && <p className="form-error">{error}</p>}
 
-      {error && <p className="form-error">{error}</p>}
+        {!loading && trees.length === 0 && !error && (
+          <p className="empty">No services deployed.</p>
+        )}
 
-      {!serviceKey && !loadingServices && (
-        <p className="muted">Select a service above to view its tasks.</p>
-      )}
-
-      {selectedDef && (
-        <section className="service-block">
-          <h2 className="service-name">
-            <span>{selectedDef.name ?? selectedDef.key}</span>
-            <span className="count-badge">{overview?.activeInstanceCount ?? '…'}</span>
-          </h2>
-
-          {loadingOverview && <p className="muted">Loading…</p>}
-
-          {/* ------ section list ------ */}
-          {!loadingOverview && overview && !section && (
-            <ul className="row-list">
-              {overview.userTasks.map((ut) => (
-                <li key={ut.id}>
-                  <button className="row" onClick={() => pickSection(ut.id)}>
-                    <span className="row-main">
-                      <span className="row-title">{ut.name}</span>
-                    </span>
-                    <span className="row-right">
-                      <span className="count-badge">
-                        {activeBySectionKey.get(ut.id) ?? 0}
-                      </span>
-                      <span className="row-action">Open →</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-              <li>
-                <button className="row" onClick={() => pickSection('incidents')}>
-                  <span className="row-main">
-                    <span className="row-title">Incidents</span>
-                  </span>
-                  <span className="row-right">
-                    <span className="count-badge">{overview.incidents.length}</span>
-                    <span className="row-action">Open →</span>
-                  </span>
+        <nav className="tree">
+          {trees.map((tree) => {
+            const isSelectedService = tree.def.key === serviceKey;
+            return (
+              <div key={tree.def.id} className="tree-group">
+                <button
+                  className={`tree-node tree-node-service${
+                    isSelectedService && !section ? ' active' : ''
+                  }`}
+                  onClick={() => pickService(tree.def.key)}
+                >
+                  <span className="tree-icon">{ICONS.service}</span>
+                  <span className="tree-label">{tree.def.name ?? tree.def.key}</span>
+                  <span className="count-badge">{tree.activeInstanceCount}</span>
                 </button>
-              </li>
-            </ul>
-          )}
 
-          {/* ------ drill-down: task instances ------ */}
-          {!loadingOverview && overview && selectedUserTask && (
-            <>
-              <button className="btn btn-link section-back" onClick={() => pickSection(null)}>
-                ← Back · {selectedUserTask.name}
-              </button>
-
-              {loadingSection && <p className="muted">Loading…</p>}
-
-              {!loadingSection && sectionTasks.length === 0 && (
-                <p className="empty">No tasks at this step yet.</p>
-              )}
-
-              {!loadingSection && sectionTasks.length > 0 && (
-                <ul className="row-list">
-                  {sectionTasks.map((t) => {
-                    const isActive = t.endTime === null;
-                    const to = isActive
-                      ? `/tasks/${t.id}`
-                      : `/processes/${t.processInstanceId}`;
-                    return (
-                      <li key={t.id}>
-                        <Link to={to} className="row">
-                          <span className="row-main">
-                            <span className="row-title">
-                              Process {shortId(t.processInstanceId)}
-                            </span>
-                            <span className="row-sub">
-                              {isActive
-                                ? `Active since ${new Date(t.startTime).toLocaleString()}`
-                                : `Ended ${new Date(t.endTime!).toLocaleString()}`}
-                            </span>
+                {isSelectedService && (
+                  <ul className="tree-children">
+                    {tree.userTasks.map((ut) => (
+                      <li key={ut.id}>
+                        <button
+                          className={`tree-node tree-node-task${
+                            section === ut.id ? ' active' : ''
+                          }`}
+                          onClick={() => pickSection(tree.def.key, ut.id)}
+                        >
+                          <span className="tree-icon">{ICONS.task}</span>
+                          <span className="tree-label">{ut.name}</span>
+                          <span className="count-badge">
+                            {tree.taskCounts.get(ut.id) ?? 0}
                           </span>
-                          <span className="row-right">
-                            <span
-                              className={`status-pill ${
-                                isActive ? 'status-active' : 'status-done'
-                              }`}
-                            >
-                              {isActive ? 'Active' : 'Completed'}
-                            </span>
-                            <span className="row-action">{isActive ? 'Open →' : 'View →'}</span>
-                          </span>
-                        </Link>
+                        </button>
                       </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </>
-          )}
+                    ))}
+                    <li>
+                      <button
+                        className={`tree-node tree-node-incidents${
+                          section === 'incidents' ? ' active' : ''
+                        }`}
+                        onClick={() => pickSection(tree.def.key, 'incidents')}
+                      >
+                        <span className="tree-icon">{ICONS.incidents}</span>
+                        <span className="tree-label">Incidents</span>
+                        <span
+                          className={`count-badge${
+                            tree.incidents.length > 0 ? ' count-warn' : ''
+                          }`}
+                        >
+                          {tree.incidents.length}
+                        </span>
+                      </button>
+                    </li>
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+      </aside>
 
-          {/* ------ drill-down: incidents ------ */}
-          {!loadingOverview && overview && section === 'incidents' && (
-            <>
-              <button className="btn btn-link section-back" onClick={() => pickSection(null)}>
-                ← Back · Incidents
-              </button>
+      <main className="tasks-content">
+        {/* ------ empty state ------ */}
+        {!selectedTree && (
+          <div className="card">
+            <h1 className="card-title">Tasks</h1>
+            <p className="muted">
+              Pick a service from the sidebar to see its task names, open
+              incidents, and historic instances.
+            </p>
+          </div>
+        )}
 
-              {overview.incidents.length === 0 ? (
-                <p className="empty">No open incidents for this service.</p>
-              ) : (
-                <ul className="row-list">
-                  {overview.incidents.map((inc) => {
-                    const canRetry = inc.incidentType === 'failedJob' && inc.configuration;
-                    return (
-                      <li key={inc.id} className="incident">
-                        <div className="incident-head">
+        {/* ------ service summary ------ */}
+        {selectedTree && !section && (
+          <div className="card">
+            <h1 className="card-title">
+              <span className="content-icon">{ICONS.service}</span>{' '}
+              {selectedTree.def.name ?? selectedTree.def.key}
+            </h1>
+            <p className="muted">
+              {selectedTree.activeInstanceCount} active{' '}
+              {selectedTree.activeInstanceCount === 1 ? 'process' : 'processes'} ·{' '}
+              {selectedTree.incidents.length} open{' '}
+              {selectedTree.incidents.length === 1 ? 'incident' : 'incidents'}.
+            </p>
+
+            <dl className="summary">
+              {selectedTree.userTasks.map((ut) => (
+                <div className="summary-row" key={ut.id}>
+                  <dt>
+                    <span className="content-icon">{ICONS.task}</span> {ut.name}
+                  </dt>
+                  <dd>{selectedTree.taskCounts.get(ut.id) ?? 0} active</dd>
+                </div>
+              ))}
+              <div className="summary-row">
+                <dt>
+                  <span className="content-icon">{ICONS.incidents}</span> Incidents
+                </dt>
+                <dd
+                  className={
+                    selectedTree.incidents.length > 0 ? 'decision-reject' : undefined
+                  }
+                >
+                  {selectedTree.incidents.length} open
+                </dd>
+              </div>
+            </dl>
+
+            <p className="muted">Click a row in the sidebar to drill down.</p>
+          </div>
+        )}
+
+        {/* ------ task drill-down ------ */}
+        {selectedTree && selectedTask && (
+          <div className="card">
+            <h1 className="card-title">
+              <span className="content-icon">{ICONS.task}</span> {selectedTask.name}
+            </h1>
+            <p className="muted">
+              {selectedTree.def.name ?? selectedTree.def.key} · active and historic
+              instances of this step, newest first.
+            </p>
+
+            {loadingSection && <p className="muted">Loading…</p>}
+
+            {!loadingSection && sectionTasks.length === 0 && (
+              <p className="empty">No tasks at this step yet.</p>
+            )}
+
+            {!loadingSection && sectionTasks.length > 0 && (
+              <ul className="row-list">
+                {sectionTasks.map((t) => {
+                  const isActive = t.endTime === null;
+                  const to = isActive
+                    ? `/tasks/${t.id}`
+                    : `/processes/${t.processInstanceId}`;
+                  return (
+                    <li key={t.id}>
+                      <Link to={to} className="row">
+                        <span className="row-main">
                           <span className="row-title">
-                            {inc.activityId ?? '(process scope)'}
+                            Process {shortId(t.processInstanceId)}
                           </span>
                           <span className="row-sub">
-                            {inc.incidentType} <span className="muted">·</span>{' '}
-                            Process {shortId(inc.processInstanceId)}{' '}
-                            <span className="muted">·</span>{' '}
-                            {new Date(inc.incidentTimestamp).toLocaleString()}
+                            {isActive
+                              ? `Active since ${new Date(t.startTime).toLocaleString()}`
+                              : `Ended ${new Date(t.endTime!).toLocaleString()}`}
                           </span>
-                        </div>
-                        {inc.incidentMessage && (
-                          <p className="incident-message">{inc.incidentMessage}</p>
+                        </span>
+                        <span className="row-right">
+                          <span
+                            className={`status-pill ${
+                              isActive ? 'status-active' : 'status-done'
+                            }`}
+                          >
+                            {isActive ? 'Active' : 'Completed'}
+                          </span>
+                          <span className="row-action">
+                            {isActive ? 'Open →' : 'View →'}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ------ per-service incidents ------ */}
+        {selectedTree && section === 'incidents' && (
+          <div className="card">
+            <h1 className="card-title">
+              <span className="content-icon">{ICONS.incidents}</span> Incidents
+            </h1>
+            <p className="muted">
+              {selectedTree.def.name ?? selectedTree.def.key} · open incidents only.
+            </p>
+
+            {selectedTree.incidents.length === 0 ? (
+              <p className="empty">No open incidents for this service.</p>
+            ) : (
+              <ul className="row-list">
+                {selectedTree.incidents.map((inc) => {
+                  const canRetry =
+                    inc.incidentType === 'failedJob' && inc.configuration;
+                  return (
+                    <li key={inc.id} className="incident">
+                      <div className="incident-head">
+                        <span className="row-title">
+                          {inc.activityId ?? '(process scope)'}
+                        </span>
+                        <span className="row-sub">
+                          {inc.incidentType} <span className="muted">·</span>{' '}
+                          Process {shortId(inc.processInstanceId)}{' '}
+                          <span className="muted">·</span>{' '}
+                          {new Date(inc.incidentTimestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      {inc.incidentMessage && (
+                        <p className="incident-message">{inc.incidentMessage}</p>
+                      )}
+                      <div className="incident-actions">
+                        {canRetry ? (
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => retryIncident(inc)}
+                            disabled={busyIncident === inc.id}
+                          >
+                            {busyIncident === inc.id ? 'Retrying…' : 'Retry'}
+                          </button>
+                        ) : (
+                          <span className="muted">
+                            No retry available for this incident type.
+                          </span>
                         )}
-                        <div className="incident-actions">
-                          {canRetry ? (
-                            <button
-                              className="btn btn-primary"
-                              onClick={() => retryIncident(inc)}
-                              disabled={busyIncident === inc.id}
-                            >
-                              {busyIncident === inc.id ? 'Retrying…' : 'Retry'}
-                            </button>
-                          ) : (
-                            <span className="muted">
-                              No retry available for this incident type.
-                            </span>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </>
-          )}
-        </section>
-      )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
