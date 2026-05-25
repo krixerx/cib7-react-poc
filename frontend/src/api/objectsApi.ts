@@ -20,7 +20,7 @@ interface RawObject {
 /**
  * Fetches the objects from api.restful-api.dev, keeping only those whose
  * `data` contains a `price`. Selecting one of these means the service task's
- * GET /objects/{id} will have a `data.price` for the DataSonnet mapping.
+ * GET /objects/{id} will have a `data.price` for the Spin response mapping.
  */
 export async function listPricedObjects(): Promise<PricedObject[]> {
   const res = await fetch(OBJECTS_URL);

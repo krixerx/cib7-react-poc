@@ -30,8 +30,8 @@ Person Registration (BPMN)
     ▼  Submit personal details   user task     (react:personal-details)
     │    first / last name, age, and a product picked from api.restful-api.dev
     │
-    ▼  Get price                 service task  (rest-datasonnet connector)
-    │    GET api.restful-api.dev/objects/{id} — DataSonnet maps data.price → price
+    ▼  Get price                 service task  (http-connector)
+    │    GET api.restful-api.dev/objects/{id} — Spin reads data.price → price
     │
     ▼  Review application        user task     (react:review-application)
     │    shows the submitted data + the fetched price (read-only); Approve / Reject
@@ -43,10 +43,9 @@ Person Registration (BPMN)
    age, and a product chosen from `api.restful-api.dev`. The product's id is
    written to the `objectId` process variable.
 2. **Get price** — a service task using the
-   [rest-datasonnet connector](#service-task--the-rest-datasonnet-connector)
-   calls `GET https://api.restful-api.dev/objects/{objectId}` and maps
-   `data.price` from the response into the `price` variable with an inline
-   DataSonnet script.
+   [`http-connector`](#service-task--the-http-connector)
+   calls `GET https://api.restful-api.dev/objects/{objectId}` and reads
+   `data.price` from the JSON response into the `price` variable via Spin.
 3. **Review application** — a React form shows the submitted data and the
    fetched `price` read-only, and lets a reviewer **Approve** or **Reject**
    (writing the `decision` variable).
@@ -63,7 +62,7 @@ Person Registration (BPMN)
   /engine-rest  ──▶  CIB seven 2.1 engine + REST API
   (nginx / Vite proxy)  (Spring Boot, embedded engine, in-memory H2)
                                 │
-                                ▼  rest-datasonnet connector
+                                ▼  http-connector
                           api.restful-api.dev   (external REST API)
 ```
 
@@ -77,7 +76,7 @@ Person Registration (BPMN)
   is on, so `candidateGroups` on user tasks is enforced.
 - The BPMN file lives in the backend and is **auto-deployed on startup**.
 - The **Get price** service task calls the external API server-side, from the
-  engine — via the rest-datasonnet connector.
+  engine — via the official `http-connector`.
 - The database is **in-memory H2** — all data is lost when the backend stops.
 
 ### Default credentials
@@ -95,7 +94,6 @@ The pre-seeded Keycloak realm (`keycloak/realm-export.json`) ships with:
 ```
 cib7-react-poc/
 ├── docker-compose.yml
-├── lib/                            project-local Maven repo — the connector JAR
 ├── cib7/                           CIB seven 2.1 Spring Boot engine module
 │   ├── pom.xml
 │   ├── Dockerfile
@@ -187,34 +185,33 @@ export const formRegistry = {
 **To add a form:** add a user task with a new `camunda:formKey` in the BPMN,
 create the component under `src/forms/`, and add one registry entry.
 
-## Service task & the rest-datasonnet connector
+## Service task & the http-connector
 
-The **Get price** service task uses the
-[rest-datasonnet connector](https://github.com/krixerx/cib7-rest-datasonnet-connector)
-— a CIB seven Connect SPI connector that calls a REST API and maps the response
-with [DataSonnet](https://datasonnet.com). It is wired in three places:
+The **Get price** service task uses the official
+[`cibseven-connect-http-client`](https://mvnrepository.com/artifact/org.cibseven.connect/cibseven-connect-http-client)
+connector — a CIB seven Connect SPI connector that wraps Apache HttpClient 5.
+It is wired in two places:
 
-- **Connector JAR** — the connector is not yet published to a public Maven
-  repository, so its built JAR is vendored in `lib/`, a project-local Maven
-  repository in standard layout. `cib7/pom.xml` declares `lib/` as a
-  `<repository>` and the connector as a normal `<dependency>`. When the
-  connector is published, delete `lib/` and the `<repository>` block — the
-  `<dependency>` is unchanged.
 - **Connect plugin** — `ConnectorConfiguration` registers
   `ConnectProcessEnginePlugin` so the engine parses `<camunda:connector>`.
-- **BPMN** — the service task carries the connector config inline, including
-  the DataSonnet response mapping:
+  The `cibseven-connect-http-client` dependency declared in `cib7/pom.xml`
+  registers the connector itself through the Connect SPI.
+- **BPMN** — the service task carries the connector config inline. The
+  response body comes back as the `response` variable; Spin (bundled with the
+  CIB seven engine) parses it inline to pull `data.price` out:
 
   ```xml
   <camunda:connector>
-    <camunda:connectorId>rest-datasonnet</camunda:connectorId>
+    <camunda:connectorId>http-connector</camunda:connectorId>
     <camunda:inputOutput>
       <camunda:inputParameter name="url">https://api.restful-api.dev/objects/${objectId}</camunda:inputParameter>
       <camunda:inputParameter name="method">GET</camunda:inputParameter>
-      <camunda:inputParameter name="responseMapping"><![CDATA[/** DataSonnet version=2.0 */
-  payload.data.price
-  ]]></camunda:inputParameter>
-      <camunda:outputParameter name="price">${result}</camunda:outputParameter>
+      <camunda:inputParameter name="headers">
+        <camunda:map>
+          <camunda:entry key="Accept">application/json</camunda:entry>
+        </camunda:map>
+      </camunda:inputParameter>
+      <camunda:outputParameter name="price">${S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
     </camunda:inputOutput>
   </camunda:connector>
   ```
@@ -222,11 +219,6 @@ with [DataSonnet](https://datasonnet.com). It is wired in three places:
 The service task runs `asyncBefore`, so after the first form is confirmed the
 job executor runs the connector — the **Review application** task appears a
 moment later (use the Tasks page **Refresh** button).
-
-> **Note on DataSonnet + Spring Boot 3.** DataSonnet 2.5.2's Java format plugin
-> loads `javax.xml.bind` classes. Spring Boot 3's dependency management upgrades
-> the connector's transitive JAXB to the Jakarta-4 namespace, so the backend
-> pins the standalone javax JAXB 2.3.1 explicitly (see `cib7/pom.xml`).
 
 ## REST endpoints used
 
@@ -269,8 +261,5 @@ reinstated.
   user-created users/groups are also lost on restart.
 - The **Get price** service task calls the public `api.restful-api.dev` — an
   internet connection is needed for that step.
-- The connector JAR in `lib/` is a vendored build; rebuild it from
-  [its repository](https://github.com/krixerx/cib7-rest-datasonnet-connector)
-  when the connector changes.
 - The CIB seven web apps (Cockpit / Tasklist / Admin) are **not** included. To
   add them, add the `cibseven-bpm-spring-boot-starter-webapp` dependency.

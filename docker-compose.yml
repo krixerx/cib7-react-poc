@@ -41,11 +41,7 @@ services:
       start_period: 20s
 
   cib7:
-    # Built from the repo root so the build sees both the cib7 engine module
-    # and the project-local lib/ Maven repository.
-    build:
-      context: .
-      dockerfile: cib7/Dockerfile
+    build: ./cib7
     container_name: cib7-poc-cib7
     ports:
       - "8080:8080" # CIB seven REST API at http://localhost:8080/engine-rest

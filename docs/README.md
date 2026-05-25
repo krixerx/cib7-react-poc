@@ -6,10 +6,9 @@ entry point; these docs add the deeper, structured detail an AI needs to make
 correct changes without re-deriving everything from source.
 
 **Repo shape — monorepo.** CIB seven engine module (Spring Boot, `cib7/`),
-frontend (React + Vite, `frontend/`), the vendored connector JAR (`lib/`), the
-Keycloak realm export (`keycloak/`), Docker orchestration
-(`docker-compose.yml`), and these docs (`docs/`) all live in a single git
-repository and are versioned, built, and shipped together.
+frontend (React + Vite, `frontend/`), the Keycloak realm export (`keycloak/`),
+Docker orchestration (`docker-compose.yml`), and these docs (`docs/`) all live
+in a single git repository and are versioned, built, and shipped together.
 
 Each topic doc below starts with a **When to read this** block and a stable
 table of contents so it can be opened, skimmed, and closed in one pass.

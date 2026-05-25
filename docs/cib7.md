@@ -16,7 +16,7 @@ cib7/BFF module if and when one is added.
 5. [BPMN files](#bpmn-files)
 6. [Connect plugin and connector](#connect-plugin-and-connector)
 7. [Authentication and authorization](#authentication-and-authorization)
-8. [Maven, JDK, and the vendored connector](#maven-jdk-and-the-vendored-connector)
+8. [Maven and JDK](#maven-and-jdk)
 9. [Run, build, package](#run-build-package)
 10. [Conventions](#conventions)
 
@@ -30,7 +30,7 @@ cib7/BFF module if and when one is added.
 | Framework | Spring Boot 3.5 |
 | Process engine | CIB seven 2.1 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-rest` |
 | Database | H2, in-memory (no `spring.datasource` configured) |
-| Connectors | `cibseven-engine-plugin-connect` + `rest-datasonnet-connector` (vendored in `lib/`) |
+| Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
 | Build | Maven, `spring-boot-maven-plugin` |
 
 ## File layout
@@ -136,7 +136,7 @@ The variable name + type form part of the form contract.
 ```
 StartEvent_1
   → Task_SubmitDetails   userTask    formKey="react:personal-details"
-  → Task_GetPrice        serviceTask asyncBefore=true, connector="rest-datasonnet"
+  → Task_GetPrice        serviceTask asyncBefore=true, connector="http-connector"
   → Task_Review          userTask    formKey="react:review-application"
   → Gateway_Decision     exclusiveGateway, branches on ${decision == "approve"}
   → EndEvent_Approved | EndEvent_Rejected
@@ -148,27 +148,32 @@ the BPMN file.
 ## Connect plugin and connector
 
 The Connect plugin (registered in `ConnectorConfiguration.java`) lets the
-engine parse `<camunda:connector>` extension elements. The `rest-datasonnet`
-connector is a Connect SPI implementation that does:
+engine parse `<camunda:connector>` extension elements. The
+[`cibseven-connect-http-client`](https://mvnrepository.com/artifact/org.cibseven.connect/cibseven-connect-http-client)
+dependency in `cib7/pom.xml` brings the official `http-connector` — a Connect
+SPI implementation wrapping Apache HttpClient 5 — onto the classpath, where
+the Connect plugin auto-discovers it.
 
-1. HTTP request to a configured URL.
-2. Optional DataSonnet transformation of request body / response body.
-3. Output the mapped result into a process variable.
+Input parameters: `method`, `url`, `headers` (a `<camunda:map>`), `payload`,
+`contentType`. Output parameters: `statusCode`, `headers`, `response` (the raw
+body as a String).
 
-It is wired inline inside `Task_GetPrice`'s `<bpmn:extensionElements>`:
+It is wired inline inside `Task_GetPrice`'s `<bpmn:extensionElements>`. The
+response body is parsed with Spin (bundled with the CIB seven engine) to read
+`data.price` out:
 
 ```xml
 <camunda:connector>
-  <camunda:connectorId>rest-datasonnet</camunda:connectorId>
+  <camunda:connectorId>http-connector</camunda:connectorId>
   <camunda:inputOutput>
     <camunda:inputParameter name="url">https://api.restful-api.dev/objects/${objectId}</camunda:inputParameter>
     <camunda:inputParameter name="method">GET</camunda:inputParameter>
-    <camunda:inputParameter name="source">{}</camunda:inputParameter>
-    <camunda:inputParameter name="responseMapping"><![CDATA[/** DataSonnet version=2.0 */
-payload.data.price
-]]></camunda:inputParameter>
-    <camunda:outputParameter name="price">${result}</camunda:outputParameter>
-    <camunda:outputParameter name="restOutcome">${restOutcome}</camunda:outputParameter>
+    <camunda:inputParameter name="headers">
+      <camunda:map>
+        <camunda:entry key="Accept">application/json</camunda:entry>
+      </camunda:map>
+    </camunda:inputParameter>
+    <camunda:outputParameter name="price">${S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
   </camunda:inputOutput>
 </camunda:connector>
 ```
@@ -244,7 +249,7 @@ of: the resource-server filter chain, the authentication filter, the identity
 provider plugin, or `authorization.enabled`, breaks the model — usually
 silently.
 
-## Maven, JDK, and the vendored connector
+## Maven and JDK
 
 ### JDK 17
 
@@ -253,42 +258,12 @@ developer's PATH may be JDK 11 — set `JAVA_HOME` to a JDK 17 before running
 Maven. The Docker build uses an `eclipse-temurin:17` base image so it does not
 depend on the host JDK.
 
-### Vendored connector — `lib/`
+### Dependencies
 
-`rest-datasonnet-connector` is not yet published to a public Maven repository.
-It is vendored in `lib/` (repo root) in standard Maven repository layout. The
-module POM declares `lib/` as an extra `<repository>` and the connector as a
-normal `<dependency>`:
-
-```xml
-<repository>
-  <id>project-local-lib</id>
-  <url>file://${project.basedir}/../lib</url>
-  <snapshots><enabled>true</enabled><checksumPolicy>ignore</checksumPolicy></snapshots>
-</repository>
-```
-
-Docker build implication: the build context in `docker-compose.yml` is the
-**repo root** (`context: .`), not `cib7/`, so the Docker daemon can see
-`lib/`. Don't change that without also publishing the connector.
-
-When the connector is published to Maven Central / a remote repo, delete
-`lib/` and the `<repository>` block. The `<dependency>` stays unchanged.
-
-### JAXB pin (DataSonnet 2.5.2 quirk)
-
-DataSonnet's Java format plugin loads `javax.xml.bind.*` in its static
-initializer. Spring Boot 3's dependency management upgrades the connector's
-transitive `jakarta.xml.bind-api` to Jakarta 4, which removes `javax.xml.bind`.
-The POM pins the legacy `javax` JAXB 2.3.1 API + impl explicitly so
-`com.datasonnet.spi.DataFormatService` initializes. Do not remove that pin
-unless the connector is upgraded to a DataSonnet version that uses
-`jakarta.xml.bind`.
-
-### HttpClient 5
-
-The connector declares `httpcomponents.client5:httpclient5` as `provided`, so
-the module POM supplies it at runtime. Keep it.
+All dependencies are resolved from Maven Central. `cibseven-connect-http-client`
+brings `httpclient5` transitively, so there is no explicit pin needed. There
+is no project-local Maven repository — everything in `cib7/pom.xml` is a plain
+`<dependency>`.
 
 ## Run, build, package
 
@@ -302,8 +277,8 @@ mvn spring-boot:run
 mvn package
 java -jar target/cib7-react-poc-cib7-0.1.0.jar
 
-# Docker — but build from the repo root so lib/ is in the context
-docker build -f cib7/Dockerfile -t cib7-poc-cib7 .
+# Docker
+docker build -t cib7-poc-cib7 cib7/
 # …or just:  docker compose up --build
 ```
 

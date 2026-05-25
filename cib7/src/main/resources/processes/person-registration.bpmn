@@ -13,7 +13,7 @@
 
       start
         -> [Submit personal details]   user task   (react:personal-details)
-        -> (Get price)                 service task (rest-datasonnet connector)
+        -> (Get price)                 service task (http-connector)
         -> [Review application]        user task   (react:review-application)
         -> <Approved?>                 exclusive gateway
         -> end
@@ -24,9 +24,9 @@
       price                      - written by the Get price service task
       decision                   - written by the review user task ("approve"/"reject")
 
-    The "Get price" service task uses the rest-datasonnet Connect SPI connector
-    to GET https://api.restful-api.dev/objects/{objectId} and maps data.price
-    from the response into the 'price' variable with an inline DataSonnet script.
+    The "Get price" service task uses the official cibseven-connect-http-client
+    connector to GET https://api.restful-api.dev/objects/{objectId}, then extracts
+    data.price from the JSON response body via Spin (S()) into the 'price' variable.
   -->
   <bpmn:process id="personRegistration" name="Person Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
 
@@ -48,17 +48,18 @@
     <bpmn:serviceTask id="Task_GetPrice" name="Get price" camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
-          <camunda:connectorId>rest-datasonnet</camunda:connectorId>
+          <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
             <camunda:inputParameter name="url">https://api.restful-api.dev/objects/${objectId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
-            <camunda:inputParameter name="source">{}</camunda:inputParameter>
-            <!-- Inline DataSonnet: map data.price from the response into 'result'. -->
-            <camunda:inputParameter name="responseMapping"><![CDATA[/** DataSonnet version=2.0 */
-payload.data.price
-]]></camunda:inputParameter>
-            <camunda:outputParameter name="price">${result}</camunda:outputParameter>
-            <camunda:outputParameter name="restOutcome">${restOutcome}</camunda:outputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <!-- 'response' is the raw JSON body returned by the connector;
+                 Spin parses it and we read data.price into the 'price' variable. -->
+            <camunda:outputParameter name="price">${S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>

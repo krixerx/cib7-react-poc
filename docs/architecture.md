@@ -19,9 +19,8 @@ or deployment unit; when debugging "who calls whom" questions.
 ## System overview
 
 **Repo shape — monorepo.** CIB seven engine module (`cib7/`), frontend
-(`frontend/`), the vendored connector JAR (`lib/`), the Keycloak realm export
-(`keycloak/`), Docker orchestration (`docker-compose.yml`), and the docs
-(`docs/`) all live in one git repository. They are versioned, built, and
+(`frontend/`), the Keycloak realm export (`keycloak/`), Docker orchestration
+(`docker-compose.yml`), and the docs (`docs/`) all live in one git repository. They are versioned, built, and
 released together — one branch / one PR can change both sides of the React ↔
 engine boundary atomically, which is the whole point.
 
@@ -33,7 +32,7 @@ engine boundary atomically, which is the whole point.
    /engine-rest ───▶  CIB seven 2.1 engine + REST API
    (nginx in prod,    (Spring Boot, embedded engine, in-memory H2)
     Vite proxy in dev) │
-                       │  rest-datasonnet connector
+                       │  http-connector
                        ▼
                 api.restful-api.dev   (external REST API)
                        ▲
@@ -56,7 +55,7 @@ Four runtime pieces:
   Validates JWTs as an OAuth2 resource server and bridges the authenticated
   user into the engine's `IdentityService` per request.
 - **External API** — `api.restful-api.dev`, called *server-side* from the
-  engine's "Get price" service task via the rest-datasonnet connector.
+  engine's "Get price" service task via the official `http-connector`.
 
 ## Components
 
@@ -69,7 +68,7 @@ Four runtime pieces:
 | Engine app | Spring Boot 3.5, CIB seven 2.1 starter | `cib7/` | Embedded engine + REST API |
 | Process engine | CIB seven 2.1 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | wired in `ConnectorConfiguration.java` | Enables `<camunda:connector>` service tasks |
-| Connector | `rest-datasonnet-connector` (vendored in `lib/`) | declared in `cib7/pom.xml` | HTTP GET/POST + DataSonnet response mapping |
+| Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin |
 | Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
 | Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with one user (`homer` / `homer`) |
@@ -101,7 +100,7 @@ A single "Person Registration" process instance:
      ↓
 6. Engine runs the "Get price" service task (asyncBefore — job executor)
      Engine → GET https://api.restful-api.dev/objects/{objectId}
-     Connector applies DataSonnet `payload.data.price`
+     Connector returns the body; Spin reads `data.price` inline
      Engine writes the `price` process variable
      ↓
 7. Engine creates the "Review application" user task
@@ -138,12 +137,10 @@ headers, so it works without our involvement.)
   (realm + clients + role + group + user). Publishes port `8180` mapped to
   container port `8080`. `KC_HOSTNAME_URL=http://localhost:8180` pins a
   single canonical issuer URL.
-- **cib7** — built from `cib7/Dockerfile`. Build context is the **repo root**
-  (not `cib7/`) so the build sees `lib/` as well — needed because the
-  connector JAR is resolved from `file://${project.basedir}/../lib`. Publishes
-  port `8080`. Reaches Keycloak over the docker network at `http://keycloak:8080`
-  (internal), while the browser uses `http://localhost:8180` (external) — see
-  the "issuer-URL split" note below.
+- **cib7** — built from `cib7/Dockerfile`. Build context is `./cib7`.
+  Publishes port `8080`. Reaches Keycloak over the docker network at
+  `http://keycloak:8080` (internal), while the browser uses
+  `http://localhost:8180` (external) — see the "issuer-URL split" note below.
 - **frontend** — built from `frontend/Dockerfile` (multi-stage: Vite build →
   nginx). Publishes port `3000` mapped to container port `80`. `depends_on:
   cib7` (start ordering only — nginx does not wait for the engine to be
