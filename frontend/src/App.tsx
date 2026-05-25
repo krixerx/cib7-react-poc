@@ -2,6 +2,8 @@ import { Routes, Route, Link, NavLink } from 'react-router-dom';
 import ServicesPage from './pages/ServicesPage';
 import TasksPage from './pages/TasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
+import CompletedProcessPage from './pages/CompletedProcessPage';
+import IncidentsPage from './pages/IncidentsPage';
 import { useAuth } from './auth/AuthProvider';
 
 export default function App() {
@@ -18,6 +20,7 @@ export default function App() {
             Services
           </NavLink>
           <NavLink to="/tasks">Tasks</NavLink>
+          <NavLink to="/incidents">Incidents</NavLink>
           <span className="app-user">
             <span className="muted">{username}</span>
             <button className="btn btn-link" onClick={logout}>
@@ -32,6 +35,8 @@ export default function App() {
           <Route path="/" element={<ServicesPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
+          <Route path="/processes/:processInstanceId" element={<CompletedProcessPage />} />
+          <Route path="/incidents" element={<IncidentsPage />} />
         </Routes>
       </main>
     </div>

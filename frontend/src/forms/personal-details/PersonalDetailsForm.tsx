@@ -8,7 +8,12 @@ import { listPricedObjects, type PricedObject } from '../../api/objectsApi';
  * the `objectId` variable, which the "Get price" service task uses to call
  * https://api.restful-api.dev/objects/{objectId}.
  */
-export default function PersonalDetailsForm({ data, onComplete, submitting }: FormProps) {
+export default function PersonalDetailsForm({
+  data,
+  onComplete,
+  submitting,
+  readOnly,
+}: FormProps) {
   const [firstName, setFirstName] = useState((data.firstName as string) ?? '');
   const [lastName, setLastName] = useState((data.lastName as string) ?? '');
   const [age, setAge] = useState(data.age != null ? String(data.age) : '');
@@ -19,6 +24,8 @@ export default function PersonalDetailsForm({ data, onComplete, submitting }: Fo
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // In read-only mode we still fetch products so the <select> can show the
+    // chosen product's name rather than its raw id.
     listPricedObjects()
       .then(setProducts)
       .catch((e) => setProductsError(e instanceof Error ? e.message : String(e)));
@@ -63,7 +70,8 @@ export default function PersonalDetailsForm({ data, onComplete, submitting }: Fo
           className="field-input"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          autoFocus
+          autoFocus={!readOnly}
+          disabled={readOnly}
         />
       </label>
 
@@ -73,6 +81,7 @@ export default function PersonalDetailsForm({ data, onComplete, submitting }: Fo
           className="field-input"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
+          disabled={readOnly}
         />
       </label>
 
@@ -85,6 +94,7 @@ export default function PersonalDetailsForm({ data, onComplete, submitting }: Fo
           max={130}
           value={age}
           onChange={(e) => setAge(e.target.value)}
+          disabled={readOnly}
         />
       </label>
 
@@ -94,6 +104,7 @@ export default function PersonalDetailsForm({ data, onComplete, submitting }: Fo
           className="field-input"
           value={objectId}
           onChange={(e) => setObjectId(e.target.value)}
+          disabled={readOnly}
         >
           <option value="">— choose a product —</option>
           {products.map((p) => (
@@ -103,17 +114,19 @@ export default function PersonalDetailsForm({ data, onComplete, submitting }: Fo
           ))}
         </select>
       </label>
-      {productsError && (
+      {productsError && !readOnly && (
         <p className="form-error">Could not load products: {productsError}</p>
       )}
 
       {error && <p className="form-error">{error}</p>}
 
-      <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Confirming…' : 'Confirm'}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Confirming…' : 'Confirm'}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

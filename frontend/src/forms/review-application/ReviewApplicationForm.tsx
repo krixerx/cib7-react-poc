@@ -5,19 +5,26 @@ import type { FormProps } from '../types';
  * the "Get price" service task (read-only), and completes the task with a
  * `decision` outcome. The BPMN exclusive gateway branches on `decision`.
  */
-export default function ReviewApplicationForm({ data, onComplete, submitting }: FormProps) {
+export default function ReviewApplicationForm({
+  data,
+  onComplete,
+  submitting,
+  readOnly,
+}: FormProps) {
   function decide(decision: 'approve' | 'reject') {
     return onComplete({ decision: { value: decision, type: 'String' } });
   }
 
   const price =
     data.price != null && data.price !== '' ? String(data.price) : '—';
+  const decision = (data.decision as string) ?? null;
 
   return (
     <div className="form">
       <p className="form-intro">
-        Review the submitted details and the fetched price, then approve or
-        reject the application.
+        {readOnly
+          ? 'A read-only view of the submitted details, the fetched price, and the reviewer’s decision.'
+          : 'Review the submitted details and the fetched price, then approve or reject the application.'}
       </p>
 
       <dl className="summary">
@@ -33,6 +40,14 @@ export default function ReviewApplicationForm({ data, onComplete, submitting }: 
           <dt>Age</dt>
           <dd>{data.age != null ? String(data.age) : '—'}</dd>
         </div>
+        {readOnly && decision && (
+          <div className="summary-row">
+            <dt>Decision</dt>
+            <dd className={decision === 'approve' ? 'decision-approve' : 'decision-reject'}>
+              {decision === 'approve' ? 'Approved' : 'Rejected'}
+            </dd>
+          </div>
+        )}
       </dl>
 
       <label className="field">
@@ -40,22 +55,24 @@ export default function ReviewApplicationForm({ data, onComplete, submitting }: 
         <input className="field-input" value={price} disabled readOnly />
       </label>
 
-      <div className="form-actions">
-        <button
-          className="btn btn-primary"
-          disabled={submitting}
-          onClick={() => decide('approve')}
-        >
-          {submitting ? 'Working…' : 'Approve'}
-        </button>
-        <button
-          className="btn btn-danger"
-          disabled={submitting}
-          onClick={() => decide('reject')}
-        >
-          Reject
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="form-actions">
+          <button
+            className="btn btn-primary"
+            disabled={submitting}
+            onClick={() => decide('approve')}
+          >
+            {submitting ? 'Working…' : 'Approve'}
+          </button>
+          <button
+            className="btn btn-danger"
+            disabled={submitting}
+            onClick={() => decide('reject')}
+          >
+            Reject
+          </button>
+        </div>
+      )}
     </div>
   );
 }

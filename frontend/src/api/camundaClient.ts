@@ -111,3 +111,146 @@ export function completeTask(id: string, variables: CamundaVariables): Promise<v
     body: JSON.stringify({ variables }),
   });
 }
+
+/** An open incident as returned by `GET /incident`. */
+export interface Incident {
+  id: string;
+  processDefinitionId: string;
+  processInstanceId: string;
+  executionId: string;
+  incidentTimestamp: string;
+  /** e.g. "failedJob", "failedExternalTask". */
+  incidentType: string;
+  /** BPMN id of the activity that produced the incident (or null at process scope). */
+  activityId: string | null;
+  /**
+   * Type-specific id: the failed job id for "failedJob", the external task id
+   * for "failedExternalTask". This is the id we PUT retries to.
+   */
+  configuration: string | null;
+  incidentMessage: string | null;
+}
+
+/**
+ * Lists open incidents, newest first. Pass `processDefinitionId` to scope to
+ * a single service.
+ */
+export function listIncidents(processDefinitionId?: string): Promise<Incident[]> {
+  const qs = new URLSearchParams({
+    sortBy: 'incidentTimestamp',
+    sortOrder: 'desc',
+  });
+  if (processDefinitionId) qs.set('processDefinitionId', processDefinitionId);
+  return request(`/incident?${qs}`);
+}
+
+/** Returns the number of active process instances for a service. */
+export function countActiveProcessInstances(processDefinitionId: string): Promise<{ count: number }> {
+  return request(
+    `/process-instance/count?processDefinitionId=${processDefinitionId}&active=true`,
+  );
+}
+
+/**
+ * Resets a failed job's retry counter so the job executor will pick it up
+ * again. For a "failedJob" incident, pass `incident.configuration` as `jobId`.
+ */
+export function setJobRetries(jobId: string, retries: number): Promise<void> {
+  return request(`/job/${jobId}/retries`, {
+    method: 'PUT',
+    body: JSON.stringify({ retries }),
+  });
+}
+
+/** A finished process instance as returned by `GET /history/process-instance`. */
+export interface HistoricProcessInstance {
+  id: string;
+  processDefinitionId: string;
+  processDefinitionKey: string;
+  startTime: string;
+  endTime: string;
+  /** "COMPLETED", "EXTERNALLY_TERMINATED", "INTERNALLY_TERMINATED", … */
+  state: string;
+  /** BPMN id of the end event the instance terminated at. */
+  endActivityId: string | null;
+  durationInMillis: number;
+}
+
+/**
+ * Lists finished process instances for a definition, newest end-time first.
+ * Capped to `maxResults` rows to keep the page light.
+ */
+export function listFinishedProcessInstances(
+  processDefinitionId: string,
+  maxResults = 50,
+): Promise<HistoricProcessInstance[]> {
+  const qs = new URLSearchParams({
+    processDefinitionId,
+    finished: 'true',
+    sortBy: 'endTime',
+    sortOrder: 'desc',
+    maxResults: String(maxResults),
+  });
+  return request(`/history/process-instance?${qs}`);
+}
+
+/** A single historic process instance lookup (used by the completed-process page). */
+export function getHistoricProcessInstance(id: string): Promise<HistoricProcessInstance> {
+  return request(`/history/process-instance/${id}`);
+}
+
+/** A historic user task as returned by `GET /history/task`. */
+export interface HistoricTask {
+  id: string;
+  name: string;
+  /** BPMN id of the user task. */
+  taskDefinitionKey: string;
+  processInstanceId: string;
+  processDefinitionId: string;
+  assignee: string | null;
+  startTime: string;
+  endTime: string | null;
+}
+
+/** Lists every historic user task of a process instance, newest end-time first. */
+export function listHistoricTasks(processInstanceId: string): Promise<HistoricTask[]> {
+  return request(
+    `/history/task?processInstanceId=${processInstanceId}&sortBy=endTime&sortOrder=desc`,
+  );
+}
+
+/**
+ * Lists every historic user task with a given `taskDefinitionKey` across all
+ * instances of a process definition — both active (endTime null) and finished.
+ * Sorted by start time descending, so the newest occurrence is first.
+ */
+export function listHistoricTasksByDefinition(
+  processDefinitionId: string,
+  taskDefinitionKey: string,
+  maxResults = 100,
+): Promise<HistoricTask[]> {
+  const qs = new URLSearchParams({
+    processDefinitionId,
+    taskDefinitionKey,
+    sortBy: 'startTime',
+    sortOrder: 'desc',
+    maxResults: String(maxResults),
+  });
+  return request(`/history/task?${qs}`);
+}
+
+/** One historic process variable. The latest value of each variable in scope. */
+export interface HistoricVariableInstance {
+  id: string;
+  name: string;
+  type: CamundaVariableType;
+  value: unknown;
+  processInstanceId: string;
+}
+
+/** Returns the latest value of each process variable that the instance ever had. */
+export function listHistoricVariables(
+  processInstanceId: string,
+): Promise<HistoricVariableInstance[]> {
+  return request(`/history/variable-instance?processInstanceId=${processInstanceId}`);
+}

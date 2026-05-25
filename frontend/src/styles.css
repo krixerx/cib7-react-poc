@@ -219,6 +219,43 @@ body {
   white-space: nowrap;
 }
 
+.row-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status-pill.status-active {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.status-pill.status-done {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.section-back {
+  margin: 4px 0 14px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* ---- task groups ----------------------------------------------------- */
 
 .service-block {
@@ -226,6 +263,9 @@ body {
 }
 
 .service-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -265,6 +305,44 @@ body {
   font-size: 14px;
   margin: 0;
   padding: 4px 0 0 2px;
+}
+
+/* ---- incidents ------------------------------------------------------- */
+
+.incident {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.incident-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.incident-message {
+  margin: 0;
+  padding: 8px 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  color: var(--danger);
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.incident-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 /* ---- forms ----------------------------------------------------------- */
@@ -337,6 +415,14 @@ body {
 .summary-row dd {
   margin: 0;
   font-weight: 600;
+}
+
+.summary-row dd.decision-approve {
+  color: #047857;
+}
+
+.summary-row dd.decision-reject {
+  color: var(--danger);
 }
 
 .form-error {
