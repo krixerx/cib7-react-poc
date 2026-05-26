@@ -15,13 +15,15 @@
 
   "roles": {
     "realm": [
-      { "name": "task-executor", "description": "May claim and complete person-registration user tasks" },
-      { "name": "cib7-admin",    "description": "Engine administrators (mapped to CIB seven admin authorizations)" }
+      { "name": "applicant",      "description": "End user who starts processes and fills applicant forms (PartA)" },
+      { "name": "civil-servant",  "description": "Back-office reviewer who completes civil-servant tasks (PartB)" },
+      { "name": "cib7-admin",     "description": "Engine administrators (mapped to CIB seven admin authorizations)" }
     ]
   },
 
   "groups": [
-    { "name": "task-executor", "path": "/task-executor", "realmRoles": ["task-executor"] },
+    { "name": "applicant",     "path": "/applicant",     "realmRoles": ["applicant"] },
+    { "name": "civil-servant", "path": "/civil-servant", "realmRoles": ["civil-servant"] },
     { "name": "cib7-admin",    "path": "/cib7-admin",    "realmRoles": ["cib7-admin"] }
   ],
 
@@ -36,8 +38,21 @@
       "credentials": [
         { "type": "password", "value": "homer", "temporary": false }
       ],
-      "groups": ["/task-executor", "/cib7-admin"],
-      "realmRoles": ["task-executor", "cib7-admin"]
+      "groups": ["/civil-servant", "/cib7-admin"],
+      "realmRoles": ["civil-servant", "cib7-admin"]
+    },
+    {
+      "username": "bart",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bart",
+      "lastName": "Simpson",
+      "email": "bart@example.com",
+      "credentials": [
+        { "type": "password", "value": "bart", "temporary": false }
+      ],
+      "groups": ["/applicant"],
+      "realmRoles": ["applicant"]
     },
     {
       "username": "service-account-cib7-backend",

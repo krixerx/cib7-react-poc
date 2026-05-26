@@ -8,15 +8,27 @@ It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
 see [Deviations from the spec](#deviations-from-the-spec) below.
 
-## Test login
+## Test logins
 
-> **App:** <http://localhost:3000> — **username** `homer` · **password** `homer`
+> **App:** <http://localhost:3000>
+>
+> **Applicant (PartA):** `bart` / `bart` — Bart Simpson, member of `/applicant`
+>
+> **Civil servant (PartB):** `homer` / `homer` — Homer Simpson, member of `/civil-servant` + `/cib7-admin`
 >
 > **Keycloak admin console:** <http://localhost:8180> — `admin` / `admin`
 
-`homer` (Homer Simpson) is a member of the `/task-executor` group, which is
-the candidate group on both user tasks in `person-registration.bpmn`. Full
-realm in `keycloak/realm-export.json`.
+The SPA picks the role-appropriate UI from the JWT's realm roles:
+
+- **PartA — applicant:** Services + My processes. Bart starts a process, fills
+  the applicant form, and watches the status. If a civil servant sends the
+  case back, the row's status shows "Sent back for corrections" and Bart can
+  reopen the form (with the send-back reason shown as a banner) and resubmit.
+- **PartB — back office:** Tasks + Incidents. Homer reviews the submitted
+  application, then **Accept** (process ends approved) or **Send back…**
+  (writes a reason variable and loops back to the applicant task).
+
+Full realm in `keycloak/realm-export.json`.
 
 ---
 
@@ -25,31 +37,37 @@ realm in `keycloak/realm-export.json`.
 ```
 Person Registration (BPMN)
 
-  start
+  start (initiator = applicant)
     │
-    ▼  Submit personal details   user task     (react:personal-details)
+    ▼  Submit personal details   user task   (applicant — PartA)
     │    first / last name, age, and a product picked from api.restful-api.dev
+    │    assignee = ${initiator}
+    │  ◀───────────────────────────────────────────────────────────┐
+    ▼  Get price                 service task (http-connector)     │
+    │    GET api.restful-api.dev/objects/{id} → data.price → price │
+    │                                                              │
+    ▼  Review application        user task   (civil servant — PartB)
+    │    Accept → end approved                                     │
+    │    Send back (with reason) ──────────────────────────────────┘
     │
-    ▼  Get price                 service task  (http-connector)
-    │    GET api.restful-api.dev/objects/{id} — Spin reads data.price → price
-    │
-    ▼  Review application        user task     (react:review-application)
-    │    shows the submitted data + the fetched price (read-only); Approve / Reject
-    │
-    ▼  Approved?  ── exclusive gateway ──▶  end
+    ▼  Decision?  ── exclusive gateway ──▶  end approved
 ```
 
-1. **Submit personal details** — a React form collects first name, last name,
-   age, and a product chosen from `api.restful-api.dev`. The product's id is
-   written to the `objectId` process variable.
+1. **Submit personal details** (applicant) — a React form collects first name,
+   last name, age, and a product chosen from `api.restful-api.dev`. The task
+   is assigned to the starting user via `camunda:assignee="${initiator}"`, so
+   only that applicant sees it.
 2. **Get price** — a service task using the
    [`http-connector`](#service-task--the-http-connector)
    calls `GET https://api.restful-api.dev/objects/{objectId}` and reads
    `data.price` from the JSON response into the `price` variable via Spin.
-3. **Review application** — a React form shows the submitted data and the
-   fetched `price` read-only, and lets a reviewer **Approve** or **Reject**
-   (writing the `decision` variable).
-4. An exclusive gateway branches on `decision` and the process ends.
+3. **Review application** (civil servant) — a React form shows the submitted
+   data and the fetched `price` read-only, and lets the reviewer **Accept**
+   (sets `decision="approve"`) or **Send back** (sets `decision="sendback"`
+   plus a `sendBackReason` variable).
+4. An exclusive gateway branches on `decision`. `approve` ends the process;
+   any other value loops back to the applicant task so they can fix the data
+   based on the reason and resubmit.
 
 ## Architecture
 
@@ -84,8 +102,11 @@ Person Registration (BPMN)
 The pre-seeded Keycloak realm (`keycloak/realm-export.json`) ships with:
 
 - **Realm:** `cib7-poc`
-- **User:** `homer` / `homer` (Homer Simpson) — member of the
-  `/task-executor` group, which is the candidate group on both user tasks.
+- **`bart` / `bart`** (Bart Simpson) — `/applicant`, sees PartA.
+- **`homer` / `homer`** (Homer Simpson) — `/civil-servant` + `/cib7-admin`,
+  sees PartB. The admin group grants engine admin authorizations; the
+  applicant group's narrower authorizations are bootstrapped on startup by
+  `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`.
 - **Keycloak admin:** `admin` / `admin` (at <http://localhost:8180>) — only
   used for inspecting the realm; the app itself does not use it.
 
@@ -101,6 +122,7 @@ cib7-react-poc/
 │       ├── java/com/poc/cib7/
 │       │   ├── Cib7PocApplication.java
 │       │   ├── ConnectorConfiguration.java   registers the Connect plugin
+│       │   ├── AuthorizationBootstrap.java   grants /applicant engine perms
 │       │   └── keycloak/                     Spring Security + Keycloak identity wiring
 │       └── resources/
 │           ├── application.yaml
@@ -111,7 +133,13 @@ cib7-react-poc/
         │   ├── camundaClient.ts        typed /engine-rest client
         │   ├── bpmn.ts                 reads user tasks from BPMN XML
         │   └── objectsApi.ts           product list from api.restful-api.dev
-        ├── pages/                      Services / Tasks / TaskDetail pages
+        ├── pages/                      role-aware pages
+        │   ├── ServicesPage.tsx        PartA — start a service
+        │   ├── MyProcessesPage.tsx     PartA — applicant's instances + status
+        │   ├── TasksPage.tsx           PartB — back-office task tree
+        │   ├── IncidentsPage.tsx       PartB — open incidents + retry
+        │   ├── TaskDetailPage.tsx      shared task form host
+        │   └── CompletedProcessPage.tsx shared finished-process view
         └── forms/                      formKey → React component
 ```
 
@@ -129,15 +157,21 @@ docker compose up --build
 - CIB seven REST API → <http://localhost:8080/engine-rest>
 - Keycloak → <http://localhost:8180> (admin: `admin` / `admin`)
 
-When the SPA loads it redirects to Keycloak's login form. Use
-`homer` / `homer`. After login, every `/engine-rest` call carries the issued
-JWT and the engine enforces `candidateGroups` against the user's
-`/task-executor` membership.
+When the SPA loads it redirects to Keycloak's login form. Use `bart` / `bart`
+to play the applicant or `homer` / `homer` to play the back-office reviewer.
+Every `/engine-rest` call carries the JWT and the engine enforces
+`candidateGroups` / `assignee` against the user's realm roles + group
+membership.
 
-On the **Services** page, pick a service to start a process and fill in the
-applicant form. Then open the **Tasks** page — the service's human tasks are
-shown as groups, with the active process instances waiting at each. Open one
-to validate and complete it.
+As **Bart (PartA):** start a service on the **Services** page, fill the
+applicant form, and watch the row appear under **My processes** with a live
+status. If the back office sends the case back, reopen the row to see the
+reason banner and resubmit.
+
+As **Homer (PartB):** the **Tasks** page groups every service's user tasks
+with the active instances waiting at each step. Open a review task, then
+**Accept** (process ends) or **Send back** with a reason (loops to the
+applicant).
 
 ## Run locally (without Docker)
 
@@ -248,7 +282,7 @@ This POC intentionally simplifies `docs/human-role-react-forms-spec.md`:
 | Form manifest + publish-time validation (§11) | Omitted | The BPMN is a single static file, not dynamically generated. |
 | Single `json` Spin variable (§10) | Plain typed variables (`firstName`, `objectId`, `price`, `decision`, …) | Simpler; no Spin needed for a POC. |
 | Separate edit/view form components (§8.2–8.3) | One component per form | The "entry then review" flow already gives one edit form and one read-only review form. |
-| IdP groups → candidate groups | **Keycloak group `/task-executor` → `candidateGroups`** | Implemented via `cibseven-keycloak` 2.1.0 with `useGroupPathAsCamundaGroupId: true`. |
+| IdP groups → candidate groups | **Keycloak groups `/applicant` (assignee via `${initiator}`) and `/civil-servant` (candidateGroup `civil-servant` — slash stripped by the plugin)** | Implemented via `cibseven-keycloak` 2.1.0 with `useGroupPathAsCamundaGroupId: true`. The plugin maps path `/civil-servant` to engine group id `civil-servant`; see [`docs/cib7.md`](docs/cib7.md#bpmn-files). |
 
 For a production system the spec's BFF and manifest validation would be
 reinstated.

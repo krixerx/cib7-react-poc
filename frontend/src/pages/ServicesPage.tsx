@@ -40,7 +40,9 @@ export default function ServicesPage() {
     try {
       const instance = await startProcess(key);
       const tasks = await listTasksByInstance(instance.id);
-      navigate(tasks.length > 0 ? `/tasks/${tasks[0].id}` : '/tasks');
+      // Drop the applicant straight into their new task; if the engine raced
+      // past it (e.g. service task in flight) send them to My processes.
+      navigate(tasks.length > 0 ? `/tasks/${tasks[0].id}` : '/my-processes');
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setStartingKey(null);

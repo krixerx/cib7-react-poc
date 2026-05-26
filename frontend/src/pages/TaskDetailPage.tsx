@@ -8,6 +8,7 @@ import {
   type CamundaVariables,
 } from '../api/camundaClient';
 import { formRegistry, parseFormId } from '../forms/registry';
+import { useAuth } from '../auth/AuthProvider';
 
 /** Unwraps CIB seven `{value,type}` variables into plain values for forms. */
 function unwrap(variables: CamundaVariables): Record<string, unknown> {
@@ -18,6 +19,11 @@ function unwrap(variables: CamundaVariables): Record<string, unknown> {
 export default function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const { isCivilServant } = useAuth();
+  // Civil servants come from /tasks (the back-office queue); applicants come
+  // from /my-processes (their own case list). Either way the right place to
+  // return to is the list they came from.
+  const listPath = isCivilServant ? '/' : '/my-processes';
 
   const [task, setTask] = useState<CamundaTask | null>(null);
   const [data, setData] = useState<Record<string, unknown>>({});
@@ -50,7 +56,7 @@ export default function TaskDetailPage() {
     setError(null);
     try {
       await completeTask(taskId, variables);
-      navigate('/tasks');
+      navigate(listPath);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSubmitting(false);
@@ -70,8 +76,8 @@ export default function TaskDetailPage() {
       <div className="card">
         <p className="form-error">{error ?? 'Task not found.'}</p>
         <div className="form-actions">
-          <button className="btn" onClick={() => navigate('/tasks')}>
-            Back to tasks
+          <button className="btn" onClick={() => navigate(listPath)}>
+            Back
           </button>
         </div>
       </div>
@@ -85,7 +91,7 @@ export default function TaskDetailPage() {
     <div className="card">
       <div className="card-head">
         <h1 className="card-title">{task.name}</h1>
-        <button className="btn" onClick={() => navigate('/tasks')}>
+        <button className="btn" onClick={() => navigate(listPath)}>
           Back
         </button>
       </div>

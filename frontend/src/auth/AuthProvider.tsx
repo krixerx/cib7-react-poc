@@ -2,13 +2,22 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { keycloak } from './keycloak';
 
 /**
- * Minimal auth context. `authenticated` flips to true once Keycloak's
- * `init({ onLoad: 'login-required' })` resolves with a session; until then
- * the provider renders a loading screen and Keycloak owns the page (it will
- * redirect to its hosted login form).
+ * Auth context. The session is loaded eagerly via Keycloak's
+ * `init({ onLoad: 'login-required' })`; until that resolves the provider
+ * renders a loading screen and Keycloak owns the page (it will redirect to
+ * the hosted login form).
+ *
+ * `realmRoles` is the `realm_access.roles` array from the access token. The
+ * SPA uses it to decide whether to show the PartA (applicant) or PartB
+ * (civil-servant / back office) UI — `applicant` vs `civil-servant` realm
+ * roles map directly to those parts. A user with both (e.g. an admin) sees
+ * PartB by default.
  */
 interface AuthContextValue {
   username: string;
+  realmRoles: string[];
+  isApplicant: boolean;
+  isCivilServant: boolean;
   logout: () => void;
 }
 
@@ -70,15 +79,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  const username =
-    (keycloak.tokenParsed?.preferred_username as string | undefined) ??
-    (keycloak.tokenParsed?.sub as string | undefined) ??
-    'unknown';
+  const token = keycloak.tokenParsed as
+    | { preferred_username?: string; sub?: string; realm_access?: { roles?: string[] } }
+    | undefined;
+
+  const username = token?.preferred_username ?? token?.sub ?? 'unknown';
+  const realmRoles = token?.realm_access?.roles ?? [];
+  const isCivilServant = realmRoles.includes('civil-servant');
+  // A user is treated as a pure applicant only when they're not also a
+  // civil servant — admins (Homer) carry both roles in dev seeds.
+  const isApplicant = realmRoles.includes('applicant') && !isCivilServant;
 
   const logout = () => {
     keycloak.logout({ redirectUri: window.location.origin });
   };
 
-  return <AuthContext.Provider value={{ username, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ username, realmRoles, isApplicant, isCivilServant, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
-

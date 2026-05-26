@@ -42,17 +42,23 @@ cib7/
 └── src/main/
     ├── java/com/poc/cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
-    │   └── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin
+    │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin
+    │   ├── AuthorizationBootstrap.java    — grants the applicant group engine perms on startup
+    │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
     └── resources/
         ├── application.yaml               — engine + auto-deploy config
         └── processes/
             └── person-registration.bpmn   — auto-deployed on startup
 ```
 
-There are intentionally only two Java classes. Anything more complex (delegate
-classes, listeners, custom REST controllers) does not exist yet — when adding
-one, follow Spring Boot conventions (a `@Component` / `@Configuration` class
-under `com.poc.cib7`).
+The `com.poc.cib7.keycloak` package contains five classes verbatim from the
+`cibseven-keycloak` plugin's reference example (see
+[§ Authentication and authorization](#authentication-and-authorization)).
+Everything else is local: the application entry point, the connector plugin
+bean, and the applicant-group authorization bootstrap. When adding new
+logic (delegate beans, listeners, custom REST controllers), follow Spring
+Boot conventions (a `@Component` / `@Configuration` class under
+`com.poc.cib7`).
 
 ## Spring Boot wiring
 
@@ -70,6 +76,28 @@ and the "Get price" service task fails at deploy/runtime.
 
 If you add another engine plugin (e.g. an LDAP identity provider), add it as
 another `@Bean` in the same `@Configuration` class or split per concern.
+
+### `AuthorizationBootstrap.java`
+
+Runs once after `ApplicationReadyEvent` and grants the `applicant` engine
+group the minimum permissions to start, read, and complete its own
+`personRegistration` instances. With `camunda.bpm.authorization.enabled:
+true`, a new group has no permissions by default — without this bootstrap
+Bart's `/engine-rest` calls return empty arrays (filtered by the engine's
+authorization layer) and the Services page looks blank.
+
+Idempotent — re-running on a clean H2 startup is fine, and on a re-deploy
+the same-group-same-resource check skips already-existing grants. The
+`cib7-admin` group is handled separately by the `cibseven-keycloak`
+plugin's `administratorGroupName: cib7-admin` config — no bootstrap needed.
+
+> **Gotcha** — the cibseven-keycloak plugin exposes engine group IDs
+> **without** the leading slash of the Keycloak group path, even when
+> `useGroupPathAsCamundaGroupId: true` is set (the path `/applicant`
+> becomes the engine group id `applicant`). The bootstrap and every
+> BPMN `candidateGroups` attribute must use this slash-less form to
+> match; the realm export still uses the canonical paths
+> (`/applicant`, `/civil-servant`, `/cib7-admin`).
 
 ## Engine configuration (`application.yaml`)
 
@@ -117,15 +145,23 @@ must match a key in `frontend/src/forms/registry.ts`. There is no publish-time
 manifest validation — if the key is wrong, the TaskDetail page renders an
 error. See [`frontend.md` — Forms](frontend.md#forms).
 
-**Task gating — `candidateGroups`.** Both user tasks in
-`person-registration.bpmn` carry
-`camunda:candidateGroups="/task-executor"`. Engine authorization is on
-(`camunda.bpm.authorization.enabled: true`), so the engine refuses
-`claim`/`complete` from any authenticated user who is not a member of the
-Keycloak group `/task-executor`. The leading slash matches the plugin's
-`useGroupPathAsCamundaGroupId: true` setting — Camunda's group id is the
-Keycloak group's path, not its name or UUID. See
-[Authentication and authorization](#authentication-and-authorization).
+**Task gating — `assignee` / `candidateGroups`.** The applicant task in
+`person-registration.bpmn` carries `camunda:assignee="${initiator}"` so it
+goes only to the user who started the case; the review task carries
+`camunda:candidateGroups="civil-servant"` so it goes to the back-office
+group. Engine authorization is on (`camunda.bpm.authorization.enabled:
+true`), so the engine refuses `claim`/`complete` from any other user.
+
+**No leading slash on engine group ids.** Although the Keycloak group
+*path* is `/civil-servant`, the cibseven-keycloak plugin maps that to the
+engine group id `civil-servant` (slash stripped) even with
+`useGroupPathAsCamundaGroupId: true`. `candidateGroups` and any
+authorization grant for this group must use the slash-less form to match
+what `IdentityService.createGroupQuery().groupMember(user).list()`
+actually returns. The Keycloak realm export keeps the canonical
+paths (`/applicant`, `/civil-servant`, `/cib7-admin`).
+
+See [Authentication and authorization](#authentication-and-authorization).
 
 **Variables.** Plain typed variables (`firstName: String`, `objectId: String`,
 `price: Double`, `decision: String`, …), not a single `json` Spin variable.
@@ -134,16 +170,27 @@ The variable name + type form part of the form contract.
 **Existing process — `person-registration.bpmn`.**
 
 ```
-StartEvent_1
+StartEvent_1 (camunda:initiator="initiator")
   → Task_SubmitDetails   userTask    formKey="react:personal-details"
+                                    camunda:assignee="${initiator}"
+                                    (also re-entered on send-back)
   → Task_GetPrice        serviceTask asyncBefore=true, connector="http-connector"
   → Task_Review          userTask    formKey="react:review-application"
-  → Gateway_Decision     exclusiveGateway, branches on ${decision == "approve"}
-  → EndEvent_Approved | EndEvent_Rejected
+                                    camunda:candidateGroups="civil-servant"
+  → Gateway_Decision     exclusiveGateway
+       decision == "approve"  → EndEvent_Approved
+       default (sendback)     → Task_SubmitDetails (loops back to applicant)
 ```
 
-Process variables and which step writes each: see the header comment inside
-the BPMN file.
+Process variables:
+- `initiator` — login of the applicant who started the case (written by the
+  start event so the applicant task can be reassigned on every loop).
+- `firstName`, `lastName`, `age`, `objectId` — written by the applicant task.
+- `price` — written by `Task_GetPrice` via the Spin expression on the
+  `http-connector`'s response.
+- `decision` — written by the review task (`"approve"` or `"sendback"`).
+- `sendBackReason` — set by the review form when sending back; cleared by
+  the applicant form on resubmit so the next review cycle starts clean.
 
 ## Connect plugin and connector
 
@@ -199,7 +246,9 @@ caller's Keycloak group membership.
 | Audience pin | `AudienceValidator` (rejects tokens without `cib7-rest-api` in `aud`) | `AudienceValidator.java` |
 | Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
 | Engine authorization | `camunda.bpm.authorization.enabled: true` | `application.yaml` |
-| BPMN gating | `camunda:candidateGroups="/task-executor"` on each user task | `person-registration.bpmn` |
+| Admin group → engine admin | `administratorGroupName: cib7-admin` on the identity plugin | `application.yaml` |
+| Applicant group → narrow grants | `AuthorizationBootstrap` adds READ / CREATE_INSTANCE / READ_INSTANCE / READ_HISTORY / UPDATE_INSTANCE / READ_TASK / UPDATE_TASK for the `applicant` group on the `personRegistration` definition, plus CREATE on `ProcessInstance:*` and READ / UPDATE on `Task:*` | `AuthorizationBootstrap.java` |
+| BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | `person-registration.bpmn` |
 
 The five Java files under `com/poc/cib7/keycloak/` are **verbatim copies of
 the plugin's reference example** (`examples/sso-kubernetes/.../rest/` and
@@ -207,6 +256,11 @@ the plugin's reference example** (`examples/sso-kubernetes/.../rest/` and
 plugin author's published recipe for wiring Spring Security to the engine's
 `IdentityService`. Keep them in sync with the upstream plugin when bumping
 its version.
+
+`AuthorizationBootstrap.java` is the one piece of custom auth code, and it
+is intentionally narrow: it only adds grants for `applicant`. Admin
+(`cib7-admin`) is covered by the plugin's `administratorGroupName` config,
+and civil-servant access is gated by the BPMN's `candidateGroups`.
 
 ### Configuration surface (`application.yaml`)
 
@@ -217,6 +271,7 @@ its version.
 | `plugin.identity.keycloak.*` | All Keycloak Admin REST API config — issuer URL, admin URL, client credentials, `useUsernameAsCamundaUserId`, `useGroupPathAsCamundaGroupId` |
 | `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
 | `camunda.bpm.admin-user.id: homer` | Bootstraps admin authorizations on the seeded user so the engine doesn't 403 the very first call |
+| `plugin.identity.keycloak.administratorGroupName: cib7-admin` | Grants engine admin authorizations to everyone in the `/cib7-admin` Keycloak group on every startup |
 
 All Keycloak URLs are env-driven (`KEYCLOAK_URL`, `KEYCLOAK_ISSUER_URL`,
 `KEYCLOAK_REALM`, `KEYCLOAK_BACKEND_CLIENT_ID`,

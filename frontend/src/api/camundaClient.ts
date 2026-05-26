@@ -162,18 +162,19 @@ export function setJobRetries(jobId: string, retries: number): Promise<void> {
   });
 }
 
-/** A finished process instance as returned by `GET /history/process-instance`. */
+/** A process instance as returned by `GET /history/process-instance`. */
 export interface HistoricProcessInstance {
   id: string;
   processDefinitionId: string;
   processDefinitionKey: string;
   startTime: string;
-  endTime: string;
-  /** "COMPLETED", "EXTERNALLY_TERMINATED", "INTERNALLY_TERMINATED", … */
+  /** `null` while the instance is still running. */
+  endTime: string | null;
+  /** "ACTIVE", "COMPLETED", "EXTERNALLY_TERMINATED", "INTERNALLY_TERMINATED", … */
   state: string;
-  /** BPMN id of the end event the instance terminated at. */
+  /** BPMN id of the end event the instance terminated at (null while active). */
   endActivityId: string | null;
-  durationInMillis: number;
+  durationInMillis: number | null;
 }
 
 /**
@@ -188,6 +189,27 @@ export function listFinishedProcessInstances(
     processDefinitionId,
     finished: 'true',
     sortBy: 'endTime',
+    sortOrder: 'desc',
+    maxResults: String(maxResults),
+  });
+  return request(`/history/process-instance?${qs}`);
+}
+
+/**
+ * Lists historic process instances started by a given user — both active
+ * (endTime null) and finished. Newest start-time first.
+ *
+ * Powers the PartA "My processes" page: only the applicant's own instances.
+ * Relies on `camunda:initiator="initiator"` on the BPMN start event so the
+ * engine writes `startUserId` for the instance.
+ */
+export function listHistoricProcessInstancesByStarter(
+  startedBy: string,
+  maxResults = 100,
+): Promise<HistoricProcessInstance[]> {
+  const qs = new URLSearchParams({
+    startedBy,
+    sortBy: 'startTime',
     sortOrder: 'desc',
     maxResults: String(maxResults),
   });
@@ -253,4 +275,20 @@ export function listHistoricVariables(
   processInstanceId: string,
 ): Promise<HistoricVariableInstance[]> {
   return request(`/history/variable-instance?processInstanceId=${processInstanceId}`);
+}
+
+/**
+ * Fetches one named variable from a process instance's history; returns
+ * `null` if the variable was never set on the instance. Lighter than
+ * fetching every variable when only one is needed.
+ */
+export async function getHistoricVariable(
+  processInstanceId: string,
+  variableName: string,
+): Promise<HistoricVariableInstance | null> {
+  const qs = new URLSearchParams({ processInstanceId, variableName });
+  const items: HistoricVariableInstance[] = await request(
+    `/history/variable-instance?${qs}`,
+  );
+  return items[0] ?? null;
 }

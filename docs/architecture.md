@@ -71,7 +71,8 @@ Four runtime pieces:
 | Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin |
 | Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
-| Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with one user (`homer` / `homer`) |
+| Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | Grants the `applicant` engine group the narrow set of permissions it needs (admins are handled by the plugin's `administratorGroupName`) |
+| Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
 | Database | H2 (in-memory) | runtime classpath, no datasource config | Engine state — wiped on every restart |
 | Container orchestration | Docker Compose | `docker-compose.yml` | Three services: `keycloak`, `cib7`, `frontend` |
 
@@ -204,11 +205,21 @@ End-to-end Keycloak authentication, authorization, and a single seeded user:
   `preferred_username` from the validated JWT, looks up the user's groups via
   the identity provider plugin, and calls `IdentityService.setAuthentication`
   on the request thread. The `finally` clears it.
-- **Authorization.** `camunda.bpm.authorization.enabled: true`. Both user
-  tasks in `person-registration.bpmn` carry
-  `camunda:candidateGroups="/task-executor"`. The user `homer` is a member of
-  the `/task-executor` Keycloak group, so they can claim and complete the
-  tasks; any other authenticated user would get 403.
+- **Authorization.** `camunda.bpm.authorization.enabled: true`. The applicant
+  task in `person-registration.bpmn` is `camunda:assignee="${initiator}"`
+  (only the applicant who started the case can complete it on the initial
+  submit and on any send-back loop); the review task is
+  `camunda:candidateGroups="civil-servant"` (only members of the
+  back-office group can claim/complete it). Homer is in `/cib7-admin`
+  (engine admin via the `cibseven-keycloak` plugin's
+  `administratorGroupName`); Bart's narrower applicant permissions are
+  bootstrapped at startup by
+  `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`. Engine
+  group ids in candidateGroups / authorization grants are the *slash-less*
+  form (`applicant`, `civil-servant`, `cib7-admin`) — the cibseven-keycloak
+  plugin strips the leading slash from the Keycloak group path even with
+  `useGroupPathAsCamundaGroupId: true`. See
+  [`cib7.md` § BPMN files](cib7.md#bpmn-files) for the full note.
 - **`/engine-rest` is still directly exposed.** This POC has no BFF — the spec
   calls for one (see
   [`human-role-react-forms-spec.md` §D11](human-role-react-forms-spec.md)).

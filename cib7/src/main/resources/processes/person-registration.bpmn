@@ -7,39 +7,45 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   id="Definitions_PersonRegistration"
                   targetNamespace="http://bpmn.io/schema/bpmn"
-                  exporter="cib7-react-poc" exporterVersion="0.2.0">
+                  exporter="cib7-react-poc" exporterVersion="0.3.0">
   <!--
     Person Registration process.
 
-      start
-        -> [Submit personal details]   user task   (react:personal-details)
+      start (initiator = starting applicant)
+        -> [Submit personal details]   user task   (applicant — PartA)
         -> (Get price)                 service task (http-connector)
-        -> [Review application]        user task   (react:review-application)
-        -> <Approved?>                 exclusive gateway
-        -> end
+        -> [Review application]        user task   (civil-servant — PartB)
+        -> <Decision?>                 exclusive gateway
+             approve   -> end approved
+             sendback  -> back to Submit personal details (with sendBackReason)
 
     Process variables:
-      firstName, lastName, age   - written by the first user task
-      objectId                   - written by the first user task (selected product)
+      initiator       - login of the user that started the instance (PartA owner)
+      firstName, lastName, age   - written by the applicant task
+      objectId                   - written by the applicant task (selected product)
       price                      - written by the Get price service task
-      decision                   - written by the review user task ("approve"/"reject")
-
-    The "Get price" service task uses the official cibseven-connect-http-client
-    connector to GET https://api.restful-api.dev/objects/{objectId}, then extracts
-    data.price from the JSON response body via Spin (S()) into the 'price' variable.
+      decision                   - written by the review user task ("approve"/"sendback")
+      sendBackReason             - optional reason supplied by the civil servant
+                                   when sending the case back for corrections
   -->
   <bpmn:process id="personRegistration" name="Person Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
 
-    <bpmn:startEvent id="StartEvent_1" name="Registration started">
+    <bpmn:startEvent id="StartEvent_1" name="Registration started" camunda:initiator="initiator">
       <bpmn:outgoing>Flow_Start_Submit</bpmn:outgoing>
     </bpmn:startEvent>
 
     <bpmn:sequenceFlow id="Flow_Start_Submit" sourceRef="StartEvent_1" targetRef="Task_SubmitDetails" />
 
+    <!--
+      Applicant task (PartA). Assigned to the initiator so the applicant who
+      started the case is the only person who can complete this step — both on
+      the initial submit and when the civil servant sends the case back.
+    -->
     <bpmn:userTask id="Task_SubmitDetails" name="Submit personal details"
                    camunda:formKey="react:personal-details"
-                   camunda:candidateGroups="/task-executor">
+                   camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
+      <bpmn:incoming>Flow_SendBack</bpmn:incoming>
       <bpmn:outgoing>Flow_Submit_GetPrice</bpmn:outgoing>
     </bpmn:userTask>
 
@@ -69,33 +75,40 @@
 
     <bpmn:sequenceFlow id="Flow_GetPrice_Review" sourceRef="Task_GetPrice" targetRef="Task_Review" />
 
+    <!--
+      Civil-servant task (PartB). Visible to everyone in the civil-servant
+      group via candidateGroups. (The cibseven-keycloak plugin maps the
+      Keycloak group path "/civil-servant" to the engine group id without
+      the leading slash, so candidateGroups must match the engine view.)
+    -->
     <bpmn:userTask id="Task_Review" name="Review application"
                    camunda:formKey="react:review-application"
-                   camunda:candidateGroups="/task-executor">
+                   camunda:candidateGroups="civil-servant">
       <bpmn:incoming>Flow_GetPrice_Review</bpmn:incoming>
       <bpmn:outgoing>Flow_Review_Gateway</bpmn:outgoing>
     </bpmn:userTask>
 
     <bpmn:sequenceFlow id="Flow_Review_Gateway" sourceRef="Task_Review" targetRef="Gateway_Decision" />
 
-    <bpmn:exclusiveGateway id="Gateway_Decision" name="Approved?" default="Flow_Rejected">
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Decision?" default="Flow_SendBack">
       <bpmn:incoming>Flow_Review_Gateway</bpmn:incoming>
       <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
-      <bpmn:outgoing>Flow_Rejected</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendBack</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_Approved" name="approved" sourceRef="Gateway_Decision" targetRef="EndEvent_Approved">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${decision == "approve"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <bpmn:sequenceFlow id="Flow_Rejected" name="rejected" sourceRef="Gateway_Decision" targetRef="EndEvent_Rejected" />
+    <!--
+      Default branch: any non-approve decision (i.e. "sendback") loops the case
+      back to the applicant. The sendBackReason variable, written by the review
+      form, is shown on the applicant task so they know what to fix.
+    -->
+    <bpmn:sequenceFlow id="Flow_SendBack" name="sent back" sourceRef="Gateway_Decision" targetRef="Task_SubmitDetails" />
 
     <bpmn:endEvent id="EndEvent_Approved" name="Application approved">
       <bpmn:incoming>Flow_Approved</bpmn:incoming>
-    </bpmn:endEvent>
-
-    <bpmn:endEvent id="EndEvent_Rejected" name="Application rejected">
-      <bpmn:incoming>Flow_Rejected</bpmn:incoming>
     </bpmn:endEvent>
 
   </bpmn:process>
@@ -124,15 +137,9 @@
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
-        <dc:Bounds x="872" y="102" width="36" height="36" />
+        <dc:Bounds x="872" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="857" y="145" width="67" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
-        <dc:Bounds x="872" y="262" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="860" y="305" width="61" height="14" />
+          <dc:Bounds x="857" y="225" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_Submit_di" bpmnElement="Flow_Start_Submit">
@@ -152,19 +159,19 @@
         <di:waypoint x="735" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
-        <di:waypoint x="760" y="175" />
-        <di:waypoint x="760" y="120" />
-        <di:waypoint x="872" y="120" />
+        <di:waypoint x="785" y="200" />
+        <di:waypoint x="872" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="772" y="102" width="48" height="14" />
+          <dc:Bounds x="800" y="182" width="48" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Rejected_di" bpmnElement="Flow_Rejected">
+      <bpmndi:BPMNEdge id="Flow_SendBack_di" bpmnElement="Flow_SendBack">
         <di:waypoint x="760" y="225" />
-        <di:waypoint x="760" y="280" />
-        <di:waypoint x="872" y="280" />
+        <di:waypoint x="760" y="320" />
+        <di:waypoint x="300" y="320" />
+        <di:waypoint x="300" y="240" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="774" y="262" width="45" height="14" />
+          <dc:Bounds x="510" y="302" width="55" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>

@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import type { FormProps } from '../types';
 
 /**
- * Task 2 form — shows the data submitted in task 1 plus the `price` fetched by
- * the "Get price" service task (read-only), and completes the task with a
- * `decision` outcome. The BPMN exclusive gateway branches on `decision`.
+ * Civil-servant review form (PartB). Shows the applicant's submitted data and
+ * the fetched price read-only, then either:
+ *
+ *   Accept   → completes the task with decision="approve" (process ends).
+ *   Send back → reveals a reason textarea; completing writes decision="sendback"
+ *               and sendBackReason so the applicant sees why it was returned.
  */
 export default function ReviewApplicationForm({
   data,
@@ -11,20 +15,39 @@ export default function ReviewApplicationForm({
   submitting,
   readOnly,
 }: FormProps) {
-  function decide(decision: 'approve' | 'reject') {
-    return onComplete({ decision: { value: decision, type: 'String' } });
+  const [showSendBack, setShowSendBack] = useState(false);
+  const [reason, setReason] = useState((data.sendBackReason as string) ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  function accept() {
+    setError(null);
+    return onComplete({ decision: { value: 'approve', type: 'String' } });
+  }
+
+  function sendBack() {
+    setError(null);
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setError('Please give the applicant a reason for sending the case back.');
+      return;
+    }
+    return onComplete({
+      decision: { value: 'sendback', type: 'String' },
+      sendBackReason: { value: trimmed, type: 'String' },
+    });
   }
 
   const price =
     data.price != null && data.price !== '' ? String(data.price) : '—';
   const decision = (data.decision as string) ?? null;
+  const priorReason = (data.sendBackReason as string) ?? '';
 
   return (
     <div className="form">
       <p className="form-intro">
         {readOnly
           ? 'A read-only view of the submitted details, the fetched price, and the reviewer’s decision.'
-          : 'Review the submitted details and the fetched price, then approve or reject the application.'}
+          : 'Review the submitted details and the fetched price. Accept the application, or send it back to the applicant with a reason.'}
       </p>
 
       <dl className="summary">
@@ -44,8 +67,14 @@ export default function ReviewApplicationForm({
           <div className="summary-row">
             <dt>Decision</dt>
             <dd className={decision === 'approve' ? 'decision-approve' : 'decision-reject'}>
-              {decision === 'approve' ? 'Approved' : 'Rejected'}
+              {decision === 'approve' ? 'Approved' : 'Sent back'}
             </dd>
+          </div>
+        )}
+        {readOnly && priorReason && (
+          <div className="summary-row">
+            <dt>Send-back reason</dt>
+            <dd>{priorReason}</dd>
           </div>
         )}
       </dl>
@@ -55,22 +84,69 @@ export default function ReviewApplicationForm({
         <input className="field-input" value={price} disabled readOnly />
       </label>
 
+      {!readOnly && priorReason && (
+        <p className="muted">
+          Previous send-back reason (now resubmitted by the applicant):{' '}
+          <em>{priorReason}</em>
+        </p>
+      )}
+
+      {!readOnly && showSendBack && (
+        <label className="field">
+          <span className="field-label">Reason to send back</span>
+          <textarea
+            className="field-input"
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Tell the applicant what to fix (e.g. age looks wrong)."
+            autoFocus
+          />
+        </label>
+      )}
+
+      {error && <p className="form-error">{error}</p>}
+
       {!readOnly && (
         <div className="form-actions">
           <button
             className="btn btn-primary"
             disabled={submitting}
-            onClick={() => decide('approve')}
+            onClick={accept}
           >
-            {submitting ? 'Working…' : 'Approve'}
+            {submitting ? 'Working…' : 'Accept'}
           </button>
-          <button
-            className="btn btn-danger"
-            disabled={submitting}
-            onClick={() => decide('reject')}
-          >
-            Reject
-          </button>
+          {!showSendBack ? (
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={submitting}
+              onClick={() => setShowSendBack(true)}
+            >
+              Send back…
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn btn-danger"
+                disabled={submitting}
+                onClick={sendBack}
+              >
+                {submitting ? 'Working…' : 'Confirm send back'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={submitting}
+                onClick={() => {
+                  setShowSendBack(false);
+                  setError(null);
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

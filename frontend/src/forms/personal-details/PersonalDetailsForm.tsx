@@ -3,10 +3,12 @@ import type { FormProps } from '../types';
 import { listPricedObjects, type PricedObject } from '../../api/objectsApi';
 
 /**
- * Task 1 form — collects the applicant's personal details and the chosen
- * product, then completes the task. The selected product's id is written to
- * the `objectId` variable, which the "Get price" service task uses to call
- * https://api.restful-api.dev/objects/{objectId}.
+ * Applicant form (PartA) — collects personal details and the chosen product,
+ * then completes the task. The selected product's id is written to the
+ * `objectId` variable so the "Get price" service task can fetch its price.
+ *
+ * If the civil servant sent the case back for corrections, `sendBackReason`
+ * is set in process variables and is shown to the applicant as a banner.
  */
 export default function PersonalDetailsForm({
   data,
@@ -22,6 +24,12 @@ export default function PersonalDetailsForm({
   const [products, setProducts] = useState<PricedObject[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Present only when the civil servant has sent the case back. The variable
+  // sticks around on subsequent task completions; the form clears it on
+  // re-submit so an "old" reason doesn't show on a future cycle.
+  const sendBackReason = (data.sendBackReason as string) ?? '';
+  const isResubmission = Boolean(sendBackReason) && !readOnly;
 
   useEffect(() => {
     // In read-only mode we still fetch products so the <select> can show the
@@ -54,14 +62,25 @@ export default function PersonalDetailsForm({
       lastName: { value: lastName.trim(), type: 'String' },
       age: { value: ageNum, type: 'Integer' },
       objectId: { value: objectId, type: 'String' },
+      // Clear the send-back reason once the applicant resubmits — keeping it
+      // would make the next review cycle still look "sent back".
+      sendBackReason: { value: '', type: 'String' },
     });
   }
 
   return (
     <form className="form" onSubmit={handleSubmit}>
+      {isResubmission && (
+        <div className="form-banner form-banner-warn">
+          <strong>Sent back for corrections.</strong>
+          <p className="form-banner-body">{sendBackReason}</p>
+        </div>
+      )}
+
       <p className="form-intro">
-        Applicant form — fill in the personal details and choose a product, then
-        confirm to send the application into the process.
+        {isResubmission
+          ? 'Update the details below and resubmit the application.'
+          : 'Applicant form — fill in the personal details and choose a product, then confirm to send the application into the process.'}
       </p>
 
       <label className="field">
@@ -123,7 +142,7 @@ export default function PersonalDetailsForm({
       {!readOnly && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Confirming…' : 'Confirm'}
+            {submitting ? 'Confirming…' : isResubmission ? 'Resubmit' : 'Confirm'}
           </button>
         </div>
       )}

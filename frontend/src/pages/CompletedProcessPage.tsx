@@ -125,7 +125,7 @@ export default function CompletedProcessPage() {
         </button>
       </div>
       <p className="muted">
-        Completed {new Date(state.pi.endTime).toLocaleString()} ·{' '}
+        Completed {new Date(state.pi.endTime!).toLocaleString()} ·{' '}
         <strong>{state.outcome}</strong>
       </p>
 
