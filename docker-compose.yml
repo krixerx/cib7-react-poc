@@ -4,6 +4,22 @@
 #
 # Then open http://localhost:3000 and log in with homer / homer.
 services:
+  mailpit:
+    # Mailpit is a tiny SMTP server + web UI for inspecting emails sent by
+    # the process. The "Send back" service task and the "Review reminder"
+    # timer boundary event both POST to Mailpit's HTTP API via the same
+    # cibseven http-connector that already calls api.restful-api.dev — no
+    # extra Maven dependency needed. Open http://localhost:8025 to see the
+    # inbox.
+    image: axllent/mailpit:latest
+    container_name: cib7-poc-mailpit
+    ports:
+      - "8025:8025" # Web UI
+      - "1025:1025" # SMTP (unused by the engine, exposed for hand-testing)
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).
@@ -68,9 +84,15 @@ services:
       KEYCLOAK_BACKEND_CLIENT_ID: cib7-backend
       KEYCLOAK_BACKEND_CLIENT_SECRET: cib7-backend-secret
       KEYCLOAK_REST_AUDIENCE: cib7-rest-api
+      # Used by the send-back and review-reminder service tasks in
+      # person-registration.bpmn. The Mailpit container resolves under the
+      # docker-compose network alias "mailpit".
+      MAIL_API_URL: http://mailpit:8025
     depends_on:
       keycloak:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   frontend:
     build: ./frontend

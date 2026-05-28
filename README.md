@@ -1,8 +1,12 @@
 # CIB seven 2.1 + React — Human Tasks POC
 
 A proof of concept: a [CIB seven](https://cibseven.org) 2.1 process engine runs
-a BPMN process with **two human tasks** and a **connector-backed service task**,
-and a **React** app opens each human task with its own hand-written form.
+a BPMN process with **two human tasks**, a **DMN auto-approval decision**, a
+**non-interrupting timer boundary event**, and **three connector-backed
+service tasks** (one fetches a product price, two POST email notifications to
+[Mailpit](https://mailpit.axllent.org/)). A **React** app opens each human
+task with its own hand-written form; the **Cockpit / Tasklist / Admin**
+webapps are also bundled with full Keycloak SSO.
 
 It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
@@ -15,6 +19,10 @@ see [Deviations from the spec](#deviations-from-the-spec) below.
 > **Applicant (PartA):** `bart` / `bart` — Bart Simpson, member of `/applicant`
 >
 > **Civil servant (PartB):** `homer` / `homer` — Homer Simpson, member of `/civil-servant` + `/cib7-admin`
+>
+> **CIB seven webapps (Cockpit / Tasklist / Admin):** <http://localhost:8080/camunda> — log in as Homer (Keycloak SSO).
+>
+> **Mailpit inbox** (emails sent by service tasks): <http://localhost:8025>
 >
 > **Keycloak admin console:** <http://localhost:8180> — `admin` / `admin`
 
@@ -35,21 +43,27 @@ Full realm in `keycloak/realm-export.json`.
 ## What it does
 
 ```
-Person Registration (BPMN)
+Person Registration (BPMN + DMN)
 
   start (initiator = applicant)
     │
     ▼  Submit personal details   user task   (applicant — PartA)
     │    first / last name, age, and a product picked from api.restful-api.dev
     │    assignee = ${initiator}
-    │  ◀───────────────────────────────────────────────────────────┐
-    ▼  Get price                 service task (http-connector)     │
-    │    GET api.restful-api.dev/objects/{id} → data.price → price │
-    │                                                              │
-    ▼  Review application        user task   (civil servant — PartB)
-    │    Accept → end approved                                     │
-    │    Send back (with reason) ──────────────────────────────────┘
-    │
+    │  ◀──────────────────────────────────────────────────────────────────┐
+    ▼  Get price                 service task (http-connector)            │
+    │    GET api.restful-api.dev/objects/{id} → data.price → price        │
+    │                                                                     │
+    ▼  Auto approval?            business rule task (DMN)                 │
+    │    age + price → autoDecision ("approve" / "review")                │
+    │                                                                     │
+    ▼  Auto-approve? ── exclusive gateway ───▶ end approved   (skips PartB)
+    │      else                                                           │
+    ▼  Review application        user task   (civil servant — PartB)      │
+    │    ⏱  PT2M non-interrupting timer ─▶  Send reminder email (Mailpit) │
+    │    Accept → end approved                                            │
+    │    Send back ─▶ Send "sent back" email (Mailpit) ───────────────────┘
+    │                                                with reason
     ▼  Decision?  ── exclusive gateway ──▶  end approved
 ```
 
@@ -61,27 +75,38 @@ Person Registration (BPMN)
    [`http-connector`](#service-task--the-http-connector)
    calls `GET https://api.restful-api.dev/objects/{objectId}` and reads
    `data.price` from the JSON response into the `price` variable via Spin.
-3. **Review application** (civil servant) — a React form shows the submitted
+3. **Auto approval?** — a business rule task evaluates the
+   [`auto-approval.dmn`](#dmn-decision-table) decision table (hit policy
+   FIRST) on `age` and `price` and writes the result into `autoDecision`.
+   Adults (age ≥ 18) picking cheap products (price &lt; 100) skip the human
+   review; minors and expensive picks fall through.
+4. **Review application** (civil servant) — a React form shows the submitted
    data and the fetched `price` read-only, and lets the reviewer **Accept**
    (sets `decision="approve"`) or **Send back** (sets `decision="sendback"`
-   plus a `sendBackReason` variable).
-4. An exclusive gateway branches on `decision`. `approve` ends the process;
-   any other value loops back to the applicant task so they can fix the data
-   based on the reason and resubmit.
+   plus a `sendBackReason` variable). A **non-interrupting timer boundary
+   event** fires every `PT2M` and triggers a [reminder email](#mailpit)
+   without closing the task.
+5. An exclusive gateway branches on `decision`. `approve` ends the process;
+   any other value runs a **Send "sent back" email** service task (also via
+   `http-connector` → Mailpit) and then loops back to the applicant task so
+   they can fix the data based on the reason and resubmit.
 
 ## Architecture
 
 ```
   React SPA ──OIDC PKCE──▶ Keycloak ◀──Admin REST── CIB seven backend
-   │   (keycloak-js)         │                      (identity provider plugin)
-   │                         │
-   │   Bearer JWT
-   ▼
-  /engine-rest  ──▶  CIB seven 2.1 engine + REST API
+   │   (keycloak-js)         │ ▲                    (identity provider plugin)
+   │                         │ │ OAuth2 code flow
+   │   Bearer JWT            │ │ (cib7-webapps client)
+   ▼                         │ │
+  /engine-rest               │ ▼
+  /camunda/*  ─────▶  CIB seven 2.1 engine + REST + Cockpit/Tasklist/Admin
   (nginx / Vite proxy)  (Spring Boot, embedded engine, in-memory H2)
                                 │
-                                ▼  http-connector
-                          api.restful-api.dev   (external REST API)
+                                ├──▶  http-connector → api.restful-api.dev
+                                │                       (product catalogue)
+                                └──▶  http-connector → Mailpit  (notifications)
+                                                       :8025 (UI), :1025 (SMTP)
 ```
 
 - The browser logs in against **Keycloak** (OIDC, PKCE) and then calls the
@@ -94,7 +119,15 @@ Person Registration (BPMN)
   is on, so `candidateGroups` on user tasks is enforced.
 - The BPMN file lives in the backend and is **auto-deployed on startup**.
 - The **Get price** service task calls the external API server-side, from the
-  engine — via the official `http-connector`.
+  engine — via the official `http-connector`. The **Send reminder email** and
+  **Send "sent back" email** service tasks reuse the same `http-connector`
+  against Mailpit's `/api/v1/send` JSON endpoint.
+- The **CIB seven webapps** (Cockpit / Tasklist / Admin) live under
+  `/camunda/*` on the engine. A second `SecurityFilterChain` drives the
+  Spring Security OAuth2 Authorization Code flow against the
+  `cib7-webapps` Keycloak client and bridges the OIDC user into the
+  engine's `IdentityService` via the cibseven-keycloak plugin's
+  `ContainerBasedAuthenticationProvider` recipe.
 - The database is **in-memory H2** — all data is lost when the backend stops.
 
 ### Default credentials
@@ -155,6 +188,8 @@ docker compose up --build
 
 - React app → <http://localhost:3000>
 - CIB seven REST API → <http://localhost:8080/engine-rest>
+- CIB seven webapps → <http://localhost:8080/camunda> (Keycloak SSO)
+- Mailpit inbox → <http://localhost:8025>
 - Keycloak → <http://localhost:8180> (admin: `admin` / `admin`)
 
 When the SPA loads it redirects to Keycloak's login form. Use `bart` / `bart`
@@ -251,8 +286,98 @@ It is wired in two places:
   ```
 
 The service task runs `asyncBefore`, so after the first form is confirmed the
-job executor runs the connector — the **Review application** task appears a
-moment later (use the Tasks page **Refresh** button).
+job executor runs the connector — the **Auto approval?** DMN task runs next,
+and depending on the outcome either the process ends or the **Review
+application** task appears a moment later (use the Tasks page **Refresh**
+button).
+
+## DMN decision table
+
+[`cib7/src/main/resources/processes/auto-approval.dmn`](cib7/src/main/resources/processes/auto-approval.dmn)
+is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
+`price` (Double) — and a single string output `autoDecision`. Hit policy is
+`FIRST`: minors always go to review, adults with cheap picks auto-approve,
+everything else goes to review.
+
+The Business Rule Task references it inline:
+
+```xml
+<bpmn:businessRuleTask id="Task_AutoDecide" name="Auto approval?"
+                       camunda:decisionRef="auto-approval"
+                       camunda:mapDecisionResult="singleEntry"
+                       camunda:resultVariable="autoDecision" />
+```
+
+Auto-deploy picks up `*.dmn` automatically thanks to the list pattern in
+[`application.yaml`](cib7/src/main/resources/application.yaml):
+
+```yaml
+camunda.bpm:
+  deployment-resource-pattern:
+    - classpath*:**/*.bpmn
+    - classpath*:**/*.dmn
+```
+
+## Timer boundary event + Mailpit
+
+The **Review application** user task carries a non-interrupting timer
+boundary event (`R/PT2M`). Every two minutes while the task is open the
+engine job executor fires a parallel branch into a **Send reminder email**
+service task — the user task itself stays open and can fire again. The
+service task is just the `http-connector` POSTing to Mailpit's
+`/api/v1/send` JSON endpoint:
+
+```xml
+<camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+<camunda:inputParameter name="method">POST</camunda:inputParameter>
+<camunda:inputParameter name="payload">{
+  "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
+  "To":   [ { "Email": "civil-servant@cib7-poc.local" } ],
+  "Subject": "Reminder: application waiting for review",
+  "Text": "An application from ${firstName} ${lastName} has been waiting…"
+}</camunda:inputParameter>
+```
+
+The same connector is reused on the send-back path to email the applicant
+(`${initiator}@cib7-poc.local`) the rejection reason before looping back. The
+`${mailApiBaseUrl}` variable is exposed by
+[`MailConfiguration.java`](cib7/src/main/java/com/poc/cib7/MailConfiguration.java)
+as a Spring bean, driven by the `MAIL_API_URL` env var
+(`http://mailpit:8025` in Docker, `http://localhost:8025` for
+`mvn spring-boot:run`).
+
+[Mailpit](https://mailpit.axllent.org/) (`axllent/mailpit:latest`) is a tiny
+SMTP server + web UI; the inbox at <http://localhost:8025> visualizes every
+email the process sends.
+
+## Cockpit / Tasklist / Admin webapps with Keycloak SSO
+
+The `cibseven-bpm-spring-boot-starter-webapp` dependency mounts the classic
+CIB seven webapps at `/camunda/**`. A second Spring Security filter chain
+(`com.poc.cib7.keycloak.webapp.WebappSecurityConfig`) drives an OAuth2
+Authorization Code flow against the `cib7-webapps` Keycloak client; once the
+user is logged in, `ContainerBasedAuthenticationFilter` calls
+`KeycloakAuthenticationProvider.extractAuthenticatedUser`, which reads the
+OIDC user and queries groups via the cibseven-keycloak plugin's read-only
+`IdentityService` — the same identity model the `/engine-rest` Bearer-JWT
+filter uses. The three Java files under `com/poc/cib7/keycloak/webapp/` are
+the plugin's published recipe (`examples/sso-kubernetes`), repackaged.
+
+URL split — internal vs browser-visible — is handled in
+[`application.yaml`](cib7/src/main/resources/application.yaml) by listing
+every OAuth2 endpoint explicitly (no `issuer-uri`, which would trigger OIDC
+discovery against an URL the engine container can't reach):
+
+```yaml
+spring.security.oauth2.client.provider.keycloak:
+  authorization-uri: http://localhost:8180/...  # browser
+  token-uri:         http://keycloak:8080/...   # backend
+  jwk-set-uri:       http://keycloak:8080/...   # backend
+  user-info-uri:     http://keycloak:8080/...   # backend
+```
+
+Log in at <http://localhost:8080/camunda> as `homer` / `homer` for the admin
+view, or `bart` / `bart` for the applicant view.
 
 ## REST endpoints used
 
@@ -295,5 +420,7 @@ reinstated.
   user-created users/groups are also lost on restart.
 - The **Get price** service task calls the public `api.restful-api.dev` — an
   internet connection is needed for that step.
-- The CIB seven web apps (Cockpit / Tasklist / Admin) are **not** included. To
-  add them, add the `cibseven-bpm-spring-boot-starter-webapp` dependency.
+- The DMN's `PT2M` timer cycle is a demo value — switch to `PT8H` / `PT1D`
+  for anything real, otherwise Mailpit fills up fast.
+- Mailpit's storage is non-persistent (no volume mounted); restarting the
+  container empties the inbox.

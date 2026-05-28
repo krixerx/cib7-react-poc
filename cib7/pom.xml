@@ -24,10 +24,14 @@
   </properties>
 
   <dependencies>
-    <!-- CIB seven 2.1 engine + REST API (registers /engine-rest). -->
+    <!-- CIB seven 2.1 engine + REST API + Cockpit/Tasklist/Admin webapps.
+         The webapp starter transitively brings the rest starter, so we only
+         need one. The webapps are served from /camunda/* once the second
+         SecurityFilterChain (see com.poc.cib7.keycloak.WebappSecurityConfig)
+         is on the classpath. -->
     <dependency>
       <groupId>org.cibseven.bpm.springboot</groupId>
-      <artifactId>cibseven-bpm-spring-boot-starter-rest</artifactId>
+      <artifactId>cibseven-bpm-spring-boot-starter-webapp</artifactId>
       <version>${cibseven.version}</version>
     </dependency>
 
@@ -105,15 +109,16 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
     </dependency>
-    <!-- oauth2-client is intentionally NOT included. The plugin's
-         sso-kubernetes example pulled it in for the webapp OAuth2 login
-         flow + an OAuth2AuthorizedClientService bean. Our setup has no
-         webapps (the React SPA performs OIDC itself), and including the
-         starter pulls in auto-config that calls OIDC discovery against
-         our issuer URI at startup — fatal in docker-compose where the
-         backend can't reach the browser's public Keycloak URL. The
-         filter's OAuth2AuthorizedClientService parameter is therefore
-         declared optional and stays null in the JWT path. -->
+    <!-- oauth2-client drives the legacy webapps' OAuth2 login flow against
+         Keycloak (Authorization Code grant). The auto-config DOES NOT call
+         OIDC discovery because we provide every endpoint explicitly under
+         spring.security.oauth2.client.provider.keycloak.* (no issuer-uri).
+         That keeps the engine startable in docker-compose, where the
+         container can't reach the browser-visible Keycloak URL. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-client</artifactId>
+    </dependency>
   </dependencies>
 
   <build>

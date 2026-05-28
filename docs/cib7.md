@@ -28,9 +28,11 @@ cib7/BFF module if and when one is added.
 |---|---|
 | Language | Java 17 |
 | Framework | Spring Boot 3.5 |
-| Process engine | CIB seven 2.1 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-rest` |
+| Process engine | CIB seven 2.1 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
 | Database | H2, in-memory (no `spring.datasource` configured) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
+| DMN | Bundled with the engine; `auto-approval.dmn` auto-deployed alongside BPMN |
+| Webapp SSO | `spring-boot-starter-oauth2-client` + `ContainerBasedAuthenticationFilter` (cibseven-keycloak plugin recipe) |
 | Build | Maven, `spring-boot-maven-plugin` |
 
 ## File layout
@@ -42,13 +44,16 @@ cib7/
 └── src/main/
     ├── java/com/poc/cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
-    │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin
+    │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin + Spin plugin
+    │   ├── MailConfiguration.java         — exposes ${mailApiBaseUrl} to BPMN JUEL
     │   ├── AuthorizationBootstrap.java    — grants the applicant group engine perms on startup
     │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
+    │       └── webapp/                    — OAuth2 login + ContainerBasedAuthenticationProvider for Cockpit/Tasklist/Admin
     └── resources/
-        ├── application.yaml               — engine + auto-deploy config
+        ├── application.yaml               — engine + auto-deploy + OAuth2 client config
         └── processes/
-            └── person-registration.bpmn   — auto-deployed on startup
+            ├── person-registration.bpmn   — auto-deployed on startup
+            └── auto-approval.dmn          — auto-deployed alongside BPMN
 ```
 
 The `com.poc.cib7.keycloak` package contains five classes verbatim from the
@@ -106,7 +111,9 @@ server:
   port: 8080
 
 camunda.bpm:
-  deployment-resource-pattern: classpath*:**/*.bpmn
+  deployment-resource-pattern:
+    - classpath*:**/*.bpmn
+    - classpath*:**/*.dmn
   database:
     schema-update: true
 ```
@@ -114,7 +121,7 @@ camunda.bpm:
 | Key | Why |
 |---|---|
 | `server.port: 8080` | Hard-coded so the SPA proxy targets are stable in both dev and Docker |
-| `camunda.bpm.deployment-resource-pattern` | Auto-deploys every `*.bpmn` on the classpath at startup — no Java code needed |
+| `camunda.bpm.deployment-resource-pattern` | List of glob patterns. Auto-deploys every `*.bpmn` **and** `*.dmn` on the classpath at startup — no Java code needed |
 | `camunda.bpm.database.schema-update: true` | Lets the engine create its tables on first start (required for the in-memory H2 lifecycle) |
 | *(no `spring.datasource`)* | Triggers Spring Boot's H2 auto-config — in-memory DB, state wiped on restart |
 
@@ -171,15 +178,25 @@ The variable name + type form part of the form contract.
 
 ```
 StartEvent_1 (camunda:initiator="initiator")
-  → Task_SubmitDetails   userTask    formKey="react:personal-details"
-                                    camunda:assignee="${initiator}"
-                                    (also re-entered on send-back)
-  → Task_GetPrice        serviceTask asyncBefore=true, connector="http-connector"
-  → Task_Review          userTask    formKey="react:review-application"
-                                    camunda:candidateGroups="civil-servant"
-  → Gateway_Decision     exclusiveGateway
+  → Task_SubmitDetails       userTask          formKey="react:personal-details"
+                                                camunda:assignee="${initiator}"
+                                                (also re-entered on send-back)
+  → Task_GetPrice            serviceTask       asyncBefore=true, connector="http-connector"
+  → Task_AutoDecide          businessRuleTask  decisionRef="auto-approval"
+                                                → autoDecision (singleEntry)
+  → Gateway_AutoApproval     exclusiveGateway
+       autoDecision == "approve"  → EndEvent_Approved (auto-approved, skips PartB)
+       default                     → Task_Review
+  → Task_Review              userTask          formKey="react:review-application"
+                                                camunda:candidateGroups="civil-servant"
+       ┊
+       ┊ boundary timer R/PT2M (non-interrupting)
+       ▼
+       Task_SendReminderEmail (http-connector → Mailpit) → EndEvent_ReminderSent
+  → Gateway_Decision         exclusiveGateway
        decision == "approve"  → EndEvent_Approved
-       default (sendback)     → Task_SubmitDetails (loops back to applicant)
+       default (sendback)     → Task_SendBackEmail (http-connector → Mailpit)
+                              → Task_SubmitDetails  (loops back to applicant)
 ```
 
 Process variables:
@@ -188,9 +205,18 @@ Process variables:
 - `firstName`, `lastName`, `age`, `objectId` — written by the applicant task.
 - `price` — written by `Task_GetPrice` via the Spin expression on the
   `http-connector`'s response.
+- `autoDecision` — written by `Task_AutoDecide`, mapped from the `auto-approval`
+  DMN's single output. Values: `"approve"` or `"review"`.
 - `decision` — written by the review task (`"approve"` or `"sendback"`).
 - `sendBackReason` — set by the review form when sending back; cleared by
   the applicant form on resubmit so the next review cycle starts clean.
+
+**DMN — `auto-approval.dmn`.** Hit policy `FIRST`. Two inputs (`age`,
+`price`), one output (`autoDecision`). Mapped into the process via
+`camunda:resultVariable="autoDecision"` + `camunda:mapDecisionResult="singleEntry"`
+on the business rule task — `singleEntry` extracts the single value of the
+single-row result; if no rule matches you get `null`, which falls through to
+the gateway's default branch and routes to the human reviewer.
 
 ## Connect plugin and connector
 
@@ -205,7 +231,9 @@ Input parameters: `method`, `url`, `headers` (a `<camunda:map>`), `payload`,
 `contentType`. Output parameters: `statusCode`, `headers`, `response` (the raw
 body as a String).
 
-It is wired inline inside `Task_GetPrice`'s `<bpmn:extensionElements>`. The
+It is wired inline inside three service tasks: `Task_GetPrice` (catalogue
+lookup), `Task_SendReminderEmail` (timer-driven email), and
+`Task_SendBackEmail` (sent on the rejection path). For `Task_GetPrice` the
 response body is parsed with Spin (bundled with the CIB seven engine) to read
 `data.price` out:
 
@@ -229,6 +257,20 @@ The `asyncBefore="true"` flag means the service task runs in the job executor:
 after the previous user task is completed, the call happens on a background
 thread; the next user task appears a moment later. The Tasks page **Refresh**
 button is the polling mechanism.
+
+The two email service tasks reuse the same connector against Mailpit. The
+target URL is built from a Spring bean `mailApiBaseUrl` registered by
+`MailConfiguration.java`; in JUEL `${mailApiBaseUrl}` resolves to whatever
+the `MAIL_API_URL` env var is set to (defaults to `http://localhost:8025`
+for `mvn spring-boot:run`; `http://mailpit:8025` inside docker-compose).
+Mailpit's HTTP API is intentionally Mailpit-flavoured — `From`/`To` lists,
+`Subject`, `Text` — there is no SMTP traffic involved.
+
+The non-interrupting timer boundary event on `Task_Review`
+(`cancelActivity="false"`, `R/PT2M`) is what schedules the reminder branch.
+"Non-interrupting" means the user task stays open and the timer can fire
+again on its next cycle. The job executor must be running for the timer to
+fire — it is, by default, in the Spring Boot starter.
 
 ## Authentication and authorization
 
@@ -337,9 +379,33 @@ docker build -t cib7-poc-cib7 cib7/
 # …or just:  docker compose up --build
 ```
 
-The engine listens on `http://localhost:8080/engine-rest`. The CIB seven web
-apps (Cockpit / Tasklist / Admin) are **not** included — to add them, add the
-`cibseven-bpm-spring-boot-starter-webapp` dependency.
+The engine listens on `http://localhost:8080/engine-rest` and the
+CIB seven webapps (Cockpit / Tasklist / Admin) on
+`http://localhost:8080/camunda`. The webapp starter
+(`cibseven-bpm-spring-boot-starter-webapp`) transitively brings the REST
+starter.
+
+### Webapp SSO
+
+Webapp auth lives in `com.poc.cib7.keycloak.webapp` and is the
+cibseven-keycloak plugin's `sso-kubernetes` example, repackaged:
+
+| Class | Role |
+|---|---|
+| `WebappSecurityConfig` | Second `SecurityFilterChain` (`@Order(2)`) matching `/camunda/**` + OAuth2 paths. Runs `.oauth2Login(...)`. Registers `ContainerBasedAuthenticationFilter` at order 201 to bridge the OAuth2 principal into `IdentityService`. |
+| `KeycloakAuthenticationProvider` | Reads the `OidcUser`, looks up groups via the cibseven-keycloak plugin's read-only `IdentityService`, returns the user-id + groups to the engine. |
+| `KeycloakLogoutHandler` | Redirects to Keycloak's OIDC logout endpoint with `id_token_hint` so the SSO session ends too. |
+
+The Keycloak side is the `cib7-webapps` client in
+`keycloak/realm-export.json` (confidential, standard flow,
+`http://localhost:8080/login/oauth2/code/keycloak` redirect URI).
+
+The OAuth2 client config in `application.yaml` deliberately **omits**
+`spring.security.oauth2.client.provider.keycloak.issuer-uri` and lists every
+endpoint explicitly — the same internal-vs-browser URL split as for JWKS in
+`RestApiSecurityConfig`. Setting `issuer-uri` would trigger OIDC discovery
+against the browser-visible URL at startup, which the engine container
+can't reach inside docker-compose.
 
 ## Conventions
 

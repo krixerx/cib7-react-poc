@@ -8,6 +8,39 @@ spring:
   # explicit datasource, Spring Boot provisions an in-memory H2 database.
   # All process data is therefore lost on restart — fine for a POC.
 
+  # OAuth2 client config for the legacy CIB seven webapps (Cockpit / Tasklist
+  # / Admin), served from /camunda/**. Wires the Authorization Code flow
+  # against Keycloak. Picked up by Spring Boot's OAuth2ClientAutoConfiguration
+  # and consumed by com.poc.cib7.keycloak.webapp.WebappSecurityConfig via
+  # .oauth2Login(...).
+  #
+  # We DELIBERATELY omit `provider.keycloak.issuer-uri` here: setting it would
+  # make Spring perform OIDC discovery at startup, which fails inside Docker
+  # because the engine container can't reach the browser-visible Keycloak
+  # URL. Listing every endpoint explicitly avoids the discovery call and lets
+  # us split internal vs external URLs cleanly:
+  #
+  #   authorization-uri -> browser (KEYCLOAK_ISSUER_URL = http://localhost:8180)
+  #   token / jwk / userinfo URIs -> backend (KEYCLOAK_URL = http://keycloak:8080)
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            provider: keycloak
+            client-id: ${KEYCLOAK_WEBAPPS_CLIENT_ID:cib7-webapps}
+            client-secret: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:cib7-webapps-secret}
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid, profile, email
+        provider:
+          keycloak:
+            authorization-uri: ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/auth
+            token-uri:         ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/token
+            jwk-set-uri:       ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
+            user-info-uri:     ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/userinfo
+            user-name-attribute: preferred_username
+
 
 # Custom Keycloak config consumed only by RestApiSecurityConfig.
 # Intentionally NOT placed under spring.security.oauth2.client.provider.*
@@ -28,8 +61,11 @@ app:
     user-name-attribute: preferred_username
 
 camunda.bpm:
-  # Auto-deploy every BPMN file found on the classpath on startup.
-  deployment-resource-pattern: classpath*:**/*.bpmn
+  # Auto-deploy every BPMN and DMN file found on the classpath on startup.
+  # DMN decision tables live next to BPMN under classpath:/processes/.
+  deployment-resource-pattern:
+    - classpath*:**/*.bpmn
+    - classpath*:**/*.dmn
   database:
     schema-update: true
   # Engine authorization must be on for candidateGroups on userTasks to

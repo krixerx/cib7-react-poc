@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:camunda="http://camunda.org/schema/1.0/dmn"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="Definitions_AutoApproval"
+             name="Auto approval"
+             namespace="http://camunda.org/schema/1.0/dmn"
+             exporter="cib7-react-poc" exporterVersion="0.4.0">
+  <!--
+    Decides whether the personRegistration process can skip the civil-servant
+    review or has to go through it. Hit policy FIRST: rules evaluated in order;
+    the first match wins. Engine returns a single output via getSingleResult().
+
+    Inputs:
+      age   (number) — applicant's age, written by Task_SubmitDetails
+      price (number) — fetched product price, written by Task_GetPrice
+
+    Output:
+      autoDecision (string) — "approve" auto-completes the process,
+                              "review"  routes to the civil-servant task
+  -->
+  <decision id="auto-approval" name="Auto approval">
+    <decisionTable id="DecisionTable_AutoApproval" hitPolicy="FIRST">
+      <input id="Input_Age" label="Age" camunda:inputVariable="age">
+        <inputExpression id="InputExpression_Age" typeRef="integer">
+          <text>age</text>
+        </inputExpression>
+      </input>
+      <input id="Input_Price" label="Price" camunda:inputVariable="price">
+        <inputExpression id="InputExpression_Price" typeRef="double">
+          <text>price</text>
+        </inputExpression>
+      </input>
+      <output id="Output_Decision" label="Decision" name="autoDecision" typeRef="string" />
+
+      <!-- Minors always need a human reviewer, regardless of price. -->
+      <rule id="Rule_Minor">
+        <inputEntry id="Rule_Minor_Age"><text>&lt; 18</text></inputEntry>
+        <inputEntry id="Rule_Minor_Price"><text>-</text></inputEntry>
+        <outputEntry id="Rule_Minor_Out"><text>"review"</text></outputEntry>
+      </rule>
+
+      <!-- Adults with cheap picks (price &lt; 100) auto-approve. -->
+      <rule id="Rule_AutoApprove">
+        <inputEntry id="Rule_AutoApprove_Age"><text>&gt;= 18</text></inputEntry>
+        <inputEntry id="Rule_AutoApprove_Price"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="Rule_AutoApprove_Out"><text>"approve"</text></outputEntry>
+      </rule>
+
+      <!-- Anything else (adults with expensive picks) goes to review. -->
+      <rule id="Rule_DefaultReview">
+        <inputEntry id="Rule_DefaultReview_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DefaultReview_Price"><text>-</text></inputEntry>
+        <outputEntry id="Rule_DefaultReview_Out"><text>"review"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="DMNDiagram_1">
+      <dmndi:DMNShape id="DMNShape_AutoApproval" dmnElementRef="auto-approval">
+        <dc:Bounds height="80" width="180" x="160" y="100" />
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

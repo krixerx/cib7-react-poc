@@ -111,6 +111,26 @@
       "attributes": {
         "use.refresh.tokens": "false"
       }
+    },
+    {
+      "clientId": "cib7-webapps",
+      "name": "CIB seven Webapps (Cockpit / Tasklist / Admin) SSO",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-webapps-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8080/login/oauth2/code/keycloak",
+        "http://localhost:8080/camunda/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8080/*"
+      }
     }
   ]
 }

@@ -7,23 +7,29 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   id="Definitions_PersonRegistration"
                   targetNamespace="http://bpmn.io/schema/bpmn"
-                  exporter="cib7-react-poc" exporterVersion="0.3.0">
+                  exporter="cib7-react-poc" exporterVersion="0.4.0">
   <!--
     Person Registration process.
 
       start (initiator = starting applicant)
-        -> [Submit personal details]   user task   (applicant — PartA)
-        -> (Get price)                 service task (http-connector)
-        -> [Review application]        user task   (civil-servant — PartB)
+        -> [Submit personal details]   user task           (applicant — PartA)
+        -> (Get price)                 service task        (http-connector)
+        -> {Auto approval?}            business rule task  (DMN)
+        -> <Auto?>                     exclusive gateway
+             autoDecision == "approve" -> end approved
+             else                       -> [Review application] (civil-servant)
+        -> [Review application]        user task           (civil-servant — PartB)
+              boundary timer PT2M (non-interrupting) -> (Send reminder email)
         -> <Decision?>                 exclusive gateway
-             approve   -> end approved
-             sendback  -> back to Submit personal details (with sendBackReason)
+             decision == "approve" -> end approved
+             else                   -> (Send "sent back" email) -> Submit (loop)
 
     Process variables:
       initiator       - login of the user that started the instance (PartA owner)
       firstName, lastName, age   - written by the applicant task
       objectId                   - written by the applicant task (selected product)
       price                      - written by the Get price service task
+      autoDecision               - written by the DMN business rule task ("approve"/"review")
       decision                   - written by the review user task ("approve"/"sendback")
       sendBackReason             - optional reason supplied by the civil servant
                                    when sending the case back for corrections
@@ -45,7 +51,7 @@
                    camunda:formKey="react:personal-details"
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
-      <bpmn:incoming>Flow_SendBack</bpmn:incoming>
+      <bpmn:incoming>Flow_SendBackEmail_Submit</bpmn:incoming>
       <bpmn:outgoing>Flow_Submit_GetPrice</bpmn:outgoing>
     </bpmn:userTask>
 
@@ -70,23 +76,115 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Submit_GetPrice</bpmn:incoming>
-      <bpmn:outgoing>Flow_GetPrice_Review</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GetPrice_AutoDecide</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_GetPrice_Review" sourceRef="Task_GetPrice" targetRef="Task_Review" />
+    <bpmn:sequenceFlow id="Flow_GetPrice_AutoDecide" sourceRef="Task_GetPrice" targetRef="Task_AutoDecide" />
+
+    <!--
+      DMN business rule task. References the "auto-approval" decision deployed
+      from auto-approval.dmn (hit policy FIRST). camunda:mapDecisionResult
+      maps the single-entry output into the autoDecision process variable.
+
+      Inputs read by the DMN: age (Integer) and price (Double). Both are set
+      by earlier steps before this task runs.
+    -->
+    <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto approval?"
+                           camunda:decisionRef="auto-approval"
+                           camunda:mapDecisionResult="singleEntry"
+                           camunda:resultVariable="autoDecision">
+      <bpmn:incoming>Flow_GetPrice_AutoDecide</bpmn:incoming>
+      <bpmn:outgoing>Flow_AutoDecide_Gateway</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:sequenceFlow id="Flow_AutoDecide_Gateway" sourceRef="Task_AutoDecide" targetRef="Gateway_AutoApproval" />
+
+    <!--
+      Branches on the DMN output. "approve" skips the human review and ends
+      the case as approved; anything else routes to the civil servant.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_AutoApproval" name="Auto-approve?" default="Flow_AutoApproval_Review">
+      <bpmn:incoming>Flow_AutoDecide_Gateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_AutoApproval_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AutoApproval_Review</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_AutoApproval_Approved" name="auto-approved"
+                       sourceRef="Gateway_AutoApproval" targetRef="EndEvent_Approved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${autoDecision == "approve"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_AutoApproval_Review" name="needs review"
+                       sourceRef="Gateway_AutoApproval" targetRef="Task_Review" />
 
     <!--
       Civil-servant task (PartB). Visible to everyone in the civil-servant
       group via candidateGroups. (The cibseven-keycloak plugin maps the
       Keycloak group path "/civil-servant" to the engine group id without
       the leading slash, so candidateGroups must match the engine view.)
+
+      A non-interrupting timer boundary event fires every PT2M while the
+      task is open and triggers a reminder email through Mailpit. "Non-
+      interrupting" (cancelActivity="false") means the user task stays open
+      and can fire again — handy for repeated nudges.
     -->
     <bpmn:userTask id="Task_Review" name="Review application"
                    camunda:formKey="react:review-application"
                    camunda:candidateGroups="civil-servant">
-      <bpmn:incoming>Flow_GetPrice_Review</bpmn:incoming>
+      <bpmn:incoming>Flow_AutoApproval_Review</bpmn:incoming>
       <bpmn:outgoing>Flow_Review_Gateway</bpmn:outgoing>
     </bpmn:userTask>
+
+    <bpmn:boundaryEvent id="BoundaryEvent_ReviewReminder" name="Every 2 min"
+                        attachedToRef="Task_Review" cancelActivity="false">
+      <bpmn:outgoing>Flow_Reminder_Send</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <!-- ISO-8601 cycle. PT2M is a demo value — switch to PT1D / PT8H in
+             production. The job executor must be running for this to fire. -->
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT2M</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:sequenceFlow id="Flow_Reminder_Send"
+                       sourceRef="BoundaryEvent_ReviewReminder" targetRef="Task_SendReminderEmail" />
+
+    <!--
+      Reminder email via the Mailpit HTTP API. MAIL_API_URL is the engine
+      container's view of Mailpit (docker-compose alias "mailpit"); the
+      MailApiBaseUrlConfiguration bean exposes it as a JUEL variable.
+    -->
+    <bpmn:serviceTask id="Task_SendReminderEmail" name="Send reminder email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{
+              "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
+              "To": [ { "Email": "civil-servant@cib7-poc.local", "Name": "Civil servant" } ],
+              "Subject": "Reminder: application waiting for review",
+              "Text": "An application from ${firstName} ${lastName} has been waiting for review. Please open the Tasks page in the SPA."
+            }</camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Reminder_Send</bpmn:incoming>
+      <bpmn:outgoing>Flow_Reminder_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_Reminder_End"
+                       sourceRef="Task_SendReminderEmail" targetRef="EndEvent_ReminderSent" />
+
+    <bpmn:endEvent id="EndEvent_ReminderSent" name="Reminder sent">
+      <bpmn:incoming>Flow_Reminder_End</bpmn:incoming>
+    </bpmn:endEvent>
 
     <bpmn:sequenceFlow id="Flow_Review_Gateway" sourceRef="Task_Review" targetRef="Gateway_Decision" />
 
@@ -101,14 +199,44 @@
     </bpmn:sequenceFlow>
 
     <!--
-      Default branch: any non-approve decision (i.e. "sendback") loops the case
-      back to the applicant. The sendBackReason variable, written by the review
-      form, is shown on the applicant task so they know what to fix.
+      Default branch: any non-approve decision (i.e. "sendback") emails the
+      applicant the reason and loops the case back to the applicant.
     -->
-    <bpmn:sequenceFlow id="Flow_SendBack" name="sent back" sourceRef="Gateway_Decision" targetRef="Task_SubmitDetails" />
+    <bpmn:sequenceFlow id="Flow_SendBack" name="sent back"
+                       sourceRef="Gateway_Decision" targetRef="Task_SendBackEmail" />
+
+    <bpmn:serviceTask id="Task_SendBackEmail" name="Send &quot;sent back&quot; email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">{
+              "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
+              "To": [ { "Email": "${initiator}@cib7-poc.local", "Name": "${firstName} ${lastName}" } ],
+              "Subject": "Your application needs corrections",
+              "Text": "Hi ${firstName},\n\nThe civil servant has sent your application back for corrections. Reason: ${sendBackReason}\n\nOpen the My processes page in the SPA and resubmit when ready."
+            }</camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendBack</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendBackEmail_Submit</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_SendBackEmail_Submit"
+                       sourceRef="Task_SendBackEmail" targetRef="Task_SubmitDetails" />
 
     <bpmn:endEvent id="EndEvent_Approved" name="Application approved">
       <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:incoming>Flow_AutoApproval_Approved</bpmn:incoming>
     </bpmn:endEvent>
 
   </bpmn:process>
@@ -116,63 +244,122 @@
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="personRegistration">
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="160" y="182" width="36" height="36" />
+        <dc:Bounds x="120" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="146" y="225" width="65" height="14" />
+          <dc:Bounds x="106" y="225" width="65" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SubmitDetails_di" bpmnElement="Task_SubmitDetails">
-        <dc:Bounds x="250" y="160" width="100" height="80" />
+        <dc:Bounds x="200" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_GetPrice_di" bpmnElement="Task_GetPrice">
-        <dc:Bounds x="410" y="160" width="100" height="80" />
+        <dc:Bounds x="340" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_Review_di" bpmnElement="Task_Review">
-        <dc:Bounds x="570" y="160" width="100" height="80" />
+      <bpmndi:BPMNShape id="Task_AutoDecide_di" bpmnElement="Task_AutoDecide">
+        <dc:Bounds x="480" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Gateway_Decision_di" bpmnElement="Gateway_Decision" isMarkerVisible="true">
-        <dc:Bounds x="735" y="175" width="50" height="50" />
+      <bpmndi:BPMNShape id="Gateway_AutoApproval_di" bpmnElement="Gateway_AutoApproval" isMarkerVisible="true">
+        <dc:Bounds x="625" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="738" y="145" width="55" height="14" />
+          <dc:Bounds x="617" y="145" width="68" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
-        <dc:Bounds x="872" y="182" width="36" height="36" />
+      <bpmndi:BPMNShape id="Task_Review_di" bpmnElement="Task_Review">
+        <dc:Bounds x="720" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_ReviewReminder_di" bpmnElement="BoundaryEvent_ReviewReminder">
+        <dc:Bounds x="752" y="222" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="857" y="225" width="67" height="14" />
+          <dc:Bounds x="734" y="265" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendReminderEmail_di" bpmnElement="Task_SendReminderEmail">
+        <dc:Bounds x="720" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_ReminderSent_di" bpmnElement="EndEvent_ReminderSent">
+        <dc:Bounds x="862" y="362" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="850" y="405" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Decision_di" bpmnElement="Gateway_Decision" isMarkerVisible="true">
+        <dc:Bounds x="865" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="868" y="145" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
+        <dc:Bounds x="430" y="480" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
+        <dc:Bounds x="1002" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="987" y="225" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_Submit_di" bpmnElement="Flow_Start_Submit">
-        <di:waypoint x="196" y="200" />
-        <di:waypoint x="250" y="200" />
+        <di:waypoint x="156" y="200" />
+        <di:waypoint x="200" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Submit_GetPrice_di" bpmnElement="Flow_Submit_GetPrice">
-        <di:waypoint x="350" y="200" />
-        <di:waypoint x="410" y="200" />
+        <di:waypoint x="300" y="200" />
+        <di:waypoint x="340" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_GetPrice_Review_di" bpmnElement="Flow_GetPrice_Review">
-        <di:waypoint x="510" y="200" />
-        <di:waypoint x="570" y="200" />
+      <bpmndi:BPMNEdge id="Flow_GetPrice_AutoDecide_di" bpmnElement="Flow_GetPrice_AutoDecide">
+        <di:waypoint x="440" y="200" />
+        <di:waypoint x="480" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AutoDecide_Gateway_di" bpmnElement="Flow_AutoDecide_Gateway">
+        <di:waypoint x="580" y="200" />
+        <di:waypoint x="625" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AutoApproval_Review_di" bpmnElement="Flow_AutoApproval_Review">
+        <di:waypoint x="675" y="200" />
+        <di:waypoint x="720" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="676" y="182" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AutoApproval_Approved_di" bpmnElement="Flow_AutoApproval_Approved">
+        <di:waypoint x="650" y="175" />
+        <di:waypoint x="650" y="100" />
+        <di:waypoint x="1020" y="100" />
+        <di:waypoint x="1020" y="182" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="780" y="82" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reminder_Send_di" bpmnElement="Flow_Reminder_Send">
+        <di:waypoint x="770" y="258" />
+        <di:waypoint x="770" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reminder_End_di" bpmnElement="Flow_Reminder_End">
+        <di:waypoint x="820" y="380" />
+        <di:waypoint x="862" y="380" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Review_Gateway_di" bpmnElement="Flow_Review_Gateway">
-        <di:waypoint x="670" y="200" />
-        <di:waypoint x="735" y="200" />
+        <di:waypoint x="820" y="200" />
+        <di:waypoint x="865" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
-        <di:waypoint x="785" y="200" />
-        <di:waypoint x="872" y="200" />
+        <di:waypoint x="915" y="200" />
+        <di:waypoint x="1002" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="800" y="182" width="48" height="14" />
+          <dc:Bounds x="930" y="182" width="48" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SendBack_di" bpmnElement="Flow_SendBack">
-        <di:waypoint x="760" y="225" />
-        <di:waypoint x="760" y="320" />
-        <di:waypoint x="300" y="320" />
-        <di:waypoint x="300" y="240" />
+        <di:waypoint x="890" y="225" />
+        <di:waypoint x="890" y="520" />
+        <di:waypoint x="550" y="520" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="510" y="302" width="55" height="14" />
+          <dc:Bounds x="700" y="502" width="55" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SendBackEmail_Submit_di" bpmnElement="Flow_SendBackEmail_Submit">
+        <di:waypoint x="430" y="520" />
+        <di:waypoint x="250" y="520" />
+        <di:waypoint x="250" y="240" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
