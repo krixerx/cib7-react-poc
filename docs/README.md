@@ -18,14 +18,31 @@ table of contents so it can be opened, skimmed, and closed in one pass.
 
 ## Map — which doc answers what
 
+The docs are split into two layers:
+
+- **Platform docs** (this folder) — how the platform works. Cross-cutting,
+  service-agnostic.
+- **Business docs** ([`business/`](business/)) — what the platform delivers.
+  One folder per service under [`business/services/`](business/services/),
+  each describing its BPMN flow, forms, integrations, and roles.
+
 | If you need to … | Read |
 |---|---|
 | Understand the runtime topology, request flow, deployment model | [`architecture.md`](architecture.md) |
 | Touch React code: pages, forms, the form registry, the REST client, auth | [`frontend.md`](frontend.md) |
-| Touch Java code: Spring Boot wiring, engine config, the BPMN file, the connector, Keycloak | [`cib7.md`](cib7.md) |
-| Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
-| Reference the original long-form design spec | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
+| Touch Java code: Spring Boot wiring, engine config, BPMN auto-deploy, the connector, Keycloak | [`cib7.md`](cib7.md) |
+| Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture-poc) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
+| Reference the form contract between BPMN and React | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
+| Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](business/services/) |
+| Add a new business service | [`business/services/`](business/services/) — copy an existing service folder as a template |
+| Regenerate a service's flow diagram from its BPMN | [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) |
 | Run / build the app, see the high-level overview | top-level [`../README.md`](../README.md) |
+
+### Services
+
+| Service | Process key | Doc |
+|---|---|---|
+| Person Registration | `personRegistration` | [`business/services/person-registration/`](business/services/person-registration/README.md) |
 
 ## Conventions
 
@@ -40,12 +57,27 @@ table of contents so it can be opened, skimmed, and closed in one pass.
 - **Form id contract.** A BPMN user task carries `camunda:formKey="react:<id>"`;
   the React app strips the `react:` prefix and looks `<id>` up in
   `frontend/src/forms/registry.ts`. Details: [`frontend.md`](frontend.md#forms).
+- **Service docs are per-service.** Anything specific to a single business
+  service (its flow, forms, integrations, variables, roles) belongs in
+  `docs/business/services/<service>/`, not in the cross-cutting platform
+  docs. The cross-cutting docs describe how the platform works in general;
+  the service folder describes what one service does in particular.
+- **Flow diagrams are generated, not hand-written.** Each service README
+  embeds a mermaid diagram between `<!-- bpmn-diagram:start -->` and
+  `<!-- bpmn-diagram:end -->` markers. Re-run
+  [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) after
+  changing the BPMN; don't hand-edit the block.
 
 ## How to keep these docs healthy
 
 - Update the doc in the same PR that changes the code it describes.
 - Keep each file focused on its scope — don't duplicate content across files,
   cross-link instead.
+- Cross-cutting vs service-specific: if a change touches one service only,
+  update that service's folder. If it changes how every service must behave,
+  update the cross-cutting doc and link from the affected services.
 - Headings are stable anchors. Don't rename a section without checking inbound
   links from sibling docs.
 - If a section grows beyond ~80 lines, consider splitting it into its own file.
+- After editing a BPMN file, regenerate the diagram for that service before
+  committing.

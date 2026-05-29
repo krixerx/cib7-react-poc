@@ -1,0 +1,13 @@
+{
+  "name": "cib7-react-poc-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repo-level dev scripts (BPMN→mermaid converter, future service-builder helpers). Kept out of the frontend bundle so deps stay tiny.",
+  "scripts": {
+    "bpmn-to-mermaid": "node bpmn-to-mermaid.mjs"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  }
+}
