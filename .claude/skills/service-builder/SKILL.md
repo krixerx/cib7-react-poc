@@ -1,0 +1,512 @@
+---
+name: service-builder
+description: |
+  Generate or modify a CIB seven business service from its markdown spec under
+  docs/business/services/<service>/. Reads README.md, forms/*.md, service-tasks/*.md,
+  and decisions/*.md; emits BPMN, DMN, FreeMarker payload templates, React form
+  components, registry entries, and a regenerated mermaid diagram. Use when asked
+  to "build the service", "generate from the spec", "scaffold a new service",
+  "regenerate the BPMN", or after editing any file under docs/business/services/.
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - AskUserQuestion
+---
+
+# /service-builder — spec-first CIB seven service generator
+
+This skill turns a service's markdown spec into running code. The analyst owns
+the markdown under `docs/business/services/<service>/`; everything else is
+generated. The goal is that **regenerating the same spec produces the same
+output**, so modifications work by editing the spec and re-running.
+
+The canonical reference is the live `person-registration` service. Read its
+spec and emitted code before generating anything new:
+
+- spec: [`docs/business/services/person-registration/README.md`](../../../docs/business/services/person-registration/README.md)
+- BPMN: [`cib7/src/main/resources/processes/person-registration.bpmn`](../../../cib7/src/main/resources/processes/person-registration.bpmn)
+- DMN:  [`cib7/src/main/resources/processes/auto-approval.dmn`](../../../cib7/src/main/resources/processes/auto-approval.dmn)
+- forms: [`frontend/src/forms/personal-details/PersonalDetailsForm.tsx`](../../../frontend/src/forms/personal-details/PersonalDetailsForm.tsx),
+  [`frontend/src/forms/review-application/ReviewApplicationForm.tsx`](../../../frontend/src/forms/review-application/ReviewApplicationForm.tsx)
+- registry: [`frontend/src/forms/registry.ts`](../../../frontend/src/forms/registry.ts)
+- mermaid generator: [`scripts/bpmn-to-mermaid.mjs`](../../../scripts/bpmn-to-mermaid.mjs)
+
+The top-level [`README.md` § "Add or modify a service"](../../../README.md#add-or-modify-a-service)
+explains the human workflow around this skill.
+
+---
+
+## 1. Inputs — the spec contract
+
+A service folder looks like:
+
+```
+docs/business/services/<service>/
+├── README.md                  required — flow, roles, variables, trade-offs
+├── forms/
+│   └── <form-id>.md           one per user task
+├── service-tasks/
+│   └── <task-id>.md           one per integration / service task
+└── decisions/
+    └── <decision-id>.md       one per DMN (optional)
+```
+
+Templates for each file live under [`spec-template/`](spec-template/) — copy
+them to seed a new service. The required fields each file must define are
+documented inside the templates. If a spec is missing a required field, **stop
+and ask** rather than guessing.
+
+---
+
+## 2. Outputs — files the skill writes
+
+| Source file | Generated file(s) |
+|---|---|
+| `<service>/README.md` (flow section) | `cib7/src/main/resources/processes/<service>.bpmn` |
+| `<service>/decisions/<id>.md` | `cib7/src/main/resources/processes/<id>.dmn` |
+| `<service>/service-tasks/<id>.md` with payload-template body | `cib7/src/main/resources/templates/<id>.json.ftl` |
+| `<service>/forms/<id>.md` | `frontend/src/forms/<id>/<PascalCase>Form.tsx` |
+| Every form across every service | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
+| `<service>.bpmn` after regeneration | mermaid block inside `<service>/README.md` |
+
+Everything outside this list is hand-written platform code — don't touch it.
+In particular: **do not edit** anything under `cib7/src/main/java/`,
+`frontend/src/api/`, `frontend/src/pages/`, `keycloak/`, `pdf-renderer/`,
+`docker-compose.yml`, or `application.yaml` from this skill.
+
+---
+
+## 3. Workflow
+
+Run these in order. For modifications, the algorithm is the same — the
+generated files get rewritten in place; idempotent runs are a no-op.
+
+1. **Locate the service.** If invoked with a service name, use it. Otherwise
+   ask: "Which service?" with one option per folder under
+   `docs/business/services/`.
+2. **Read every spec file** in the service folder. Build an in-memory model:
+   process id (camelCase = folder name in kebab transformed; usually written
+   explicitly in the README), start event, nodes (user tasks, service tasks,
+   business rule tasks, gateways, boundary events, end events), sequence
+   flows with conditions and defaults, process variables, FreeMarker payload
+   templates.
+3. **Validate** against [§ 4](#4-validation-rules). On failure, list every
+   violation in one message and stop — don't generate partial output.
+4. **Emit BPMN** at `cib7/src/main/resources/processes/<service>.bpmn` using
+   the patterns in [§ 5](#5-bpmn-authoring-patterns). Include BPMNDI layout
+   bounds so Cockpit can render the diagram; pack them on a horizontal
+   waterline (y=160, x advances by 140 per task) and let the modeller adjust
+   later if needed. Don't try to be clever — readable lanes beat dense lanes.
+5. **Emit DMN** for each `decisions/<id>.md` at
+   `cib7/src/main/resources/processes/<id>.dmn` using the pattern in
+   [§ 6](#6-dmn-authoring-patterns). Every DMN **must** carry
+   `camunda:historyTimeToLive` matching the BPMN's TTL.
+6. **Emit FreeMarker payloads** for each `service-tasks/<id>.md` that
+   declares a `payload-template:` body — write
+   `cib7/src/main/resources/templates/<id>.json.ftl`. Inline payloads
+   (short, no template marker) go inside the BPMN as `<camunda:inputParameter
+   name="payload">…</camunda:inputParameter>` instead.
+7. **Emit React forms.** One folder per `forms/<id>.md` at
+   `frontend/src/forms/<id>/<PascalCase>Form.tsx`. Follow the template in
+   [§ 8](#8-react-form-template). Always handle the `readOnly` prop, the
+   `data` defaults, the typed `onComplete` variables, and (for forms on the
+   send-back loop) the `sendBackReason` banner pattern.
+8. **Rewrite the registry.** Scan every `forms/<id>.md` across every
+   service. Rewrite `frontend/src/forms/registry.ts` end-to-end with one
+   import per form id (alphabetical) and matching entries. Don't try to do
+   line-level edits — a clean rewrite beats merge conflicts.
+9. **Regenerate the mermaid diagram.** Run:
+   ```sh
+   cd scripts && node bpmn-to-mermaid.mjs \
+     ../cib7/src/main/resources/processes/<service>.bpmn \
+     --out ../docs/business/services/<service>/README.md
+   ```
+   The script replaces the block between `<!-- bpmn-diagram:start -->` and
+   `<!-- bpmn-diagram:end -->`. If the markers are missing, add them around
+   the existing mermaid block before running the script.
+10. **Report.** Summarise what changed in one short paragraph: service id,
+    counts of forms / service tasks / decisions, list of generated files,
+    and the next manual step ("run `docker compose up --build` to test").
+
+Never commit anything from this skill — that's a human step. The skill stops
+at "files written, please test".
+
+---
+
+## 4. Validation rules
+
+Reject the run if **any** of these fail. List every violation, don't
+short-circuit on the first one.
+
+| Rule | Check |
+|---|---|
+| Unique kebab-case ids | Every form id, service-task id, decision id, gateway id, sequence-flow id is `^[a-z][a-z0-9-]*$` and globally unique within the service spec. |
+| Variable consistency | Every process variable mentioned in any spec file matches a row in the README's variables table (same casing, same type). Misspellings between `firstName` and `firstname` are caught here. |
+| Roles are slash-less | `candidateGroups` and group references use the engine view (`applicant`, not `/applicant`) — see [project memory: cibseven-keycloak strips group-path slash](../../../docs/cib7.md#bpmn-files). |
+| Large variables are `byte[]` | Anything declared with type `byte[]` in the README must carry a comment "stored bytes to spill to ACT_GE_BYTEARRAY" in BPMN output; anything > 4 kB **must** be declared `byte[]`. |
+| DMN TTL | Every emitted `.dmn` carries `camunda:historyTimeToLive` (engine refuses deployment without it). |
+| BPMN TTL | The `<bpmn:process>` element carries `camunda:historyTimeToLive`. Match the value in the README; default `P30D` if unspecified. |
+| Form id ↔ formKey | Each user task in the README flow has a matching `forms/<id>.md` and the BPMN emits `camunda:formKey="react:<id>"`. |
+| Service task ↔ spec file | Each service task in the README flow has a matching `service-tasks/<id>.md`. |
+| Decision ↔ spec file | Each business rule task in the README flow has a matching `decisions/<id>.md` and the BPMN emits `camunda:decisionRef="<id>"`. |
+| Initiator pattern | User tasks owned by the initiator carry `camunda:assignee="${initiator}"`, not `candidateGroups`. The start event carries `camunda:initiator="initiator"`. |
+| FreeMarker JSON safety | Generated `.json.ftl` files escape string values with `?json_string`. |
+
+---
+
+## 5. BPMN authoring patterns
+
+Namespaces always:
+
+```xml
+xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+```
+
+Process element with TTL:
+
+```xml
+<bpmn:process id="<processKey>" name="<Display Name>" isExecutable="true"
+              camunda:historyTimeToLive="P30D">
+```
+
+Start with initiator:
+
+```xml
+<bpmn:startEvent id="StartEvent_1" name="<Start label>"
+                 camunda:initiator="initiator" />
+```
+
+Applicant (initiator) user task — owned by the starting user:
+
+```xml
+<bpmn:userTask id="Task_<Name>" name="<Display name>"
+               camunda:formKey="react:<form-id>"
+               camunda:assignee="${initiator}" />
+```
+
+Group-scoped user task — anyone in the group can pick it up:
+
+```xml
+<bpmn:userTask id="Task_<Name>" name="<Display name>"
+               camunda:formKey="react:<form-id>"
+               camunda:candidateGroups="<group>" />
+```
+
+HTTP service task (inline payload):
+
+```xml
+<bpmn:serviceTask id="Task_<Name>" name="<Display name>" camunda:asyncBefore="true">
+  <bpmn:extensionElements>
+    <camunda:connector>
+      <camunda:connectorId>http-connector</camunda:connectorId>
+      <camunda:inputOutput>
+        <camunda:inputParameter name="url">${baseUrl}/path/${someVar}</camunda:inputParameter>
+        <camunda:inputParameter name="method">GET</camunda:inputParameter>
+        <camunda:inputParameter name="headers">
+          <camunda:map>
+            <camunda:entry key="Accept">application/json</camunda:entry>
+          </camunda:map>
+        </camunda:inputParameter>
+        <camunda:outputParameter name="<outVar>">${S(response).prop('data').prop('field').stringValue()}</camunda:outputParameter>
+      </camunda:inputOutput>
+    </camunda:connector>
+  </bpmn:extensionElements>
+</bpmn:serviceTask>
+```
+
+HTTP service task with FreeMarker payload:
+
+```xml
+<camunda:inputParameter name="payload">
+  <camunda:script scriptFormat="freemarker" resource="templates/<task-id>.json.ftl" />
+</camunda:inputParameter>
+```
+
+DMN business rule task:
+
+```xml
+<bpmn:businessRuleTask id="Task_<Name>" name="<Display name>"
+                       camunda:decisionRef="<decision-id>"
+                       camunda:mapDecisionResult="singleEntry"
+                       camunda:resultVariable="<outputVar>" />
+```
+
+Exclusive gateway with `default`:
+
+```xml
+<bpmn:exclusiveGateway id="Gateway_<Name>" name="<Question?>"
+                       default="Flow_<Default>" />
+<bpmn:sequenceFlow id="Flow_<Branch>" name="<label>"
+                   sourceRef="Gateway_<Name>" targetRef="<Target>">
+  <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${<expr>}</bpmn:conditionExpression>
+</bpmn:sequenceFlow>
+```
+
+Non-interrupting timer boundary event (repeating reminder):
+
+```xml
+<bpmn:boundaryEvent id="BoundaryEvent_<Name>" name="<label>"
+                    attachedToRef="Task_<Owner>" cancelActivity="false">
+  <bpmn:timerEventDefinition>
+    <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT2M</bpmn:timeCycle>
+  </bpmn:timerEventDefinition>
+</bpmn:boundaryEvent>
+```
+
+JUEL variables exposed by the engine (use these in URLs; don't hard-code):
+
+| JUEL | Source | Pattern |
+|---|---|---|
+| `${mailApiBaseUrl}` | `MailConfiguration.java` | Mailpit `/api/v1/send` |
+| `${pdfApiBaseUrl}` | `PdfConfiguration.java` | `pdf-renderer` `/render` |
+| `${pdf}` | `PdfHelper.java` bean | `${pdf.decode(...)}`, `${pdf.encode(...)}` |
+
+If the spec asks for a new external integration that needs an environment-driven
+base URL, **stop and ask** — that requires a hand-written `*Configuration.java`
+bean which is out of scope for this skill.
+
+---
+
+## 6. DMN authoring patterns
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:camunda="http://camunda.org/schema/1.0/dmn"
+             id="Definitions_<Name>" name="<Display>" namespace="http://camunda.org/schema/1.0/dmn">
+  <decision id="<decision-id>" name="<Display>" camunda:historyTimeToLive="P30D">
+    <decisionTable id="DecisionTable_<Name>" hitPolicy="FIRST">
+      <input id="Input_<X>" label="<X>" camunda:inputVariable="<varName>">
+        <inputExpression id="InputExpression_<X>" typeRef="integer"><text><varName></text></inputExpression>
+      </input>
+      <output id="Output_<Y>" label="<Y>" name="<outputVar>" typeRef="string" />
+      <rule id="Rule_<Name>">
+        <inputEntry id="..."><text>< 18</text></inputEntry>
+        <outputEntry id="..."><text>"review"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
+```
+
+Hit policies the analyst can ask for: `FIRST` (most common), `UNIQUE`,
+`COLLECT`. Anything else, stop and ask.
+
+---
+
+## 7. FreeMarker payload templates
+
+Path: `cib7/src/main/resources/templates/<task-id>.json.ftl`. Pattern:
+
+```ftl
+<#-- short description of what process variables are in scope -->
+<#assign body>Hi ${firstName!""},
+…
+</#assign>
+{
+  "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
+  "To":   [ { "Email": "${(applicantEmail!"")?json_string}" } ],
+  "Subject": "<subject>",
+  "Text":    "${body?json_string}"
+}
+```
+
+Rules:
+
+- **Always** escape strings that hit JSON with `?json_string`.
+- Default every process variable that might be null with `!""` (string) or
+  `!0` (number).
+- For `byte[]` attachments, re-encode with `${pdf.encode(varName)}`.
+
+---
+
+## 8. React form template
+
+One file per form id, under `frontend/src/forms/<form-id>/<PascalCase>Form.tsx`.
+Must implement the `FormProps` contract from
+[`frontend/src/forms/types.ts`](../../../frontend/src/forms/types.ts):
+
+```tsx
+import { useState, type FormEvent } from 'react';
+import type { FormProps } from '../types';
+
+export default function <PascalCase>Form({
+  data,
+  onComplete,
+  submitting,
+  readOnly,
+}: FormProps) {
+  // One useState per field defined in the spec.
+  const [<field>, set<Field>] = useState((data.<field> as <T>) ?? <default>);
+
+  // If the form is on the send-back loop, show the reason banner.
+  const sendBackReason = (data.sendBackReason as string) ?? '';
+  const isResubmission = Boolean(sendBackReason) && !readOnly;
+
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    // Client-side validation as declared in the spec.
+    // …
+    await onComplete({
+      <var>: { value: <value>, type: '<CamundaType>' },
+      // Forms on the send-back loop clear the reason on resubmit.
+      sendBackReason: { value: '', type: 'String' },
+    });
+  }
+
+  return (
+    <form className="form" onSubmit={handleSubmit}>
+      {isResubmission && (
+        <div className="form-banner form-banner-warn">
+          <strong>Sent back for corrections.</strong>
+          <p className="form-banner-body">{sendBackReason}</p>
+        </div>
+      )}
+
+      <p className="form-intro">{/* short intro from spec */}</p>
+
+      <label className="field">
+        <span className="field-label"><Label></span>
+        <input
+          className="field-input"
+          value={<field>}
+          onChange={(e) => set<Field>(e.target.value)}
+          disabled={readOnly}
+        />
+      </label>
+
+      {error && <p className="form-error">{error}</p>}
+
+      {!readOnly && (
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
+            {submitting ? 'Submitting…' : 'Submit'}
+          </button>
+        </div>
+      )}
+    </form>
+  );
+}
+```
+
+Camunda variable types: `String`, `Integer`, `Long`, `Double`, `Boolean`,
+`Date` (ISO-8601 string), `Json` (Spin-typed object). Match the type declared
+in the README's variables table.
+
+For review-style forms (`readOnly`-by-default field display + an outcome
+button row), look at
+[`ReviewApplicationForm.tsx`](../../../frontend/src/forms/review-application/ReviewApplicationForm.tsx)
+— same `FormProps`, but every input is `disabled` and the action row offers
+**Accept** / **Send back** that complete with different `decision` values.
+
+---
+
+## 9. Registry rewrite
+
+Rewrite `frontend/src/forms/registry.ts` end-to-end. Keep the comment block,
+keep `parseFormId`. Sort imports and entries alphabetically by form id:
+
+```ts
+import type { ComponentType } from 'react';
+import type { FormProps } from './types';
+import <PascalCase>Form from './<form-id>/<PascalCase>Form';
+// … (one import per form across every service)
+
+/**
+ * Maps a logical form id to a React component. The form id is the part of the
+ * BPMN `camunda:formKey` after the `react:` prefix (spec §6.1, §8.3).
+ *
+ * Generated by .claude/skills/service-builder — do not edit by hand.
+ */
+export const formRegistry: Record<string, ComponentType<FormProps>> = {
+  '<form-id>': <PascalCase>Form,
+  // … alphabetical
+};
+
+export function parseFormId(formKey: string | null | undefined): string | null {
+  if (!formKey) return null;
+  const prefix = 'react:';
+  return formKey.startsWith(prefix) ? formKey.slice(prefix.length) : formKey;
+}
+```
+
+---
+
+## 10. Mermaid diagram
+
+After writing the BPMN, regenerate the diagram block in the service README:
+
+```sh
+cd scripts && node bpmn-to-mermaid.mjs \
+  ../cib7/src/main/resources/processes/<service>.bpmn \
+  --out ../docs/business/services/<service>/README.md
+```
+
+If the README is brand new, **first** add the marker block under the
+`## Flow diagram` heading:
+
+```markdown
+<!-- bpmn-diagram:start -->
+<!-- bpmn-diagram:end -->
+```
+
+Then run the script — it fills it in.
+
+---
+
+## 11. Modifications
+
+When the analyst edits a spec, this skill is run again. Idempotency rules:
+
+- A re-run on an unchanged spec writes no diffs.
+- Renaming a form id deletes the old `frontend/src/forms/<old>/` folder
+  before writing the new one (ask first — a `git mv` from outside may be
+  preferred for history).
+- Removing a form / service-task / decision from the spec deletes the
+  generated artifact (ask first).
+- Adding a new service registers its forms in `registry.ts` alongside
+  existing ones; existing entries from other services stay.
+
+The generated files carry no "do not edit" header beyond the registry
+comment, because round-tripping through a BPMN modeller is allowed for the
+BPMN's BPMNDI layout block. Treat BPMNDI as best-effort; the modeller will
+overwrite it on re-save and that's fine.
+
+---
+
+## 12. Testing handoff
+
+After a successful run, print:
+
+```
+✓ Generated <N> file(s) for service "<service-key>"
+
+Next:
+  docker compose up --build
+  → PartA: http://localhost:3000 as bart / bart
+  → PartB: http://localhost:3000 as homer / homer
+  → Cockpit: http://localhost:8080/camunda/app/cockpit/  (incidents)
+  → Mailpit: http://localhost:8025                       (notifications)
+
+When the flow works end-to-end, commit the spec and generated files together:
+  git add docs/business/services/<service>/ \
+          cib7/src/main/resources/processes/ \
+          cib7/src/main/resources/templates/ \
+          frontend/src/forms/
+  git commit -m "<service>: <one-line summary>"
+```
+
+Don't run `docker compose` or `git commit` from the skill — those stay with
+the human.
