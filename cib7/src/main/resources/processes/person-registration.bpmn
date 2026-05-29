@@ -16,18 +16,24 @@
         -> (Get price)                 service task        (http-connector)
         -> {Auto approval?}            business rule task  (DMN)
         -> <Auto?>                     exclusive gateway
-             autoDecision == "approve" -> end approved
+             autoDecision == "approve" -> <Has applicant email?>
              else                       -> [Review application] (civil-servant)
         -> [Review application]        user task           (civil-servant — PartB)
               boundary timer PT2M (non-interrupting) -> (Send reminder email)
         -> <Decision?>                 exclusive gateway
-             decision == "approve" -> end approved
+             decision == "approve" -> <Has applicant email?>
              else                   -> (Send "sent back" email) -> Submit (loop)
+        -> <Has applicant email?>      exclusive gateway   (merges both approved paths)
+             applicantEmail valid -> (Send approval email) -> end approved
+             else (default)       -> end approved
 
     Process variables:
       initiator       - login of the user that started the instance (PartA owner)
       firstName, lastName, age   - written by the applicant task
       objectId                   - written by the applicant task (selected product)
+      applicantEmail             - written by the applicant task (optional; when
+                                   non-empty and contains "@", the approval-email
+                                   service task fires)
       price                      - written by the Get price service task
       autoDecision               - written by the DMN business rule task ("approve"/"review")
       decision                   - written by the review user task ("approve"/"sendback")
@@ -110,7 +116,7 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_AutoApproval_Approved" name="auto-approved"
-                       sourceRef="Gateway_AutoApproval" targetRef="EndEvent_Approved">
+                       sourceRef="Gateway_AutoApproval" targetRef="Gateway_SendApprovalEmail">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${autoDecision == "approve"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
@@ -194,9 +200,68 @@
       <bpmn:outgoing>Flow_SendBack</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <bpmn:sequenceFlow id="Flow_Approved" name="approved" sourceRef="Gateway_Decision" targetRef="EndEvent_Approved">
+    <bpmn:sequenceFlow id="Flow_Approved" name="approved" sourceRef="Gateway_Decision" targetRef="Gateway_SendApprovalEmail">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${decision == "approve"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+
+    <!--
+      Joins both approval paths (auto and manual) and decides whether to send
+      the applicant a notification email. The email field on the applicant
+      form is optional, so the default branch ends the case without sending
+      anything; the conditional branch fires only when applicantEmail looks
+      like a real address.
+
+      Defense in depth: the form already does HTML5 type="email" validation,
+      this gateway is what guarantees the service task never runs on bad data.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_SendApprovalEmail" name="Has applicant email?" default="Flow_NoEmail_Approved">
+      <bpmn:incoming>Flow_AutoApproval_Approved</bpmn:incoming>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NoEmail_Approved</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_HasEmail" name="valid email"
+                       sourceRef="Gateway_SendApprovalEmail" targetRef="Task_SendApprovalEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${applicantEmail != null &amp;&amp; applicantEmail.contains("@")}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NoEmail_Approved"
+                       sourceRef="Gateway_SendApprovalEmail" targetRef="EndEvent_Approved" />
+
+    <!--
+      Approval email via the Mailpit HTTP API. The payload is rendered from
+      a FreeMarker template on the classpath (src/main/resources/templates/
+      approval-email.json.ftl) so the body is editable without touching this
+      BPMN. The connect plugin discovers FreeMarker via JSR-223 once the
+      cibseven-template-engines-freemarker artifact is on the classpath —
+      no Java wiring needed.
+    -->
+    <bpmn:serviceTask id="Task_SendApprovalEmail" name="Send approval email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/approval-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovalEmail_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_ApprovalEmail_End"
+                       sourceRef="Task_SendApprovalEmail" targetRef="EndEvent_Approved" />
 
     <!--
       Default branch: any non-approve decision (i.e. "sendback") emails the
@@ -235,8 +300,8 @@
                        sourceRef="Task_SendBackEmail" targetRef="Task_SubmitDetails" />
 
     <bpmn:endEvent id="EndEvent_Approved" name="Application approved">
-      <bpmn:incoming>Flow_Approved</bpmn:incoming>
-      <bpmn:incoming>Flow_AutoApproval_Approved</bpmn:incoming>
+      <bpmn:incoming>Flow_NoEmail_Approved</bpmn:incoming>
+      <bpmn:incoming>Flow_ApprovalEmail_End</bpmn:incoming>
     </bpmn:endEvent>
 
   </bpmn:process>
@@ -291,10 +356,19 @@
       <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
         <dc:Bounds x="430" y="480" width="120" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
-        <dc:Bounds x="1002" y="182" width="36" height="36" />
+      <bpmndi:BPMNShape id="Gateway_SendApprovalEmail_di" bpmnElement="Gateway_SendApprovalEmail" isMarkerVisible="true">
+        <dc:Bounds x="940" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="987" y="225" width="67" height="14" />
+          <dc:Bounds x="920" y="145" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
+        <dc:Bounds x="1040" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
+        <dc:Bounds x="1182" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1167" y="225" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_Submit_di" bpmnElement="Flow_Start_Submit">
@@ -323,8 +397,8 @@
       <bpmndi:BPMNEdge id="Flow_AutoApproval_Approved_di" bpmnElement="Flow_AutoApproval_Approved">
         <di:waypoint x="650" y="175" />
         <di:waypoint x="650" y="100" />
-        <di:waypoint x="1020" y="100" />
-        <di:waypoint x="1020" y="182" />
+        <di:waypoint x="965" y="100" />
+        <di:waypoint x="965" y="175" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="780" y="82" width="80" height="14" />
         </bpmndi:BPMNLabel>
@@ -343,10 +417,27 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
         <di:waypoint x="915" y="200" />
-        <di:waypoint x="1002" y="200" />
+        <di:waypoint x="940" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="930" y="182" width="48" height="14" />
+          <dc:Bounds x="918" y="182" width="48" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HasEmail_di" bpmnElement="Flow_HasEmail">
+        <di:waypoint x="990" y="200" />
+        <di:waypoint x="1040" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="993" y="182" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ApprovalEmail_End_di" bpmnElement="Flow_ApprovalEmail_End">
+        <di:waypoint x="1140" y="200" />
+        <di:waypoint x="1182" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NoEmail_Approved_di" bpmnElement="Flow_NoEmail_Approved">
+        <di:waypoint x="965" y="225" />
+        <di:waypoint x="965" y="300" />
+        <di:waypoint x="1200" y="300" />
+        <di:waypoint x="1200" y="218" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SendBack_di" bpmnElement="Flow_SendBack">
         <di:waypoint x="890" y="225" />

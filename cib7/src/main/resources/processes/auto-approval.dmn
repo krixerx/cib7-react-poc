@@ -21,7 +21,11 @@
       autoDecision (string) — "approve" auto-completes the process,
                               "review"  routes to the civil-servant task
   -->
-  <decision id="auto-approval" name="Auto approval">
+  <!--
+    historyTimeToLive is required by CIB seven 2.1 (enforceTTL is on by default).
+    P30D mirrors the BPMN's process-level TTL so history rows expire together.
+  -->
+  <decision id="auto-approval" name="Auto approval" camunda:historyTimeToLive="P30D">
     <decisionTable id="DecisionTable_AutoApproval" hitPolicy="FIRST">
       <input id="Input_Age" label="Age" camunda:inputVariable="age">
         <inputExpression id="InputExpression_Age" typeRef="integer">

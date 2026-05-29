@@ -24,14 +24,25 @@
   </properties>
 
   <dependencies>
-    <!-- CIB seven 2.1 engine + REST API + Cockpit/Tasklist/Admin webapps.
-         The webapp starter transitively brings the rest starter, so we only
-         need one. The webapps are served from /camunda/* once the second
-         SecurityFilterChain (see com.poc.cib7.keycloak.WebappSecurityConfig)
-         is on the classpath. -->
+    <!-- CIB seven 2.1 engine + Cockpit/Tasklist/Admin webapps. The webapps
+         are served from /camunda/* once the second SecurityFilterChain (see
+         com.poc.cib7.keycloak.WebappSecurityConfig) is on the classpath.
+         Despite the name, the webapp starter does NOT transitively register
+         the engine REST API at /engine-rest — only the JAX-RS resource
+         classes (cibseven-engine-rest-core-jakarta). The REST starter below
+         is what actually wires those resources into the Spring servlet. -->
     <dependency>
       <groupId>org.cibseven.bpm.springboot</groupId>
       <artifactId>cibseven-bpm-spring-boot-starter-webapp</artifactId>
+      <version>${cibseven.version}</version>
+    </dependency>
+
+    <!-- CIB seven REST API starter. Mounts the engine REST resources at
+         /engine-rest/*. Without it the SPA's calls to /engine-rest/... get
+         a 404 once they pass the security filter. -->
+    <dependency>
+      <groupId>org.cibseven.bpm.springboot</groupId>
+      <artifactId>cibseven-bpm-spring-boot-starter-rest</artifactId>
       <version>${cibseven.version}</version>
     </dependency>
 
@@ -63,6 +74,18 @@
     <dependency>
       <groupId>org.cibseven.connect</groupId>
       <artifactId>cibseven-connect-http-client</artifactId>
+      <version>${cibseven.version}</version>
+    </dependency>
+
+    <!-- FreeMarker template engine for connector input parameters. Lets the
+         "Send approval email" service task assemble its JSON payload from a
+         classpath template (templates/approval-email.json.ftl) instead of
+         inlining the body in the BPMN. Discovered via JSR-223 — no Spring
+         wiring needed; the connect plugin uses scriptFormat="freemarker" to
+         look up the engine. -->
+    <dependency>
+      <groupId>org.cibseven.template-engines</groupId>
+      <artifactId>cibseven-template-engines-freemarker</artifactId>
       <version>${cibseven.version}</version>
     </dependency>
 

@@ -38,7 +38,15 @@ spring:
             authorization-uri: ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/auth
             token-uri:         ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/token
             jwk-set-uri:       ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
-            user-info-uri:     ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/userinfo
+            # user-info-uri intentionally OMITTED. With it set, Spring's
+            # OidcUserService fetches /userinfo from the *internal* URL
+            # (KEYCLOAK_URL = http://keycloak:8080) using a token whose `iss`
+            # claim is the *public* URL (http://localhost:8180, pinned by
+            # KC_HOSTNAME_URL). Keycloak rejects the mismatched issuer and
+            # Spring treats it as a login failure ("Invalid credentials").
+            # Because we request `scope: openid`, an ID token is always issued
+            # and Spring extracts preferred_username from its claims — no
+            # userinfo call needed.
             user-name-attribute: preferred_username
 
 
@@ -99,6 +107,18 @@ plugin.identity.keycloak:
   useGroupPathAsCamundaGroupId: true
   administratorGroupName: cib7-admin
   disableSSLCertificateValidation: true
+
+# CIB seven webclient (the new Tasklist/Cockpit shell shipped by
+# cibseven-webclient-core, pulled in transitively by the webapp starter).
+# SevenUserProvider.init() validates that this secret is base64-decodable and
+# at least 155 characters long, otherwise the application context fails to
+# start. We don't actually rely on JWT-based local login here — auth runs
+# through Keycloak via WebappSecurityConfig — but the bean is still
+# instantiated, so the secret has to be present.
+#
+# This is a DEV value, fine to commit for a POC. Override with the
+# CIBSEVEN_WEBCLIENT_AUTHENTICATION_JWTSECRET env var in any real deployment.
+cibseven.webclient.authentication.jwtSecret: ${CIBSEVEN_WEBCLIENT_AUTHENTICATION_JWTSECRET:p4TUOTKAYU00fo3ifIvjrwDDMttUAdgrWcVHpy9u/3Bt1+ZKu41MHSJgT3eAdOnL1hTZlUjkJikIG4g1BTq1jGcI7d4uOtAJ5/6wdNAHYBMnaRf2neKmbHEzIbiTPdnO9H0IIdZR/ZuMgkS1jsi/2fwGaemn}
 
 logging:
   level:

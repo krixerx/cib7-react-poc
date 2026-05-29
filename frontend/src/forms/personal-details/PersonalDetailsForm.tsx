@@ -20,6 +20,7 @@ export default function PersonalDetailsForm({
   const [lastName, setLastName] = useState((data.lastName as string) ?? '');
   const [age, setAge] = useState(data.age != null ? String(data.age) : '');
   const [objectId, setObjectId] = useState((data.objectId as string) ?? '');
+  const [applicantEmail, setApplicantEmail] = useState((data.applicantEmail as string) ?? '');
 
   const [products, setProducts] = useState<PricedObject[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -56,12 +57,21 @@ export default function PersonalDetailsForm({
       setError('Please choose a product.');
       return;
     }
+    const trimmedEmail = applicantEmail.trim();
+    // Email is optional. If filled in, require a minimally well-formed address
+    // — the BPMN gateway only checks for "@", so we mirror that here and let
+    // the browser's type="email" catch obvious typos.
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address, or leave the field blank.');
+      return;
+    }
 
     await onComplete({
       firstName: { value: firstName.trim(), type: 'String' },
       lastName: { value: lastName.trim(), type: 'String' },
       age: { value: ageNum, type: 'Integer' },
       objectId: { value: objectId, type: 'String' },
+      applicantEmail: { value: trimmedEmail, type: 'String' },
       // Clear the send-back reason once the applicant resubmits — keeping it
       // would make the next review cycle still look "sent back".
       sendBackReason: { value: '', type: 'String' },
@@ -113,6 +123,18 @@ export default function PersonalDetailsForm({
           max={130}
           value={age}
           onChange={(e) => setAge(e.target.value)}
+          disabled={readOnly}
+        />
+      </label>
+
+      <label className="field">
+        <span className="field-label">Email (optional — for approval notification)</span>
+        <input
+          className="field-input"
+          type="email"
+          placeholder="you@example.com"
+          value={applicantEmail}
+          onChange={(e) => setApplicantEmail(e.target.value)}
           disabled={readOnly}
         />
       </label>

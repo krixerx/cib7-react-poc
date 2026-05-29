@@ -12,19 +12,31 @@ It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
 see [Deviations from the spec](#deviations-from-the-spec) below.
 
-## Test logins
+## Test logins & consoles
 
-> **App:** <http://localhost:3000>
->
-> **Applicant (PartA):** `bart` / `bart` — Bart Simpson, member of `/applicant`
->
-> **Civil servant (PartB):** `homer` / `homer` — Homer Simpson, member of `/civil-servant` + `/cib7-admin`
->
-> **CIB seven webapps (Cockpit / Tasklist / Admin):** <http://localhost:8080/camunda> — log in as Homer (Keycloak SSO).
->
-> **Mailpit inbox** (emails sent by service tasks): <http://localhost:8025>
->
-> **Keycloak admin console:** <http://localhost:8180> — `admin` / `admin`
+| Console | URL | Login | Password |
+|---|---|---|---|
+| **React SPA** (PartA & PartB) | <http://localhost:3000> | `bart` / `homer` | same as username |
+| &nbsp;&nbsp;↳ PartA — applicant | | `bart` | `bart` |
+| &nbsp;&nbsp;↳ PartB — civil servant | | `homer` | `homer` |
+| **CIB seven Admin** (users, groups, authorizations) | <http://localhost:8080/camunda/app/admin/> | `homer` | `homer` |
+| **CIB seven Cockpit** (process instances, incidents) | <http://localhost:8080/camunda/app/cockpit/> | `homer` | `homer` |
+| **CIB seven Tasklist** (legacy task UI) | <http://localhost:8080/camunda/app/tasklist/> | `homer` | `homer` |
+| **CIB seven REST API** | <http://localhost:8080/engine-rest> | Bearer JWT from Keycloak | — |
+| **Mailpit inbox** (process-sent emails) | <http://localhost:8025> | — | — |
+| **Keycloak admin console** (realm / users / clients) | <http://localhost:8180/admin/> | `admin` | `admin` |
+
+Role notes:
+
+- **`bart`** (Bart Simpson) — `/applicant` group, sees PartA on the SPA.
+- **`homer`** (Homer Simpson) — `/civil-servant` + `/cib7-admin` groups, sees
+  PartB on the SPA and admin everything on the `/camunda` webapps. The
+  `/cib7-admin` group grants engine admin authorizations; the applicant
+  group's narrower authorizations are bootstrapped on startup by
+  `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`.
+- Both webapp and SPA logins go through **Keycloak SSO** against the
+  `cib7-poc` realm; the underlying user store is
+  [`keycloak/realm-export.json`](keycloak/realm-export.json).
 
 The SPA picks the role-appropriate UI from the JWT's realm roles:
 
@@ -130,19 +142,6 @@ Person Registration (BPMN + DMN)
   `ContainerBasedAuthenticationProvider` recipe.
 - The database is **in-memory H2** — all data is lost when the backend stops.
 
-### Default credentials
-
-The pre-seeded Keycloak realm (`keycloak/realm-export.json`) ships with:
-
-- **Realm:** `cib7-poc`
-- **`bart` / `bart`** (Bart Simpson) — `/applicant`, sees PartA.
-- **`homer` / `homer`** (Homer Simpson) — `/civil-servant` + `/cib7-admin`,
-  sees PartB. The admin group grants engine admin authorizations; the
-  applicant group's narrower authorizations are bootstrapped on startup by
-  `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`.
-- **Keycloak admin:** `admin` / `admin` (at <http://localhost:8180>) — only
-  used for inspecting the realm; the app itself does not use it.
-
 ## Project layout
 
 ```
@@ -186,11 +185,8 @@ Requires Docker with Compose.
 docker compose up --build
 ```
 
-- React app → <http://localhost:3000>
-- CIB seven REST API → <http://localhost:8080/engine-rest>
-- CIB seven webapps → <http://localhost:8080/camunda> (Keycloak SSO)
-- Mailpit inbox → <http://localhost:8025>
-- Keycloak → <http://localhost:8180> (admin: `admin` / `admin`)
+All URLs and credentials are listed in the
+[Test logins & consoles](#test-logins--consoles) table above.
 
 When the SPA loads it redirects to Keycloak's login form. Use `bart` / `bart`
 to play the applicant or `homer` / `homer` to play the back-office reviewer.
