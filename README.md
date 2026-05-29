@@ -105,6 +105,57 @@ Person Registration (BPMN + DMN)
    `http-connector` → Mailpit) and then loops back to the applicant task so
    they can fix the data based on the reason and resubmit.
 
+## Spec-first services — portable across instances
+
+A business service is defined **once** as a markdown spec under
+`docs/business/services/<service>/`. Everything else — BPMN, DMN, React
+forms, FreeMarker payloads, the form registry — is generated from it by the
+[`/service-builder`](.claude/skills/service-builder/SKILL.md) skill. The
+markdown folder is the portable unit: copy it into another instance of this
+app, tweak the country-specific bits, regenerate, and you have the same
+service localized.
+
+```mermaid
+flowchart LR
+  Analyst(("Analyst<br/>writes markdown only"))
+
+  subgraph EE["Estonia — cib7-react-poc instance"]
+    direction TB
+    EE_Spec[/"docs/business/services/<br/>business-registry/<br/>README.md · forms/*.md<br/>service-tasks/*.md · decisions/*.md"/]
+    EE_Builder[["/service-builder"]]
+    EE_Code["BPMN + DMN + FreeMarker<br/>React forms + registry<br/>(generated)"]
+    EE_Run["docker compose up<br/>then git commit"]
+    EE_Spec --> EE_Builder --> EE_Code --> EE_Run
+  end
+
+  subgraph FI["Finland — cib7-react-poc instance (same app code)"]
+    direction TB
+    FI_Spec[/"docs/business/services/<br/>business-registry/<br/>(copied + FI tweaks:<br/>labels, fields, rules, fees)"/]
+    FI_Builder[["/service-builder"]]
+    FI_Code["BPMN + DMN + FreeMarker<br/>React forms + registry<br/>(generated, FI variant)"]
+    FI_Run["docker compose up<br/>then git commit"]
+    FI_Spec --> FI_Builder --> FI_Code --> FI_Run
+  end
+
+  Analyst --> EE_Spec
+  EE_Spec -. "copy the<br/>service folder" .-> FI_Spec
+```
+
+- **Portable:** the markdown spec folder. One analyst-authored artifact
+  describes the service end-to-end (flow, forms, integrations, decisions,
+  roles, variables).
+- **Per-instance:** the generated BPMN / React / DMN / FreeMarker
+  (re-derived on each side by `/service-builder`) and the deployment
+  (Docker, Keycloak realm, env vars).
+- **Localization** lives in the spec, not in code. The FI variant edits the
+  same markdown files — different field labels, different DMN rules
+  (e.g. local fee thresholds), different email copy — and runs the builder
+  again. The app code stays untouched.
+
+For the step-by-step workflow — what each markdown file must define, how to
+run the builder, how to test — see
+[Add or modify a service](#add-or-modify-a-service).
+
 ## Architecture
 
 ```
