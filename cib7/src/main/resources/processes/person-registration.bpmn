@@ -39,6 +39,13 @@
       decision                   - written by the review user task ("approve"/"sendback")
       sendBackReason             - optional reason supplied by the civil servant
                                    when sending the case back for corrections
+      approvalPdfBytes           - written by Generate approval PDF (Gotenberg via
+                                   pdf-renderer); raw PDF bytes. Stored as a
+                                   bytes-typed variable so the engine spills it
+                                   to ACT_GE_BYTEARRAY instead of the 4000-char
+                                   ACT_HI_VARINST.TEXT_ column.
+      approvalPdfFilename        - written by Generate approval PDF; suggested
+                                   filename used as the Mailpit attachment name
   -->
   <bpmn:process id="personRegistration" name="Person Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
 
@@ -222,9 +229,55 @@
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="Flow_HasEmail" name="valid email"
-                       sourceRef="Gateway_SendApprovalEmail" targetRef="Task_SendApprovalEmail">
+                       sourceRef="Gateway_SendApprovalEmail" targetRef="Task_GeneratePdf">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${applicantEmail != null &amp;&amp; applicantEmail.contains("@")}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+
+    <!--
+      Generates the approval PDF via the pdf-renderer sidecar, which wraps
+      Gotenberg. The renderer accepts JSON {html, filename} and returns JSON
+      {filename, base64} — that shape keeps this service task identical in
+      structure to the email tasks (no multipart, no binary). Gotenberg's
+      native API is multipart-in/binary-out and would require a custom Java
+      delegate to plug into the http-connector pattern.
+    -->
+    <bpmn:serviceTask id="Task_GeneratePdf" name="Generate approval PDF"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${pdfApiBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/approval-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <!--
+              response = {"filename":"approval-123.pdf","base64":"JVBERi0x..."}.
+              We decode the base64 into a byte[] before storing it as the
+              process variable. CIB seven puts String-typed variables in
+              ACT_HI_VARINST.TEXT_ which is VARCHAR(4000); a 35 kB base64
+              blob would overflow on the history flush. Bytes-typed variables
+              spill to ACT_GE_BYTEARRAY, which has no size limit. The
+              email template re-encodes to base64 for the Mailpit payload
+              (see ${pdf.encode(approvalPdfBytes)} in approval-email.json.ftl).
+            -->
+            <camunda:outputParameter name="approvalPdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="approvalPdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_GeneratePdf_SendApprovalEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_GeneratePdf_SendApprovalEmail"
+                       sourceRef="Task_GeneratePdf" targetRef="Task_SendApprovalEmail" />
 
     <bpmn:sequenceFlow id="Flow_NoEmail_Approved"
                        sourceRef="Gateway_SendApprovalEmail" targetRef="EndEvent_Approved" />
@@ -256,7 +309,7 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_HasEmail</bpmn:incoming>
+      <bpmn:incoming>Flow_GeneratePdf_SendApprovalEmail</bpmn:incoming>
       <bpmn:outgoing>Flow_ApprovalEmail_End</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -362,13 +415,16 @@
           <dc:Bounds x="920" y="145" width="90" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
+      <bpmndi:BPMNShape id="Task_GeneratePdf_di" bpmnElement="Task_GeneratePdf">
         <dc:Bounds x="1040" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
+        <dc:Bounds x="1180" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
-        <dc:Bounds x="1182" y="182" width="36" height="36" />
+        <dc:Bounds x="1322" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1167" y="225" width="67" height="14" />
+          <dc:Bounds x="1307" y="225" width="67" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_Start_Submit_di" bpmnElement="Flow_Start_Submit">
@@ -429,15 +485,19 @@
           <dc:Bounds x="993" y="182" width="55" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ApprovalEmail_End_di" bpmnElement="Flow_ApprovalEmail_End">
+      <bpmndi:BPMNEdge id="Flow_GeneratePdf_SendApprovalEmail_di" bpmnElement="Flow_GeneratePdf_SendApprovalEmail">
         <di:waypoint x="1140" y="200" />
-        <di:waypoint x="1182" y="200" />
+        <di:waypoint x="1180" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ApprovalEmail_End_di" bpmnElement="Flow_ApprovalEmail_End">
+        <di:waypoint x="1280" y="200" />
+        <di:waypoint x="1322" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NoEmail_Approved_di" bpmnElement="Flow_NoEmail_Approved">
         <di:waypoint x="965" y="225" />
         <di:waypoint x="965" y="300" />
-        <di:waypoint x="1200" y="300" />
-        <di:waypoint x="1200" y="218" />
+        <di:waypoint x="1340" y="300" />
+        <di:waypoint x="1340" y="218" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SendBack_di" bpmnElement="Flow_SendBack">
         <di:waypoint x="890" y="225" />

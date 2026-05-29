@@ -14,6 +14,7 @@ cib7/BFF module if and when one is added.
 3. [Spring Boot wiring](#spring-boot-wiring)
 4. [Engine configuration (`application.yaml`)](#engine-configuration-applicationyaml)
 5. [BPMN files](#bpmn-files)
+    - [Large process variables (bytes-typed)](#large-process-variables-bytes-typed)
 6. [Connect plugin and connector](#connect-plugin-and-connector)
 7. [Authentication and authorization](#authentication-and-authorization)
 8. [Maven and JDK](#maven-and-jdk)
@@ -31,7 +32,9 @@ cib7/BFF module if and when one is added.
 | Process engine | CIB seven 2.1 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
 | Database | H2, in-memory (no `spring.datasource` configured) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
+| Template engine | `cibseven-template-engines-freemarker` — renders connector payloads from `templates/*.ftl` |
 | DMN | Bundled with the engine; `auto-approval.dmn` auto-deployed alongside BPMN |
+| PDF generation | Out-of-process: [Gotenberg](https://gotenberg.dev/) (headless Chromium) fronted by a tiny [`pdf-renderer/`](../pdf-renderer/) Node sidecar that does JSON-in / JSON-out so the http-connector can call it like any other REST endpoint |
 | Webapp SSO | `spring-boot-starter-oauth2-client` + `ContainerBasedAuthenticationFilter` (cibseven-keycloak plugin recipe) |
 | Build | Maven, `spring-boot-maven-plugin` |
 
@@ -46,14 +49,19 @@ cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
     │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin + Spin plugin
     │   ├── MailConfiguration.java         — exposes ${mailApiBaseUrl} to BPMN JUEL
+    │   ├── PdfConfiguration.java          — exposes ${pdfApiBaseUrl} to BPMN JUEL
+    │   ├── PdfHelper.java                 — @Component("pdf") — base64 ↔ byte[] bridge
     │   ├── AuthorizationBootstrap.java    — grants the applicant group engine perms on startup
     │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
     │       └── webapp/                    — OAuth2 login + ContainerBasedAuthenticationProvider for Cockpit/Tasklist/Admin
     └── resources/
         ├── application.yaml               — engine + auto-deploy + OAuth2 client config
-        └── processes/
-            ├── person-registration.bpmn   — auto-deployed on startup
-            └── auto-approval.dmn          — auto-deployed alongside BPMN
+        ├── processes/
+        │   ├── person-registration.bpmn   — auto-deployed on startup
+        │   └── auto-approval.dmn          — auto-deployed alongside BPMN
+        └── templates/
+            ├── approval-email.json.ftl    — Mailpit /api/v1/send payload (FreeMarker)
+            └── approval-pdf.json.ftl      — pdf-renderer /render payload (FreeMarker)
 ```
 
 The `com.poc.cib7.keycloak` package contains five classes verbatim from the
@@ -81,6 +89,25 @@ and the "Get price" service task fails at deploy/runtime.
 
 If you add another engine plugin (e.g. an LDAP identity provider), add it as
 another `@Bean` in the same `@Configuration` class or split per concern.
+
+### `MailConfiguration.java` / `PdfConfiguration.java`
+
+Each exposes a single Spring `String` bean (`mailApiBaseUrl`,
+`pdfApiBaseUrl`) driven by the `MAIL_API_URL` / `PDF_API_URL` env vars. The
+engine's expression manager auto-binds beans by name, so the BPMN can
+reference them as `${mailApiBaseUrl}/api/v1/send` and `${pdfApiBaseUrl}/render`
+without any further wiring. Defaults are `http://localhost:8025` and
+`http://localhost:8088` for `mvn spring-boot:run`; docker-compose overrides
+them to the docker-network aliases (`mailpit`, `pdf-renderer`).
+
+### `PdfHelper.java`
+
+`@Component("pdf")` with two methods: `decode(String)` → `byte[]` and
+`encode(byte[])` → `String`. Bridges base64 ↔ raw bytes for the BPMN, where
+JUEL/FreeMarker have no built-in base64 and we deliberately want the PDF
+stored as a `byte[]` process variable. See
+[§ Large process variables](#large-process-variables-bytes-typed) for the
+rationale.
 
 ### `AuthorizationBootstrap.java`
 
@@ -218,6 +245,30 @@ on the business rule task — `singleEntry` extracts the single value of the
 single-row result; if no rule matches you get `null`, which falls through to
 the gateway's default branch and routes to the human reviewer.
 
+### Large process variables (bytes-typed)
+
+CIB seven on H2 stores String/Text-typed variables inline in
+`ACT_RU_VARIABLE.TEXT_` and `ACT_HI_VARINST.TEXT_`, both
+`VARCHAR(4000)`. Any String above 4000 chars throws
+`JdbcBatchUpdateException: Value too long for column "TEXT_"` during the
+history flush. Only `bytes` / `file` / `object` typed variables spill to
+`ACT_GE_BYTEARRAY`, which is uncapped.
+
+This is why `Task_GeneratePdf` decodes the base64 response into a `byte[]`
+before storing it:
+
+```xml
+<camunda:outputParameter name="approvalPdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+```
+
+A `byte[]` returned from JUEL is auto-typed as `BytesValue` and the engine
+writes the payload to `ACT_GE_BYTEARRAY` with only a reference in
+`BYTEARRAY_ID_`. `approval-email.json.ftl` re-encodes to base64 at email
+time with `${pdf.encode(approvalPdfBytes)}`.
+
+Apply the same pattern to any payload above ~3 kB — large JSON snapshots,
+signed documents, OCR scans, etc.
+
 ## Connect plugin and connector
 
 The Connect plugin (registered in `ConnectorConfiguration.java`) lets the
@@ -231,8 +282,10 @@ Input parameters: `method`, `url`, `headers` (a `<camunda:map>`), `payload`,
 `contentType`. Output parameters: `statusCode`, `headers`, `response` (the raw
 body as a String).
 
-It is wired inline inside three service tasks: `Task_GetPrice` (catalogue
-lookup), `Task_SendReminderEmail` (timer-driven email), and
+It is wired inline inside five service tasks: `Task_GetPrice` (catalogue
+lookup), `Task_SendReminderEmail` (timer-driven email),
+`Task_GeneratePdf` (PDF render via the pdf-renderer sidecar),
+`Task_SendApprovalEmail` (post-PDF approval notification), and
 `Task_SendBackEmail` (sent on the rejection path). For `Task_GetPrice` the
 response body is parsed with Spin (bundled with the CIB seven engine) to read
 `data.price` out:
@@ -265,6 +318,17 @@ the `MAIL_API_URL` env var is set to (defaults to `http://localhost:8025`
 for `mvn spring-boot:run`; `http://mailpit:8025` inside docker-compose).
 Mailpit's HTTP API is intentionally Mailpit-flavoured — `From`/`To` lists,
 `Subject`, `Text` — there is no SMTP traffic involved.
+
+`Task_GeneratePdf` follows the same pattern against the [`pdf-renderer/`](../pdf-renderer/)
+sidecar (URL `${pdfApiBaseUrl}/render` from `PdfConfiguration.java`).
+pdf-renderer is a 20-line Express app that hides two warts Gotenberg
+exposes: it accepts JSON (Gotenberg requires multipart/form-data) and
+returns base64 inside JSON (Gotenberg returns raw binary, which the
+http-connector mangles when it surfaces the response as a Java `String`).
+The BPMN call site therefore looks identical to the email tasks — HTTP +
+FreeMarker payload + Spin to read scalars off the response — instead of
+needing a custom Java delegate. See the `pdf-renderer/server.js` source
+for the multipart adapter.
 
 The non-interrupting timer boundary event on `Task_Review`
 (`cancelActivity="false"`, `R/PT2M`) is what schedules the reminder branch.

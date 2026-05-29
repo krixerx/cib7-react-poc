@@ -2,11 +2,13 @@
 
 A proof of concept: a [CIB seven](https://cibseven.org) 2.1 process engine runs
 a BPMN process with **two human tasks**, a **DMN auto-approval decision**, a
-**non-interrupting timer boundary event**, and **three connector-backed
-service tasks** (one fetches a product price, two POST email notifications to
-[Mailpit](https://mailpit.axllent.org/)). A **React** app opens each human
-task with its own hand-written form; the **Cockpit / Tasklist / Admin**
-webapps are also bundled with full Keycloak SSO.
+**non-interrupting timer boundary event**, and **five connector-backed
+service tasks** (one fetches a product price, one renders an approval PDF
+via [Gotenberg](https://gotenberg.dev/), three POST email notifications —
+one with the PDF attached — to [Mailpit](https://mailpit.axllent.org/)). A
+**React** app opens each human task with its own hand-written form; the
+**Cockpit / Tasklist / Admin** webapps are also bundled with full Keycloak
+SSO.
 
 It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
@@ -117,8 +119,11 @@ Person Registration (BPMN + DMN)
                                 │
                                 ├──▶  http-connector → api.restful-api.dev
                                 │                       (product catalogue)
-                                └──▶  http-connector → Mailpit  (notifications)
-                                                       :8025 (UI), :1025 (SMTP)
+                                ├──▶  http-connector → Mailpit  (notifications
+                                │                       + PDF attachments)
+                                │                       :8025 (UI), :1025 (SMTP)
+                                └──▶  http-connector → pdf-renderer → Gotenberg
+                                                       (HTML → PDF, internal)
 ```
 
 - The browser logs in against **Keycloak** (OIDC, PKCE) and then calls the
@@ -131,9 +136,12 @@ Person Registration (BPMN + DMN)
   is on, so `candidateGroups` on user tasks is enforced.
 - The BPMN file lives in the backend and is **auto-deployed on startup**.
 - The **Get price** service task calls the external API server-side, from the
-  engine — via the official `http-connector`. The **Send reminder email** and
-  **Send "sent back" email** service tasks reuse the same `http-connector`
-  against Mailpit's `/api/v1/send` JSON endpoint.
+  engine — via the official `http-connector`. The **Send reminder email**,
+  **Send approval email**, and **Send "sent back" email** service tasks
+  reuse the same `http-connector` against Mailpit's `/api/v1/send` JSON
+  endpoint. The **Generate approval PDF** task uses the same connector
+  against a tiny Node sidecar (`pdf-renderer/`) that fronts Gotenberg; the
+  resulting PDF rides along as an attachment on the approval email.
 - The **CIB seven webapps** (Cockpit / Tasklist / Admin) live under
   `/camunda/*` on the engine. A second `SecurityFilterChain` drives the
   Spring Security OAuth2 Authorization Code flow against the
@@ -154,11 +162,19 @@ cib7-react-poc/
 │       ├── java/com/poc/cib7/
 │       │   ├── Cib7PocApplication.java
 │       │   ├── ConnectorConfiguration.java   registers the Connect plugin
+│       │   ├── MailConfiguration.java        exposes ${mailApiBaseUrl}
+│       │   ├── PdfConfiguration.java         exposes ${pdfApiBaseUrl}
+│       │   ├── PdfHelper.java                @Component("pdf") base64↔byte[]
 │       │   ├── AuthorizationBootstrap.java   grants /applicant engine perms
 │       │   └── keycloak/                     Spring Security + Keycloak identity wiring
 │       └── resources/
 │           ├── application.yaml
-│           └── processes/person-registration.bpmn
+│           ├── processes/                    BPMN + DMN (auto-deployed)
+│           └── templates/                    FreeMarker payloads for connectors
+├── pdf-renderer/                   Node sidecar (JSON-in/JSON-out over Gotenberg)
+│   ├── server.js                   ~25 LOC Express wrapper
+│   ├── package.json
+│   └── Dockerfile
 └── frontend/                       React + TypeScript + Vite app
     └── src/
         ├── api/
@@ -345,6 +361,26 @@ as a Spring bean, driven by the `MAIL_API_URL` env var
 [Mailpit](https://mailpit.axllent.org/) (`axllent/mailpit:latest`) is a tiny
 SMTP server + web UI; the inbox at <http://localhost:8025> visualizes every
 email the process sends.
+
+## PDF generation (Gotenberg + pdf-renderer)
+
+When the case ends in approval and the applicant provided an email, a
+**Generate approval PDF** service task runs before the approval email. It is
+yet another `http-connector` call — this time against the `pdf-renderer/`
+sidecar at `${pdfApiBaseUrl}/render`, which takes JSON `{html, filename}`
+and returns JSON `{filename, base64}`. The sidecar internally POSTs
+`multipart/form-data` to **Gotenberg** (`gotenberg/gotenberg:8`, headless
+Chromium) and base64-encodes the binary response — both warts that would
+otherwise force the BPMN out of the connector pattern into a custom Java
+delegate.
+
+The decoded PDF lands in the `approvalPdfBytes` process variable as a
+`byte[]` (not `String`), so the engine spills it into `ACT_GE_BYTEARRAY`
+instead of the 4000-char `ACT_HI_VARINST.TEXT_` column. The
+`approval-email.json.ftl` template re-encodes to base64 with
+`${pdf.encode(approvalPdfBytes)}` when assembling the Mailpit attachment.
+See [`docs/cib7.md` § Large process variables](docs/cib7.md#large-process-variables-bytes-typed)
+for the rationale and the corresponding `PdfHelper` bean.
 
 ## Cockpit / Tasklist / Admin webapps with Keycloak SSO
 

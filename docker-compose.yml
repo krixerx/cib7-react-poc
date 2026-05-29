@@ -20,6 +20,32 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
 
+  gotenberg:
+    # Headless Chromium wrapped in a REST API. Used by pdf-renderer to convert
+    # the approval-email HTML to a PDF for the email attachment. Internal-only
+    # — no host port mapping needed; only pdf-renderer talks to it.
+    image: gotenberg/gotenberg:8
+    container_name: cib7-poc-gotenberg
+    expose:
+      - "3000"
+
+  pdf-renderer:
+    # JSON-in / JSON-out facade in front of Gotenberg. Exists because the
+    # cibseven http-connector returns the HTTP body as a String (corrupts
+    # binary PDFs) and has no multipart support. This service swallows both
+    # warts so the BPMN can stay pure connector + FreeMarker, identical to
+    # the existing Mailpit tasks.
+    #
+    # Endpoint: POST /render  {html, filename}  ->  {filename, base64}
+    build: ./pdf-renderer
+    container_name: cib7-poc-pdf-renderer
+    environment:
+      GOTENBERG_URL: http://gotenberg:3000
+    expose:
+      - "8088"
+    depends_on:
+      - gotenberg
+
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).
@@ -88,10 +114,15 @@ services:
       # person-registration.bpmn. The Mailpit container resolves under the
       # docker-compose network alias "mailpit".
       MAIL_API_URL: http://mailpit:8025
+      # Used by the "Generate approval PDF" service task. Exposed to the
+      # engine's JUEL context as ${pdfApiBaseUrl} via PdfConfiguration.
+      PDF_API_URL: http://pdf-renderer:8088
     depends_on:
       keycloak:
         condition: service_healthy
       mailpit:
+        condition: service_started
+      pdf-renderer:
         condition: service_started
 
   frontend:

@@ -45,6 +45,7 @@ flowchart LR
   Task_Review["👤 Review application"]
   Task_GetPrice[["🔌 Get price"]]
   Task_SendReminderEmail[["🔌 Send reminder email"]]
+  Task_GeneratePdf[["🔌 Generate approval PDF"]]
   Task_SendApprovalEmail[["🔌 Send approval email"]]
   Task_SendBackEmail[["🔌 Send &quot;sent back&quot; email"]]
   Task_AutoDecide[/"📋 Auto approval?"/]
@@ -65,7 +66,8 @@ flowchart LR
   Task_SendReminderEmail --> EndEvent_ReminderSent
   Task_Review --> Gateway_Decision
   Gateway_Decision -- "approved" --> Gateway_SendApprovalEmail
-  Gateway_SendApprovalEmail -- "valid email" --> Task_SendApprovalEmail
+  Gateway_SendApprovalEmail -- "valid email" --> Task_GeneratePdf
+  Task_GeneratePdf --> Task_SendApprovalEmail
   Gateway_SendApprovalEmail -. "default" .-> EndEvent_Approved
   Task_SendApprovalEmail --> EndEvent_Approved
   Gateway_Decision -. "sent back (default)" .-> Task_SendBackEmail
@@ -89,12 +91,14 @@ Registry resolution lives in `frontend/src/forms/registry.ts`.
 |---|---|---|---|
 | `Task_GetPrice` | http-connector | `https://api.restful-api.dev/objects/${objectId}` | Reads `data.price` via Spin into `price`. Async-before. |
 | `Task_SendReminderEmail` | http-connector | Mailpit `POST /api/v1/send` | Fires on boundary timer (every 2 min, non-interrupting). |
-| `Task_SendApprovalEmail` | http-connector | Mailpit `POST /api/v1/send` | Payload from FreeMarker template `templates/approval-email.json.ftl`. |
+| `Task_GeneratePdf` | http-connector | `pdf-renderer` (`POST /render`) → Gotenberg | Payload from FreeMarker template `templates/approval-pdf.json.ftl`. Decoded base64 → `byte[]` via `${pdf.decode(...)}` so the variable spills to `ACT_GE_BYTEARRAY` (see [`../../../cib7.md` § Large process variables](../../../cib7.md#large-process-variables-bytes-typed)). |
+| `Task_SendApprovalEmail` | http-connector | Mailpit `POST /api/v1/send` | Payload from FreeMarker template `templates/approval-email.json.ftl`. Attaches the PDF via `${pdf.encode(approvalPdfBytes)}`. |
 | `Task_SendBackEmail` | http-connector | Mailpit `POST /api/v1/send` | Inline payload; loops back to applicant. |
 | `Task_AutoDecide` | DMN business rule | decision `auto-approval` | `singleEntry` → `autoDecision` variable. |
 
-`mailApiBaseUrl` is exposed as a JUEL variable by `MailApiBaseUrlConfiguration`
-in the engine. See [`../../../cib7.md`](../../../cib7.md) for the bean.
+`mailApiBaseUrl` and `pdfApiBaseUrl` are exposed as JUEL variables by
+`MailConfiguration` and `PdfConfiguration` in the engine. The `pdf` bean is
+`PdfHelper`. See [`../../../cib7.md`](../../../cib7.md) for the wiring.
 
 ## Process variables
 
@@ -108,6 +112,8 @@ in the engine. See [`../../../cib7.md`](../../../cib7.md) for the bean.
 | `autoDecision` | `Task_AutoDecide` (DMN) | String | `"approve"` or `"review"`. |
 | `decision` | `Task_Review` | String | `"approve"` or `"sendback"`. |
 | `sendBackReason` | `Task_Review` | String | Reason supplied by the civil servant on send-back. |
+| `approvalPdfBytes` | `Task_GeneratePdf` | byte[] | Raw PDF bytes. Bytes-typed so the engine spills it to `ACT_GE_BYTEARRAY` instead of the 4000-char `TEXT_` column. |
+| `approvalPdfFilename` | `Task_GeneratePdf` | String | Suggested attachment filename (e.g. `approval-<objectId>.pdf`). |
 
 ## Roles and authorization
 

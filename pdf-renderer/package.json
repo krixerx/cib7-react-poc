@@ -1,0 +1,13 @@
+{
+  "name": "pdf-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny JSON-in/JSON-out facade in front of Gotenberg. Lets the CIB seven http-connector generate PDFs without dealing with multipart bodies or binary responses.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

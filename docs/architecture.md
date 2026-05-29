@@ -33,15 +33,16 @@ engine boundary atomically, which is the whole point.
    (nginx in prod,    (Spring Boot, embedded engine, in-memory H2)
     Vite proxy in dev) │
                        │  http-connector
-                       ▼
-                api.restful-api.dev   (external REST API)
+                       ├──▶ api.restful-api.dev      (catalogue)
+                       ├──▶ Mailpit /api/v1/send      (email + attachments)
+                       └──▶ pdf-renderer /render ──▶ Gotenberg (Chromium → PDF)
                        ▲
                        │  identity provider plugin (Admin REST)
                        │
                     Keycloak
 ```
 
-Four runtime pieces:
+Six runtime pieces:
 
 - **Keycloak** — OAuth2 / OIDC identity provider. Hosts the login form, issues
   JWT access tokens to the SPA, and exposes its Admin REST API to the backend's
@@ -56,6 +57,15 @@ Four runtime pieces:
   user into the engine's `IdentityService` per request.
 - **External API** — `api.restful-api.dev`, called *server-side* from the
   engine's "Get price" service task via the official `http-connector`.
+- **Mailpit** — local SMTP+HTTP test server. The engine POSTs notifications
+  (reminder, send-back, approval) to its `/api/v1/send` endpoint; the inbox
+  at `:8025` renders them with attachments.
+- **PDF stack** — two collaborating sidecars: **Gotenberg** (headless
+  Chromium) handles the actual rendering, and **pdf-renderer** (a 20-line
+  Node sidecar) sits in front of it to give the engine a JSON-in / JSON-out
+  REST API. Without pdf-renderer the http-connector would have to build
+  multipart bodies and handle binary responses, which would force a custom
+  Java delegate.
 
 ## Components
 
@@ -74,7 +84,10 @@ Four runtime pieces:
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | Grants the `applicant` engine group the narrow set of permissions it needs (admins are handled by the plugin's `administratorGroupName`) |
 | Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
 | Database | H2 (in-memory) | runtime classpath, no datasource config | Engine state — wiped on every restart |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Three services: `keycloak`, `cib7`, `frontend` |
+| Email sink | Mailpit | compose service | Captures every notification + attachment the process sends; UI at `:8025` |
+| PDF generator | Gotenberg 8 (headless Chromium) | compose service | Internal only — converts HTML → PDF over multipart REST |
+| PDF adapter | `pdf-renderer/` (Node + Express, 20 LOC) | local module, compose service | JSON-in / JSON-out facade over Gotenberg so the http-connector stays plain HTTP + JSON |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Six services: `keycloak`, `cib7`, `frontend`, `mailpit`, `gotenberg`, `pdf-renderer` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
@@ -131,7 +144,7 @@ headers, so it works without our involvement.)
 
 ## Deployment topology
 
-`docker-compose.yml` defines three services:
+`docker-compose.yml` defines six services:
 
 - **keycloak** — `quay.io/keycloak/keycloak:26.1` in `start-dev --import-realm`
   mode. Mounts `keycloak/realm-export.json` so the realm boots pre-seeded
@@ -142,10 +155,24 @@ headers, so it works without our involvement.)
   Publishes port `8080`. Reaches Keycloak over the docker network at
   `http://keycloak:8080` (internal), while the browser uses
   `http://localhost:8180` (external) — see the "issuer-URL split" note below.
+  Depends on `keycloak` (healthy), `mailpit` (started), and `pdf-renderer`
+  (started); reads `MAIL_API_URL=http://mailpit:8025` and
+  `PDF_API_URL=http://pdf-renderer:8088` to drive the email and PDF
+  service tasks.
 - **frontend** — built from `frontend/Dockerfile` (multi-stage: Vite build →
   nginx). Publishes port `3000` mapped to container port `80`. `depends_on:
   cib7` (start ordering only — nginx does not wait for the engine to be
   healthy).
+- **mailpit** — `axllent/mailpit:latest`. Publishes `:8025` (web UI) and
+  `:1025` (SMTP, unused — the engine uses the HTTP API).
+- **gotenberg** — `gotenberg/gotenberg:8`. Headless Chromium wrapped in a
+  REST API. Internal only (no host port mapping); only pdf-renderer talks
+  to it on port 3000.
+- **pdf-renderer** — built from `pdf-renderer/Dockerfile` (Node 20 +
+  Express). Internal only on port 8088. JSON-in / JSON-out adapter in
+  front of Gotenberg. Hides Gotenberg's multipart input format and binary
+  output from the http-connector, which only handles plain
+  `application/json` cleanly.
 
 There is no shared volume; the backend has no persistent volume because the
 database is in-memory; Keycloak uses its built-in dev H2.
