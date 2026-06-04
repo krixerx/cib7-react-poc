@@ -33,7 +33,16 @@ export interface CamundaTask {
   assignee: string | null;
 }
 
-export type CamundaVariableType = 'String' | 'Integer' | 'Long' | 'Double' | 'Boolean';
+export type CamundaVariableType =
+  | 'String'
+  | 'Integer'
+  | 'Long'
+  | 'Double'
+  | 'Boolean'
+  // CIB seven Spin Json. `value` is a JSON-encoded string; the engine
+  // deserialises it via Spin and BPMN sees a SpinJsonNode (so JUEL
+  // expressions like ${additionalOwners.elements()} work).
+  | 'Json';
 
 /** A CIB seven typed variable: `{ value, type }`. */
 export interface CamundaVariable {

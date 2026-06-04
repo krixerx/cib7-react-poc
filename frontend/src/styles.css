@@ -695,3 +695,84 @@ code {
   padding: 1px 5px;
   font-size: 13px;
 }
+
+/* ---- additional-owners editor + confirmation page -------------------- */
+
+.field-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px 18px;
+  margin: 18px 0 0;
+}
+
+.field-group .field-label {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field-hint {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 6px 0 14px;
+  line-height: 1.5;
+}
+
+.owner-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.owner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.owner-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.owner-list li:last-child {
+  border-bottom: none;
+}
+
+.owner-list .owner-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.owner-list .owner-name {
+  font-weight: 600;
+}
+
+.owner-list .owner-email {
+  color: var(--muted);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.confirm-page {
+  max-width: 640px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.confirm-state {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

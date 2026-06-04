@@ -117,6 +117,12 @@ services:
       # Used by the "Generate approval PDF" service task. Exposed to the
       # engine's JUEL context as ${pdfApiBaseUrl} via PdfConfiguration.
       PDF_API_URL: http://pdf-renderer:8088
+      # Browser-visible base URL for the SPA. Owner-confirmation emails
+      # embed ${frontendBaseUrl}/confirm-owner/{token}, so this must be
+      # the URL the recipient's browser can open — NOT the docker
+      # internal alias. Exposed via FrontendConfiguration as
+      # ${frontendBaseUrl} in BPMN/FreeMarker.
+      FRONTEND_BASE_URL: http://localhost:3000
     depends_on:
       keycloak:
         condition: service_healthy
