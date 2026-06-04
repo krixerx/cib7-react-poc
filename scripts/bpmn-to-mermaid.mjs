@@ -20,6 +20,7 @@ const MARKER_END = '<!-- bpmn-diagram:end -->';
 const TASK_KINDS = new Set([
   'userTask', 'serviceTask', 'businessRuleTask',
   'sendTask', 'receiveTask', 'manualTask', 'task', 'scriptTask', 'callActivity',
+  'subProcess',
 ]);
 const GATEWAY_KINDS = new Set([
   'exclusiveGateway', 'parallelGateway', 'inclusiveGateway', 'eventBasedGateway',
@@ -76,6 +77,10 @@ function shape(kind, id, label) {
     case 'scriptTask':              return `${id}[[${quoteLabel('📜 ' + label)}]]`;
     case 'manualTask':              return `${id}[${quoteLabel('✋ ' + label)}]`;
     case 'callActivity':            return `${id}[[${quoteLabel('↪ ' + label)}]]`;
+    // Embedded subprocess (incl. multi-instance). Rendered as a subroutine
+    // box like callActivity but with a distinct prefix so readers can tell
+    // them apart in the legend.
+    case 'subProcess':              return `${id}[[${quoteLabel('⊞ ' + label)}]]`;
     case 'task':                    return `${id}[${L}]`;
     case 'exclusiveGateway':        return `${id}{${L}}`;
     case 'parallelGateway':         return `${id}{{${quoteLabel('+ ' + label)}}}`;

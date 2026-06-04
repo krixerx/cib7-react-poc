@@ -13,6 +13,21 @@
 
       start (initiator = starting applicant)
         -> [Submit personal details]   user task           (applicant — PartA)
+                                          form also captures additionalOwners
+        -> <Need owner confirmations?> exclusive gateway
+             additionalOwners empty -> (Get price) [skip whole confirmation block]
+             else                   -> (Send applicant tracking email)
+        -> (Send applicant tracking email)  service task  (Mailpit; applicant's own /confirm-owner/{token} link)
+        -> [Owner confirmations]       subprocess (parallel multi-instance over additionalOwners)
+              per instance:
+                  (Send owner confirmation email)  service task
+                  -> [Wait for owner confirmation] receiveTask    (msg "OwnerConfirmation"
+                                                                    correlated on local
+                                                                    ownerToken)
+              completionCondition: ${rejectedByOwner == true}  (any reject short-circuits)
+        -> <Any reject?>               exclusive gateway
+             rejectedByOwner == true -> (Send "sent back" email) -> Submit (loop)
+             else                    -> [Wait for send-to-process] receiveTask (msg "SendToProcess")
         -> (Get price)                 service task        (http-connector)
         -> {Auto approval?}            business rule task  (DMN)
         -> <Auto?>                     exclusive gateway
@@ -34,11 +49,31 @@
       applicantEmail             - written by the applicant task (optional; when
                                    non-empty and contains "@", the approval-email
                                    service task fires)
+      applicantToken             - written by the applicant task; UUID that powers
+                                   the applicant's own /confirm-owner/{token} link.
+                                   Pre-confirmed by submitting the form.
+      additionalOwners           - written by the applicant task; Spin Json list
+                                   of {name, email, token} for each additional
+                                   owner that must confirm before the case proceeds.
+                                   Drives the multi-instance subprocess.
+      ownerConfirmations         - written by OwnerConfirmationController on every
+                                   approve/reject; Spin Json map of token ->
+                                   {status, reason?, signedAt}. Includes the
+                                   applicant's token pre-set to "approved".
+                                   Read by the public status endpoint.
+      rejectedByOwner            - written by OwnerConfirmationController on reject;
+                                   Boolean. Drives the multi-instance completionCondition
+                                   and the post-subprocess gateway.
+      sentToProcess              - written by the SendToProcess message correlation;
+                                   Boolean. Used by the status endpoint.
       price                      - written by the Get price service task
       autoDecision               - written by the DMN business rule task ("approve"/"review")
       decision                   - written by the review user task ("approve"/"sendback")
       sendBackReason             - optional reason supplied by the civil servant
-                                   when sending the case back for corrections
+                                   when sending the case back for corrections.
+                                   Also written by OwnerConfirmationController on
+                                   reject so the existing Task_SendBackEmail can
+                                   notify the applicant without a separate task.
       approvalPdfBytes           - written by Generate approval PDF (Gotenberg via
                                    pdf-renderer); raw PDF bytes. Stored as a
                                    bytes-typed variable so the engine spills it
@@ -47,6 +82,14 @@
       approvalPdfFilename        - written by Generate approval PDF; suggested
                                    filename used as the Mailpit attachment name
   -->
+
+  <!--
+    Message definitions used by the receiveTasks in the owner-confirmation block.
+    OwnerConfirmationController correlates these from Spring via
+    runtimeService.createMessageCorrelation(...).
+  -->
+  <bpmn:message id="Message_OwnerConfirmation" name="OwnerConfirmation" />
+  <bpmn:message id="Message_SendToProcess" name="SendToProcess" />
   <bpmn:process id="personRegistration" name="Person Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
 
     <bpmn:startEvent id="StartEvent_1" name="Registration started" camunda:initiator="initiator">
@@ -68,7 +111,188 @@
       <bpmn:outgoing>Flow_Submit_GetPrice</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:sequenceFlow id="Flow_Submit_GetPrice" sourceRef="Task_SubmitDetails" targetRef="Task_GetPrice" />
+    <bpmn:sequenceFlow id="Flow_Submit_NeedsConfirmation"
+                       sourceRef="Task_SubmitDetails" targetRef="Gateway_NeedsConfirmation" />
+
+    <!--
+      Routes the case past the whole owner-confirmation block when there are
+      no additional owners. The applicant alone is treated as already
+      confirmed (the form submission is their signature).
+
+      Default branch goes through the confirmation path so any malformed
+      additionalOwners variable fails loudly rather than silently skipping.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_NeedsConfirmation" name="Need owner confirmations?"
+                           default="Flow_NeedsConfirmation_TrackingEmail">
+      <bpmn:incoming>Flow_Submit_NeedsConfirmation</bpmn:incoming>
+      <bpmn:outgoing>Flow_NeedsConfirmation_GetPrice</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NeedsConfirmation_TrackingEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_NeedsConfirmation_GetPrice" name="no extra owners"
+                       sourceRef="Gateway_NeedsConfirmation" targetRef="Task_GetPrice">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${additionalOwners == null || additionalOwners.elements().isEmpty()}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NeedsConfirmation_TrackingEmail" name="needs confirmations"
+                       sourceRef="Gateway_NeedsConfirmation" targetRef="Task_SendApplicantTrackingEmail" />
+
+    <!--
+      Emails the applicant their own tracking link. Same UI as every other
+      owner — applicant's token is pre-confirmed at submit time, so opening
+      the link shows status + the "Send to process" button when all owners
+      have signed.
+    -->
+    <bpmn:serviceTask id="Task_SendApplicantTrackingEmail" name="Send applicant tracking email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/applicant-tracking-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NeedsConfirmation_TrackingEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_TrackingEmail_OwnerSubprocess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_TrackingEmail_OwnerSubprocess"
+                       sourceRef="Task_SendApplicantTrackingEmail"
+                       targetRef="SubProcess_OwnerConfirmations" />
+
+    <!--
+      Parallel multi-instance subprocess. One instance per element of
+      additionalOwners (a Spin Json list). Each instance gets its own
+      element variable `owner` (a SpinJsonNode) plus a local `ownerToken`
+      set from owner.token via inputOutput — the receiveTask correlation
+      keys off that local variable so the public confirmation endpoint
+      reaches exactly the waiting execution.
+
+      completionCondition fires as soon as ANY instance writes
+      rejectedByOwner=true at process scope, which cancels the remaining
+      waiters and routes the case back to the applicant via the existing
+      send-back email.
+    -->
+    <bpmn:subProcess id="SubProcess_OwnerConfirmations" name="Owner confirmations">
+      <bpmn:incoming>Flow_TrackingEmail_OwnerSubprocess</bpmn:incoming>
+      <bpmn:outgoing>Flow_OwnerSubprocess_AllConfirmed</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="false"
+                                             camunda:collection="${additionalOwners.elements()}"
+                                             camunda:elementVariable="owner">
+        <bpmn:completionCondition xsi:type="bpmn:tFormalExpression">${rejectedByOwner == true}</bpmn:completionCondition>
+      </bpmn:multiInstanceLoopCharacteristics>
+
+      <bpmn:startEvent id="StartEvent_OwnerInstance">
+        <bpmn:outgoing>Flow_Owner_Start_SendEmail</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <bpmn:sequenceFlow id="Flow_Owner_Start_SendEmail"
+                         sourceRef="StartEvent_OwnerInstance"
+                         targetRef="Task_SendOwnerConfirmEmail" />
+
+      <bpmn:serviceTask id="Task_SendOwnerConfirmEmail" name="Send owner confirmation email"
+                        camunda:asyncBefore="true">
+        <bpmn:extensionElements>
+          <camunda:connector>
+            <camunda:connectorId>http-connector</camunda:connectorId>
+            <camunda:inputOutput>
+              <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+              <camunda:inputParameter name="method">POST</camunda:inputParameter>
+              <camunda:inputParameter name="headers">
+                <camunda:map>
+                  <camunda:entry key="Content-Type">application/json</camunda:entry>
+                </camunda:map>
+              </camunda:inputParameter>
+              <camunda:inputParameter name="payload">
+                <camunda:script scriptFormat="freemarker" resource="templates/owner-confirmation-email.json.ftl" />
+              </camunda:inputParameter>
+            </camunda:inputOutput>
+          </camunda:connector>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Owner_Start_SendEmail</bpmn:incoming>
+        <bpmn:outgoing>Flow_Owner_SendEmail_Wait</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+      <bpmn:sequenceFlow id="Flow_Owner_SendEmail_Wait"
+                         sourceRef="Task_SendOwnerConfirmEmail"
+                         targetRef="ReceiveTask_OwnerConfirmation" />
+
+      <!--
+        Park until the owner clicks Approve/Reject in their confirmation page.
+        The inputOutput mapping promotes owner.token to a flat local variable
+        so MessageCorrelationBuilder.localVariableEquals("ownerToken", ...) in
+        the controller finds this exact execution.
+      -->
+      <bpmn:receiveTask id="ReceiveTask_OwnerConfirmation" name="Wait for owner confirmation"
+                        messageRef="Message_OwnerConfirmation">
+        <bpmn:extensionElements>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="ownerToken">${owner.prop('token').stringValue()}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Owner_SendEmail_Wait</bpmn:incoming>
+        <bpmn:outgoing>Flow_Owner_Wait_End</bpmn:outgoing>
+      </bpmn:receiveTask>
+
+      <bpmn:sequenceFlow id="Flow_Owner_Wait_End"
+                         sourceRef="ReceiveTask_OwnerConfirmation"
+                         targetRef="EndEvent_OwnerInstance" />
+
+      <bpmn:endEvent id="EndEvent_OwnerInstance">
+        <bpmn:incoming>Flow_Owner_Wait_End</bpmn:incoming>
+      </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <bpmn:sequenceFlow id="Flow_OwnerSubprocess_AllConfirmed"
+                       sourceRef="SubProcess_OwnerConfirmations"
+                       targetRef="Gateway_AllConfirmed" />
+
+    <!--
+      After the multi-instance subprocess exits: either everyone approved
+      (default path -> wait for send-to-process), or someone rejected (loop
+      back via the existing send-back email). The controller writes
+      sendBackReason on reject so the existing email template renders
+      cleanly without a separate "owner-reject" task.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_AllConfirmed" name="Anyone rejected?"
+                           default="Flow_AllConfirmed_WaitSendToProcess">
+      <bpmn:incoming>Flow_OwnerSubprocess_AllConfirmed</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllConfirmed_SendBack</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AllConfirmed_WaitSendToProcess</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_AllConfirmed_SendBack" name="rejected"
+                       sourceRef="Gateway_AllConfirmed" targetRef="Task_SendBackEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejectedByOwner == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_AllConfirmed_WaitSendToProcess" name="all confirmed"
+                       sourceRef="Gateway_AllConfirmed" targetRef="Task_WaitSendToProcess" />
+
+    <!--
+      Final synchronisation gate. The process parks here until any owner
+      clicks "Send to process" in their public confirmation page. The
+      controller correlates the SendToProcess message by processInstanceId,
+      so only one instance is waiting and no correlation key is needed.
+    -->
+    <bpmn:receiveTask id="Task_WaitSendToProcess" name="Wait for send-to-process"
+                      messageRef="Message_SendToProcess">
+      <bpmn:incoming>Flow_AllConfirmed_WaitSendToProcess</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitSendToProcess_GetPrice</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <bpmn:sequenceFlow id="Flow_WaitSendToProcess_GetPrice"
+                       sourceRef="Task_WaitSendToProcess" targetRef="Task_GetPrice" />
 
     <bpmn:serviceTask id="Task_GetPrice" name="Get price" camunda:asyncBefore="true">
       <bpmn:extensionElements>
@@ -88,7 +312,8 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Submit_GetPrice</bpmn:incoming>
+      <bpmn:incoming>Flow_NeedsConfirmation_GetPrice</bpmn:incoming>
+      <bpmn:incoming>Flow_WaitSendToProcess_GetPrice</bpmn:incoming>
       <bpmn:outgoing>Flow_GetPrice_AutoDecide</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -346,6 +571,7 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SendBack</bpmn:incoming>
+      <bpmn:incoming>Flow_AllConfirmed_SendBack</bpmn:incoming>
       <bpmn:outgoing>Flow_SendBackEmail_Submit</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -359,8 +585,27 @@
 
   </bpmn:process>
 
+  <!--
+    BPMNDI: hand-authored layout, organised into clear horizontal bands so
+    nothing overlaps. Vertical zones:
+
+      y =  80          auto-approve skip arc (over the top)
+      y = 160 - 240    main row: Start -> Submit -> Gateway_NeedsConfirmation ->
+                       GetPrice -> AutoDecide -> AutoApproval -> Review ->
+                       Decision -> SendApprovalEmail gateway -> GeneratePdf ->
+                       SendApprovalEmail -> EndEvent_Approved
+      y = 340 - 398    review-reminder branch (drops out of Task_Review)
+      y = 460 - 620    owner-confirmation block (under Gateway_NeedsConfirmation,
+                       loops back up to Task_GetPrice via the route at y = 430)
+      y = 680 - 760    send-back loop (Task_SendBackEmail), shared by the
+                       civil-servant send-back AND the owner-reject paths
+
+    Re-open in a BPMN modeler to clean up further. Coordinates are points.
+  -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="personRegistration">
+
+      <!-- ===== Main row (y = 160 - 240) ===== -->
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
         <dc:Bounds x="120" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
@@ -370,146 +615,252 @@
       <bpmndi:BPMNShape id="Task_SubmitDetails_di" bpmnElement="Task_SubmitDetails">
         <dc:Bounds x="200" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NeedsConfirmation_di" bpmnElement="Gateway_NeedsConfirmation" isMarkerVisible="true">
+        <dc:Bounds x="355" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="335" y="132" width="92" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_GetPrice_di" bpmnElement="Task_GetPrice">
-        <dc:Bounds x="340" y="160" width="100" height="80" />
+        <dc:Bounds x="460" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AutoDecide_di" bpmnElement="Task_AutoDecide">
-        <dc:Bounds x="480" y="160" width="100" height="80" />
+        <dc:Bounds x="620" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_AutoApproval_di" bpmnElement="Gateway_AutoApproval" isMarkerVisible="true">
-        <dc:Bounds x="625" y="175" width="50" height="50" />
+        <dc:Bounds x="775" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="617" y="145" width="68" height="14" />
+          <dc:Bounds x="767" y="145" width="68" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_Review_di" bpmnElement="Task_Review">
-        <dc:Bounds x="720" y="160" width="100" height="80" />
+        <dc:Bounds x="880" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BoundaryEvent_ReviewReminder_di" bpmnElement="BoundaryEvent_ReviewReminder">
-        <dc:Bounds x="752" y="222" width="36" height="36" />
+        <dc:Bounds x="912" y="222" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="734" y="265" width="72" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendReminderEmail_di" bpmnElement="Task_SendReminderEmail">
-        <dc:Bounds x="720" y="340" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="EndEvent_ReminderSent_di" bpmnElement="EndEvent_ReminderSent">
-        <dc:Bounds x="862" y="362" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="850" y="405" width="63" height="14" />
+          <dc:Bounds x="894" y="265" width="72" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_Decision_di" bpmnElement="Gateway_Decision" isMarkerVisible="true">
-        <dc:Bounds x="865" y="175" width="50" height="50" />
+        <dc:Bounds x="1035" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="868" y="145" width="55" height="14" />
+          <dc:Bounds x="1037" y="145" width="55" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
-        <dc:Bounds x="430" y="480" width="120" height="80" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_SendApprovalEmail_di" bpmnElement="Gateway_SendApprovalEmail" isMarkerVisible="true">
-        <dc:Bounds x="940" y="175" width="50" height="50" />
+        <dc:Bounds x="1130" y="175" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="920" y="145" width="90" height="14" />
+          <dc:Bounds x="1110" y="132" width="90" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_GeneratePdf_di" bpmnElement="Task_GeneratePdf">
-        <dc:Bounds x="1040" y="160" width="100" height="80" />
+        <dc:Bounds x="1235" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
-        <dc:Bounds x="1180" y="160" width="100" height="80" />
+        <dc:Bounds x="1395" y="160" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
-        <dc:Bounds x="1322" y="182" width="36" height="36" />
+        <dc:Bounds x="1550" y="182" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1307" y="225" width="67" height="14" />
+          <dc:Bounds x="1532" y="225" width="73" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+
+      <!-- ===== Review-reminder branch (y = 340 - 398) ===== -->
+      <bpmndi:BPMNShape id="Task_SendReminderEmail_di" bpmnElement="Task_SendReminderEmail">
+        <dc:Bounds x="880" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_ReminderSent_di" bpmnElement="EndEvent_ReminderSent">
+        <dc:Bounds x="1020" y="362" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1008" y="405" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Owner-confirmation block (y = 460 - 620) ===== -->
+      <bpmndi:BPMNShape id="Task_SendApplicantTrackingEmail_di" bpmnElement="Task_SendApplicantTrackingEmail">
+        <dc:Bounds x="295" y="500" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubProcess_OwnerConfirmations_di" bpmnElement="SubProcess_OwnerConfirmations" isExpanded="true">
+        <dc:Bounds x="465" y="460" width="480" height="160" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="643" y="467" width="124" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_OwnerInstance_di" bpmnElement="StartEvent_OwnerInstance">
+        <dc:Bounds x="495" y="522" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendOwnerConfirmEmail_di" bpmnElement="Task_SendOwnerConfirmEmail">
+        <dc:Bounds x="555" y="500" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReceiveTask_OwnerConfirmation_di" bpmnElement="ReceiveTask_OwnerConfirmation">
+        <dc:Bounds x="740" y="500" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_OwnerInstance_di" bpmnElement="EndEvent_OwnerInstance">
+        <dc:Bounds x="905" y="522" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AllConfirmed_di" bpmnElement="Gateway_AllConfirmed" isMarkerVisible="true">
+        <dc:Bounds x="985" y="515" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="975" y="478" width="71" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_WaitSendToProcess_di" bpmnElement="Task_WaitSendToProcess">
+        <dc:Bounds x="1075" y="500" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Send-back loop (y = 680 - 760) ===== -->
+      <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
+        <dc:Bounds x="600" y="680" width="130" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- ===== Edges: main row ===== -->
       <bpmndi:BPMNEdge id="Flow_Start_Submit_di" bpmnElement="Flow_Start_Submit">
         <di:waypoint x="156" y="200" />
         <di:waypoint x="200" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Submit_GetPrice_di" bpmnElement="Flow_Submit_GetPrice">
+      <bpmndi:BPMNEdge id="Flow_Submit_NeedsConfirmation_di" bpmnElement="Flow_Submit_NeedsConfirmation">
         <di:waypoint x="300" y="200" />
-        <di:waypoint x="340" y="200" />
+        <di:waypoint x="355" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeedsConfirmation_GetPrice_di" bpmnElement="Flow_NeedsConfirmation_GetPrice">
+        <di:waypoint x="405" y="200" />
+        <di:waypoint x="460" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="408" y="180" width="89" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_GetPrice_AutoDecide_di" bpmnElement="Flow_GetPrice_AutoDecide">
-        <di:waypoint x="440" y="200" />
-        <di:waypoint x="480" y="200" />
+        <di:waypoint x="560" y="200" />
+        <di:waypoint x="620" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AutoDecide_Gateway_di" bpmnElement="Flow_AutoDecide_Gateway">
-        <di:waypoint x="580" y="200" />
-        <di:waypoint x="625" y="200" />
+        <di:waypoint x="720" y="200" />
+        <di:waypoint x="775" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AutoApproval_Review_di" bpmnElement="Flow_AutoApproval_Review">
-        <di:waypoint x="675" y="200" />
-        <di:waypoint x="720" y="200" />
+        <di:waypoint x="825" y="200" />
+        <di:waypoint x="880" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="676" y="182" width="68" height="14" />
+          <dc:Bounds x="826" y="180" width="76" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AutoApproval_Approved_di" bpmnElement="Flow_AutoApproval_Approved">
-        <di:waypoint x="650" y="175" />
-        <di:waypoint x="650" y="100" />
-        <di:waypoint x="965" y="100" />
-        <di:waypoint x="965" y="175" />
+        <di:waypoint x="800" y="175" />
+        <di:waypoint x="800" y="80" />
+        <di:waypoint x="1155" y="80" />
+        <di:waypoint x="1155" y="175" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="780" y="82" width="80" height="14" />
+          <dc:Bounds x="938" y="62" width="80" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Reminder_Send_di" bpmnElement="Flow_Reminder_Send">
-        <di:waypoint x="770" y="258" />
-        <di:waypoint x="770" y="340" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Reminder_End_di" bpmnElement="Flow_Reminder_End">
-        <di:waypoint x="820" y="380" />
-        <di:waypoint x="862" y="380" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Review_Gateway_di" bpmnElement="Flow_Review_Gateway">
-        <di:waypoint x="820" y="200" />
-        <di:waypoint x="865" y="200" />
+        <di:waypoint x="980" y="200" />
+        <di:waypoint x="1035" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
-        <di:waypoint x="915" y="200" />
-        <di:waypoint x="940" y="200" />
+        <di:waypoint x="1085" y="200" />
+        <di:waypoint x="1130" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="918" y="182" width="48" height="14" />
+          <dc:Bounds x="1088" y="180" width="48" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_HasEmail_di" bpmnElement="Flow_HasEmail">
-        <di:waypoint x="990" y="200" />
-        <di:waypoint x="1040" y="200" />
+        <di:waypoint x="1180" y="200" />
+        <di:waypoint x="1235" y="200" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="993" y="182" width="55" height="14" />
+          <dc:Bounds x="1183" y="180" width="55" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_GeneratePdf_SendApprovalEmail_di" bpmnElement="Flow_GeneratePdf_SendApprovalEmail">
-        <di:waypoint x="1140" y="200" />
-        <di:waypoint x="1180" y="200" />
+        <di:waypoint x="1335" y="200" />
+        <di:waypoint x="1395" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ApprovalEmail_End_di" bpmnElement="Flow_ApprovalEmail_End">
-        <di:waypoint x="1280" y="200" />
-        <di:waypoint x="1322" y="200" />
+        <di:waypoint x="1495" y="200" />
+        <di:waypoint x="1550" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NoEmail_Approved_di" bpmnElement="Flow_NoEmail_Approved">
-        <di:waypoint x="965" y="225" />
-        <di:waypoint x="965" y="300" />
-        <di:waypoint x="1340" y="300" />
-        <di:waypoint x="1340" y="218" />
+        <di:waypoint x="1155" y="225" />
+        <di:waypoint x="1155" y="300" />
+        <di:waypoint x="1568" y="300" />
+        <di:waypoint x="1568" y="218" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SendBack_di" bpmnElement="Flow_SendBack">
-        <di:waypoint x="890" y="225" />
-        <di:waypoint x="890" y="520" />
-        <di:waypoint x="550" y="520" />
+
+      <!-- ===== Edges: reminder branch ===== -->
+      <bpmndi:BPMNEdge id="Flow_Reminder_Send_di" bpmnElement="Flow_Reminder_Send">
+        <di:waypoint x="930" y="258" />
+        <di:waypoint x="930" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reminder_End_di" bpmnElement="Flow_Reminder_End">
+        <di:waypoint x="980" y="380" />
+        <di:waypoint x="1020" y="380" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ===== Edges: owner-confirmation block ===== -->
+      <bpmndi:BPMNEdge id="Flow_NeedsConfirmation_TrackingEmail_di" bpmnElement="Flow_NeedsConfirmation_TrackingEmail">
+        <di:waypoint x="380" y="225" />
+        <di:waypoint x="380" y="540" />
+        <di:waypoint x="295" y="540" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="700" y="502" width="55" height="14" />
+          <dc:Bounds x="290" y="360" width="100" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TrackingEmail_OwnerSubprocess_di" bpmnElement="Flow_TrackingEmail_OwnerSubprocess">
+        <di:waypoint x="425" y="540" />
+        <di:waypoint x="465" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Owner_Start_SendEmail_di" bpmnElement="Flow_Owner_Start_SendEmail">
+        <di:waypoint x="531" y="540" />
+        <di:waypoint x="555" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Owner_SendEmail_Wait_di" bpmnElement="Flow_Owner_SendEmail_Wait">
+        <di:waypoint x="685" y="540" />
+        <di:waypoint x="740" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Owner_Wait_End_di" bpmnElement="Flow_Owner_Wait_End">
+        <di:waypoint x="870" y="540" />
+        <di:waypoint x="905" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_OwnerSubprocess_AllConfirmed_di" bpmnElement="Flow_OwnerSubprocess_AllConfirmed">
+        <di:waypoint x="945" y="540" />
+        <di:waypoint x="985" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllConfirmed_WaitSendToProcess_di" bpmnElement="Flow_AllConfirmed_WaitSendToProcess">
+        <di:waypoint x="1035" y="540" />
+        <di:waypoint x="1075" y="540" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1037" y="520" width="68" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WaitSendToProcess_GetPrice_di" bpmnElement="Flow_WaitSendToProcess_GetPrice">
+        <di:waypoint x="1140" y="500" />
+        <di:waypoint x="1140" y="430" />
+        <di:waypoint x="510" y="430" />
+        <di:waypoint x="510" y="240" />
+      </bpmndi:BPMNEdge>
+
+      <!-- ===== Edges: send-back loop ===== -->
+      <bpmndi:BPMNEdge id="Flow_SendBack_di" bpmnElement="Flow_SendBack">
+        <di:waypoint x="1060" y="225" />
+        <di:waypoint x="1060" y="700" />
+        <di:waypoint x="730" y="700" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="836" y="682" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllConfirmed_SendBack_di" bpmnElement="Flow_AllConfirmed_SendBack">
+        <di:waypoint x="1010" y="565" />
+        <di:waypoint x="1010" y="740" />
+        <di:waypoint x="730" y="740" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="858" y="722" width="47" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SendBackEmail_Submit_di" bpmnElement="Flow_SendBackEmail_Submit">
-        <di:waypoint x="430" y="520" />
-        <di:waypoint x="250" y="520" />
+        <di:waypoint x="600" y="720" />
+        <di:waypoint x="250" y="720" />
         <di:waypoint x="250" y="240" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
