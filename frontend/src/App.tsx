@@ -8,16 +8,13 @@ import MyProcessesPage from './pages/MyProcessesPage';
 import { useAuth } from './auth/AuthProvider';
 
 /**
- * Role-based shell. Applicants (PartA) see Services + My processes.
- * Civil servants (PartB) see Tasks + Incidents. The task-detail and
- * completed-process pages are shared — both roles open the same form pages,
- * just for tasks they're allowed to touch.
- *
- * If a user has neither role we still show the applicant layout but with an
- * empty Services list — the engine's authorization rejects every call.
+ * Role-based shell. Anonymous visitors see Services only (catalogue browsing).
+ * Applicants (PartA) see Services + My processes. Civil servants (PartB) see
+ * Tasks + Incidents. The task-detail and completed-process pages are shared —
+ * both roles open the same form pages, just for tasks they're allowed to touch.
  */
 export default function App() {
-  const { username, isCivilServant, logout } = useAuth();
+  const { authenticated, username, isCivilServant, login, register, logout } = useAuth();
   const part = isCivilServant ? 'B' : 'A';
   const partLabel = isCivilServant ? 'Back office' : 'Applicant';
 
@@ -26,12 +23,20 @@ export default function App() {
       <header className="app-header">
         <Link to="/" className="app-title">
           CIB&nbsp;seven <span className="app-title-sep">·</span> React POC
-          <span className="app-title-sep">·</span>{' '}
-          <span className={`part-badge part-${part.toLowerCase()}`}>Part {part}</span>{' '}
-          <span className="muted">{partLabel}</span>
+          {authenticated && (
+            <>
+              <span className="app-title-sep">·</span>{' '}
+              <span className={`part-badge part-${part.toLowerCase()}`}>Part {part}</span>{' '}
+              <span className="muted">{partLabel}</span>
+            </>
+          )}
         </Link>
         <nav className="app-nav">
-          {isCivilServant ? (
+          {!authenticated ? (
+            <NavLink to="/" end>
+              Services
+            </NavLink>
+          ) : isCivilServant ? (
             <>
               <NavLink to="/" end>
                 Tasks
@@ -47,17 +52,32 @@ export default function App() {
             </>
           )}
           <span className="app-user">
-            <span className="muted">{username}</span>
-            <button className="btn btn-link" onClick={logout}>
-              Log out
-            </button>
+            {authenticated ? (
+              <>
+                <span className="muted">{username}</span>
+                <button className="btn btn-link" onClick={logout}>
+                  Log out
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-link" onClick={register}>
+                  Register
+                </button>
+                <button className="btn btn-link" onClick={login}>
+                  Log in
+                </button>
+              </>
+            )}
           </span>
         </nav>
       </header>
 
       <main className="app-main">
         <Routes>
-          {isCivilServant ? (
+          {!authenticated ? (
+            <Route path="/" element={<ServicesPage />} />
+          ) : isCivilServant ? (
             <>
               <Route path="/" element={<TasksPage />} />
               <Route path="/incidents" element={<IncidentsPage />} />

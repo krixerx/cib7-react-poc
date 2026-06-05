@@ -3,11 +3,17 @@
  *
  * The browser always calls the same-origin path `/engine-rest/...`; the Vite
  * dev server (vite.config.ts) and nginx (nginx.conf) proxy it to the backend.
- * Each request carries a Keycloak-issued bearer token; the backend's
- * RestApiSecurityConfig validates it before any handler runs.
+ *
+ * Most requests carry a Keycloak-issued bearer token; the backend's
+ * RestApiSecurityConfig validates it before any handler runs. The single
+ * exception is the anonymous services-list call (GET /process-definition) —
+ * the SPA fires it on the public landing page before the user has signed in
+ * (PublicEngineRestSecurityConfig on the backend). When `keycloak.authenticated`
+ * is false we therefore omit the Authorization header instead of refusing
+ * to call.
  */
 
-import { ensureFreshToken } from '../auth/keycloak';
+import { keycloak, ensureFreshToken } from '../auth/keycloak';
 
 const BASE = '/engine-rest';
 
@@ -53,13 +59,13 @@ export interface CamundaVariable {
 export type CamundaVariables = Record<string, CamundaVariable>;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = await ensureFreshToken();
+  const token = keycloak.authenticated ? await ensureFreshToken() : null;
 
   const res = await fetch(BASE + path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -110,7 +116,8 @@ export function getTask(id: string): Promise<CamundaTask> {
 
 /** Fetches the process variables visible to a task's form. */
 export function getTaskVariables(id: string): Promise<CamundaVariables> {
-  return request(`/task/${id}/form-variables`);
+  // deserializeValues=false — see listHistoricVariables for why.
+  return request(`/task/${id}/form-variables?deserializeValues=false`);
 }
 
 /** Completes a task, writing the given typed variables into the process. */
@@ -283,7 +290,15 @@ export interface HistoricVariableInstance {
 export function listHistoricVariables(
   processInstanceId: string,
 ): Promise<HistoricVariableInstance[]> {
-  return request(`/history/variable-instance?processInstanceId=${processInstanceId}`);
+  // deserializeValues=false → engine returns Spin Json variables as their
+  // raw JSON string instead of a Spin JsonNode metadata wrapper. With the
+  // default (true), `value` for a Json-typed variable comes back as
+  // { boolean, object, nodeType: 'ARRAY', array, ... } — Spin's introspection
+  // shape — not the underlying array. The SPA's parsers (parseBoardMembers
+  // etc.) handle the string form natively, so this keeps a single code path.
+  return request(
+    `/history/variable-instance?processInstanceId=${processInstanceId}&deserializeValues=false`,
+  );
 }
 
 /**
@@ -295,7 +310,11 @@ export async function getHistoricVariable(
   processInstanceId: string,
   variableName: string,
 ): Promise<HistoricVariableInstance | null> {
-  const qs = new URLSearchParams({ processInstanceId, variableName });
+  const qs = new URLSearchParams({
+    processInstanceId,
+    variableName,
+    deserializeValues: 'false',
+  });
   const items: HistoricVariableInstance[] = await request(
     `/history/variable-instance?${qs}`,
   );

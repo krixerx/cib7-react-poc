@@ -1,10 +1,36 @@
-# Backend image is built with the repo root as context — keep it small.
+# Applies to docker builds that use the repo root as context. Currently
+# only the mcp/ service does so, to access docs/business/services/<id>/build/
+# for the LLM-facing manifests and training markdown. Other services
+# (cib7/, frontend/, pdf-renderer/) each use their own subdir as context
+# and read a per-service .dockerignore.
+
+# Git + per-machine state.
 .git
-**/target
-**/node_modules
-**/dist
-frontend
-docs
-*.iml
-.idea
+.claude
+.project
 .settings
+.idea
+.vscode
+*.iml
+.DS_Store
+Thumbs.db
+*.log
+
+# Heavy build artifacts everywhere.
+**/node_modules
+**/target
+**/dist
+
+# Sibling services / directories the mcp image doesn't need.
+cib7
+pdf-renderer
+frontend
+keycloak
+scripts
+README.md
+TODOS.md
+
+# Top-level docs are excluded; only docs/business/services is needed by mcp.
+# (docs/business/services intentionally NOT excluded — the matchers above
+# don't reach into it.)
+docs/*.md

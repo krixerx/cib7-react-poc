@@ -24,7 +24,8 @@ its integrations. Cross-cutting topics live in
 ## What this service does
 
 <One short paragraph. Who starts it, what happens, when it ends. Plain language —
-no BPMN jargon.>
+no BPMN jargon. This paragraph also feeds the LLM training markdown the
+service-builder generates for the MCP sidecar — write it for both audiences.>
 
 ## Flow
 
@@ -86,6 +87,23 @@ no BPMN jargon.>
 - <List any demo values that should change in production, validation that's
   defense-in-depth only, loops that share a form between first-submit and
   resubmit, etc.>
+
+## LLM guidance (optional)
+
+<This optional section is copied verbatim into the MCP training markdown
+generated at `build/mcp-training.md`. Use it when the README's overview is
+not enough — examples:
+
+  - "If the applicant gives a share capital below €2500, ask whether they
+    meant a non-profit (different process) before retrying."
+  - "Status `running` with the review task open is normal — typical 1-2
+    business days; do not tell the user the process is stuck."
+  - "When autofilling from history, confirm each pre-filled field with the
+    user before calling start_process."
+
+Omit the section entirely if the README's overview + variables tables are
+sufficient — the service-builder will derive a baseline training markdown
+from those alone.>
 
 ## Flow diagram
 

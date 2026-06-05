@@ -2,22 +2,27 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { keycloak } from './keycloak';
 
 /**
- * Auth context. The session is loaded eagerly via Keycloak's
- * `init({ onLoad: 'login-required' })`; until that resolves the provider
- * renders a loading screen and Keycloak owns the page (it will redirect to
- * the hosted login form).
+ * Auth context. Keycloak is initialised in `check-sso` mode so the SPA
+ * renders even when the user is anonymous — the applicant lands on a
+ * services-list page first ("what can I do here?") and only signs in when
+ * they decide to start a service. The {@link PublicEngineRestSecurityConfig}
+ * carve-out on the backend serves that list without a Bearer.
  *
  * `realmRoles` is the `realm_access.roles` array from the access token. The
  * SPA uses it to decide whether to show the PartA (applicant) or PartB
  * (civil-servant / back office) UI — `applicant` vs `civil-servant` realm
  * roles map directly to those parts. A user with both (e.g. an admin) sees
- * PartB by default.
+ * PartB by default. Anonymous users see PartA with auth-required actions
+ * gated behind a login redirect.
  */
 interface AuthContextValue {
+  authenticated: boolean;
   username: string;
   realmRoles: string[];
   isApplicant: boolean;
   isCivilServant: boolean;
+  login: () => void;
+  register: () => void;
   logout: () => void;
 }
 
@@ -45,16 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     keycloak
       .init({
-        onLoad: 'login-required',
+        onLoad: 'check-sso',
         pkceMethod: 'S256',
         checkLoginIframe: false,
       })
-      .then((authenticated) => {
-        if (!authenticated) {
-          // Should not happen with onLoad:'login-required' — Keycloak redirects.
-          setError('Authentication failed — Keycloak did not return a session.');
-          return;
-        }
+      .then(() => {
         setReady(true);
       })
       .catch((e) => {
@@ -74,28 +74,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="card">
-        <p className="muted">Signing you in…</p>
+        <p className="muted">Loading…</p>
       </div>
     );
   }
 
+  const authenticated = keycloak.authenticated === true;
   const token = keycloak.tokenParsed as
     | { preferred_username?: string; sub?: string; realm_access?: { roles?: string[] } }
     | undefined;
 
-  const username = token?.preferred_username ?? token?.sub ?? 'unknown';
-  const realmRoles = token?.realm_access?.roles ?? [];
+  const username = authenticated ? token?.preferred_username ?? token?.sub ?? 'unknown' : '';
+  const realmRoles = authenticated ? token?.realm_access?.roles ?? [] : [];
   const isCivilServant = realmRoles.includes('civil-servant');
   // A user is treated as a pure applicant only when they're not also a
   // civil servant — admins (Homer) carry both roles in dev seeds.
   const isApplicant = realmRoles.includes('applicant') && !isCivilServant;
 
+  const login = () => {
+    keycloak.login({ redirectUri: window.location.href });
+  };
+  const register = () => {
+    keycloak.register({ redirectUri: window.location.href });
+  };
   const logout = () => {
     keycloak.logout({ redirectUri: window.location.origin });
   };
 
   return (
-    <AuthContext.Provider value={{ username, realmRoles, isApplicant, isCivilServant, logout }}>
+    <AuthContext.Provider
+      value={{
+        authenticated,
+        username,
+        realmRoles,
+        isApplicant,
+        isCivilServant,
+        login,
+        register,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

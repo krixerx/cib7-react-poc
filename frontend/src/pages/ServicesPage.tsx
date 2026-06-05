@@ -6,13 +6,17 @@ import {
   listTasksByInstance,
   type ProcessDefinition,
 } from '../api/camundaClient';
+import { useAuth } from '../auth/AuthProvider';
 
 /**
- * Lists deployed process definitions ("services"). Picking one starts a new
- * process instance and opens its first task — the applicant form.
+ * Lists deployed process definitions ("services"). The list itself is
+ * fetched anonymously so first-time visitors can see what's on offer before
+ * signing in. Picking one requires authentication: anonymous users are
+ * redirected to Keycloak and resume on the same page.
  */
 export default function ServicesPage() {
   const navigate = useNavigate();
+  const { authenticated, login } = useAuth();
   const [services, setServices] = useState<ProcessDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +39,10 @@ export default function ServicesPage() {
   }, [load]);
 
   async function startService(key: string) {
+    if (!authenticated) {
+      login();
+      return;
+    }
     setStartingKey(key);
     setError(null);
     try {
@@ -60,6 +68,8 @@ export default function ServicesPage() {
       <p className="muted">
         Pick a service to start. You fill in the applicant form first; confirming
         it sends a new process instance into the workflow.
+        {!authenticated &&
+          ' Starting a service requires an account — register or sign in from the top right.'}
       </p>
 
       {loading && <p className="muted">Loading…</p>}
@@ -84,7 +94,11 @@ export default function ServicesPage() {
                   </span>
                 </span>
                 <span className="row-action">
-                  {startingKey === s.key ? 'Starting…' : 'Start →'}
+                  {startingKey === s.key
+                    ? 'Starting…'
+                    : authenticated
+                    ? 'Start →'
+                    : 'Sign in to start →'}
                 </span>
               </button>
             </li>

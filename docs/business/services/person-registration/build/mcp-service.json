@@ -1,0 +1,110 @@
+{
+  "key": "personRegistration",
+  "name": "Person Registration",
+  "description": "Register an applicant's personal details and apply for a product from the public catalogue. Adults requesting cheap items (price < 100) are auto-approved by a DMN rule; everyone else is routed to a civil-servant review queue.",
+  "audience": "applicant",
+  "candidateGroups": ["applicant"],
+  "initialTask": {
+    "formKey": "personal-details",
+    "audience": "applicant",
+    "name": "Submit personal details"
+  },
+  "variables": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "personRegistration start-time variables",
+    "description": "Variables collected from the applicant. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "properties": {
+      "firstName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Applicant's first name."
+      },
+      "lastName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Applicant's last name."
+      },
+      "age": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 130,
+        "description": "Applicant's age in years. Affects the auto-approval branch (adults only)."
+      },
+      "objectId": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Product ID from the public catalogue at https://api.restful-api.dev/objects. The engine fetches the product price server-side via http-connector and feeds it to the auto-approval DMN."
+      }
+    },
+    "required": ["firstName", "lastName", "age", "objectId"],
+    "additionalProperties": false
+  },
+  "userTasks": [
+    {
+      "formKey": "personal-details",
+      "name": "Submit personal details",
+      "audience": "applicant",
+      "description": "The applicant confirms (or corrects) their personal details and product choice. This is the same shape as the start variables — when start_process pre-fills them, completing this task with the identical values just advances the process.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "firstName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Applicant's first name."
+          },
+          "lastName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Applicant's last name."
+          },
+          "age": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 130,
+            "description": "Applicant's age in years."
+          },
+          "objectId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Product ID from the public catalogue."
+          }
+        },
+        "required": ["firstName", "lastName", "age", "objectId"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "formKey": "review-application",
+      "name": "Review application",
+      "audience": "civil-servant",
+      "description": "The civil servant accepts the application or sends it back to the applicant with a reason. A non-interrupting timer fires every two minutes while this task is open and sends a reminder email via Mailpit. If sent back, the process loops to the applicant's personal-details task.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "sendback"],
+            "description": "approve = end the process as approved. sendback = email the applicant with the reason and loop back to the personal-details task."
+          },
+          "sendBackReason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required when decision = sendback. The applicant sees this as a banner above the personal-details form on re-entry."
+          }
+        },
+        "required": ["decision"],
+        "if": { "properties": { "decision": { "const": "sendback" } }, "required": ["decision"] },
+        "then": { "required": ["sendBackReason"] },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

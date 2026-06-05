@@ -27,6 +27,8 @@ see [Deviations from the spec](#deviations-from-the-spec) below.
 | **CIB seven REST API** | <http://localhost:8080/engine-rest> | Bearer JWT from Keycloak | — |
 | **Mailpit inbox** (process-sent emails) | <http://localhost:8025> | — | — |
 | **Keycloak admin console** (realm / users / clients) | <http://localhost:8180/admin/> | `admin` | `admin` |
+| **MCP endpoint** (Claude Desktop, Cursor, Codex, …) | <http://localhost:3000/mcp> | OAuth2 PKCE via Keycloak | (browser pops, log in as `bart` / `homer`) |
+| &nbsp;&nbsp;↳ OAuth resource metadata | <http://localhost:3000/.well-known/oauth-protected-resource> | — | — |
 
 Role notes:
 
@@ -201,6 +203,75 @@ run the builder, how to test — see
   `ContainerBasedAuthenticationProvider` recipe.
 - The database is **in-memory H2** — all data is lost when the backend stops.
 
+## Talk to it from Claude Desktop (or any MCP client)
+
+The same deployment is also reachable as an **MCP server** at
+`/mcp/sse`, so an MCP-capable AI assistant (Claude Desktop, Cursor,
+Codex, Windsurf, …) can drive the deployment in natural language. The
+sidecar serving this is at [`mcp/`](mcp/) — see
+[`docs/mcp.md`](docs/mcp.md) for the full module guide.
+
+**One-time setup** (per AI client). Add this to your AI client's MCP
+config (for Claude Desktop on Windows, that's
+`%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "cib7": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+Restart the client. The first MCP call pops a browser to Keycloak —
+log in as `bart` / `bart` (applicant) or `homer` / `homer` (civil
+servant). The client now has a valid Bearer and remembers it for the
+session.
+
+**What you can do, end-to-end.** Eight MCP tools cover the applicant +
+civil-servant round trip without anyone opening the React SPA:
+
+| Tool | Purpose |
+|---|---|
+| `list_services` | "What can I do here?" — enumerates `personRegistration` and `businessRegistration`. |
+| `describe_service(key)` | Returns the per-service variable schema + LLM training markdown. |
+| `start_process(key, variables)` | Validates variables with Ajv, starts a real BPMN instance. |
+| `list_my_tasks` | Tasks waiting on the current user (assigned OR claimable via candidate group). |
+| `get_form_schema(taskId)` | Schema for a specific task's form. |
+| `complete_task(taskId, variables)` | Validates against the task schema, auto-claims if needed, completes. |
+| `list_my_processes` | Newest-first list of instances started by the current user, with state. |
+| `query_user_history(variableName)` | Most recent value the user has ever entered — the autofill primitive. |
+
+A canonical session as `bart`:
+
+> *"What services are available on the cib7 server?"* → `list_services`
+> *"Register a company called Acme — board members Alice Aaver*
+> *38501234567 and Bob Bork 49012345678, share capital €5000."* →
+> `describe_service('businessRegistration')` then
+> `start_process('businessRegistration', {...})` — auto-approved by DMN
+> because Bart is an adult and capital ≥ €2500. Approval email lands in
+> Mailpit.
+
+For the Homer (civil-servant) side, log in as `homer` / `homer` in the
+same OAuth pop — Claude's `list_my_tasks` then surfaces the review tasks
+even though they're owned by the `civil-servant` candidate group (the
+tool merges assigned + claimable, and `complete_task` auto-claims).
+
+The MCP sidecar is a **stateless Bearer-proxy** — every tool call
+forwards the AI client's Bearer token to `/engine-rest`, the engine
+validates issuer + audience + signature, and authorization runs against
+the same `IdentityService` the SPA uses. There's no separate user store,
+no separate audit trail, no "AI service account." Everything an AI
+agent does is attributable to a real Keycloak user.
+
+For the full architecture story (why a sidecar instead of an in-engine
+plugin like
+[`krixerx/cibseven-mcp-plugin`](https://github.com/krixerx/cibseven-mcp-plugin),
+how OAuth2 PKCE-loopback works, how the per-service manifests get
+generated from the spec), read [`docs/mcp.md`](docs/mcp.md).
+
 ## Project layout
 
 ```
@@ -226,6 +297,17 @@ cib7-react-poc/
 │   ├── server.js                   ~25 LOC Express wrapper
 │   ├── package.json
 │   └── Dockerfile
+├── mcp/                            MCP sidecar — AI-callable surface (see docs/mcp.md)
+│   ├── src/
+│   │   ├── server.ts               Express + MCP transport + 8 tools
+│   │   ├── auth/identity.ts        decodes preferred_username for query construction
+│   │   ├── engine/client.ts        Bearer-forward fetch wrapper to /engine-rest
+│   │   ├── engine/variables.ts     plain JSON → Camunda { value, type } envelope
+│   │   └── services/manifest.ts    walks /app/services-spec, Ajv-compiles schemas
+│   ├── package.json                @modelcontextprotocol/sdk, express, ajv, tsx
+│   ├── tsconfig.json
+│   ├── Dockerfile                  node:20-alpine; build context is repo root
+│   └── README.md                   quick-start + verify steps + troubleshooting
 └── frontend/                       React + TypeScript + Vite app
     └── src/
         ├── api/

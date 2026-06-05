@@ -1,0 +1,152 @@
+{
+  "key": "businessRegistration",
+  "name": "Business Registration",
+  "description": "Register a new Estonian limited liability company (OÜ). Adult applicants submitting at least the legal minimum share capital (€2500) are auto-approved by DMN and notified by email; everyone else routes to a civil-servant review queue. The send-back loop lets the reviewer return the case to the applicant with a reason.",
+  "audience": "applicant",
+  "candidateGroups": ["applicant"],
+  "initialTask": {
+    "formKey": "business-details",
+    "audience": "applicant",
+    "name": "Submit business details"
+  },
+  "variables": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "businessRegistration start-time variables",
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "properties": {
+      "companyName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "description": "Trade name of the company. Must end in 'OÜ' (private limited company) — the React form appends it on blur if missing, but the MCP-driven agent should ask before submitting names without the suffix."
+      },
+      "boardMembers": {
+        "type": "array",
+        "minItems": 1,
+        "description": "Board members of the new OÜ. At least one is required.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "firstName": { "type": "string", "minLength": 1 },
+            "lastName": { "type": "string", "minLength": 1 },
+            "personalCode": {
+              "type": "string",
+              "pattern": "^[0-9]{11}$",
+              "description": "Estonian 11-digit personal identification code (isikukood). Checksum not validated in POC."
+            }
+          },
+          "required": ["firstName", "lastName", "personalCode"],
+          "additionalProperties": false
+        }
+      },
+      "shareCapital": {
+        "type": "number",
+        "minimum": 2500,
+        "description": "Share capital in EUR. Minimum 2500 by historical Estonian Commercial Code; the React form, DMN, and Ajv all enforce this floor."
+      },
+      "applicantFirstName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Applicant's first name. The MCP agent should call query_user_history('firstName') before asking — autofill when available."
+      },
+      "applicantLastName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "description": "Applicant's last name. Autofill pattern same as applicantFirstName."
+      },
+      "applicantAge": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 130,
+        "description": "Applicant's age in years. Drives the auto-approval DMN (minors always need human review). Autofill via query_user_history('age')."
+      }
+    },
+    "required": [
+      "companyName",
+      "boardMembers",
+      "shareCapital",
+      "applicantFirstName",
+      "applicantLastName",
+      "applicantAge"
+    ],
+    "additionalProperties": false
+  },
+  "userTasks": [
+    {
+      "formKey": "business-details",
+      "name": "Submit business details",
+      "audience": "applicant",
+      "description": "The applicant confirms (or corrects) their business registration details. Same field set as start_process input — when start_process pre-fills them, completing this task with the identical values just advances the process. On send-back resubmit the applicant sees the previous reviewer's reason as a banner.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "companyName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "boardMembers": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "firstName": { "type": "string", "minLength": 1 },
+                "lastName": { "type": "string", "minLength": 1 },
+                "personalCode": { "type": "string", "pattern": "^[0-9]{11}$" }
+              },
+              "required": ["firstName", "lastName", "personalCode"],
+              "additionalProperties": false
+            }
+          },
+          "shareCapital": { "type": "number", "minimum": 2500 },
+          "applicantFirstName": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "applicantLastName": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "applicantAge": { "type": "integer", "minimum": 0, "maximum": 130 },
+          "sendBackReason": {
+            "type": "string",
+            "description": "Always empty on submit — the form clears the previous reason on resubmit so a future cycle starts clean."
+          }
+        },
+        "required": [
+          "companyName",
+          "boardMembers",
+          "shareCapital",
+          "applicantFirstName",
+          "applicantLastName",
+          "applicantAge"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "formKey": "review-business-registration",
+      "name": "Review business registration",
+      "audience": "civil-servant",
+      "description": "The civil servant accepts the registration or sends it back to the applicant with a reason. If sent back, the process loops to the applicant's business-details task and the reason is shown as a banner.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "sendback"],
+            "description": "approve = end the process as approved. sendback = email the applicant with the reason and loop back to the business-details task."
+          },
+          "sendBackReason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required when decision = sendback. The applicant sees this above the business-details form on re-entry."
+          }
+        },
+        "required": ["decision"],
+        "if": {
+          "properties": { "decision": { "const": "sendback" } },
+          "required": ["decision"]
+        },
+        "then": { "required": ["sendBackReason"] },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

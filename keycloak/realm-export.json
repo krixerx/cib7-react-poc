@@ -3,15 +3,33 @@
   "enabled": true,
   "displayName": "CIB seven POC",
   "sslRequired": "none",
-  "registrationAllowed": false,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "rememberMe": true,
+  "verifyEmail": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
-  "resetPasswordAllowed": false,
+  "resetPasswordAllowed": true,
   "editUsernameAllowed": false,
   "bruteForceProtected": true,
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
+
+  "defaultDefaultClientScopes": ["cib7-claims"],
+
+  "defaultGroups": ["/applicant"],
+
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@cib7-poc.local",
+    "fromDisplayName": "CIB seven POC",
+    "replyTo": "",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
 
   "roles": {
     "realm": [
@@ -64,6 +82,69 @@
     }
   ],
 
+  "clientScopes": [
+    {
+      "name": "cib7-claims",
+      "description": "preferred_username + realm_access.roles. Replaces the built-in profile/roles scopes which Keycloak does NOT auto-create on realm import — anything not listed here does not exist.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "preferred-username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "cib7-rest-api-audience",
+      "description": "Adds cib7-rest-api to the access-token aud claim. Assign as a default scope on any client that needs to call /engine-rest. Reusable across cib7-mcp and any future admin/ops clients so the audience mapper lives in exactly one place.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-cib7-rest-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "cib7-rest-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
   "clients": [
     {
       "clientId": "cib7-frontend",
@@ -85,6 +166,7 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
       },
+      "defaultClientScopes": ["cib7-claims"],
       "protocolMappers": [
         {
           "name": "audience-cib7-rest-api",
@@ -130,7 +212,27 @@
       ],
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:8080/*"
-      }
+      },
+      "defaultClientScopes": ["cib7-claims"]
+    },
+    {
+      "clientId": "cib7-mcp",
+      "name": "CIB seven MCP (Claude Desktop / agent host)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1/*##http://localhost/*"
+      },
+      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
     }
   ]
 }
