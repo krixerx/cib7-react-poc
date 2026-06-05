@@ -4,6 +4,18 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 COPY . .
+
+# Vite reads VITE_* from process.env at build time. ARG → ENV makes the
+# build args (passed by docker-compose.prod.yml from .env) visible to the
+# Vite build. Unset values fall back to the localhost defaults baked into
+# frontend/src/auth/keycloak.ts, which is correct for local docker compose.
+ARG VITE_KEYCLOAK_URL
+ARG VITE_KEYCLOAK_REALM
+ARG VITE_KEYCLOAK_CLIENT_ID
+ENV VITE_KEYCLOAK_URL=${VITE_KEYCLOAK_URL}
+ENV VITE_KEYCLOAK_REALM=${VITE_KEYCLOAK_REALM}
+ENV VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
+
 RUN npm run build
 
 # --- runtime stage -------------------------------------------------------

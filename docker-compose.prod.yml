@@ -1,0 +1,80 @@
+# Production overlay for docker-compose.yml.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Reads PUBLIC_* URLs and secrets from .env (see .env.example). The base
+# compose file still defines services, ports, healthchecks, and depends_on
+# — this file only overrides the values that must change when browsers
+# don't live on localhost.
+#
+# What this overlay does NOT solve (documented in docs/deployment.md):
+#   - H2 → Postgres migration for the engine (process state still wipes
+#     on restart)
+#   - TLS termination (run Caddy / Traefik / nginx on the host in front)
+#   - Realm-export redirectUris / webOrigins (edit the JSON before first
+#     boot — Keycloak's --import-realm runs once)
+#   - Mailpit replacement (the BPMN uses Mailpit's /api/v1/send wire
+#     format — pointing MAIL_API_URL elsewhere requires a compatible API)
+services:
+  keycloak:
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      # Pin issuer to the public URL so the `iss` claim in every JWT
+      # matches what browsers see during login.
+      KC_HOSTNAME_URL: ${PUBLIC_KEYCLOAK_URL}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_PROXY_HEADERS: xforwarded
+    restart: unless-stopped
+
+  cib7:
+    environment:
+      # Public Keycloak URL — what's stamped into `iss`. Must equal
+      # KC_HOSTNAME_URL above; the engine's iss validator is a string
+      # compare.
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+      KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
+      # Browser-visible SPA URL embedded in confirmation email links.
+      FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the SPA at build time — must match the realm-export
+        # client and the Keycloak hostname.
+        VITE_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
+        VITE_KEYCLOAK_REALM: cib7-poc
+        VITE_KEYCLOAK_CLIENT_ID: cib7-frontend
+    restart: unless-stopped
+
+  mcp:
+    environment:
+      # Where MCP clients (Claude Desktop, Cursor, …) reach the sidecar
+      # from the public internet. Defaults to ${PUBLIC_FRONTEND_URL}/mcp;
+      # override MCP_RESOURCE_URL in .env if you split hosts.
+      MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-${PUBLIC_FRONTEND_URL}/mcp}
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+    restart: unless-stopped
+
+  pdf-renderer:
+    restart: unless-stopped
+
+  gotenberg:
+    restart: unless-stopped
+
+  mailpit:
+    restart: unless-stopped
+
+  # The seed-history one-shot pre-populates Bart's process history for the
+  # demo. Disable in production by overriding the entrypoint to a no-op so
+  # the image still pulls (compose won't let us "remove" a service in an
+  # overlay, only replace its config).
+  seed-history:
+    entrypoint: ["true"]
+    command: []
+    restart: "no"
