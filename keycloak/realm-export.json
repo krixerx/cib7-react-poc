@@ -227,6 +227,19 @@
       "defaultClientScopes": ["cib7-claims"]
     },
     {
+      "clientId": "cib7-seed",
+      "name": "CIB seven Demo Seed (one-shot history pre-populator)",
+      "description": "Used by seed-history compose service: ROPC bart, seed process history. POC secret; rotate or drop in any real deployment.",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-seed-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
+    },
+    {
       "clientId": "cib7-mcp",
       "name": "CIB seven MCP (Claude Desktop / agent host)",
       "enabled": true,
