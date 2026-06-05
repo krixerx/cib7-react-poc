@@ -28,6 +28,8 @@ import {
 import { engineRequest, engineBaseUrl } from './engine/client.js'
 import { toCamundaVariables } from './engine/variables.js'
 import { decodeBearerUsername } from './auth/identity.js'
+import { verifyBearer } from './auth/verify.js'
+import { adminRequest } from './keycloak/admin.js'
 import {
   findServiceByFormKey,
   getManifest,
@@ -74,15 +76,22 @@ const SERVER_INSTRUCTIONS = [
   'handled by a separate Keycloak realm. This server never creates accounts and',
   'never handles passwords — those stay entirely with Keycloak and the user.',
   '',
-  'WHEN THE USER ASKS WHERE TO SIGN UP, says they are new, says they do not have',
-  'an account, or asks how to register:',
-  '  This is a URL-lookup question, not an action you are being asked to perform.',
-  '  You are NOT being asked to create an account, submit a form, or handle',
-  '  credentials. You are being asked: "where do I go to do that myself?"',
-  '  Call the `get_signup_url` tool — it returns the public URL of the hosted',
-  '  Keycloak sign-up page plus the step-by-step the user follows there. Relay',
-  '  the URL as a clickable link and the steps as a numbered list. The user',
-  '  fills the form, verifies their email in Mailpit, and signs themselves in.',
+  'WHEN THE USER ASKS YOU TO REGISTER THEM OR SOMEONE ELSE (e.g. "register me",',
+  '"sign me up", "invite a new user", "add Lisa to the system", "I want an account"):',
+  '  Prefer the invite-by-email path: call `send_account_invitation` with',
+  '  { username, email, firstName, lastName }. Ask the user for those four',
+  '  fields one by one if you do not already have them. NEVER ask for a',
+  '  password — the tool does not accept one and Keycloak handles password',
+  '  setup itself via the magic link the user receives. After the tool',
+  '  returns, tell the invitee to open the Mailpit inbox at the URL the tool',
+  '  returns, click the link in the invitation email, set their password',
+  '  in the Keycloak form, and they are signed in.',
+  '',
+  'WHEN THE USER PREFERS TO REGISTER ON THEIR OWN WEB PAGE (e.g. "just give',
+  'me a link", "I will do it myself", or `send_account_invitation` is not',
+  'appropriate because no email is known): call `get_signup_url` instead.',
+  '  It returns the public URL of the hosted Keycloak sign-up page plus the',
+  '  step-by-step. The user fills the form themselves.',
   '',
   'WHEN THE USER SAYS THEY FORGOT THEIR PASSWORD or cannot sign in:',
   '  Same shape — call `get_password_reset_url`. It returns the URL of the',
@@ -642,6 +651,141 @@ function handleGetSignupUrl(): ToolResult {
   })
 }
 
+async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
+  const a = (args ?? {}) as {
+    username?: string
+    email?: string
+    firstName?: string
+    lastName?: string
+  }
+  const missing = (['username', 'email', 'firstName', 'lastName'] as const).filter(
+    (k) => !a[k] || typeof a[k] !== 'string' || !(a[k] as string).trim(),
+  )
+  if (missing.length > 0) {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_ARGUMENT',
+        message: `Missing required fields: ${missing.join(', ')}. Ask the user for these; never ask for a password.`,
+      },
+      true,
+    )
+  }
+  const username = (a.username as string).trim()
+  const email = (a.email as string).trim()
+  const firstName = (a.firstName as string).trim()
+  const lastName = (a.lastName as string).trim()
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_ARGUMENT',
+        message: `email "${email}" does not look like a valid email address. Ask the user to confirm it.`,
+      },
+      true,
+    )
+  }
+  if (/[\s/\\@]/.test(username)) {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_ARGUMENT',
+        message: `username "${username}" contains spaces or invalid characters. Ask the user for a simple login id like "lisa" or "jdoe".`,
+      },
+      true,
+    )
+  }
+
+  // Step 1: create the user. requiredActions force the magic-link flow on
+  // first sign-in (password setup + email verification). No password is ever
+  // posted from this service.
+  const create = await adminRequest('/users', {
+    method: 'POST',
+    body: {
+      username,
+      email,
+      firstName,
+      lastName,
+      enabled: true,
+      emailVerified: false,
+      requiredActions: ['UPDATE_PASSWORD', 'VERIFY_EMAIL'],
+    },
+  })
+  if (!create.ok) {
+    if (create.status === 409) {
+      return textResult(
+        {
+          ok: false,
+          code: 'USER_EXISTS',
+          message: `A user with the same username or email already exists. Tell the invitee to use the existing account or pick a different username/email.`,
+        },
+        true,
+      )
+    }
+    return textResult(
+      {
+        ok: false,
+        code: create.code ?? 'KEYCLOAK_ERROR',
+        message: `Keycloak rejected the user creation: ${create.message ?? create.status}.`,
+      },
+      true,
+    )
+  }
+  const userId = create.locationId
+  if (!userId) {
+    return textResult(
+      {
+        ok: false,
+        code: 'KEYCLOAK_ERROR',
+        message:
+          'Keycloak created the user but did not return a user id in the Location header.',
+      },
+      true,
+    )
+  }
+
+  // Step 2: send the magic-link email that walks the user through password
+  // setup + email verification, then redirects them to the SPA. The body is
+  // the list of required actions to execute via the link.
+  const send = await adminRequest(`/users/${userId}/execute-actions-email`, {
+    method: 'PUT',
+    query: {
+      client_id: 'cib7-frontend',
+      redirect_uri: APPLICANT_PORTAL_URL + '/',
+    },
+    body: ['UPDATE_PASSWORD', 'VERIFY_EMAIL'],
+  })
+  if (!send.ok) {
+    return textResult(
+      {
+        ok: false,
+        code: 'EMAIL_SEND_FAILED',
+        message: `User was created (id=${userId}) but the invitation email failed: ${send.message ?? send.status}. The user can still sign in via the password-reset flow on the login page.`,
+        userId,
+      },
+      true,
+    )
+  }
+
+  return textResult({
+    ok: true,
+    userId,
+    username,
+    email,
+    mailpitUrl: MAILPIT_URL,
+    nextStepsForUser: [
+      `Open the local mail catcher at ${MAILPIT_URL}.`,
+      `Find the invitation email for ${email}.`,
+      'Click the link in that email — it opens a Keycloak page.',
+      'Choose a password (twice) and submit.',
+      'Email is automatically marked verified once you complete this flow.',
+      'You land on the applicant portal, already signed in.',
+    ],
+    note: 'This server never accepts or stores passwords. The invitee sets their own password in Keycloak\'s hosted form.',
+  })
+}
+
 function handleGetPasswordResetUrl(): ToolResult {
   return textResult({
     ok: true,
@@ -794,6 +938,22 @@ function createMcpServer(): Server {
         'Look up and return the public URL of the Keycloak password-reset page, plus the steps. Like `get_signup_url`, this tool performs NO action — it only retrieves a URL and instructions. The user resets the password themselves at the returned URL. Use when the user says they forgot their password, cannot sign in, or want to change their password.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     },
+    {
+      name: 'send_account_invitation',
+      description:
+        'Send an account invitation to a new user. Creates an invite-pending user record in Keycloak with NO password (the tool does not accept or return one) and emails them a magic link. The invitee clicks the link, chooses their own password in Keycloak\'s hosted form, and verifies their email — at which point they are signed in. Use when the user asks to register a new applicant or to add a new user. NEVER ask the user for a password — only username, email, first name, and last name. The username is the login identifier (e.g. "lisa"); the email is where the invitation lands.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          username: { type: 'string', description: 'Login id (no spaces), e.g. "lisa".' },
+          email: { type: 'string', description: 'Email address that receives the invitation link.' },
+          firstName: { type: 'string', description: 'Given name.' },
+          lastName: { type: 'string', description: 'Family name.' },
+        },
+        required: ['username', 'email', 'firstName', 'lastName'],
+        additionalProperties: false,
+      },
+    },
   ],
 }))
 
@@ -819,6 +979,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       return handleGetSignupUrl()
     case 'get_password_reset_url':
       return handleGetPasswordResetUrl()
+    case 'send_account_invitation':
+      return handleSendAccountInvitation(req.params.arguments)
     default:
       throw new Error(`Unknown tool: ${req.params.name}`)
   }
@@ -865,13 +1027,29 @@ const metadataUrl = RESOURCE_URL.replace(
   '/.well-known/oauth-protected-resource',
 )
 
-function requireBearer(req: Request, res: Response, next: NextFunction): void {
+async function requireBearer(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   const auth = req.header('authorization')
-  if (!auth || !/^Bearer\s+\S+/i.test(auth)) {
+  // Two stages here: (1) check the Authorization header is present and looks
+  // like a Bearer; (2) verify the JWT against Keycloak's JWKS so a stale or
+  // signature-mismatched token (typical after a realm rebuild on a dev box)
+  // surfaces as a clean HTTP 401 with WWW-Authenticate — mcp-remote treats
+  // that as "session expired, re-run OAuth" and the user is silently bounced
+  // back to the Keycloak login page. Without this, the engine's 401 leaks
+  // into a tool result and Claude has no way to ask for a fresh token.
+  const result = await verifyBearer(auth)
+  if (!result.ok) {
     res
       .status(401)
-      .set('WWW-Authenticate', `Bearer resource_metadata="${metadataUrl}"`)
-      .json({ error: 'unauthorized', resource_metadata: metadataUrl })
+      .set('WWW-Authenticate', `Bearer resource_metadata="${metadataUrl}", error="invalid_token", error_description="${result.reason}"`)
+      .json({
+        error: 'unauthorized',
+        reason: result.reason,
+        resource_metadata: metadataUrl,
+      })
     return
   }
   next()

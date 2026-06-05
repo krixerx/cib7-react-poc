@@ -31,6 +31,10 @@
     "auth": "false"
   },
 
+  "attributes": {
+    "frontendUrl": "http://localhost:8180"
+  },
+
   "roles": {
     "realm": [
       { "name": "applicant",      "description": "End user who starts processes and fills applicant forms (PartA)" },
@@ -77,7 +81,14 @@
       "enabled": true,
       "serviceAccountClientId": "cib7-backend",
       "clientRoles": {
-        "realm-management": ["query-users", "view-users", "query-groups", "query-clients", "view-clients"]
+        "realm-management": [
+          "query-users",
+          "view-users",
+          "query-groups",
+          "query-clients",
+          "view-clients",
+          "manage-users"
+        ]
       }
     }
   ],

@@ -75,6 +75,15 @@ services:
       # stateless Bearer-proxy). The engine validates issuer + audience +
       # signature against Keycloak and binds the user into IdentityService.
       ENGINE_URL: http://cib7:8080
+      # Internal Keycloak base URL — used by send_account_invitation to
+      # mint a cib7-backend service-account token (client_credentials) and
+      # call Keycloak's admin REST API to create invite-pending users. We
+      # need the docker-internal URL here because the public localhost:8180
+      # is not reachable from the mcp container.
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_ADMIN_CLIENT_ID: cib7-backend
+      KEYCLOAK_ADMIN_CLIENT_SECRET: cib7-backend-secret
     expose:
       - "8090"
     healthcheck:
