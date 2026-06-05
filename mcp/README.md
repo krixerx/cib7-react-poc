@@ -1,113 +1,187 @@
 # MCP sidecar (`mcp/`)
 
-Standalone MCP microservice for the CIB seven POC. Mirrors the
-`pdf-renderer/` sidecar pattern — Node 20 + Express + a tiny TypeScript
-entry — and runs as its own docker-compose service.
+Standalone Node sidecar that exposes the CIB seven engine as a Model
+Context Protocol (MCP) server. Mirrors the `pdf-renderer/` shape — Node 20
++ Express + a TypeScript entry — and runs as its own docker-compose
+service behind nginx at `http://localhost:3000/mcp`.
 
-**Current state: T1 + T2 + T3 + T5/T6 + T9 done. Eight tools wired against `personRegistration`. The applicant round trip is fully MCP-callable.**
+**See [`docs/mcp.md`](../docs/mcp.md) for the full module reference**
+(architecture decisions, file layout, the eleven tools, the OAuth flow,
+realm artifacts, env vars, conventions). This README is the quick-start.
 
-- T1: PKCE-loopback challenge surface (`/mcp` returns 401 + WWW-Authenticate, resource metadata at `/.well-known/oauth-protected-resource`).
-- T2: `cib7-rest-api-audience` client scope wired so JWTs for `cib7-mcp` carry the right `aud`.
-- T3: stateless Bearer-proxy in place (`engine/client.ts`). Forwards Claude Desktop's Bearer to `/engine-rest`, maps responses to `{ ok, status, code, message, retryable, data }` envelope.
-- T5/T6: manifests under `docs/business/services/<id>/build/`, Ajv validation, three start-side tools.
-- T9: identity decoding (`auth/identity.ts`), per-task schemas in the manifest (`userTasks` array), five additional tools that finish the applicant round trip.
+## Eleven tools
 
-### The eight tools
+Eight tools wrap `/engine-rest` with per-service variable schemas and
+training markdown:
 
-| Tool | Engine endpoint | Purpose |
-|---|---|---|
-| `list_services` | `GET /process-definition?latestVersion=true` | What's deployed; decorated with `mcpCallable` flag. |
-| `describe_service(key)` | (none — reads manifest) | Variable schema + LLM training markdown. |
-| `start_process(key, variables)` | `POST /process-definition/key/<k>/start` | Ajv-validate → Camunda vars → engine. |
-| `list_my_tasks` | `GET /task?assignee=<me>` | Tasks waiting for the authenticated user, decorated with service + audience. |
-| `get_form_schema(taskId)` | `GET /task/<id>` | Looks up the task's formKey in the manifest registry, returns the per-task JSON Schema + audience + description. |
-| `complete_task(taskId, variables)` | `POST /task/<id>/complete` | Ajv-validate against per-task schema → Camunda vars → engine. |
-| `list_my_processes(processInstanceId?)` | `GET /history/process-instance?startedBy=<me>` | Newest first, decorated with state (ACTIVE / COMPLETED / etc.). |
-| `query_user_history(variableName)` | Two-step: instances → variables | Most recent value the authenticated user ever entered for that variable. Used for autofill in T15+. |
+`list_services`, `describe_service`, `start_process`, `list_my_tasks`,
+`get_form_schema`, `complete_task`, `list_my_processes`,
+`query_user_history`.
 
-The username `<me>` is decoded from the Bearer's `preferred_username` locally (no signature check; that's the engine's job).
+Three identity tools handle "I'm new" / "I forgot my password" /
+"register someone" without ever asking Claude to handle credentials:
 
-The remaining tasks from the eng-review build on this: T4 (ROPC seed for autofill demo), T8+T9 regression tests, T11+T12 hardening, T14 (auto-emit manifests from `/service-builder`), T15 (business-registration spec), T16 (`system_context` prompt), T17–T18 (docs).
+`get_signup_url`, `get_password_reset_url`, `send_account_invitation`.
+
+The full per-tool table with engine endpoints and behavior lives in
+`docs/mcp.md` §[The eleven tools](../docs/mcp.md#the-eleven-tools).
 
 ## Endpoints
 
 | Path | Purpose |
 |---|---|
-| `GET /.well-known/oauth-protected-resource` | RFC 9728 / MCP auth-spec resource metadata. Tells Claude Desktop which authorization server to use (Keycloak). |
-| `* /mcp` | MCP Streamable HTTP transport. 401 + `WWW-Authenticate: Bearer` when no token. |
+| `GET /.well-known/oauth-protected-resource` | RFC 9728 / MCP auth-spec resource metadata. Tells the MCP client which authorization server to use (Keycloak). |
+| `POST /mcp` | MCP Streamable HTTP transport. JWT-verified at the door against Keycloak JWKS — stale tokens return 401 + `WWW-Authenticate: Bearer error="invalid_token"`, which mcp-remote treats as "re-run OAuth." |
 | `GET /health` | Liveness probe for docker-compose. |
 
-## How auth works (T1 scope)
-
-1. Claude Desktop calls `/mcp`. No Bearer → 401 + `WWW-Authenticate: Bearer resource_metadata="…"`.
-2. Claude Desktop fetches the resource metadata → learns the authorization server is Keycloak.
-3. Claude Desktop fetches Keycloak's `/.well-known/openid-configuration` → learns the auth endpoint, PKCE support, scopes.
-4. Claude Desktop runs the PKCE-loopback flow: pops a browser, user logs in, redirect back to `http://127.0.0.1:<port>/callback?code=…`.
-5. Claude Desktop exchanges the code for an access token, attaches it to all subsequent `/mcp` calls.
-6. **T1 scope:** the MCP service accepts ANY Bearer token without verification and decodes the `preferred_username` claim for the `echo` reply. **Real validation happens at the engine in T2+** under the stateless Bearer-proxy model (eng-review decision A2).
-
-## Build & run (docker-compose)
+## Build & run
 
 ```bash
 docker compose up --build mcp
 ```
 
 The sidecar exposes port 8090 internally; nginx proxies it at
-`http://localhost:3000/mcp`.
+`http://localhost:3000/mcp`. No host port mapping on `mcp` itself — probe
+it through nginx or `docker exec`.
 
-## Verify T1 end-to-end
+For local dev without Docker, see `docs/mcp.md` §[Run, build, package](../docs/mcp.md#run-build-package).
 
-See `/docs/mcp.md` and the verification block in the parent README. The TL;DR:
+## Connecting Claude Desktop (Windows)
 
-1. `docker compose up --build` — all containers healthy.
-2. `curl http://localhost:3000/mcp` → 401 + `WWW-Authenticate` header.
-3. `curl http://localhost:3000/.well-known/oauth-protected-resource` → JSON pointing at Keycloak.
-4. Add this entry to your `claude_desktop_config.json`:
-   ```json
-   {
-     "mcpServers": {
-       "cib7": { "url": "http://localhost:3000/mcp" }
-     }
-   }
-   ```
-5. Restart Claude Desktop. The MCP server should appear in the connection list. Claude pops a browser to Keycloak; log in as `bart` / `bart`.
-6. Ask Claude: **"What services are available on the cib7 server?"** Expected reply: a list including `personRegistration` with `mcpCallable: true` (it has a manifest) for Bart; Homer sees the full deployed set.
-7. Ask Claude: **"Describe personRegistration."** Expected reply: name, description, JSON Schema for the four required variables (`firstName`, `lastName`, `age`, `objectId`), and the training markdown that explains the auto-approval rule and the after-start flow.
-8. Ask Claude: **"Start a personRegistration for Bart Simpson, age 30, product ID 1."** Expected behavior:
-   - Claude validates the variables match the schema (no missing/wrong-typed fields).
-   - Returns `{ ok: true, processInstanceId: '<uuid>', ended: false, ... }`.
-   - A new instance appears in CIB seven Cockpit (`http://localhost:8080/camunda/app/cockpit/`) with the variables pre-filled.
-   - The applicant ("Submit personal details") task is open in the React portal (`http://localhost:3000`) ready for Bart to confirm.
-9. Optional: ask Claude to **start a personRegistration with an invalid age** (e.g., 200). Expected: `{ ok: false, code: 'INVALID_VARIABLES', issues: [...] }` with the Ajv-generated error pointing at the `maximum: 130` constraint. No engine call is made.
+Current Claude Desktop on Windows requires the stdio-bridge route through
+`mcp-remote` plus a Node launcher that bypasses shell quoting (the JSON
+flag value gets mangled by `cmd.exe` and PowerShell). See
+`docs/mcp.md` §[Connecting Claude Desktop](../docs/mcp.md#connecting-claude-desktop-windows-quirks)
+for the full why.
 
-### Full round trip (T9 — applicant completes their own task via MCP)
+**One-time setup:**
 
-After step 8 a process instance is sitting at "Submit personal details" with the variables pre-filled. To close the loop without leaving the chat:
+```bash
+npm install -g mcp-remote
+```
 
-10. **"What's pending for me?"** → Claude calls `list_my_tasks` → returns one entry with `formKey: 'personal-details'`, `service: 'personRegistration'`, `audience: 'applicant'`.
-11. **"Confirm it for me."** → Claude calls `get_form_schema(taskId)` to know the shape, then `complete_task(taskId, { firstName, lastName, age, objectId })` with the same values from start_process. Engine advances the process. If you started with an adult applicant and an objectId that resolves to a cheap product, the DMN auto-approves and the process ends. Otherwise a `review-application` task is created for the civil servant.
-12. **"What's the status of my registration?"** → Claude calls `list_my_processes` → returns the instance with `state: 'COMPLETED'` (auto-approved) or `state: 'ACTIVE'` (waiting on civil-servant review).
-13. **Optional civil-servant side:** log into Claude as Homer (re-run the OAuth flow with `homer`/`homer`). Then **"What's waiting for me?"** → Claude calls `list_my_tasks` → returns `review-application` tasks. **"Approve task abc..."** → Claude calls `complete_task(abc, { decision: 'approve' })`. Process completes.
-14. **History autofill check** (forward-looking to T15): **"What's my first name on record?"** → Claude calls `query_user_history('firstName')` → returns `{ found: true, value: 'Bart', sourceProcessInstanceId: '...' }`. This is the building block the businessRegistration demo uses to autofill applicant details without re-prompting.
+If `npm root -g` is anything other than `C:\nvm4w\nodejs\node_modules`,
+edit the `PROXY_ENTRY` constant in `mcp/cib7-bridge.mjs`.
 
-### Troubleshooting
+**Add to `%APPDATA%\Claude\claude_desktop_config.json`:**
+
+```json
+{
+  "mcpServers": {
+    "cib7": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\<you>\\git\\cib7-react-poc\\mcp\\cib7-bridge.mjs"
+      ]
+    }
+  }
+}
+```
+
+Fully quit Claude Desktop (tray → Quit; closing the window keeps the old
+mcp-remote child alive) and reopen. The first MCP tool call pops a browser
+to Keycloak's login page — log in as a seeded user (`bart` / `bart`,
+`homer` / `homer`) or click **Register** to create your own account.
+
+For other MCP clients (Cursor, Codex, claude.ai web Custom Connectors)
+that already speak the URL form, skip the bridge entirely and use
+`{ "url": "http://localhost:3000/mcp" }`.
+
+## Verify the connection end-to-end
+
+```bash
+# 1. All containers healthy
+docker compose ps
+
+# 2. Discovery endpoint
+curl http://localhost:3000/.well-known/oauth-protected-resource
+
+# 3. 401 challenge on /mcp without a Bearer
+curl -i -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -d '{}'
+# → HTTP/1.1 401 Unauthorized
+# → WWW-Authenticate: Bearer resource_metadata="...", error="invalid_token", error_description="missing"
+
+# 4. 401 with WWW-Authenticate on a bogus token
+curl -i -X POST http://localhost:3000/mcp -H "Authorization: Bearer not.a.real.token" -H "Content-Type: application/json" -d '{}'
+# → HTTP/1.1 401 Unauthorized
+# → error_description="other"
+```
+
+In Claude Desktop, on a fresh chat:
+
+> What services are available on the cib7 server?
+
+Expected: 11 tools listed; `list_services` returns
+`personRegistration` and `businessRegistration` with `mcpCallable: true`.
+
+> Register Acme OÜ for me. I'm Bart Simpson, age 35, share capital €3000, board member Bart Simpson 38501010001 and Lisa Simpson 39102020002.
+
+Expected: Claude calls `describe_service('businessRegistration')` →
+`start_process('businessRegistration', { ... })`. DMN auto-approves
+(share capital ≥ €2500 and applicant adult), approval email lands at
+http://localhost:8025, and `list_my_processes` reports `state: COMPLETED`.
+
+## Try the registration / invitation flow
+
+> I want to register a new user — username lisa, email lisa@example.com, first name Lisa, last name Simpson.
+
+Expected: Claude calls `send_account_invitation` with those four fields,
+never asking for a password. The tool creates the Keycloak user with
+`requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]` and triggers the
+magic-link email. Lisa opens Mailpit, clicks the link, sets her own
+password in Keycloak's form, and lands in the SPA signed in.
+
+> Where do I sign up?
+
+Expected: Claude calls `get_signup_url` and returns the deep-linked
+Keycloak registration URL. The user fills the form themselves.
+
+> I forgot my password.
+
+Expected: Claude calls `get_password_reset_url` and returns the
+`kc_action=reset_credentials` deep link. The user resets it themselves.
+
+## Realm-rebuild reset (dev only)
+
+Re-importing the realm rotates Keycloak's signing keys, so the
+`~/.mcp-auth/` cache holds invalid-signature tokens. The next MCP call
+returns 401 + `WWW-Authenticate` and `mcp-remote` SHOULD re-run OAuth
+automatically. If the connector looks wedged in Claude Desktop:
+
+```
+1. Quit Claude Desktop (tray → Quit).
+2. rm -rf ~/.mcp-auth/
+3. Reopen Claude Desktop. Next chat message triggers a clean OAuth dance.
+```
+
+## Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
-| Browser doesn't pop on first MCP call | Claude Desktop's MCP OAuth support isn't picking up the 401 challenge — check Claude Desktop release notes; fallback is OAuth2 device flow (flip `directAccessGrantsEnabled` to `true` on `cib7-mcp` and use device grant). |
-| `list_services` returns `code: 'engine_unauthorized'` | T2 audience mapper isn't on the token. Keycloak admin UI → Client scopes → `cib7-rest-api-audience` → Mappers → confirm; then Clients → `cib7-mcp` → Client scopes tab → confirm `cib7-rest-api-audience` is under Default. |
-| `start_process` returns `code: 'forbidden'` | Bart's authorizations don't grant CREATE_INSTANCE on the definition. Check `AuthorizationBootstrap.java`. The current bootstrap covers `personRegistration` specifically; widening to `ProcessDefinition:*` is T9. |
-| `describe_service` returns `code: 'unknown_service'` | The manifest didn't make it into the container. Run `docker exec cib7-poc-mcp ls /app/services-spec/person-registration/build/` and confirm both files are present. If empty, the build context or .dockerignore is misconfigured. |
-| `list_services` shows `mcpCallable: false` for everything | The mcp container started before the manifests were COPYed (look at `manifests:` in container startup logs — should list `personRegistration`). Rebuild with `docker compose up --build mcp`. |
-| `list_my_tasks` returns empty even though Cockpit shows tasks | The user is not in any candidate group for the open tasks and the task is not assigned to them. Check the BPMN's `candidateGroups` and the user's group memberships in Keycloak admin. For personRegistration, Bart (in `applicant`) sees the personal-details task; Homer (in `civil-servant`) sees the review-application task after the DMN routes there. |
-| `complete_task` returns `code: 'INVALID_VARIABLES'` with `"must NOT have additional properties"` | Claude included a field the task schema doesn't accept (e.g., the entire start-variables blob on the review-application task, which only accepts `decision` + optional `sendBackReason`). Pass only the fields the get_form_schema response listed. |
-| `query_user_history` returns `found: false` despite history existing | Bart's prior process instances may have been wiped by an engine restart (in-memory H2). Restart `mcp` after the engine — or wait until T4 lands the seed compose service. |
+| Claude Desktop says "not valid MCP server configuration" and skips cib7 | Old Claude Desktop release rejects the `{"url":...}` form. Use the `cib7-bridge.mjs` stdio bridge (see above). |
+| mcp-remote bridge: `InsufficientScopeError: Policy 'Trusted Hosts' rejected request to client-registration service` | The bridge tried Dynamic Client Registration against Keycloak, which refuses anonymous DCR by default. The bridge already passes `--static-oauth-client-info '{"client_id":"cib7-mcp"}'` to skip DCR — if you see this error, your `mcp-remote` install is stale; `npm install -g mcp-remote@latest`. |
+| mcp-remote bridge: `SyntaxError: Expected property name or '}' in JSON` | Windows shell stripped quotes from the inline JSON. Make sure Claude Desktop is invoking `cib7-bridge.mjs` via `node`, not piping through `cmd /c npx ...`. |
+| OAuth callback says `invalid_scope: Invalid scopes: openid profile email` | mcp-remote requested scopes the realm doesn't define. The MCP service advertises only `openid` — rebuild it (`docker compose up -d --build mcp`) and clear `~/.mcp-auth/` so the bridge re-reads discovery. |
+| `Authorization successful` in browser but the bridge errors with "Error POSTing to endpoint" | Stale state from before the per-request transport refactor. Restart the MCP container (`docker compose restart mcp`) and retry. |
+| `list_services` returns `code: 'engine_unauthorized'` | The Bearer doesn't carry `aud=cib7-rest-api`. The audience mapper lives on the `cib7-rest-api-audience` client scope; confirm it's a default scope on `cib7-mcp` (admin UI → Clients → cib7-mcp → Client scopes → Default). |
+| `start_process` returns `code: 'forbidden'` | The user's group doesn't grant CREATE_INSTANCE on the definition. `AuthorizationBootstrap.java` grants `ProcessDefinition:*` to the `applicant` group; self-registered users land in `/applicant` via `defaultGroups`. |
+| `describe_service` returns `code: 'unknown_service'` | The manifest didn't make it into the container. `docker exec cib7-poc-mcp ls /app/services-spec/<service>/build/` should show `mcp-service.json` + `mcp-training.md`. If empty, the build context or `.dockerignore` is misconfigured — see `Dockerfile`. |
+| `list_my_tasks` returns empty even though Cockpit shows tasks | The user is neither assigned nor a candidate for the open tasks. Check the BPMN's `camunda:assignee` / `candidateGroups` and the user's Keycloak group membership. |
+| `complete_task` returns `INVALID_VARIABLES` with `"must NOT have additional properties"` | Claude included a field the per-task schema doesn't accept. Pass only the fields `get_form_schema` listed. |
+| `send_account_invitation` returns `KEYCLOAK_ERROR: HTTP 401 Unauthorized` | cib7-backend's service-account token is stale, typically right after a realm re-import. Restart the MCP container to clear the in-process token cache. |
+| Invitation email arrives but the link points at `http://keycloak:8080/...` | Realm `frontendUrl` attribute isn't set or the keycloak container wasn't rebuilt after editing the realm export. The export now ships `attributes.frontendUrl: "http://localhost:8180"`; re-import via `docker compose rm -sf keycloak && docker compose up -d keycloak`. |
+| `query_user_history` returns `found: false` despite history existing | Prior process instances were wiped by an engine restart (in-memory H2). Will be fixed when the seed-history compose service lands (TODOS.md T1 → Postgres). |
 
 ## Files
 
-- `package.json` — `@modelcontextprotocol/sdk`, `express`, `tsx` runner.
+- `package.json` — `@modelcontextprotocol/sdk`, `express`, `tsx`, `ajv`, `ajv-formats`, `jose`.
 - `tsconfig.json` — strict TypeScript with `noEmit` (tsx interprets at runtime).
-- `Dockerfile` — `node:20-alpine`, no multi-stage; `npm start` runs `tsx src/server.ts`.
-- `src/server.ts` — Express + MCP transport, 401 challenge, AsyncLocalStorage bridge for the Bearer header, tool registry. One tool (`list_services`) at T3.
-- `src/engine/client.ts` — stateless `/engine-rest` fetch wrapper. Forwards the user's Bearer, maps responses to `{ ok, status, code, message, retryable, data }`. Decision A2: never validates JWTs locally, never refreshes.
-- `.dockerignore` — keep `node_modules/` out of the build context.
+- `Dockerfile` — `node:20-alpine`, no multi-stage; `npm start` runs `tsx src/server.ts`. COPYs from repo root so it can include both `mcp/src` and `docs/business/services`.
+- `cib7-bridge.mjs` — Node launcher used by Claude Desktop's `claude_desktop_config.json`. Imports `mcp-remote`'s entry directly with assembled `process.argv` to avoid shell-quoting issues.
+- `src/server.ts` — Express + per-request MCP `Server` + `StreamableHTTPServerTransport`. Tool registry, `SERVER_INSTRUCTIONS` LLM playbook, AsyncLocalStorage bearer-context.
+- `src/auth/verify.ts` — JOSE `jwtVerify` against Keycloak JWKS (signature + issuer). 401 + `WWW-Authenticate` on failure.
+- `src/auth/identity.ts` — parse-only `preferred_username` extraction for query construction (assignee / startedBy).
+- `src/engine/client.ts` — Bearer-forward `/engine-rest` fetch wrapper. `{ ok, status, code, message, retryable, data }` envelope. Stateless A2.
+- `src/engine/variables.ts` — Plain JSON → Camunda `{ value, type }` envelope, schema-driven.
+- `src/keycloak/admin.ts` — `cib7-backend` service-account token (client_credentials, 5-min in-process cache) + admin REST wrapper. Used by `send_account_invitation`.
+- `src/services/manifest.ts` — Walks `/app/services-spec`, Ajv-compiles every schema, indexes by `formKey`.

@@ -206,32 +206,49 @@ run the builder, how to test — see
 ## Talk to it from Claude Desktop (or any MCP client)
 
 The same deployment is also reachable as an **MCP server** at
-`/mcp/sse`, so an MCP-capable AI assistant (Claude Desktop, Cursor,
-Codex, Windsurf, …) can drive the deployment in natural language. The
-sidecar serving this is at [`mcp/`](mcp/) — see
-[`docs/mcp.md`](docs/mcp.md) for the full module guide.
+`/mcp`, so an MCP-capable AI assistant (Claude Desktop, Cursor, Codex,
+Windsurf, claude.ai web Custom Connectors, …) can drive the deployment
+in natural language. The sidecar serving this is at [`mcp/`](mcp/) —
+see [`docs/mcp.md`](docs/mcp.md) for the full module guide.
 
-**One-time setup** (per AI client). Add this to your AI client's MCP
-config (for Claude Desktop on Windows, that's
-`%APPDATA%\Claude\claude_desktop_config.json`):
+**One-time setup** (per AI client).
+
+Clients that speak the URL form natively (claude.ai web Custom
+Connectors, Cursor with `connect_url`, etc.) just need
+`http://localhost:3000/mcp` in their connector settings. Claude Desktop
+on Windows currently doesn't — it rejects the `{"url":...}` config — so
+go through the stdio bridge:
+
+```bash
+npm install -g mcp-remote
+```
+
+Then in `%APPDATA%\Claude\claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "cib7": {
-      "url": "http://localhost:3000/mcp"
+      "command": "node",
+      "args": [
+        "C:\\Users\\<you>\\git\\cib7-react-poc\\mcp\\cib7-bridge.mjs"
+      ]
     }
   }
 }
 ```
 
-Restart the client. The first MCP call pops a browser to Keycloak —
-log in as `bart` / `bart` (applicant) or `homer` / `homer` (civil
-servant). The client now has a valid Bearer and remembers it for the
-session.
+Fully quit Claude Desktop (tray → Quit) and reopen. The first MCP call
+pops a browser to Keycloak — log in as a seeded user (`bart` / `bart`
+applicant, `homer` / `homer` civil-servant) **or click "Register"** to
+create your own account (verification email lands at Mailpit). The
+client now has a valid Bearer and remembers it for the session.
 
-**What you can do, end-to-end.** Eight MCP tools cover the applicant +
-civil-servant round trip without anyone opening the React SPA:
+**What you can do, end-to-end.** Eleven MCP tools cover the applicant
+round trip, civil-servant review, and onboarding without anyone opening
+the React SPA:
+
+**Process tools** (forward the caller's Bearer to `/engine-rest`):
 
 | Tool | Purpose |
 |---|---|
@@ -244,6 +261,14 @@ civil-servant round trip without anyone opening the React SPA:
 | `list_my_processes` | Newest-first list of instances started by the current user, with state. |
 | `query_user_history(variableName)` | Most recent value the user has ever entered — the autofill primitive. |
 
+**Identity tools** (Keycloak; never handle a password):
+
+| Tool | Purpose |
+|---|---|
+| `get_signup_url` | Returns the hosted Keycloak sign-up URL + steps. Pure URL lookup. |
+| `get_password_reset_url` | Returns the hosted Keycloak password-reset URL + steps. Pure URL lookup. |
+| `send_account_invitation(username, email, firstName, lastName)` | Creates an invite-pending Keycloak user and emails them a magic link. The invitee sets their own password in Keycloak's form. |
+
 A canonical session as `bart`:
 
 > *"What services are available on the cib7 server?"* → `list_services`
@@ -253,6 +278,14 @@ A canonical session as `bart`:
 > `start_process('businessRegistration', {...})` — auto-approved by DMN
 > because Bart is an adult and capital ≥ €2500. Approval email lands in
 > Mailpit.
+
+A canonical session as a new user:
+
+> *"I'd like to register a new user — username lisa, email lisa@x.com,*
+> *first name Lisa, last name Simpson."* → `send_account_invitation`.
+> Invitee opens Mailpit, clicks the magic link, sets a password in
+> Keycloak's hosted form, and lands in the SPA signed in. The MCP
+> service never sees a password — Claude never asks for one.
 
 For the Homer (civil-servant) side, log in as `homer` / `homer` in the
 same OAuth pop — Claude's `list_my_tasks` then surfaces the review tasks
@@ -299,12 +332,15 @@ cib7-react-poc/
 │   └── Dockerfile
 ├── mcp/                            MCP sidecar — AI-callable surface (see docs/mcp.md)
 │   ├── src/
-│   │   ├── server.ts               Express + MCP transport + 8 tools
-│   │   ├── auth/identity.ts        decodes preferred_username for query construction
+│   │   ├── server.ts               Express + per-request MCP server/transport + 11 tools + LLM instructions
+│   │   ├── auth/identity.ts        parses preferred_username for query construction
+│   │   ├── auth/verify.ts          jose jwtVerify against Keycloak JWKS at the /mcp door
 │   │   ├── engine/client.ts        Bearer-forward fetch wrapper to /engine-rest
 │   │   ├── engine/variables.ts     plain JSON → Camunda { value, type } envelope
+│   │   ├── keycloak/admin.ts       cib7-backend service-account token + admin REST wrapper
 │   │   └── services/manifest.ts    walks /app/services-spec, Ajv-compiles schemas
-│   ├── package.json                @modelcontextprotocol/sdk, express, ajv, tsx
+│   ├── cib7-bridge.mjs             stdio↔HTTP launcher for Claude Desktop on Windows
+│   ├── package.json                @modelcontextprotocol/sdk, express, ajv, jose, tsx
 │   ├── tsconfig.json
 │   ├── Dockerfile                  node:20-alpine; build context is repo root
 │   └── README.md                   quick-start + verify steps + troubleshooting
