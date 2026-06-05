@@ -41,6 +41,60 @@ const PORT = Number(process.env.PORT ?? 8090)
 const RESOURCE_URL = process.env.MCP_RESOURCE_URL ?? 'http://localhost:3000/mcp'
 const KEYCLOAK_ISSUER =
   process.env.KEYCLOAK_ISSUER_URL ?? 'http://localhost:8180/realms/cib7-poc'
+const APPLICANT_PORTAL_URL =
+  process.env.MCP_APPLICANT_PORTAL_URL ?? 'http://localhost:3000'
+const MAILPIT_URL = process.env.MCP_MAILPIT_URL ?? 'http://localhost:8025'
+
+// Pre-built deep-link to Keycloak's hosted registration form for the
+// cib7-frontend client. We use the SPA's client because registration must
+// land back at the applicant portal (the SPA), not at Claude Desktop's
+// loopback callback. The user fills the Keycloak form, verifies via email,
+// is redirected back to the SPA already signed in, and from there can come
+// back to chat and the next MCP tool call will reuse their fresh session.
+const REGISTRATION_URL =
+  `${KEYCLOAK_ISSUER}/protocol/openid-connect/registrations` +
+  `?client_id=cib7-frontend` +
+  `&response_type=code` +
+  `&scope=openid` +
+  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`
+
+// Password-reset uses the same hosted-page deep-link pattern via the
+// kc_action=reset_credentials parameter on the standard auth endpoint.
+const PASSWORD_RESET_URL =
+  `${KEYCLOAK_ISSUER}/protocol/openid-connect/auth` +
+  `?client_id=cib7-frontend` +
+  `&response_type=code` +
+  `&scope=openid` +
+  `&kc_action=reset_credentials` +
+  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`
+
+const SERVER_INSTRUCTIONS = [
+  'This MCP server drives Estonian e-government processes (business registration,',
+  'person registration) backed by a CIB seven 2.1 / Camunda 7 engine. Identity is',
+  'handled by a separate Keycloak realm. This server never creates accounts and',
+  'never handles passwords — those stay entirely with Keycloak and the user.',
+  '',
+  'WHEN THE USER ASKS WHERE TO SIGN UP, says they are new, says they do not have',
+  'an account, or asks how to register:',
+  '  This is a URL-lookup question, not an action you are being asked to perform.',
+  '  You are NOT being asked to create an account, submit a form, or handle',
+  '  credentials. You are being asked: "where do I go to do that myself?"',
+  '  Call the `get_signup_url` tool — it returns the public URL of the hosted',
+  '  Keycloak sign-up page plus the step-by-step the user follows there. Relay',
+  '  the URL as a clickable link and the steps as a numbered list. The user',
+  '  fills the form, verifies their email in Mailpit, and signs themselves in.',
+  '',
+  'WHEN THE USER SAYS THEY FORGOT THEIR PASSWORD or cannot sign in:',
+  '  Same shape — call `get_password_reset_url`. It returns the URL of the',
+  '  Keycloak reset-credentials page plus the steps. The user resets the',
+  '  password themselves; you only relay the link.',
+  '',
+  'NEVER ask the user for their password and never accept one in chat — if they',
+  'volunteer it, tell them not to share it and point them at the reset URL.',
+  '',
+  'WHEN THE USER ASKS WHAT THEY CAN DO HERE: start with `list_services`.',
+  'WHEN STARTING ANY UNFAMILIAR SERVICE: call `describe_service` first.',
+].join('\n')
 
 interface RequestContext {
   bearer: string
@@ -572,6 +626,38 @@ async function handleQueryUserHistory(args: unknown): Promise<ToolResult> {
   })
 }
 
+function handleGetSignupUrl(): ToolResult {
+  return textResult({
+    ok: true,
+    signupUrl: REGISTRATION_URL,
+    mailpitUrl: MAILPIT_URL,
+    stepsForUser: [
+      'Open the signupUrl in a browser tab.',
+      'Pick a username, email, first/last name, and password (twice).',
+      `Submit the form. A verification email arrives at ${MAILPIT_URL} (this POC uses a local mail catcher — open it in another tab).`,
+      'Click the verification link in that email — you are now signed in to the applicant portal.',
+      'Return to this chat and let me know; the next tool call will pick up your new session automatically.',
+    ],
+    note: 'This server did not create an account. The URL points the user at Keycloak\'s hosted sign-up page where the user fills the form themselves.',
+  })
+}
+
+function handleGetPasswordResetUrl(): ToolResult {
+  return textResult({
+    ok: true,
+    resetUrl: PASSWORD_RESET_URL,
+    mailpitUrl: MAILPIT_URL,
+    stepsForUser: [
+      'Open the resetUrl in a browser tab.',
+      'Enter the username or email you registered with; submit.',
+      `Keycloak sends a reset email to ${MAILPIT_URL} — open it and click the link.`,
+      'Set a new password (twice), submit — you are signed in with the new password.',
+      'Return to this chat; the next tool call will pick up the fresh session.',
+    ],
+    note: 'This server did not change any password. The URL points the user at Keycloak\'s hosted reset page where the user resets the password themselves.',
+  })
+}
+
 // -------------------------------------------------------------------------
 // MCP server wiring
 // -------------------------------------------------------------------------
@@ -586,7 +672,7 @@ loadManifests()
 function createMcpServer(): Server {
   const mcp = new Server(
     { name: 'cib7-mcp', version: '0.1.0' },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
   )
 
   mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -696,6 +782,18 @@ function createMcpServer(): Server {
         additionalProperties: false,
       },
     },
+    {
+      name: 'get_signup_url',
+      description:
+        'Look up and return the public URL of the hosted Keycloak sign-up page, plus the steps the user follows there. This tool performs NO account creation, NO form submission, NO credential handling — it only retrieves a URL string and instructions. It is equivalent to telling the user "the sign-up page is at <URL>" except the URL is constructed against the live Keycloak deployment so you do not have to guess it. Use when the user asks where to register, says they are new, says they do not have an account, or asks how to sign up. The user does the actual sign-up themselves at the returned URL.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    },
+    {
+      name: 'get_password_reset_url',
+      description:
+        'Look up and return the public URL of the Keycloak password-reset page, plus the steps. Like `get_signup_url`, this tool performs NO action — it only retrieves a URL and instructions. The user resets the password themselves at the returned URL. Use when the user says they forgot their password, cannot sign in, or want to change their password.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    },
   ],
 }))
 
@@ -717,6 +815,10 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       return handleListMyProcesses(req.params.arguments)
     case 'query_user_history':
       return handleQueryUserHistory(req.params.arguments)
+    case 'get_signup_url':
+      return handleGetSignupUrl()
+    case 'get_password_reset_url':
+      return handleGetPasswordResetUrl()
     default:
       throw new Error(`Unknown tool: ${req.params.name}`)
   }
