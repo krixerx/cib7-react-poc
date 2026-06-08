@@ -61,7 +61,15 @@ export type CamundaVariables = Record<string, CamundaVariable>;
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = keycloak.authenticated ? await ensureFreshToken() : null;
 
+  // `cache: 'no-store'` matters more than it looks. /engine-rest GETs don't
+  // set Cache-Control: no-store, so the browser is free to serve a stale
+  // response — particularly bad on the civil-servant worklist where we
+  // refetch right after completing a task: an HTTP-cached response shows
+  // the just-completed task as still pending until the user does a full
+  // page reload. Forcing no-store closes that gap. Callers can still
+  // override via `init.cache` if they ever want HTTP caching back.
   const res = await fetch(BASE + path, {
+    cache: 'no-store',
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -190,6 +198,8 @@ export interface HistoricProcessInstance {
   state: string;
   /** BPMN id of the end event the instance terminated at (null while active). */
   endActivityId: string | null;
+  /** Keycloak username of the applicant who started the instance, when the BPMN start event has `camunda:initiator`. */
+  startUserId: string | null;
   durationInMillis: number | null;
 }
 
@@ -319,4 +329,155 @@ export async function getHistoricVariable(
     `/history/variable-instance?${qs}`,
   );
   return items[0] ?? null;
+}
+
+/**
+ * Lists the newest N process instances (any state) sorted by start time desc.
+ * Powers the civil-servant worklist on the redesigned Tasks page; pair with
+ * variable + task lookups to build a `WorklistRow` per instance.
+ */
+export function listRecentProcessInstances(
+  maxResults = 100,
+): Promise<HistoricProcessInstance[]> {
+  const qs = new URLSearchParams({
+    sortBy: 'startTime',
+    sortOrder: 'desc',
+    maxResults: String(maxResults),
+  });
+  return request(`/history/process-instance?${qs}`);
+}
+
+/** A row in the civil-servant worklist — denormalised view over a single case. */
+export interface WorklistRow {
+  processInstanceId: string;
+  processDefinitionId: string;
+  processDefinitionKey: string;
+  serviceName: string;
+  /** "First Last" derived from process variables, or empty if neither is set. */
+  applicantName: string;
+  /** Keycloak username of the applicant who started the case. */
+  startUserId: string | null;
+  startTime: string;
+  endTime: string | null;
+  /**
+   * Decision-state of the case for civil-servant filtering. `incident` takes
+   * precedence over `pending` when at least one open incident exists, so the
+   * worklist surfaces stuck cases without having to dig.
+   */
+  status: 'pending' | 'incident' | 'confirmed' | 'rejected';
+  /** The currently-active user task for the case, or null if none (service task in flight, or case ended). */
+  currentTask: {
+    id: string;
+    name: string;
+    taskDefinitionKey: string;
+    assignee: string | null;
+  } | null;
+  /** Open incidents on the case (mostly failedJob from service tasks). Empty when healthy. */
+  incidents: Incident[];
+}
+
+/**
+ * Maps a process instance plus its incident count to the worklist status.
+ *
+ *   active + ≥1 open incident                          → incident
+ *   active + no incidents                              → pending
+ *   ended at an end event whose id mentions `Reject`   → rejected
+ *   ended at any other end event                       → confirmed
+ *
+ * Why default-confirmed instead of default-rejected: the BPMNs that ship
+ * today (person-registration, business-registration) have no terminal
+ * "rejected" end event — the civil servant's send-back loops the case
+ * back to the applicant, it never ends in a rejected state. The only
+ * terminal is EndEvent_Approved.
+ *
+ * The wrinkle: person-registration has a non-interrupting repeating timer
+ * (R/PT2M) on Task_Review that spawns reminder branches terminating at
+ * EndEvent_ReminderSent. When the civil servant takes long enough that
+ * reminders fire and then approves, both EndEvent_ReminderSent and
+ * EndEvent_Approved get reached and the engine's `endActivityId` can
+ * record either one — empirically it often records the reminder end,
+ * which used to make every long-pending approval show up as "rejected"
+ * in the worklist.
+ *
+ * Defaulting to confirmed and only flagging rejection on an explicit
+ * `Reject`-named end event protects against that race and stays
+ * forward-compatible: a future BPMN that adds an EndEvent_Rejected (or
+ * similar) gets correctly tagged without any code change.
+ */
+function statusFor(
+  pi: HistoricProcessInstance,
+  hasIncidents: boolean,
+): WorklistRow['status'] {
+  if (pi.endTime === null) return hasIncidents ? 'incident' : 'pending';
+  if (pi.endActivityId && /reject/i.test(pi.endActivityId)) return 'rejected';
+  return 'confirmed';
+}
+
+/**
+ * Builds the civil-servant worklist: every recent process instance, with the
+ * applicant name from `firstName` + `lastName` history variables, the
+ * currently-open user task (for active cases), and any open incidents.
+ * Fan-out is parallel — one variables-lookup and (for active) one tasks-lookup
+ * per instance. Incidents are fetched once for the whole engine and joined
+ * client-side.
+ *
+ * `maxResults` caps the underlying history query; pair it with the page's
+ * paginator once we add one.
+ */
+export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
+  const [defs, instances, allIncidents] = await Promise.all([
+    listProcessDefinitions(),
+    listRecentProcessInstances(maxResults),
+    listIncidents(),
+  ]);
+
+  const nameByDefId = new Map(defs.map((d) => [d.id, d.name ?? d.key]));
+
+  const incidentsByPI = new Map<string, Incident[]>();
+  for (const inc of allIncidents) {
+    const list = incidentsByPI.get(inc.processInstanceId);
+    if (list) list.push(inc);
+    else incidentsByPI.set(inc.processInstanceId, [inc]);
+  }
+
+  return Promise.all(
+    instances.map(async (pi): Promise<WorklistRow> => {
+      const isActive = pi.endTime === null;
+      const [firstNameVar, lastNameVar, activeTasks] = await Promise.all([
+        getHistoricVariable(pi.id, 'firstName'),
+        getHistoricVariable(pi.id, 'lastName'),
+        isActive ? listTasksByInstance(pi.id) : Promise.resolve([] as CamundaTask[]),
+      ]);
+
+      const first = typeof firstNameVar?.value === 'string' ? firstNameVar.value : '';
+      const last = typeof lastNameVar?.value === 'string' ? lastNameVar.value : '';
+      const applicantName = `${first} ${last}`.trim();
+
+      const t = activeTasks[0];
+      const currentTask = t
+        ? {
+            id: t.id,
+            name: t.name,
+            taskDefinitionKey: t.taskDefinitionKey,
+            assignee: t.assignee,
+          }
+        : null;
+
+      const incidents = incidentsByPI.get(pi.id) ?? [];
+
+      return {
+        processInstanceId: pi.id,
+        processDefinitionId: pi.processDefinitionId,
+        processDefinitionKey: pi.processDefinitionKey,
+        serviceName: nameByDefId.get(pi.processDefinitionId) ?? pi.processDefinitionKey,
+        applicantName,
+        startUserId: pi.startUserId,
+        startTime: pi.startTime,
+        endTime: pi.endTime,
+        status: statusFor(pi, incidents.length > 0),
+        currentTask,
+        incidents,
+      };
+    }),
+  );
 }

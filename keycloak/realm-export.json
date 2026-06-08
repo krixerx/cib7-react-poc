@@ -51,6 +51,19 @@
 
   "users": [
     {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Camunda",
+      "lastName": "Admin",
+      "email": "admin@example.com",
+      "credentials": [
+        { "type": "password", "value": "admin", "temporary": false }
+      ],
+      "groups": ["/cib7-admin"],
+      "realmRoles": ["cib7-admin"]
+    },
+    {
       "username": "homer",
       "enabled": true,
       "emailVerified": true,
@@ -60,8 +73,8 @@
       "credentials": [
         { "type": "password", "value": "homer", "temporary": false }
       ],
-      "groups": ["/civil-servant", "/cib7-admin"],
-      "realmRoles": ["civil-servant", "cib7-admin"]
+      "groups": ["/civil-servant"],
+      "realmRoles": ["civil-servant"]
     },
     {
       "username": "bart",

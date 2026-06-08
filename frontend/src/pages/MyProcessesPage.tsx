@@ -156,12 +156,15 @@ export default function MyProcessesPage() {
           {rows.map((r) => {
             const isOpenable = r.openTaskId !== null;
             const isEnded = r.pi.endTime !== null;
+            // In-flight cases without an open applicant task (parked with the
+            // back office or in the owner-confirmation subprocess) still get a
+            // link so the applicant can review what they submitted in
+            // read-only mode. Same /processes/:id route as ended cases —
+            // CompletedProcessPage handles both shapes.
             const to = isOpenable
               ? `/tasks/${r.openTaskId}`
-              : isEnded
-                ? `/processes/${r.pi.id}`
-                : null;
-            const action = isOpenable ? 'Open →' : isEnded ? 'View →' : null;
+              : `/processes/${r.pi.id}`;
+            const action = isOpenable ? 'Open →' : isEnded ? 'View →' : 'View submission →';
 
             const content = (
               <>
@@ -191,13 +194,9 @@ export default function MyProcessesPage() {
 
             return (
               <li key={r.pi.id}>
-                {to ? (
-                  <Link to={to} className="row">
-                    {content}
-                  </Link>
-                ) : (
-                  <div className="row row-static">{content}</div>
-                )}
+                <Link to={to} className="row">
+                  {content}
+                </Link>
               </li>
             );
           })}

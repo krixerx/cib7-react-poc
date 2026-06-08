@@ -111,17 +111,34 @@ rationale.
 
 ### `AuthorizationBootstrap.java`
 
-Runs once after `ApplicationReadyEvent` and grants the `applicant` engine
-group the minimum permissions to start, read, and complete its own
-`personRegistration` instances. With `camunda.bpm.authorization.enabled:
+Runs once after `ApplicationReadyEvent` and grants both the `applicant` and
+the `civil-servant` engine groups the minimum permissions to do their jobs
+across all deployed process definitions. With `camunda.bpm.authorization.enabled:
 true`, a new group has no permissions by default — without this bootstrap
-Bart's `/engine-rest` calls return empty arrays (filtered by the engine's
-authorization layer) and the Services page looks blank.
+Bart's PartA calls return empty arrays and Homer's PartB worklist gets a 500
+"no matching process definition" (the engine hides resources the caller can't
+read rather than returning 403).
+
+Grants summary:
+
+| Group | Resource | Permissions |
+|---|---|---|
+| `applicant` | `PROCESS_DEFINITION *` | READ, CREATE_INSTANCE, READ_INSTANCE, READ_HISTORY, UPDATE_INSTANCE, READ_TASK, UPDATE_TASK |
+| `applicant` | `PROCESS_INSTANCE *` | CREATE |
+| `applicant` | `TASK *` | READ, UPDATE |
+| `civil-servant` | `PROCESS_DEFINITION *` | READ, READ_INSTANCE, READ_HISTORY, UPDATE_INSTANCE, READ_TASK, UPDATE_TASK |
+| `civil-servant` | `TASK *` | READ, UPDATE |
+
+`civil-servant` does NOT get `CREATE_INSTANCE` or `CREATE` on `PROCESS_INSTANCE` —
+civil servants don't start cases, applicants do. BPMN `candidateGroups` still
+gate which tasks a civil servant can actually claim/complete on top of these
+resource-level grants, so the wildcard resource id is safe.
 
 Idempotent — re-running on a clean H2 startup is fine, and on a re-deploy
 the same-group-same-resource check skips already-existing grants. The
 `cib7-admin` group is handled separately by the `cibseven-keycloak`
-plugin's `administratorGroupName: cib7-admin` config — no bootstrap needed.
+plugin's `administratorGroupName: cib7-admin` config — no bootstrap needed,
+it gets full admin powers automatically.
 
 > **Gotcha** — the cibseven-keycloak plugin exposes engine group IDs
 > **without** the leading slash of the Keycloak group path, even when
@@ -376,7 +393,7 @@ and civil-servant access is gated by the BPMN's `candidateGroups`.
 | `rest.security.{enabled,provider,required-audience}` | Activates the filter chain and the audience claim check |
 | `plugin.identity.keycloak.*` | All Keycloak Admin REST API config — issuer URL, admin URL, client credentials, `useUsernameAsCamundaUserId`, `useGroupPathAsCamundaGroupId` |
 | `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
-| `camunda.bpm.admin-user.id: homer` | Bootstraps admin authorizations on the seeded user so the engine doesn't 403 the very first call |
+| `camunda.bpm.admin-user.id: admin` | Bootstraps admin authorizations on the dedicated `admin` user (in `/cib7-admin`) so the engine doesn't 403 the very first call. Was `homer` before — split out so the admin role is separate from the civil-servant role. |
 | `plugin.identity.keycloak.administratorGroupName: cib7-admin` | Grants engine admin authorizations to everyone in the `/cib7-admin` Keycloak group on every startup |
 
 All Keycloak URLs are env-driven (`KEYCLOAK_URL`, `KEYCLOAK_ISSUER_URL`,

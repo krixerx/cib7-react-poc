@@ -307,8 +307,15 @@
               </camunda:map>
             </camunda:inputParameter>
             <!-- 'response' is the raw JSON body returned by the connector;
-                 Spin parses it and we read data.price into the 'price' variable. -->
-            <camunda:outputParameter name="price">${S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
+                 Spin parses it and we read data.price into the 'price' variable.
+                 restful-api.dev returns objects whose `data` may be missing,
+                 null, or lack a `price` field (e.g. the default "/objects/1"
+                 Google Pixel has color/capacity but no price). Falling back to
+                 9999 keeps the engine running and routes those cases to
+                 Rule_DefaultReview in auto-approval.dmn — a missing price
+                 surfaces as "review by a civil servant" instead of crashing
+                 the service task. -->
+            <camunda:outputParameter name="price">${!S(response).hasProp('data') || S(response).prop('data').isNull() || !S(response).prop('data').hasProp('price') ? 9999 : S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
@@ -455,7 +462,17 @@
 
     <bpmn:sequenceFlow id="Flow_HasEmail" name="valid email"
                        sourceRef="Gateway_SendApprovalEmail" targetRef="Task_GeneratePdf">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${applicantEmail != null &amp;&amp; applicantEmail.contains("@")}</bpmn:conditionExpression>
+      <!--
+        `applicantEmail` is optional and the React form always writes it (even
+        as ""), but cases started without the form — the seed-history script,
+        ad-hoc /engine-rest start calls, future external integrations — won't
+        have the variable in scope. JUEL throws PropertyNotFoundException on
+        a bare `applicantEmail` reference in that case, blowing up the review
+        task complete and stranding the case. `execution.hasVariable(...)`
+        short-circuits the check so missing falls through to the default
+        "no email" branch (= end the case quietly).
+      -->
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("applicantEmail") and execution.getVariable("applicantEmail") != null and execution.getVariable("applicantEmail").contains("@")}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <!--

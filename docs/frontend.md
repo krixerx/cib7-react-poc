@@ -49,21 +49,32 @@ frontend/src/
 │   ├── camundaClient.ts           — typed /engine-rest client + interfaces (attaches Bearer JWT)
 │   ├── bpmn.ts                    — parseUserTasks(bpmnXml) → UserTaskDef[]
 │   └── objectsApi.ts              — listPricedObjects() from restful-api.dev
+├── services/
+│   └── categories.ts              — PartA life-event categories + service-key → category mapping
 ├── pages/
-│   ├── ServicesPage.tsx           — PartA route "/"
+│   ├── ServicesPage.tsx           — PartA route "/" (life-event catalog)
 │   ├── MyProcessesPage.tsx        — PartA route "/my-processes"
-│   ├── TasksPage.tsx              — PartB route "/"
-│   ├── IncidentsPage.tsx          — PartB route "/incidents"
-│   ├── TaskDetailPage.tsx         — shared route "/tasks/:taskId"
-│   └── CompletedProcessPage.tsx   — shared route "/processes/:processInstanceId"
+│   ├── TasksPage.tsx              — PartB route "/" (two-pane worklist)
+│   ├── IncidentsPage.tsx          — PartB route "/incidents" (cross-service overview)
+│   ├── TaskDetailPage.tsx         — shared route "/tasks/:taskId" (thin route wrapper)
+│   ├── TaskDetailView.tsx         — embeddable form host (route page + worklist right pane)
+│   ├── CompletedProcessPage.tsx   — shared route "/processes/:processInstanceId" (thin route wrapper)
+│   └── ProcessHistoryView.tsx     — embeddable read-only history view (route page + worklist right pane)
 └── forms/
     ├── types.ts                   — FormProps contract
     ├── registry.ts                — formId → React component map
     ├── personal-details/PersonalDetailsForm.tsx
-    └── review-application/ReviewApplicationForm.tsx
+    ├── review-application/ReviewApplicationForm.tsx
+    ├── business-details/BusinessDetailsForm.tsx
+    └── review-business-registration/ReviewBusinessRegistrationForm.tsx
 ```
 
 One folder per form, named after the form id. The form component lives inside.
+
+The `*View.tsx` files (`TaskDetailView`, `ProcessHistoryView`) hold the actual
+load + render logic; their matching `*Page.tsx` files are thin route wrappers
+that supply a Back button. This split is what lets the civil-servant worklist
+embed the same view in its right pane while preserving the deep-link routes.
 
 ## Routing
 
@@ -81,15 +92,15 @@ route sets. The TaskDetail and CompletedProcess pages are shared.
 
 | Path | Component | Purpose |
 |---|---|---|
-| `/` | `TasksPage` | Tree of services with active task counts + drill-down |
-| `/incidents` | `IncidentsPage` | Open engine incidents across all services; retry |
+| `/` | `TasksPage` | Two-pane worklist: filterable case list on the left, embedded form / history / incident block on the right |
+| `/incidents` | `IncidentsPage` | Open engine incidents across all services; retry (the worklist also shows incidents inline; this page is the cross-service overview) |
 
 ### Shared
 
 | Path | Component | Purpose |
 |---|---|---|
-| `/tasks/:taskId` | `TaskDetailPage` | Renders the React form for one task; completing it returns the user to their list (`/` for civil servants, `/my-processes` for applicants) |
-| `/processes/:processInstanceId` | `CompletedProcessPage` | Read-only view of a finished instance — last user task's form pre-filled with historic variables |
+| `/tasks/:taskId` | `TaskDetailPage` → `TaskDetailView` | Renders the React form for one task; completing it returns the user to their list (`/` for civil servants, `/my-processes` for applicants). Deep-link route; the civil-servant worklist embeds the same `TaskDetailView` in its right pane. |
+| `/processes/:processInstanceId` | `CompletedProcessPage` → `ProcessHistoryView` | Read-only view of a process instance (ended OR in-flight) — last completed user task's form pre-filled with historic variables. Deep-link route; the civil-servant worklist embeds the same `ProcessHistoryView` in its right pane when the selected case has no active user task. |
 
 A catch-all `*` route redirects to `/` so the role-appropriate landing page
 always wins after a logout/login. There is no per-route role check beyond
@@ -104,11 +115,25 @@ underlying HTTP methods and paths, see the canonical
 
 ### `ServicesPage` (`src/pages/ServicesPage.tsx`) — PartA
 
-- Calls `listProcessDefinitions()` to populate the list.
-- On Start: `startProcess(key)`, then `listTasksByInstance(instanceId)` to find
-  the first user task, then navigates to `/tasks/{taskId}`. If the engine has
+Life-event catalog: a hero strip + 3×2 grid of category tiles (Business,
+Family & Civil Status, Property & Land, Travel & Identity, Social & Health,
+Other). Inspired by portals like monentreprise.bj and lesotho.eregulations.org
+— citizens pick a topic before drilling into a specific service.
+
+- `listProcessDefinitions()` to populate the catalog; deployed services are
+  bucketed by `categoryOf(s.key)` (see `services/categories.ts`).
+- Tiles with zero services show **Coming soon** and are disabled.
+- Tiles with exactly one service skip the inline list and call `startService()`
+  on click — saves the user the "click twice for the same thing" UX hit.
+- Tiles with two or more services open an inline panel below the grid, with
+  `scrollIntoView({ behavior: 'smooth' })` so the panel is obvious. Picking a
+  service from there is the same `startService()` path.
+- `startService()`: anonymous → triggers `login()`; authenticated →
+  `startProcess(key)`, then `listTasksByInstance(instanceId)` to find the
+  first user task, then navigates to `/tasks/{taskId}`. If the engine has
   raced past the first user task (e.g. a service task in flight), navigates
   to `/my-processes` instead.
+- Anonymous users can browse the catalog; sign-in is only required to start.
 
 ### `MyProcessesPage` (`src/pages/MyProcessesPage.tsx`) — PartA
 
@@ -126,42 +151,83 @@ underlying HTTP methods and paths, see the canonical
 
 - Finished instances are labelled **Approved** if `endActivityId === 'EndEvent_Approved'`,
   otherwise **Ended**.
-- When the applicant task is active, the row links to `/tasks/{taskId}`;
-  finished rows link to `/processes/{instanceId}` (read-only). Rows that are
-  parked on a civil-servant step show the status pill only — they're not
-  clickable because nothing's waiting on the applicant.
+- Every row is clickable. When the applicant task is active, the row links to
+  `/tasks/{taskId}` (editable form). Otherwise — finished OR in-flight with no
+  applicant task — the row links to `/processes/{instanceId}` (read-only form
+  with the data the applicant submitted), so an applicant can always go back
+  and see what they sent while the back office holds the case.
 
 ### `TasksPage` (`src/pages/TasksPage.tsx`) — PartB
 
-- Loads `listProcessDefinitions()` and `listTasks()` in parallel.
-- For each service, calls `getProcessDefinitionXml()` once and passes the XML
-  through `parseUserTasks()` to extract the declared user-task ids/names. This
-  is how we render every user task **even when no instance is sitting at it**.
-- Renders a tree sidebar (service → its user tasks + Incidents row). The
-  right pane drills down into a per-task list of active + historic instances.
+Two-pane civil-servant worklist. Left: filterable case list. Right: the
+selected case's detail (active form, read-only history, or incident block —
+whichever applies).
+
+- `listWorklist()` (in `camundaClient.ts`) loads the worklist in one call:
+  joins `listRecentProcessInstances()` + `listIncidents()` + per-instance
+  `firstName`/`lastName` history vars + per-active-instance current task.
+  Returns one `WorklistRow` per case (denormalised, sorted by `startTime`
+  desc).
+- **Filters** (all multi-select, empty = show all):
+  - **Service** — process definition key
+  - **Task** — current user-task `taskDefinitionKey`
+  - **Status** — `pending` · `incident` · `confirmed` · `rejected`
+  - **Applicant name** — substring match
+  - **My cases** toggle — filters to `currentTask.assignee === username`
+- **Status** is computed in `statusFor()` from the instance state:
+  - active + ≥1 open incident → `incident` (row gets soft red wash)
+  - active + no incidents → `pending`
+  - ended at an end event whose id matches `/reject/i` → `rejected`
+  - ended at any other end event → `confirmed` (default-confirmed because
+    today's BPMNs have no terminal "rejected" end event — see the function's
+    own JSDoc for the reasoning)
+- Selection lives in `?case=<processInstanceId>`. Right pane renders one of:
+  - `IncidentBlock` if the selected row has open incidents (Retry buttons
+    call `setJobRetries(incident.configuration, 1)`)
+  - `TaskDetailView` if the row has an active user task (editable form)
+  - `ProcessHistoryView` otherwise (read-only form populated from history)
+- After a successful `completeTask`, `clearCase()` + `load()` refresh the
+  list. `cache: 'no-store'` on every `/engine-rest` fetch keeps the post-
+  complete refetch from serving the browser's stale cached response.
+- List header shows a **↻** refresh button + "Refreshing…" status during a
+  background fetch (`aria-live="polite"`).
 
 ### `IncidentsPage` (`src/pages/IncidentsPage.tsx`) — PartB
 
-- Lists open incidents across every service via `listIncidents()`. For
+- Cross-service overview. Lists open incidents via `listIncidents()`. For
   `failedJob` incidents, surfaces a **Retry** button that calls
   `setJobRetries(incident.configuration, 1)` so the job executor picks the
-  job up again.
+  job up again. The worklist also folds incidents into each case's row —
+  this page is the flat "what's stuck across the whole engine" view.
 
-### `TaskDetailPage` (`src/pages/TaskDetailPage.tsx`) — shared
+### `TaskDetailView` + `TaskDetailPage` — shared
+
+`TaskDetailView` is the reusable form host. `TaskDetailPage` is a thin route
+wrapper around it.
 
 - Loads `getTask(taskId)` and `getTaskVariables(taskId)` in parallel.
-- Unwraps `{value, type}` variables to plain values (the `unwrap` helper).
+- Unwraps `{value, type}` variables to plain values.
 - Resolves the form via `parseFormId(task.formKey)` → `formRegistry[formId]`.
 - Renders the form with `task`, `data`, `onComplete`, `submitting`, `readOnly` props.
-- `onComplete` calls `completeTask(...)` and on success navigates back to
-  the role's list (`/` for civil servants, `/my-processes` for applicants).
+- `onComplete` calls `completeTask(...)` and fires the `onCompleted` callback;
+  the route page navigates back to the role's list, the worklist clears
+  selection and refetches.
+- `topSlot` prop lets the host inject a Back/Close button into the card head.
 
-### `CompletedProcessPage` (`src/pages/CompletedProcessPage.tsx`) — shared
+### `ProcessHistoryView` + `CompletedProcessPage` — shared
 
-- Read-only view of a finished instance. Looks up the last historic user task
-  + its formKey from the BPMN, renders the matching form with `readOnly`
-  prefilled from `listHistoricVariables(id)`. Shows the outcome label parsed
-  from `endActivityId`.
+`ProcessHistoryView` is the reusable read-only view. `CompletedProcessPage`
+is a thin route wrapper.
+
+- Works for both ended and in-flight instances. Loads
+  `getHistoricProcessInstance`, `listHistoricTasks`, `listHistoricVariables`,
+  and `getProcessDefinitionXml` in parallel.
+- Renders the LAST completed user task's form with `readOnly` set, populated
+  from historic variables — that's the most recent snapshot of the case from
+  the user's perspective.
+- Header line adapts: `Submitted {date} · Currently with {step}` for in-flight,
+  `Completed {date} · {outcome}` for ended.
+- Same `topSlot` pattern as `TaskDetailView`.
 
 ## Forms
 
@@ -220,7 +286,8 @@ Thin typed wrapper around `fetch`. All calls go through `request<T>(path, init)`
 
 Exported types: `ProcessDefinition`, `CamundaTask`, `CamundaVariable`,
 `CamundaVariables`, `CamundaVariableType`, `Incident`,
-`HistoricProcessInstance`, `HistoricTask`, `HistoricVariableInstance`.
+`HistoricProcessInstance`, `HistoricTask`, `HistoricVariableInstance`,
+`WorklistRow`.
 
 Exported functions: `listProcessDefinitions`, `getProcessDefinitionXml`,
 `startProcess`, `listTasks`, `listTasksByInstance`, `getTask`,
@@ -229,13 +296,17 @@ Exported functions: `listProcessDefinitions`, `getProcessDefinitionXml`,
 `listFinishedProcessInstances`, `listHistoricProcessInstancesByStarter`,
 `getHistoricProcessInstance`, `listHistoricTasks`,
 `listHistoricTasksByDefinition`, `listHistoricVariables`,
-`getHistoricVariable`.
+`getHistoricVariable`, `listRecentProcessInstances`, `listWorklist`.
 
 Conventions:
 
 - Same-origin path: `const BASE = '/engine-rest'`.
 - 204 No Content is treated as `undefined`.
 - Non-2xx throws `Error` with `status + body`. Pages catch and render the message.
+- `cache: 'no-store'` on every fetch — engine GETs don't set
+  Cache-Control: no-store, and the civil-servant worklist refetches
+  immediately after a task completes; without this, the browser would serve
+  the just-completed task as still pending until a full page reload.
 
 ### `bpmn.ts`
 
@@ -296,8 +367,8 @@ All under `/engine-rest` (standard CIB seven / Camunda 7 REST API):
 
 | Method + path | Used by |
 |---|---|
-| `GET  /process-definition?latestVersion=true` | `listProcessDefinitions` → ServicesPage, TasksPage, MyProcessesPage, IncidentsPage |
-| `GET  /process-definition/key/{key}/xml` | `getProcessDefinitionXml` → TasksPage, IncidentsPage, CompletedProcessPage |
+| `GET  /process-definition?latestVersion=true` | `listProcessDefinitions` → ServicesPage, TasksPage (via `listWorklist`), MyProcessesPage, IncidentsPage |
+| `GET  /process-definition/key/{key}/xml` | `getProcessDefinitionXml` → IncidentsPage, ProcessHistoryView |
 | `POST /process-definition/key/{key}/start` | `startProcess` → ServicesPage |
 | `GET  /process-instance/count?…&active=true` | `countActiveProcessInstances` → TasksPage |
 | `GET  /task?sortBy=…` | `listTasks` → TasksPage |
@@ -308,12 +379,13 @@ All under `/engine-rest` (standard CIB seven / Camunda 7 REST API):
 | `GET  /incident?…` | `listIncidents` → IncidentsPage, TasksPage |
 | `PUT  /job/{id}/retries` | `setJobRetries` → IncidentsPage, TasksPage |
 | `GET  /history/process-instance?startedBy={user}` | `listHistoricProcessInstancesByStarter` → MyProcessesPage |
-| `GET  /history/process-instance/{id}` | `getHistoricProcessInstance` → CompletedProcessPage |
+| `GET  /history/process-instance?sortBy=startTime&sortOrder=desc` | `listRecentProcessInstances` → TasksPage (via `listWorklist`) |
+| `GET  /history/process-instance/{id}` | `getHistoricProcessInstance` → ProcessHistoryView |
 | `GET  /history/process-instance?…&finished=true` | `listFinishedProcessInstances` → (reserved) |
-| `GET  /history/task?processInstanceId={id}` | `listHistoricTasks` → CompletedProcessPage |
-| `GET  /history/task?processDefinitionId=…&taskDefinitionKey=…` | `listHistoricTasksByDefinition` → TasksPage |
-| `GET  /history/variable-instance?processInstanceId={id}` | `listHistoricVariables` → CompletedProcessPage |
-| `GET  /history/variable-instance?…&variableName=…` | `getHistoricVariable` → MyProcessesPage |
+| `GET  /history/task?processInstanceId={id}` | `listHistoricTasks` → ProcessHistoryView |
+| `GET  /history/task?processDefinitionId=…&taskDefinitionKey=…` | `listHistoricTasksByDefinition` → (reserved; old tree view used it) |
+| `GET  /history/variable-instance?processInstanceId={id}` | `listHistoricVariables` → ProcessHistoryView |
+| `GET  /history/variable-instance?…&variableName=…` | `getHistoricVariable` → MyProcessesPage, TasksPage (via `listWorklist`) |
 
 If you add an endpoint, add it both as a function in `camundaClient.ts` (with
 JSDoc) and as a row in this table.

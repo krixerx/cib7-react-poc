@@ -32,7 +32,15 @@ spring:
             client-secret: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:cib7-webapps-secret}
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            scope: openid, profile, email
+            # `openid` only — the cib7-poc realm registers just `cib7-claims`
+            # and `cib7-rest-api-audience` as client scopes; asking for
+            # `profile` or `email` makes Keycloak reject the auth request
+            # with `Invalid scopes` and bounces the user to /login?error
+            # "Invalid credentials". `cib7-claims` is the client's default
+            # scope and supplies preferred_username + group claims, so
+            # `openid` alone is enough for Spring's OidcUserService to build
+            # the principal from the ID token.
+            scope: openid
         provider:
           keycloak:
             authorization-uri: ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/auth
@@ -81,11 +89,14 @@ camunda.bpm:
   # claim/complete regardless of who the authenticated user is.
   authorization:
     enabled: true
-  # Bootstrap admin permissions for the one POC user so the engine doesn't
-  # 403 the very first /engine-rest call. The user must exist in Keycloak;
-  # the engine grants the admin authorizations on first startup.
+  # Bootstrap admin permissions for the dedicated admin account on first
+  # startup so the engine doesn't 403 the very first /engine-rest call. The
+  # user must exist in Keycloak (see realm-export.json — `admin` is in the
+  # /cib7-admin group). Anyone else in /cib7-admin also gets admin via the
+  # cibseven-keycloak identity-provider plugin (administratorGroupName),
+  # this bootstrap just covers the cold-start before the plugin is ready.
   admin-user:
-    id: homer
+    id: admin
 
 # CIB seven REST API security — wired in
 # com/poc/cib7/keycloak/RestApiSecurityConfig.java.

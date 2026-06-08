@@ -161,11 +161,18 @@ PERSON_VARS='{
 # exists in scope. Pass an explicit empty Json array on completion so the
 # expression evaluates cleanly. Start-time variables stay shorter (the
 # applicant decides whether to add co-owners on the task form).
+#
+# `applicantEmail` belongs to the same class: the post-approval gateway
+# branches on it, and a missing variable used to crash review-task
+# complete. The BPMN now guards the reference with execution.hasVariable,
+# so this is no longer load-bearing, but seeding it explicitly keeps the
+# seeded instance shape consistent with what the React form writes.
 PERSON_COMPLETE_VARS='{
   "firstName":        {"value":"Bart","type":"String"},
   "lastName":         {"value":"Simpson","type":"String"},
   "age":              {"value":30,"type":"Integer"},
   "objectId":         {"value":"1","type":"String"},
+  "applicantEmail":   {"value":"","type":"String"},
   "additionalOwners": {"value":"[]","type":"Json"}
 }'
 

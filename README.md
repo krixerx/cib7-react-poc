@@ -21,9 +21,9 @@ see [Deviations from the spec](#deviations-from-the-spec) below.
 | **React SPA** (PartA & PartB) | <http://localhost:3000> | `bart` / `homer` | same as username |
 | &nbsp;&nbsp;↳ PartA — applicant | | `bart` | `bart` |
 | &nbsp;&nbsp;↳ PartB — civil servant | | `homer` | `homer` |
-| **CIB seven Admin** (users, groups, authorizations) | <http://localhost:8080/camunda/app/admin/> | `homer` | `homer` |
-| **CIB seven Cockpit** (process instances, incidents) | <http://localhost:8080/camunda/app/cockpit/> | `homer` | `homer` |
-| **CIB seven Tasklist** (legacy task UI) | <http://localhost:8080/camunda/app/tasklist/> | `homer` | `homer` |
+| **CIB seven Admin** (users, groups, authorizations) | <http://localhost:8080/camunda/app/admin/> | `admin` | `admin` |
+| **CIB seven Cockpit** (process instances, incidents) | <http://localhost:8080/camunda/app/cockpit/> | `admin` | `admin` |
+| **CIB seven Tasklist** (legacy task UI) | <http://localhost:8080/camunda/app/tasklist/> | `admin` | `admin` |
 | **CIB seven REST API** | <http://localhost:8080/engine-rest> | Bearer JWT from Keycloak | — |
 | **Mailpit inbox** (process-sent emails) | <http://localhost:8025> | — | — |
 | **Keycloak admin console** (realm / users / clients) | <http://localhost:8180/admin/> | `admin` | `admin` |
@@ -33,11 +33,14 @@ see [Deviations from the spec](#deviations-from-the-spec) below.
 Role notes:
 
 - **`bart`** (Bart Simpson) — `/applicant` group, sees PartA on the SPA.
-- **`homer`** (Homer Simpson) — `/civil-servant` + `/cib7-admin` groups, sees
-  PartB on the SPA and admin everything on the `/camunda` webapps. The
-  `/cib7-admin` group grants engine admin authorizations; the applicant
-  group's narrower authorizations are bootstrapped on startup by
-  `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`.
+- **`homer`** (Homer Simpson) — `/civil-servant` group, sees PartB on the SPA.
+  Cannot access `/camunda` webapps (those need `/cib7-admin`).
+- **`admin`** — `/cib7-admin` group only, dedicated Camunda administrator.
+  Admin everything on the `/camunda` webapps; not used in the SPA UI flows.
+- Engine authorizations for `/applicant` and `/civil-servant` are bootstrapped
+  on startup by `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`;
+  `/cib7-admin` is handled by the cibseven-keycloak plugin's
+  `administratorGroupName` setting (full admin powers).
 - Both webapp and SPA logins go through **Keycloak SSO** against the
   `cib7-poc` realm; the underlying user store is
   [`keycloak/realm-export.json`](keycloak/realm-export.json).

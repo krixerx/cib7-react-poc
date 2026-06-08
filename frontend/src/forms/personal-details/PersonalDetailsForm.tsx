@@ -163,9 +163,11 @@ export default function PersonalDetailsForm({
       )}
 
       <p className="form-intro">
-        {isResubmission
-          ? 'Update the details below and resubmit the application. New confirmation links will be sent to every co-owner.'
-          : 'Applicant form — fill in the personal details, choose a product, and list any co-owners that must sign before the case is sent on.'}
+        {readOnly
+          ? 'Read-only view of the details you submitted. Edits are not possible while the case is with the back office.'
+          : isResubmission
+            ? 'Update the details below and resubmit the application. New confirmation links will be sent to every co-owner.'
+            : 'Applicant form — fill in the personal details, choose a product, and list any co-owners that must sign before the case is sent on.'}
       </p>
 
       <label className="field">
