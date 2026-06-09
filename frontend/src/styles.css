@@ -1293,6 +1293,233 @@ code {
 }
 
 /* ============================================================
+ * PartA — Case detail (CompletedProcessPage standalone layout)
+ * ============================================================ */
+
+/* When the case-detail layout is rendered, let it own the full width
+   instead of being centered inside the app-main flex. */
+.app-main:has(.case-detail) {
+  align-items: stretch;
+  padding: 28px 24px;
+}
+
+.case-detail {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.case-detail-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Soft category-tinted accent strip at the left edge. */
+.case-detail-head::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--accent, var(--primary));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.case-detail-head.cat-business,
+.case-detail-head.cat-family,
+.case-detail-head.cat-property,
+.case-detail-head.cat-travel,
+.case-detail-head.cat-social,
+.case-detail-head.cat-other {
+  /* When category resolved, reveal the accent strip. */
+}
+
+.case-detail-head.cat-business::before,
+.case-detail-head.cat-family::before,
+.case-detail-head.cat-property::before,
+.case-detail-head.cat-travel::before,
+.case-detail-head.cat-social::before,
+.case-detail-head.cat-other::before {
+  opacity: 1;
+}
+
+.case-detail-head.cat-business { --accent: #c2410c; --accent-bg: #ffe8d6; }
+.case-detail-head.cat-family   { --accent: #9d174d; --accent-bg: #ffe0e7; }
+.case-detail-head.cat-property { --accent: #166534; --accent-bg: #dcfce7; }
+.case-detail-head.cat-travel   { --accent: #1e40af; --accent-bg: #dbeafe; }
+.case-detail-head.cat-social   { --accent: #5b21b6; --accent-bg: #ede9fe; }
+.case-detail-head.cat-other    { --accent: #854d0e; --accent-bg: #fef9c3; }
+
+.case-detail-back {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.case-detail-back:hover {
+  background: var(--bg);
+  border-color: var(--accent, var(--primary));
+  color: var(--accent, var(--primary));
+}
+
+.case-detail-back svg {
+  flex-shrink: 0;
+}
+
+.case-detail-bread {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.case-detail-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent, var(--muted));
+  text-transform: uppercase;
+}
+
+.case-detail-eyebrow-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--accent-bg, var(--bg));
+  color: var(--accent, var(--muted));
+}
+
+.case-detail-title {
+  margin: 0;
+  font-size: clamp(20px, 2.4vw, 24px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.case-detail-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.case-detail-status.in-flight {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: var(--primary);
+}
+
+.case-detail-status.in-flight::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  animation: case-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes case-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.case-detail-status.ended {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.case-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 22px;
+  align-items: start;
+}
+
+.case-detail-main {
+  min-width: 0;
+}
+
+/* Inside the new layout, the form card stretches to fill its column. */
+.case-detail-main .card {
+  max-width: none;
+  width: 100%;
+}
+
+.case-detail-sidebar {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+}
+
+.case-detail-sidebar .card {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+@media (max-width: 960px) {
+  .case-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .case-detail-sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .case-detail-head {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .case-detail-back {
+    justify-self: start;
+  }
+  .case-detail-status {
+    justify-self: start;
+  }
+}
+
+/* ============================================================
  * PartB — Civil-servant worklist (TasksPage v2)
  * ============================================================ */
 

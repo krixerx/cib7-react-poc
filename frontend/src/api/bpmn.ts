@@ -34,6 +34,20 @@ export function parseUserTasks(bpmnXml: string): UserTaskDef[] {
 }
 
 /**
+ * Returns the human-readable name of the `<bpmn:process>` element, falling
+ * back to its id when name is missing. Used to title case-detail pages with
+ * the service name instead of the technical process key.
+ */
+export function parseProcessName(bpmnXml: string): string | null {
+  const doc = new DOMParser().parseFromString(bpmnXml, 'application/xml');
+  const process = Array.from(doc.getElementsByTagName('*')).find(
+    (el) => el.localName === 'process',
+  );
+  if (!process) return null;
+  return process.getAttribute('name') || process.getAttribute('id') || null;
+}
+
+/**
  * Builds an `id → name` map for every element in the BPMN that carries both an
  * `id` and a `name` attribute (tasks, gateways, events, …). Used to resolve an
  * incident's `activityId` to a human-readable label.

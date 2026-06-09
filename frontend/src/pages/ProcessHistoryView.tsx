@@ -9,7 +9,7 @@ import {
   type HistoricTask,
   type HistoricVariableInstance,
 } from '../api/camundaClient';
-import { parseActivityNames, parseUserTasks } from '../api/bpmn';
+import { parseActivityNames, parseProcessName, parseUserTasks } from '../api/bpmn';
 import { formRegistry, parseFormId } from '../forms/registry';
 import DocumentsCard from '../components/DocumentsCard';
 
@@ -28,6 +28,12 @@ export interface ProcessHistoryViewProps {
   processInstanceId: string;
   /** Optional element rendered on the right of the card head (e.g. a Close/Back button). */
   topSlot?: React.ReactNode;
+  /** When true, parent is rendering the Documents card itself (e.g. in a sidebar). */
+  hideDocuments?: boolean;
+  /** When true, skip the form card's own header — parent owns the page title. */
+  hideOwnHeader?: boolean;
+  /** Fires once the historic data has loaded so the parent can surface service name / outcome. */
+  onLoaded?: (info: { serviceName: string; outcome: string; isInFlight: boolean; processDefinitionKey: string }) => void;
 }
 
 interface LoadedState {
@@ -40,6 +46,8 @@ interface LoadedState {
   formKey: string | null;
   /** End-event label for ended cases, or "Currently with <step>" for in-flight. */
   outcome: string;
+  /** Human-readable name of the process definition (service name). */
+  serviceName: string;
 }
 
 function unwrap(vars: HistoricVariableInstance[]): Record<string, unknown> {
@@ -63,6 +71,9 @@ function synthesizeTask(ht: HistoricTask, formKey: string | null): CamundaTask {
 export default function ProcessHistoryView({
   processInstanceId,
   topSlot,
+  hideDocuments = false,
+  hideOwnHeader = false,
+  onLoaded,
 }: ProcessHistoryViewProps) {
   const [state, setState] = useState<LoadedState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,7 +107,8 @@ export default function ProcessHistoryView({
         : activeTask
           ? `Currently with ${activeTask.name}`
           : 'In progress';
-      setState({ pi, lastTask, data: unwrap(vars), formKey, outcome });
+      const serviceName = parseProcessName(xml.bpmn20Xml) ?? pi.processDefinitionKey;
+      setState({ pi, lastTask, data: unwrap(vars), formKey, outcome, serviceName });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -107,6 +119,17 @@ export default function ProcessHistoryView({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (state && onLoaded) {
+      onLoaded({
+        serviceName: state.serviceName,
+        outcome: state.outcome,
+        isInFlight: state.pi.endTime === null,
+        processDefinitionKey: state.pi.processDefinitionKey,
+      });
+    }
+  }, [state, onLoaded]);
 
   if (loading) {
     return (
@@ -137,14 +160,19 @@ export default function ProcessHistoryView({
   return (
     <>
       <div className="card">
-        <div className="card-head">
-          <h1 className="card-title">{state.lastTask.name}</h1>
-          {topSlot}
-        </div>
-        <p className="muted">
-          {isInFlight ? 'Submitted' : 'Completed'} {new Date(stampDate).toLocaleString()} ·{' '}
-          <strong>{state.outcome}</strong>
-        </p>
+        {!hideOwnHeader && (
+          <>
+            <div className="card-head">
+              <h1 className="card-title">{state.lastTask.name}</h1>
+              {topSlot}
+            </div>
+            <p className="muted">
+              {isInFlight ? 'Submitted' : 'Completed'}{' '}
+              {new Date(stampDate).toLocaleString()} ·{' '}
+              <strong>{state.outcome}</strong>
+            </p>
+          </>
+        )}
 
         {Form ? (
           <Form
@@ -161,7 +189,7 @@ export default function ProcessHistoryView({
           </p>
         )}
       </div>
-      <DocumentsCard processInstanceId={state.pi.id} />
+      {!hideDocuments && <DocumentsCard processInstanceId={state.pi.id} />}
     </>
   );
 }
