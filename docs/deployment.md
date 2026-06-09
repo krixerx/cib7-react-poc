@@ -152,8 +152,15 @@ changes to `dynamic/tls.yml`.
 ### 4. Build and start
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    --profile traefik up -d --build
 ```
+
+`--profile traefik` is required: Traefik is profile-gated in the base
+compose file because Docker Desktop on Windows leaves its docker
+provider in a retry loop (the dev frontend nginx already covers every
+public path, so dev runs without Traefik). In prod Traefik IS the
+ingress, so the flag must be passed on every prod `up`.
 
 First boot takes a few minutes: Maven downloads engine deps, Vite
 builds the SPA (with your Keycloak URL baked in), Keycloak imports the
@@ -222,14 +229,16 @@ See the project memory note `keycloak-import-realm-only-once`.
 engine process state — H2 is in-memory):
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml restart
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    --profile traefik restart
 ```
 
 **Upgrade after a `git pull`** (rebuilds images, picks up new BPMN /
 React / MCP code):
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    --profile traefik up -d --build
 ```
 
 **View logs for one service:**

@@ -55,6 +55,19 @@ services:
     #
     # Routing is configured per-service via labels (see cib7, mcp, frontend
     # below) so each service owns its own routes — no central nginx.conf.
+    #
+    # Profile-gated. Docker Desktop on Windows intermittently returns an
+    # empty error body to the docker socket ping, which leaves Traefik's
+    # docker provider stuck on retry forever (loud `Failed to retrieve
+    # information of the docker client` lines every ~8s). The frontend
+    # nginx (see frontend/nginx.conf) already covers every public path
+    # the POC needs, so a default `docker compose up` leaves Traefik off.
+    # Bring it up explicitly when you want to test the Traefik route:
+    #     docker compose --profile traefik up -d traefik
+    # Prod always wants it — the prod overlay command runs with
+    #     docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+    #         --profile traefik up -d
+    profiles: ["traefik"]
     image: traefik:v3.4
     container_name: cib7-poc-traefik
     command:
