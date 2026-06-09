@@ -119,7 +119,9 @@ Expected: 11 tools listed; `list_services` returns
 Expected: Claude calls `describe_service('businessRegistration')` →
 `start_process('businessRegistration', { ... })`. DMN auto-approves
 (share capital ≥ €2500 and applicant adult), approval email lands at
-http://localhost:8025, and `list_my_processes` reports `state: COMPLETED`.
+http://localhost:8025 (bring the inbox online with `docker compose
+--profile dev up -d mailpit-ui`; the default profile keeps it
+network-internal), and `list_my_processes` reports `state: COMPLETED`.
 
 ## Try the registration / invitation flow
 

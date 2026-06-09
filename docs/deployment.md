@@ -29,23 +29,33 @@ environment, not as a production target.
 
 ## Prerequisites
 
-On the target server:
+On the target server (assumed Linux — the `/opt/volumes/...` paths
+below are POSIX; Windows hosts need a different mount path):
 
 - **Docker** ≥ 24 with the Compose plugin (`docker compose version`
   works — not the standalone `docker-compose`).
-- **A TLS terminator** on the host (Caddy, Traefik, nginx, or a cloud
-  load balancer). The compose stack itself speaks plain HTTP.
-- **Public DNS** for three hostnames (or one host with three paths if
-  you front everything through a single reverse proxy):
-  - SPA + MCP — `app.example.com` → container `frontend:80`
-  - Engine + Cockpit/Tasklist/Admin — `engine.example.com` → container `cib7:8080`
-  - Keycloak — `kc.example.com` → container `keycloak:8080`
+- **TLS certificate + private key** for the SPA hostname. The prod
+  Traefik terminates TLS itself — no separate Caddy / nginx in front.
+  Certs are loaded from `/opt/volumes/traefik/certs/`; see step 3.
+  ACME / Let's Encrypt is **not** configured — extend
+  `docker-compose.prod.yml` if you need auto-issuance.
+- **Public DNS** for two hostnames (the prior three-host split is no
+  longer needed because Traefik path-routes engine + SPA + MCP through
+  a single origin):
+  - SPA + engine + Cockpit/Tasklist/Admin + MCP — `app.example.com` →
+    host `:443` (Traefik fronts `frontend`, `cib7`, `mcp`)
+  - Keycloak — `kc.example.com` → container `keycloak:8080` (kept
+    separate to preserve the issuer URL stamped into existing JWTs;
+    front it with its own TLS terminator or extend Traefik to route
+    it too)
 - **A clone of this repo on the server.** The build runs from source —
   no published images yet (the GitHub Actions workflow publishes images,
   but compose still builds locally by default).
 - **Outbound internet** from the engine container (it hits
   `api.restful-api.dev` from the "Get price" service task; without it
   the demo flow fails at step 2).
+- **Ports 80 and 443 free** on the host — Traefik binds both. :80
+  exists only to issue a 308 redirect to :443.
 
 ## Files you touch
 
@@ -53,6 +63,8 @@ On the target server:
 |---|---|
 | `.env` | Per-deploy hostnames + secrets. Copy from `.env.example`. |
 | `keycloak/realm-export.json` | Redirect URIs, web origins, and client secrets. Edit **before first boot** — Keycloak's `--import-realm` runs once (see project memory: realm import is one-shot). |
+| `/opt/volumes/traefik/certs/*.{crt,key}` | TLS certificate + private key. Read by Traefik via the file provider. |
+| `/opt/volumes/traefik/dynamic/tls.yml` | Tells Traefik which cert files to load. Copied from `traefik/dynamic/tls.yml.example`. Hot-reloaded (no restart on cert rotation). |
 | `docker-compose.prod.yml` | Overlay that reads `.env`. Don't normally edit. |
 | `docker-compose.yml` | Base file. Don't edit — overrides go in the overlay. |
 
@@ -73,14 +85,17 @@ secrets. Three clients need attention:
 }
 
 // cib7-webapps (Cockpit/Tasklist/Admin SSO)
+// NOTE: Traefik now routes /camunda + /login + /oauth2 through the SPA
+// host, so the redirect URIs live on app.example.com, not a separate
+// engine.example.com.
 "secret": "<paste KEYCLOAK_WEBAPPS_CLIENT_SECRET>",
 "redirectUris": [
-  "https://engine.example.com/login/oauth2/code/keycloak",
-  "https://engine.example.com/camunda/*"
+  "https://app.example.com/login/oauth2/code/keycloak",
+  "https://app.example.com/camunda/*"
 ],
-"webOrigins": ["https://engine.example.com"],
+"webOrigins": ["https://app.example.com"],
 "attributes": {
-  "post.logout.redirect.uris": "https://engine.example.com/*"
+  "post.logout.redirect.uris": "https://app.example.com/*"
 }
 
 // cib7-backend (engine service account)
@@ -104,7 +119,37 @@ Minimum fields: `PUBLIC_KEYCLOAK_URL`, `PUBLIC_FRONTEND_URL`,
 `PUBLIC_ENGINE_URL`, `KEYCLOAK_ADMIN_PASSWORD`,
 `KEYCLOAK_BACKEND_CLIENT_SECRET`, `KEYCLOAK_WEBAPPS_CLIENT_SECRET`.
 
-### 3. Build and start
+### 3. Prepare `/opt/volumes/traefik/`
+
+Traefik mounts four bind-mount paths from the host. Create them and
+seed the dynamic config:
+
+```bash
+sudo mkdir -p /opt/volumes/traefik/{certs,dynamic,logs,acme}
+sudo chmod 700 /opt/volumes/traefik/certs       # private keys live here
+sudo chmod 700 /opt/volumes/traefik/acme        # reserved for future ACME use
+
+# Drop the static-cert dynamic config template into place.
+sudo cp traefik/dynamic/tls.yml.example /opt/volumes/traefik/dynamic/tls.yml
+sudo $EDITOR /opt/volumes/traefik/dynamic/tls.yml   # set the cert filenames
+
+# Drop your cert + key. Filenames must match what tls.yml points at.
+sudo cp /path/to/your-cert.crt /opt/volumes/traefik/certs/app.example.com.crt
+sudo cp /path/to/your-key.key  /opt/volumes/traefik/certs/app.example.com.key
+sudo chmod 644 /opt/volumes/traefik/certs/*.crt
+sudo chmod 600 /opt/volumes/traefik/certs/*.key
+```
+
+After the stack is up, **cert rotation is hot-reload**: replace the
+files in `/opt/volumes/traefik/certs/` and Traefik picks them up
+within a few seconds — no `docker compose restart`. Same for any
+changes to `dynamic/tls.yml`.
+
+> The `acme/` directory is reserved. If you later switch from static
+> certs to ACME / Let's Encrypt, the acme.json account file lands here
+> — no compose changes beyond the `command:` flags in the overlay.
+
+### 4. Build and start
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -120,16 +165,20 @@ Watch progress:
 docker compose logs -f
 ```
 
-### 4. Verify
+### 5. Verify
 
 | Check | Expected |
 |---|---|
-| `curl -sI https://app.example.com/` | `200`, `server: nginx` |
+| `curl -sI http://app.example.com/` | `308`, `Location: https://app.example.com/` (Traefik :80→:443 redirect) |
+| `curl -sI https://app.example.com/` | `200`, `server: nginx` (the SPA's image nginx, behind Traefik) |
+| `openssl s_client -connect app.example.com:443 -servername app.example.com </dev/null 2>/dev/null \| openssl x509 -noout -subject -dates` | Your cert's subject + validity window |
 | Open `https://app.example.com/` in a browser | Redirects to `https://kc.example.com/realms/cib7-poc/...` |
 | Log in with a Keycloak user | Lands on the SPA |
-| `curl -sI https://engine.example.com/engine-rest/engine` | `200`, JSON array |
+| `curl -sI https://app.example.com/engine-rest/engine` | `200`, JSON array (Traefik routes `/engine-rest` to `cib7:8080`) |
+| Open `https://app.example.com/camunda/app/cockpit/` | Cockpit login page (OAuth2 round-trip through Keycloak) |
 | `curl -sI https://kc.example.com/realms/cib7-poc/.well-known/openid-configuration` | `200`, `issuer: https://kc.example.com/realms/cib7-poc` |
 | Open MCP from Claude Desktop / Cursor at `https://app.example.com/mcp` | OAuth pop, then `list_services` returns the two services |
+| `tail -f /opt/volumes/traefik/logs/access.log` | Lines for each request, with router + service columns |
 
 If the SPA loads but engine calls 401, the most common cause is an
 `iss` mismatch — `PUBLIC_KEYCLOAK_URL` in `.env` must equal exactly
@@ -138,28 +187,34 @@ and trailing-slash policy).
 
 ## TLS termination
 
-The compose stack itself serves plain HTTP. Put a TLS terminator in
-front of it. A minimal Caddy config (`/etc/caddy/Caddyfile`) covers
-all three hostnames in 10 lines:
+**Traefik terminates TLS directly.** No host-level Caddy / nginx is
+needed in front for the SPA + engine + MCP hostname — Traefik binds
+`:80` (redirect) and `:443` (TLS) on the host. Certs are static
+(admin-supplied) and loaded via the file provider from
+`/opt/volumes/traefik/dynamic/tls.yml`. Rotate certs by replacing the
+files under `/opt/volumes/traefik/certs/` — Traefik hot-reloads them.
 
-```caddyfile
-app.example.com {
-    reverse_proxy localhost:3000
-}
+The MCP `/mcp` endpoint streams Server-Sent Events. Traefik passes
+SSE through cleanly with its defaults; if you ever put another
+TLS proxy in front (e.g. a cloud load balancer), set long read
+timeouts and disable response buffering on `/mcp` — otherwise
+Claude Desktop sees a stalled stream.
 
-engine.example.com {
-    reverse_proxy localhost:8080
-}
+### Keycloak's TLS
 
-kc.example.com {
-    reverse_proxy localhost:8180
-}
-```
+Keycloak still listens on plain HTTP (`:8180` published to the host)
+and is **not** fronted by this stack's Traefik. Either:
 
-The MCP `/mcp` endpoint streams Server-Sent Events — the nginx config
-inside the frontend image already disables buffering and sets
-`proxy_read_timeout 1d`. Mirror these settings on your host-level TLS
-proxy if it terminates the SSE connection.
+- put your own TLS terminator (Caddy, nginx, cloud LB) in front of
+  `localhost:8180` for the `kc.example.com` hostname, **or**
+- extend this Traefik to route a second hostname (`Host(\`kc.example.com\`)`)
+  to the `keycloak:8080` service. That requires the realm export to
+  carry `KC_PROXY_HEADERS=xforwarded` (already set in the prod
+  overlay) and dropping the `8180:8080` host port mapping.
+
+Keeping Keycloak on its own port is the documented compromise for the
+POC — it avoids re-importing the realm just to move the issuer URL.
+See the project memory note `keycloak-import-realm-only-once`.
 
 ## Day-2 operations
 
@@ -183,6 +238,22 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 docker compose logs -f cib7        # engine
 docker compose logs -f keycloak    # auth
 docker compose logs -f mcp         # AI sidecar
+docker compose logs -f traefik     # ingress (router + cert decisions)
+
+# Traefik also writes structured access + diagnostic logs to the host:
+tail -F /opt/volumes/traefik/logs/access.log
+tail -F /opt/volumes/traefik/logs/traefik.log
+```
+
+**Rotate a TLS certificate.** Replace the files in
+`/opt/volumes/traefik/certs/` (keep the filenames pointed at by
+`dynamic/tls.yml`, or update `tls.yml` to match). Traefik's file
+watcher picks up the change within a few seconds — no `docker compose
+restart` needed. Verify the cert in use:
+
+```bash
+openssl s_client -connect app.example.com:443 -servername app.example.com </dev/null 2>/dev/null \
+  | openssl x509 -noout -subject -dates -fingerprint
 ```
 
 **Re-import a changed realm export.** Keycloak's `--import-realm` runs
@@ -193,9 +264,13 @@ docker compose rm -sf keycloak
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d keycloak
 ```
 
-**Mailpit inbox.** The base compose still publishes Mailpit's UI on
-`:8025` for inspection. If you don't want the public host exposing it,
-add an override in the prod overlay that removes the `ports` mapping.
+**Mailpit inbox.** The base compose keeps Mailpit network-internal —
+the UI is only published when the `dev` profile is active
+(`docker compose --profile dev up -d mailpit-ui`). For production, omit
+the profile and Mailpit stays unreachable from the host. If you need
+the inbox visible on a public hostname, add a Traefik label to the
+`mailpit-ui` service (or to a new dedicated route) with an `auth`
+middleware in front.
 
 ## Production gaps the overlay does not solve
 

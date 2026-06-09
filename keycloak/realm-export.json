@@ -228,14 +228,14 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:8080/login/oauth2/code/keycloak",
-        "http://localhost:8080/camunda/*"
+        "http://localhost:3000/login/oauth2/code/keycloak",
+        "http://localhost:3000/camunda/*"
       ],
       "webOrigins": [
-        "http://localhost:8080"
+        "http://localhost:3000"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:8080/*"
+        "post.logout.redirect.uris": "http://localhost:3000/*"
       },
       "defaultClientScopes": ["cib7-claims"]
     },

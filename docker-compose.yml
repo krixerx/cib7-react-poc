@@ -3,22 +3,75 @@
 #   docker compose up --build
 #
 # Then open http://localhost:3000 and log in with homer / homer.
+#
+# Traefik (service `traefik` below) is the single public ingress on port
+# 3000. Every route into the stack — SPA, /engine-rest, /camunda webapps,
+# /mcp — comes in through it. The engine, MCP, frontend, and Mailpit are
+# network-internal (no published ports). Keycloak stays on :8180 directly
+# to avoid moving the issuer URL baked into JWTs; see KEYCLOAK_ISSUER_URL
+# below and docs/deployment.md for the rationale.
 services:
   mailpit:
     # Mailpit is a tiny SMTP server + web UI for inspecting emails sent by
     # the process. The "Send back" service task and the "Review reminder"
     # timer boundary event both POST to Mailpit's HTTP API via the same
     # cibseven http-connector that already calls api.restful-api.dev — no
-    # extra Maven dependency needed. Open http://localhost:8025 to see the
-    # inbox.
+    # extra Maven dependency needed.
+    #
+    # Web UI is gated behind the `dev` compose profile so a default
+    # `docker compose up` does not publish an unauthenticated inbox on the
+    # host. Hand-testing the inbox:
+    #     docker compose --profile dev up -d mailpit-ui
+    # or open it inside the network from another container.
     image: axllent/mailpit:latest
     container_name: cib7-poc-mailpit
-    ports:
-      - "8025:8025" # Web UI
-      - "1025:1025" # SMTP (unused by the engine, exposed for hand-testing)
+    expose:
+      - "8025" # Web UI (network-internal)
+      - "1025" # SMTP
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
+  mailpit-ui:
+    # Thin sidecar that republishes Mailpit's web UI port to the host, but
+    # ONLY when the `dev` profile is active. Lets us keep the default
+    # `docker compose up` posture closed while preserving one-command
+    # access during development.
+    image: alpine/socat:latest
+    container_name: cib7-poc-mailpit-ui
+    profiles: ["dev"]
+    ports:
+      - "8025:8025"
+    command: ["TCP-LISTEN:8025,fork,reuseaddr", "TCP:mailpit:8025"]
+    depends_on:
+      - mailpit
+
+  traefik:
+    # Single public ingress for the POC. Replaces the old per-service
+    # port mappings (cib7:8080, frontend:3000, mailpit:8025) with one
+    # path-routed front door on :3000. Keycloak stays on :8180 directly
+    # because moving it requires editing realm-export.json and re-importing
+    # the realm (one-shot via --import-realm); see docs/deployment.md.
+    #
+    # Routing is configured per-service via labels (see cib7, mcp, frontend
+    # below) so each service owns its own routes — no central nginx.conf.
+    image: traefik:v3.2
+    container_name: cib7-poc-traefik
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --api.dashboard=true
+      - --api.insecure=true # dashboard auth-free, only safe because :8081 is dev-host only
+    ports:
+      - "3000:80"             # public front door — same port the SPA used to bind directly
+      - "127.0.0.1:8081:8080" # Traefik dashboard at http://localhost:8081/dashboard/ — loopback only
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - cib7
+      - mcp
+      - frontend
 
   gotenberg:
     # Headless Chromium wrapped in a REST API. Used by pdf-renderer to convert
@@ -64,7 +117,9 @@ services:
     container_name: cib7-poc-mcp
     environment:
       # Browser-visible MCP URL. Claude Desktop reaches the sidecar through
-      # nginx on the host (same-origin with the SPA at port 3000).
+      # the Traefik ingress on the host (same-origin with the SPA at port
+      # 3000). Traefik routes /mcp + /.well-known/oauth-protected-resource
+      # to this container via the labels block below.
       MCP_RESOURCE_URL: http://localhost:3000/mcp
       # Browser-visible Keycloak issuer URL. Must match KC_HOSTNAME_URL on
       # the keycloak service so the `iss` claim Claude Desktop sees matches
@@ -86,6 +141,17 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: cib7-backend-secret
     expose:
       - "8090"
+    # MCP serves Streamable HTTP (SSE). Traefik passes SSE through cleanly
+    # by default — no flushInterval tuning needed — but the eng-review
+    # flagged buffering as a critical failure mode (see the previous
+    # nginx.conf comment block). If the dashboard starts showing stalled
+    # connections, set `responseForwarding.flushInterval=1ms` via a custom
+    # middleware here.
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mcp.rule: 'PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`)'
+      traefik.http.routers.mcp.entrypoints: "web"
+      traefik.http.services.mcp.loadbalancer.server.port: "8090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/health > /dev/null || exit 1"]
       interval: 10s
@@ -172,8 +238,27 @@ services:
   cib7:
     build: ./cib7
     container_name: cib7-poc-cib7
-    ports:
-      - "8080:8080" # CIB seven REST API at http://localhost:8080/engine-rest
+    # No published port — the engine is reachable only through Traefik on
+    # :3000. Routes below cover the four engine surfaces:
+    #   /engine-rest  REST API (JWT Bearer, used by the SPA + MCP)
+    #   /api          public owner-confirmation endpoints
+    #   /camunda      legacy Cockpit / Tasklist / Admin webapps
+    #   /oauth2 /login /logout  Spring Security OAuth2 callbacks for /camunda
+    # ForwardedHeaderFilter (WebappSecurityConfig.java) trusts X-Forwarded-*
+    # so the OAuth2 redirect URI it generates is http://localhost:3000/...
+    # — that URL is whitelisted on the cib7-webapps Keycloak client.
+    expose:
+      - "8080"
+    # Labels in map form (not list) so docker-compose.prod.yml can override
+    # individual keys (entrypoints → websecure, add tls=true) without
+    # restating the rule or services.*.loadbalancer.* keys. Compose merges
+    # label maps by key; a list-of-strings would force `labels: !override`
+    # with full duplication of every label.
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/engine-rest`) || PathPrefix(`/api`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
+      traefik.http.routers.cib7-engine.entrypoints: "web"
+      traefik.http.services.cib7-engine.loadbalancer.server.port: "8080"
     environment:
       # Two URLs intentionally, because they serve different roles:
       #
@@ -221,8 +306,18 @@ services:
   frontend:
     build: ./frontend
     container_name: cib7-poc-frontend
-    ports:
-      - "3000:80" # React app at http://localhost:3000
+    # No published port — reached through Traefik on :3000. The catch-all
+    # route below has the lowest priority so /engine-rest, /api, /camunda,
+    # /oauth2, /login, /logout, /mcp, /.well-known/oauth-protected-resource
+    # win over `/` and reach their respective backends.
+    expose:
+      - "80"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.frontend.rule: "PathPrefix(`/`)"
+      traefik.http.routers.frontend.entrypoints: "web"
+      traefik.http.routers.frontend.priority: "1"
+      traefik.http.services.frontend.loadbalancer.server.port: "80"
     # Keycloak URL/realm/client-id are baked into the SPA at build time
     # (frontend/src/auth/keycloak.ts reads VITE_KEYCLOAK_* with defaults
     # of http://localhost:8180 / cib7-poc / cib7-frontend). To override

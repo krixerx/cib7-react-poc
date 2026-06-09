@@ -462,7 +462,13 @@ docker build -t cib7-poc-cib7 cib7/
 
 The engine listens on `http://localhost:8080/engine-rest` and the
 CIB seven webapps (Cockpit / Tasklist / Admin) on
-`http://localhost:8080/camunda`. The webapp starter
+`http://localhost:8080/camunda` when run standalone (`mvn spring-boot:run`
+or the bare jar). Under `docker compose up` the engine container no longer
+publishes 8080 to the host — Traefik fronts it on `:3000`, so the same
+URLs become `http://localhost:3000/engine-rest` and
+`http://localhost:3000/camunda`. `ForwardedHeaderFilter` in
+`WebappSecurityConfig` honors X-Forwarded-* so the OAuth2 redirect URI
+the engine generates uses the public host. The webapp starter
 (`cibseven-bpm-spring-boot-starter-webapp`) transitively brings the REST
 starter.
 
@@ -479,7 +485,8 @@ cibseven-keycloak plugin's `sso-kubernetes` example, repackaged:
 
 The Keycloak side is the `cib7-webapps` client in
 `keycloak/realm-export.json` (confidential, standard flow,
-`http://localhost:8080/login/oauth2/code/keycloak` redirect URI).
+`http://localhost:3000/login/oauth2/code/keycloak` redirect URI —
+behind the Traefik ingress, same origin as the SPA).
 
 The OAuth2 client config in `application.yaml` deliberately **omits**
 `spring.security.oauth2.client.provider.keycloak.issuer-uri` and lists every

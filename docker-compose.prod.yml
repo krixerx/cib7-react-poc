@@ -38,6 +38,13 @@ services:
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
       # Browser-visible SPA URL embedded in confirmation email links.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
+    # Override the two router keys that change for TLS-terminated prod:
+    # entrypoints flips from `web` → `websecure`, and tls=true tells the
+    # router to require a TLS connection. All other labels (the rule and
+    # the loadbalancer port) are inherited from the base file unchanged.
+    labels:
+      traefik.http.routers.cib7-engine.entrypoints: "websecure"
+      traefik.http.routers.cib7-engine.tls: "true"
     restart: unless-stopped
 
   frontend:
@@ -49,6 +56,9 @@ services:
         VITE_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
         VITE_KEYCLOAK_REALM: cib7-poc
         VITE_KEYCLOAK_CLIENT_ID: cib7-frontend
+    labels:
+      traefik.http.routers.frontend.entrypoints: "websecure"
+      traefik.http.routers.frontend.tls: "true"
     restart: unless-stopped
 
   mcp:
@@ -59,6 +69,9 @@ services:
       MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-${PUBLIC_FRONTEND_URL}/mcp}
       KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+    labels:
+      traefik.http.routers.mcp.entrypoints: "websecure"
+      traefik.http.routers.mcp.tls: "true"
     restart: unless-stopped
 
   pdf-renderer:
@@ -69,6 +82,59 @@ services:
 
   mailpit:
     restart: unless-stopped
+
+  traefik:
+    restart: unless-stopped
+    # Production Traefik: terminates TLS itself, no host-level Caddy/nginx
+    # in front. Two entrypoints — `web` on :80 redirects to `websecure` on
+    # :443, which serves the certs declared in
+    # /opt/volumes/traefik/dynamic/tls.yml. Dashboard off. Per-service
+    # router labels point at `websecure` (see cib7/mcp/frontend overrides
+    # above).
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      # Hot-reloaded dynamic config (TLS certs, options, middlewares).
+      # Anything that needs to change without a container restart goes
+      # under /opt/volumes/traefik/dynamic/. See traefik/dynamic/ in the
+      # repo for the template.
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      # :80 exists only to redirect to :443. The redirect is configured
+      # at the entrypoint level (not as a per-router middleware) so it
+      # catches everything — including paths that don't match any router.
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.web.http.redirections.entryPoint.permanent=true
+      # :443 is where the real traffic lives. Certs come from the
+      # file-provider dynamic config; no certResolver because we use
+      # static (admin-supplied) certs, not ACME.
+      - --entrypoints.websecure.address=:443
+      # Operational log streams. Mounted out to /opt/volumes/traefik/logs
+      # so they survive container recreation and can be tailed by the
+      # host's log pipeline.
+      - --accesslog=true
+      - --accesslog.filepath=/logs/access.log
+      - --log.filepath=/logs/traefik.log
+      - --api.dashboard=false
+    ports: !override
+      # Replace the base file's 3000:80 + 127.0.0.1:8081:8080. In prod the
+      # only published ports are 80 (HTTP→HTTPS redirect) and 443 (TLS).
+      - "80:80"
+      - "443:443"
+    volumes:
+      # /opt/volumes/traefik/ layout — created and populated by the
+      # deployment host operator (see docs/deployment.md and
+      # traefik/dynamic/README.md):
+      #   acme/      — reserved for future ACME use (currently unused, static certs only)
+      #   certs/     — *.crt and *.key files, read-only into the container
+      #   dynamic/   — tls.yml + any future middlewares.yml, hot-reloaded
+      #   logs/      — access.log + traefik.log
+      - /opt/volumes/traefik/certs:/certs:ro
+      - /opt/volumes/traefik/dynamic:/etc/traefik/dynamic:ro
+      - /opt/volumes/traefik/logs:/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   # The seed-history one-shot pre-populates Bart's process history for the
   # demo. Disable in production by overriding the entrypoint to a no-op so

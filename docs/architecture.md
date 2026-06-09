@@ -95,8 +95,9 @@ Seven runtime pieces:
 |---|---|---|---|
 | React SPA | React 18 + TypeScript + Vite + React Router 6 | `frontend/` | Services / Tasks / TaskDetail pages, hand-written forms |
 | SPA auth client | `keycloak-js` | `frontend/src/auth/` | OIDC PKCE login + token refresh; gates every route |
-| HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA, proxies `/engine-rest/` to the backend container |
-| Dev server | Vite | `frontend/vite.config.ts` | Serves SPA in dev, proxies `/engine-rest` to `localhost:8080` |
+| Ingress (prod compose) | Traefik v3.2 | `docker-compose.yml` (`traefik` service) | Single public front door on `:3000`; path-routes `/engine-rest`, `/api`, `/camunda`, `/oauth2`, `/login`, `/logout` → cib7; `/mcp`, `/.well-known/oauth-protected-resource` → mcp; everything else → frontend. The engine, MCP, frontend, and Mailpit are network-internal — only Traefik and Keycloak publish host ports. |
+| HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA. Cross-service routing has moved to Traefik; this nginx only does the SPA fallback (`try_files $uri /index.html`). |
+| Dev server | Vite | `frontend/vite.config.ts` | Serves SPA in dev, proxies `/engine-rest` to `localhost:8080`. (Vite-dev does not use Traefik; the engine still binds 8080 when run via `mvn spring-boot:run`.) |
 | Engine app | Spring Boot 3.5, CIB seven 2.1 starter | `cib7/` | Embedded engine + REST API |
 | Process engine | CIB seven 2.1 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | wired in `ConnectorConfiguration.java` | Enables `<camunda:connector>` service tasks |
@@ -113,7 +114,7 @@ Seven runtime pieces:
 | Per-service MCP manifests | `docs/business/services/<svc>/build/mcp-service.json` (generated) | `/service-builder` skill | Variable schemas + audience metadata; loaded by the MCP sidecar at startup |
 | Aggregated MCP index | `docs/business/services/build/services.json` (generated) | `/service-builder` skill | Top-level catalog of MCP-callable services |
 | Seed history (one-shot) | `cib7/scripts/seed-history.sh` + `seed-history` compose service | local module | Alpine + curl + jq; ROPCs as `bart` via the dedicated `cib7-seed` Keycloak client and starts + completes one `personRegistration` + one `businessRegistration` so `query_user_history` returns autofill values on a cold start. Runs once per `docker compose up`; re-run after `docker compose restart cib7` via `docker compose start seed-history`. Goes away when H2 is replaced with Postgres (TODOS.md T1). |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Eight services: `keycloak`, `cib7`, `frontend`, `mailpit`, `gotenberg`, `pdf-renderer`, `mcp`, `seed-history` |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Nine services + ingress: `traefik`, `keycloak`, `cib7`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `mcp`, `seed-history` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
@@ -159,7 +160,7 @@ The full REST surface used by the SPA is listed in
 
 | Environment | SPA origin | Backend | Keycloak | How `/engine-rest` reaches backend |
 |---|---|---|---|---|
-| Docker (`docker compose up`) | `http://localhost:3000` (nginx) | `http://localhost:8080` (exposed) | `http://localhost:8180` (exposed) | nginx `location /engine-rest/ { proxy_pass http://cib7:8080; }` |
+| Docker (`docker compose up`) | `http://localhost:3000` (Traefik) | network-internal (Traefik routes `/engine-rest`, `/api`, `/camunda`, `/oauth2`, `/login`, `/logout` to `cib7:8080`) | `http://localhost:8180` (exposed) | Traefik label on the `cib7` service: `PathPrefix("/engine-rest") || …` → `cib7-engine` loadbalancer on `8080` |
 | Local dev | `http://localhost:5173` (Vite) | `http://localhost:8080` (`mvn spring-boot:run`) | `http://localhost:8180` (run Keycloak separately or via `docker compose up keycloak`) | Vite `server.proxy['/engine-rest']` → `http://localhost:8080` |
 
 The SPA **always uses the same-origin path** `/engine-rest/...`. That removes

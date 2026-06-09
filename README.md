@@ -21,14 +21,22 @@ see [Deviations from the spec](#deviations-from-the-spec) below.
 | **React SPA** (PartA & PartB) | <http://localhost:3000> | `bart` / `homer` | same as username |
 | &nbsp;&nbsp;↳ PartA — applicant | | `bart` | `bart` |
 | &nbsp;&nbsp;↳ PartB — civil servant | | `homer` | `homer` |
-| **CIB seven Admin** (users, groups, authorizations) | <http://localhost:8080/camunda/app/admin/> | `admin` | `admin` |
-| **CIB seven Cockpit** (process instances, incidents) | <http://localhost:8080/camunda/app/cockpit/> | `admin` | `admin` |
-| **CIB seven Tasklist** (legacy task UI) | <http://localhost:8080/camunda/app/tasklist/> | `admin` | `admin` |
-| **CIB seven REST API** | <http://localhost:8080/engine-rest> | Bearer JWT from Keycloak | — |
-| **Mailpit inbox** (process-sent emails) | <http://localhost:8025> | — | — |
+| **CIB seven Admin** (users, groups, authorizations) | <http://localhost:3000/camunda/app/admin/> | `admin` | `admin` |
+| **CIB seven Cockpit** (process instances, incidents) | <http://localhost:3000/camunda/app/cockpit/> | `admin` | `admin` |
+| **CIB seven Tasklist** (legacy task UI) | <http://localhost:3000/camunda/app/tasklist/> | `admin` | `admin` |
+| **CIB seven REST API** | <http://localhost:3000/engine-rest> | Bearer JWT from Keycloak | — |
+| **Mailpit inbox** (process-sent emails) | <http://localhost:8025> (needs `docker compose --profile dev up -d mailpit-ui`) | — | — |
 | **Keycloak admin console** (realm / users / clients) | <http://localhost:8180/admin/> | `admin` | `admin` |
+| **Traefik dashboard** (inspect ingress routes) | <http://localhost:8081/dashboard/> | — | — |
 | **MCP endpoint** (Claude Desktop, Cursor, Codex, …) | <http://localhost:3000/mcp> | OAuth2 PKCE via Keycloak | (browser pops, log in as `bart` / `homer`) |
 | &nbsp;&nbsp;↳ OAuth resource metadata | <http://localhost:3000/.well-known/oauth-protected-resource> | — | — |
+
+Everything except Keycloak comes in through a single Traefik ingress on port
+3000. The engine container's 8080, the MCP container's 8090, the frontend's
+80, and Mailpit's 8025/1025 are no longer published to the host — they are
+reachable only via the path-routed front door (or, for Mailpit's web UI,
+the opt-in `dev` profile). Keycloak stays on its own port to avoid moving
+the issuer URL stamped into existing JWTs.
 
 Role notes:
 
@@ -512,8 +520,10 @@ happy path and at least one edge case through the SPA:
 2. **PartB — pick up the task as `homer`**, exercise every gateway branch
    (approve, send-back, timer-driven side effects, …).
 3. Check **Mailpit** at <http://localhost:8025> for any notification
-   emails the flow emits.
-4. Check **Cockpit** at <http://localhost:8080/camunda/app/cockpit/> for
+   emails the flow emits (requires `docker compose --profile dev up -d
+   mailpit-ui` once per session — the default profile keeps the inbox
+   network-internal).
+4. Check **Cockpit** at <http://localhost:3000/camunda/app/cockpit/> for
    incidents; an incident means the engine hit something the spec didn't
    cover — fix the spec, re-run the builder, redeploy.
 
@@ -658,7 +668,10 @@ as a Spring bean, driven by the `MAIL_API_URL` env var
 
 [Mailpit](https://mailpit.axllent.org/) (`axllent/mailpit:latest`) is a tiny
 SMTP server + web UI; the inbox at <http://localhost:8025> visualizes every
-email the process sends.
+email the process sends. The default `docker compose up` keeps Mailpit
+network-internal — bring the inbox online with `docker compose --profile
+dev up -d mailpit-ui`, which spins up a socat sidecar that publishes
+:8025 to the host on demand.
 
 ## PDF generation (Gotenberg + pdf-renderer)
 
@@ -706,8 +719,10 @@ spring.security.oauth2.client.provider.keycloak:
   user-info-uri:     http://keycloak:8080/...   # backend
 ```
 
-Log in at <http://localhost:8080/camunda> as `homer` / `homer` for the admin
-view, or `bart` / `bart` for the applicant view.
+Log in at <http://localhost:3000/camunda> as `admin` / `admin` for the
+Cockpit / Tasklist / Admin webapps (the `/cib7-admin` group is the one
+authorized for those webapps; `homer` and `bart` are intentionally
+locked out).
 
 ## REST endpoints used
 
