@@ -47,7 +47,16 @@
       "formKey": "personal-details",
       "name": "Submit personal details",
       "audience": "applicant",
-      "description": "The applicant confirms (or corrects) their personal details and product choice. This is the same shape as the start variables — when start_process pre-fills them, completing this task with the identical values just advances the process.",
+      "description": "The applicant confirms (or corrects) their personal details, product choice, and uploads a copy of their ID document. Call upload_document FIRST to stage the ID file, then pass the returned object as `pendingIdDocument` here. If start_process pre-filled the names/age/objectId, the LLM only needs to gather the document and call complete_task.",
+      "requiredDocuments": [
+        {
+          "category": "applicant-id-document",
+          "writeTo": "pendingIdDocument",
+          "accept": ["application/pdf", "image/jpeg", "image/png"],
+          "maxBytes": 10485760,
+          "description": "Copy of the applicant's national ID card or passport. The civil servant will download this during review."
+        }
+      ],
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -74,9 +83,45 @@
             "type": "string",
             "minLength": 1,
             "description": "Product ID from the public catalogue."
+          },
+          "applicantEmail": {
+            "type": "string",
+            "description": "Optional. Required only if the applicant lists additional co-owners (so they can receive a tracking link). Leave empty otherwise.",
+            "default": ""
+          },
+          "additionalOwners": {
+            "type": "array",
+            "description": "Optional list of co-owners that must sign before the case reaches the back office. Leave empty unless the applicant explicitly asks for it. Note: the co-owner sign-off flow uses applicantEmail + per-owner tracking links and is best driven from the web portal — MCP does not surface the sign-off receive task today.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "email": { "type": "string", "format": "email" }
+              },
+              "required": ["name", "email"],
+              "additionalProperties": false
+            },
+            "default": []
+          },
+          "pendingIdDocument": {
+            "type": "object",
+            "description": "Reference to an ID document staged via the upload_document tool. Required. Shape exactly matches the upload_document response.",
+            "properties": {
+              "pendingKey": {
+                "type": "string",
+                "description": "Returned by upload_document. Looks like `pending/<user>/<uuid>/<filename>`."
+              },
+              "filename": { "type": "string", "minLength": 1 },
+              "contentType": {
+                "type": "string",
+                "enum": ["application/pdf", "image/jpeg", "image/png"]
+              }
+            },
+            "required": ["pendingKey", "filename", "contentType"],
+            "additionalProperties": false
           }
         },
-        "required": ["firstName", "lastName", "age", "objectId"],
+        "required": ["firstName", "lastName", "age", "objectId", "pendingIdDocument"],
         "additionalProperties": false
       }
     },

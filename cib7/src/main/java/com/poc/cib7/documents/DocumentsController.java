@@ -152,6 +152,63 @@ public class DocumentsController {
                 PUT_TTL.toSeconds()));
     }
 
+    /**
+     * MCP-friendly "server-side staging" endpoint. The SPA uses
+     * {@link #mintUploadUrl(UploadUrlRequest)} + a direct presigned PUT so it
+     * can render an upload progress bar; that flow does not work for the MCP
+     * sidecar because the presigned URL is anchored to {@code S3_PUBLIC_ENDPOINT}
+     * (which resolves to the host's {@code localhost:9000} — unreachable from
+     * inside the MCP container).
+     *
+     * <p>This endpoint accepts {@code { category, filename, contentType, base64 }}
+     * directly, decodes the base64 server-side, writes the bytes to the
+     * {@code pending/} prefix, and returns the resulting {@code pendingKey}.
+     * The caller (an MCP tool, typically) then passes
+     * {@code { pendingKey, filename, contentType }} into
+     * {@code complete_task} as the value of {@code pendingIdDocument}; the
+     * BPMN's existing {@code Task_AttachIdDocument} step picks it up and
+     * promotes the object to {@code process/} scope with an engine Attachment.
+     *
+     * <p>JWT-authed via the order(4) chain, same as {@code /upload-url}.
+     */
+    @PostMapping("/stage")
+    public ResponseEntity<?> stagePending(@RequestBody StagePendingRequest req) {
+        if (req == null || req.filename() == null || req.contentType() == null
+                || req.category() == null || req.base64() == null) {
+            return badRequest("filename, contentType, category, and base64 are required.");
+        }
+        if (!ALLOWED_CONTENT_TYPES.contains(req.contentType())) {
+            return badRequest("contentType must be one of " + ALLOWED_CONTENT_TYPES);
+        }
+        if (!ALLOWED_CATEGORIES.contains(req.category())) {
+            return badRequest("category must be one of " + ALLOWED_CATEGORIES);
+        }
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(req.base64());
+        } catch (IllegalArgumentException e) {
+            return badRequest("base64 was not decodable.");
+        }
+        if (bytes.length == 0 || bytes.length > props.getMaxBytes()) {
+            return badRequest("decoded size must be between 1 and "
+                    + props.getMaxBytes() + " bytes.");
+        }
+        String userId = currentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("no_user", "No authenticated user."));
+        }
+        String key = "pending/" + userId + "/" + UUID.randomUUID() + "/" + safeFilename(req.filename());
+        s3.putObject(PutObjectRequest.builder()
+                .bucket(props.getBucket())
+                .key(key)
+                .contentType(req.contentType())
+                .contentLength((long) bytes.length)
+                .build(),
+                software.amazon.awssdk.core.sync.RequestBody.fromBytes(bytes));
+        return ResponseEntity.ok(new StagePendingResponse(key, req.filename(), req.contentType()));
+    }
+
     @PostMapping("/{processInstanceId}/attachments")
     public ResponseEntity<?> registerAttachment(@PathVariable String processInstanceId,
                                                 @RequestBody AttachmentRegisterRequest req) {
@@ -379,6 +436,11 @@ public class DocumentsController {
 
     public record ServerUploadRequest(String processInstanceId, String filename,
                                        String contentType, String category, String base64) {}
+
+    public record StagePendingRequest(String filename, String contentType,
+                                       String category, String base64) {}
+
+    public record StagePendingResponse(String pendingKey, String filename, String contentType) {}
 
     public record ErrorResponse(String code, String message) {}
 }

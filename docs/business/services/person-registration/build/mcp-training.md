@@ -22,9 +22,29 @@ application auto-approves or routes to manual review.
 Do NOT include `initiator` in your start_process call. The engine writes that
 from the authenticated Keycloak user automatically.
 
+## ID document — required before completing the first task
+
+After `start_process` lands, the engine creates a **Submit personal details**
+user task. That task requires the applicant to attach a copy of their
+national ID card or passport (PDF, JPEG, or PNG, ≤10 MB). The flow is:
+
+1. Ask the user to attach a copy of their ID document to the chat.
+2. Call `upload_document` with:
+   - `category: "applicant-id-document"`
+   - `filename`, `contentType`, `base64` from the attachment.
+3. The tool returns `{ pendingKey, filename, contentType }`. Keep that object.
+4. Call `complete_task` with the task id and variables including
+   `pendingIdDocument` set to the object you just got back. That's the value
+   of the task's `requiredDocuments[0].writeTo` — `get_form_schema` lists it
+   explicitly.
+
+If you skip the upload and try to complete the task without
+`pendingIdDocument`, the MCP server short-circuits with a `DOCUMENT_REQUIRED`
+error pointing you back here — there is no way around the document.
+
 ## Auto-approval rule
 
-The auto-approval DMN evaluates:
+Once the case clears the personal-details task, the auto-approval DMN evaluates:
 
 - age ≥ 18 AND price < 100 → autoDecision = "approve" → process ends, applicant
   notified by email.
@@ -36,20 +56,13 @@ you cannot predict approval status from the start_process input alone. Tell the
 user the application is being processed and check status with list_my_processes
 when they ask.
 
-## After start_process
+## Co-owners are portal-only
 
-The engine creates a "Submit personal details" user task assigned to the
-applicant (the authenticated user). The variables you passed at start time are
-pre-filled on the task.
-
-In the current POC, the applicant confirms the pre-filled form via the React
-portal at http://localhost:3000. Once complete_task is wired into MCP (eng-
-review task T9), you'll be able to finish the task directly without sending
-the user to the portal.
-
-If the civil servant sends the case back with a reason, the applicant returns
-to the same task to correct and resubmit. The send-back reason is available
-via query_user_history (once that tool lands).
+The applicant form supports listing additional co-owners that have to sign off
+before the case reaches the back office. The sign-off loop relies on emailed
+links and a Camunda message correlation that MCP does not surface yet. If a
+user wants to use that flow, point them at the web portal at
+http://localhost:3000. Plain solo applications work entirely via MCP.
 
 ## Status interpretation
 

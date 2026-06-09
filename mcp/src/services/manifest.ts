@@ -22,12 +22,27 @@ import addFormats from 'ajv-formats'
 const SERVICES_SPEC_DIR =
   process.env.SERVICES_SPEC_DIR ?? '/app/services-spec'
 
+export interface RequiredDocumentDescriptor {
+  /** Document category — must match an ALLOWED_CATEGORIES entry on the engine side. */
+  category: string
+  /** The task-variable name where the LLM passes the upload_document response. */
+  writeTo: string
+  /** Whitelisted MIME types. */
+  accept?: string[]
+  /** Max decoded byte size. */
+  maxBytes?: number
+  /** Human-readable explanation surfaced to the LLM via get_form_schema. */
+  description?: string
+}
+
 export interface UserTaskDescriptor {
   formKey: string
   name?: string
   audience?: string
   description?: string
   schema: Record<string, unknown>
+  /** Documents that must be uploaded (via upload_document) before complete_task. */
+  requiredDocuments?: RequiredDocumentDescriptor[]
 }
 
 export interface ServiceManifest {

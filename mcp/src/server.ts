@@ -427,6 +427,54 @@ async function handleGetFormSchema(args: unknown): Promise<ToolResult> {
     audience: hit.task.descriptor.audience,
     description: hit.task.descriptor.description,
     schema: hit.task.descriptor.schema,
+    requiredDocuments: hit.task.descriptor.requiredDocuments ?? [],
+  })
+}
+
+async function handleUploadDocument(args: unknown): Promise<ToolResult> {
+  const a = (args ?? {}) as {
+    category?: string
+    filename?: string
+    contentType?: string
+    base64?: string
+  }
+  const missing = (['category', 'filename', 'contentType', 'base64'] as const).filter(
+    (k) => !a[k] || typeof a[k] !== 'string' || !(a[k] as string).trim(),
+  )
+  if (missing.length > 0) {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_ARGUMENT',
+        message: `Missing required fields: ${missing.join(', ')}.`,
+      },
+      true,
+    )
+  }
+
+  const result = await engineRequest<{
+    pendingKey: string
+    filename: string
+    contentType: string
+  }>('/api/documents/stage', {
+    bearer: currentBearer(),
+    method: 'POST',
+    body: {
+      category: a.category,
+      filename: a.filename,
+      contentType: a.contentType,
+      base64: a.base64,
+    },
+  })
+  if (!result.ok) return engineErrorResult(result)
+
+  return textResult({
+    ok: true,
+    pendingKey: result.data?.pendingKey,
+    filename: result.data?.filename,
+    contentType: result.data?.contentType,
+    nextStep:
+      'Pass this whole object verbatim as `pendingIdDocument` (or whatever `writeTo` field the task\'s requiredDocuments entry names) when you call complete_task.',
   })
 }
 
@@ -467,7 +515,20 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
     )
   }
 
-  const validated = validateTaskVariables(formKey, a.variables)
+  // Backfill BPMN-required reset variables that the React form always writes
+  // but the LLM shouldn't have to think about. Keeps the manifest schema
+  // small and the LLM-facing tool ergonomic.
+  //
+  // - additionalOwners: the gateway right after personal-details evaluates
+  //   `additionalOwners == null || additionalOwners.elements().isEmpty()`,
+  //   which throws PropertyNotFoundException if the variable is missing
+  //   entirely. Default to [] so the empty-owners branch is taken.
+  const withDefaults = { ...a.variables } as Record<string, unknown>
+  if (formKey === 'personal-details' && withDefaults['additionalOwners'] === undefined) {
+    withDefaults['additionalOwners'] = []
+  }
+
+  const validated = validateTaskVariables(formKey, withDefaults)
   if (!validated.ok) {
     return textResult(
       {
@@ -475,6 +536,31 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
         code: 'INVALID_VARIABLES',
         message: `Variables for task with formKey "${formKey}" failed schema validation.`,
         issues: validated.issues,
+      },
+      true,
+    )
+  }
+
+  // Cross-check required documents against the variables, ahead of any
+  // engine call. The schema may already require the `writeTo` field, but
+  // returning a document-shaped error here gives the LLM an explicit
+  // pointer at upload_document instead of a generic schema failure.
+  const docs = validated.task.descriptor.requiredDocuments ?? []
+  const missingDocs = docs.filter((d) => {
+    const v = (validated.data as Record<string, unknown>)[d.writeTo]
+    if (!v || typeof v !== 'object') return true
+    const pendingKey = (v as { pendingKey?: unknown }).pendingKey
+    return typeof pendingKey !== 'string' || !pendingKey
+  })
+  if (missingDocs.length > 0) {
+    return textResult(
+      {
+        ok: false,
+        code: 'DOCUMENT_REQUIRED',
+        message:
+          `Task "${formKey}" requires document${missingDocs.length > 1 ? 's' : ''} that have not been uploaded. ` +
+          'For each missing entry below, call upload_document with the listed category, then pass the response object verbatim as the variable named in `writeTo` when you call complete_task again.',
+        missingDocuments: missingDocs,
       },
       true,
     )
@@ -896,6 +982,36 @@ function createMcpServer(): Server {
       },
     },
     {
+      name: 'upload_document',
+      description:
+        'Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine\'s pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task\'s requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for personRegistration\'s personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          category: {
+            type: 'string',
+            description:
+              'Document category. Must match the requiredDocuments entry, e.g. "applicant-id-document".',
+          },
+          filename: {
+            type: 'string',
+            description: 'Original filename including extension, e.g. "id-card.pdf".',
+          },
+          contentType: {
+            type: 'string',
+            description: 'MIME type. One of application/pdf, image/jpeg, image/png.',
+          },
+          base64: {
+            type: 'string',
+            description:
+              'Base64-encoded file contents (no data: prefix, no line breaks). Claude can extract this from a PDF / image the user has attached in chat.',
+          },
+        },
+        required: ['category', 'filename', 'contentType', 'base64'],
+        additionalProperties: false,
+      },
+    },
+    {
       name: 'list_my_processes',
       description:
         'List process instances started by the authenticated user, newest first. Each entry includes its key, name, start/end timestamps, and state (ACTIVE, COMPLETED, INTERNALLY_TERMINATED, etc.). Use to report status when the user asks "where is my registration?". Pass an optional processInstanceId to retrieve a single instance.',
@@ -971,6 +1087,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       return handleGetFormSchema(req.params.arguments)
     case 'complete_task':
       return handleCompleteTask(req.params.arguments)
+    case 'upload_document':
+      return handleUploadDocument(req.params.arguments)
     case 'list_my_processes':
       return handleListMyProcesses(req.params.arguments)
     case 'query_user_history':
