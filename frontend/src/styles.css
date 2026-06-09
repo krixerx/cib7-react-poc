@@ -108,6 +108,27 @@ body {
   color: var(--primary);
 }
 
+/* Small inline count next to a nav label, e.g. "My processes (3)". Uses
+   primary-ish tint so it reads as part of the link, not a notification dot. */
+.nav-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #e0e7ff;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  vertical-align: middle;
+  min-width: 18px;
+  text-align: center;
+}
+
+.app-nav a.active .nav-badge {
+  background: #c7d2fe;
+}
+
 .app-main {
   flex: 1;
   display: flex;
@@ -1474,4 +1495,180 @@ code {
 
 .worklist-empty-state {
   text-align: center;
+}
+
+/* --- FileUpload component ------------------------------- */
+
+.file-upload-wrap {
+  margin-top: 4px;
+}
+
+.file-upload-zone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+  background: #fafbfc;
+}
+
+.file-upload-zone:hover,
+.file-upload-zone:focus-visible {
+  border-color: #6366f1;
+  background: #f5f7ff;
+  outline: none;
+}
+
+.file-upload-zone-active {
+  border-color: #4f46e5;
+  background: #eef0ff;
+}
+
+.file-upload-zone-disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.file-upload-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+}
+
+.file-upload-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.file-upload-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-upload-progress {
+  width: 100%;
+  max-width: 320px;
+  height: 6px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.file-upload-progress-bar {
+  height: 100%;
+  background: #4f46e5;
+  transition: width 120ms ease;
+}
+
+.file-upload-attached {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+}
+
+.file-upload-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-upload-chip-name {
+  font-weight: 600;
+  color: #14532d;
+}
+
+.file-upload-chip-size {
+  font-size: 12px;
+  color: #15803d;
+}
+
+.file-upload-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* --- DocumentsCard --------------------------------------- */
+
+.documents-card {
+  margin-top: 16px;
+}
+
+.documents-card-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.documents-card-section:first-of-type {
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.documents-card-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #6b7280;
+  text-transform: uppercase;
+  margin: 0 0 10px 0;
+}
+
+.documents-card-empty {
+  color: #9ca3af;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+}
+
+.document-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.document-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.document-row-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.document-row-name {
+  font-weight: 500;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-row-category {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: 2px;
 }

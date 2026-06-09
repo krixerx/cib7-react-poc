@@ -75,6 +75,32 @@ app:
     # can't reach localhost:8180.
     jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
     user-name-attribute: preferred_username
+  # RustFS / S3 storage settings — consumed by S3Configuration to produce
+  # the S3Client (internal) and S3Presigner (public). Same internal/external
+  # URL split as Keycloak: the backend talks to the docker-network alias,
+  # presigned URLs handed to the browser are signed against the host-visible
+  # endpoint so the browser can reach them directly.
+  s3:
+    endpoint:         ${S3_ENDPOINT:http://localhost:9000}
+    public-endpoint:  ${S3_PUBLIC_ENDPOINT:http://localhost:9000}
+    bucket:           ${S3_BUCKET:cib7-documents}
+    access-key:       ${S3_ACCESS_KEY:cib7admin}
+    secret-key:       ${S3_SECRET_KEY:cib7admin-secret-change-me}
+    region:           ${S3_REGION:us-east-1}
+    # Maximum object size accepted by the upload-url endpoint, enforced
+    # via signed PUT headers so the browser can't smuggle a larger blob.
+    # 10 MiB matches the SPA-side cap.
+    max-bytes:        10485760
+    # CORS origin allowed on the bucket. Set to the SPA origin so the
+    # browser's preflight on PUT lets the request through. In dev this
+    # is the Traefik front-door; in prod, ${PUBLIC_FRONTEND_URL}.
+    cors-allowed-origin: ${FRONTEND_BASE_URL:http://localhost:3000}
+  # Shared secret for engine→backend calls from BPMN service tasks
+  # (move-pending + server-upload). DocumentsApiSecurityConfig matches
+  # incoming X-Internal-Token header against this value.
+  internal-task-token: ${INTERNAL_TASK_TOKEN:internal-task-token-change-me}
+  # Backend's own loopback URL as seen by BPMN http-connector tasks.
+  base-url: ${API_BASE_URL:http://localhost:8080}
 
 camunda.bpm:
   # Auto-deploy every BPMN and DMN file found on the classpath on startup.

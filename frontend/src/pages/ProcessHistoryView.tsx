@@ -11,6 +11,7 @@ import {
 } from '../api/camundaClient';
 import { parseActivityNames, parseUserTasks } from '../api/bpmn';
 import { formRegistry, parseFormId } from '../forms/registry';
+import DocumentsCard from '../components/DocumentsCard';
 
 /**
  * Read-only view of a process instance. Loads the historic variables and
@@ -134,30 +135,33 @@ export default function ProcessHistoryView({
     : state.pi.endTime!;
 
   return (
-    <div className="card">
-      <div className="card-head">
-        <h1 className="card-title">{state.lastTask.name}</h1>
-        {topSlot}
-      </div>
-      <p className="muted">
-        {isInFlight ? 'Submitted' : 'Completed'} {new Date(stampDate).toLocaleString()} ·{' '}
-        <strong>{state.outcome}</strong>
-      </p>
-
-      {Form ? (
-        <Form
-          task={stubTask}
-          data={state.data}
-          onComplete={() => Promise.resolve()}
-          submitting={false}
-          readOnly
-        />
-      ) : (
-        <p className="form-error">
-          No React form is registered for formKey{' '}
-          <code>{state.formKey ?? '(none)'}</code>.
+    <>
+      <div className="card">
+        <div className="card-head">
+          <h1 className="card-title">{state.lastTask.name}</h1>
+          {topSlot}
+        </div>
+        <p className="muted">
+          {isInFlight ? 'Submitted' : 'Completed'} {new Date(stampDate).toLocaleString()} ·{' '}
+          <strong>{state.outcome}</strong>
         </p>
-      )}
-    </div>
+
+        {Form ? (
+          <Form
+            task={stubTask}
+            data={state.data}
+            onComplete={() => Promise.resolve()}
+            submitting={false}
+            readOnly
+          />
+        ) : (
+          <p className="form-error">
+            No React form is registered for formKey{' '}
+            <code>{state.formKey ?? '(none)'}</code>.
+          </p>
+        )}
+      </div>
+      <DocumentsCard processInstanceId={state.pi.id} />
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import type { FormProps } from '../types';
 import { listPricedObjects, type PricedObject } from '../../api/objectsApi';
+import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
 
 /**
  * Applicant form (PartA) — collects personal details, the chosen product,
@@ -36,6 +37,25 @@ export default function PersonalDetailsForm({
   const [additionalOwners, setAdditionalOwners] = useState<Array<{ name: string; email: string }>>(
     () => parseAdditionalOwners(data.additionalOwners),
   );
+
+  // ID document state. On the first submit this is always a fresh pending
+  // upload. On a resubmit after sendback, data.idDocumentAttachmentId is
+  // already populated by the previous round of Task_AttachIdDocument — we
+  // surface it as a ready-to-download chip rather than asking the applicant
+  // to re-upload. The contentType/size are best-effort fallbacks since they
+  // weren't preserved as process variables on the original round.
+  const [idDocument, setIdDocument] = useState<FileUploadValue | null>(() => {
+    const attachmentId = data.idDocumentAttachmentId;
+    if (typeof attachmentId === 'string' && attachmentId.length > 0) {
+      return {
+        attachmentId,
+        filename: 'ID document',
+        contentType: 'application/octet-stream',
+        size: 0,
+      };
+    }
+    return null;
+  });
 
   const [products, setProducts] = useState<PricedObject[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
@@ -79,6 +99,10 @@ export default function PersonalDetailsForm({
     }
     if (!objectId) {
       setError('Please choose a product.');
+      return;
+    }
+    if (!idDocument || (!idDocument.pendingKey && !idDocument.attachmentId)) {
+      setError('Please upload a copy of your ID card or passport.');
       return;
     }
     const trimmedEmail = applicantEmail.trim();
@@ -136,6 +160,24 @@ export default function PersonalDetailsForm({
       [applicantToken]: { status: 'approved', signedAt: new Date().toISOString() },
     };
 
+    // Always write pendingIdDocument — non-null when there's a fresh upload
+    // to migrate, null otherwise. Camunda's complete-task doesn't clear
+    // unlisted variables, so a sendback resubmit that omitted this var
+    // would leave a stale Spin Json behind and re-trigger
+    // Task_AttachIdDocument with a pendingKey that's already been moved.
+    // Explicitly nulling it on every submit avoids that hazard and keeps
+    // Gateway_HasPendingUpload's condition trivially correct.
+    const pendingIdDocumentVar = idDocument.pendingKey
+      ? {
+          value: JSON.stringify({
+            pendingKey: idDocument.pendingKey,
+            filename: idDocument.filename,
+            contentType: idDocument.contentType,
+          }),
+          type: 'Json' as const,
+        }
+      : { value: null, type: 'Json' as const };
+
     await onComplete({
       firstName: { value: firstName.trim(), type: 'String' },
       lastName: { value: lastName.trim(), type: 'String' },
@@ -150,6 +192,7 @@ export default function PersonalDetailsForm({
       // submission. The receive task and gateway re-read them fresh.
       rejectedByOwner: { value: false, type: 'Boolean' },
       sentToProcess: { value: false, type: 'Boolean' },
+      pendingIdDocument: pendingIdDocumentVar,
     });
   }
 
@@ -215,6 +258,24 @@ export default function PersonalDetailsForm({
           disabled={readOnly}
         />
       </label>
+
+      <div className="field">
+        <span className="field-label">ID card or passport (required)</span>
+        <p className="field-hint">
+          PDF, JPEG, or PNG up to 10 MB. The civil servant reviewing your
+          application will be able to download this file.
+        </p>
+        <FileUpload
+          accept="application/pdf,image/jpeg,image/png"
+          maxBytes={10 * 1024 * 1024}
+          scope="pending"
+          category="applicant-id-document"
+          value={idDocument}
+          onChange={setIdDocument}
+          disabled={readOnly}
+          label="Drop your ID document here, or click to choose"
+        />
+      </div>
 
       <label className="field">
         <span className="field-label">Product</span>

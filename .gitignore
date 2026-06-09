@@ -6,6 +6,12 @@ target/
 node_modules/
 dist/
 npm-debug.log*
+tsconfig.tsbuildinfo
+
+# Local-only state — RustFS data dir, populated by the rustfs container's
+# bind mount in dev (./.data/rustfs:/data). Prod uses a named docker volume
+# instead so this dir doesn't exist there.
+.data/
 
 # Editor / IDE / OS
 .idea/

@@ -247,6 +247,19 @@ export function getHistoricProcessInstance(id: string): Promise<HistoricProcessI
   return request(`/history/process-instance/${id}`);
 }
 
+/**
+ * Counts the historic process instances started by a user — both active and
+ * finished. Lighter than `listHistoricProcessInstancesByStarter` (the engine
+ * returns one integer, no row payload), used for the "My processes (N)"
+ * badge in the nav.
+ */
+export function countHistoricProcessInstancesByStarter(
+  startedBy: string,
+): Promise<{ count: number }> {
+  const qs = new URLSearchParams({ startedBy });
+  return request(`/history/process-instance/count?${qs}`);
+}
+
 /** A historic user task as returned by `GET /history/task`. */
 export interface HistoricTask {
   id: string;

@@ -81,6 +81,28 @@
                                    ACT_HI_VARINST.TEXT_ column.
       approvalPdfFilename        - written by Generate approval PDF; suggested
                                    filename used as the Mailpit attachment name
+      pendingIdDocument          - written by the applicant form when a new ID
+                                   document was just uploaded into the
+                                   pending/ prefix of RustFS. Spin Json:
+                                   {pendingKey, filename, contentType}. Consumed
+                                   by Task_AttachIdDocument which moves the
+                                   object into process/ and creates a Camunda
+                                   Attachment. Absent on resubmit-without-
+                                   replacing-the-file — see Gateway_HasPendingUpload.
+      idDocumentAttachmentId     - written by Task_AttachIdDocument. The id of
+                                   the Camunda Attachment row that holds the
+                                   applicant's ID document; surfaced in the SPA
+                                   so it can render a download button next to
+                                   the existing attachment instead of asking
+                                   for a fresh upload on every resubmit.
+      approvalPdfAttachmentId    - written by Task_StoreApprovalPdf; the id of
+                                   the Camunda Attachment row holding the
+                                   approval PDF in RustFS.
+      certificatePdfBytes        - written by Task_GenerateCertificatePdf via
+                                   pdf-renderer, same bytes-typed pattern as
+                                   approvalPdfBytes.
+      certificatePdfFilename     - written by Task_GenerateCertificatePdf.
+      certificatePdfAttachmentId - written by Task_StoreCertificatePdf.
   -->
 
   <!--
@@ -108,11 +130,78 @@
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
       <bpmn:incoming>Flow_SendBackEmail_Submit</bpmn:incoming>
-      <bpmn:outgoing>Flow_Submit_GetPrice</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Submit_HasPendingUpload</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:sequenceFlow id="Flow_Submit_NeedsConfirmation"
-                       sourceRef="Task_SubmitDetails" targetRef="Gateway_NeedsConfirmation" />
+    <bpmn:sequenceFlow id="Flow_Submit_HasPendingUpload"
+                       sourceRef="Task_SubmitDetails" targetRef="Gateway_HasPendingUpload" />
+
+    <!--
+      The applicant form may submit a pendingIdDocument variable (Spin Json
+      with pendingKey/filename/contentType) when a fresh ID document has just
+      been uploaded into the pending/ prefix of RustFS. On the first submit
+      this variable is always present; on a resubmit after a sendback the
+      applicant may have kept the existing attachment, in which case the
+      form omits the variable so we skip the migration entirely.
+
+      The condition uses execution.hasVariable() to defend against the
+      JUEL PropertyNotFoundException that a bare reference would throw
+      when the variable is missing — same defensive pattern as
+      Gateway_SendApprovalEmail below.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_HasPendingUpload" name="New ID document?"
+                           default="Flow_HasPendingUpload_Skip">
+      <bpmn:incoming>Flow_Submit_HasPendingUpload</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasPendingUpload_Attach</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HasPendingUpload_Skip</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_HasPendingUpload_Attach" name="yes"
+                       sourceRef="Gateway_HasPendingUpload" targetRef="Task_AttachIdDocument">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("pendingIdDocument") and execution.getVariable("pendingIdDocument") != null}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_HasPendingUpload_Skip" name="no"
+                       sourceRef="Gateway_HasPendingUpload" targetRef="Gateway_NeedsConfirmation" />
+
+    <!--
+      Migrates the just-uploaded object from pending/{userId}/... to
+      process/{piId}/... and creates a Camunda Attachment on the process
+      instance with type=applicant-id-document. Internal-only endpoint —
+      DocumentsApiSecurityConfig matches the X-Internal-Token header
+      instead of a JWT, since the engine is calling itself.
+    -->
+    <bpmn:serviceTask id="Task_AttachIdDocument" name="Attach ID document"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/move-pending.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="idDocumentAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+            <!-- pendingIdDocument is reset to null by the applicant form on
+                 every submit (see PersonalDetailsForm.tsx) — no need to
+                 clear it here. Gateway_HasPendingUpload re-reads the
+                 latest value on the next iteration of a resubmit. -->
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasPendingUpload_Attach</bpmn:incoming>
+      <bpmn:outgoing>Flow_AttachIdDocument_NeedsConfirmation</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_AttachIdDocument_NeedsConfirmation"
+                       sourceRef="Task_AttachIdDocument" targetRef="Gateway_NeedsConfirmation" />
 
     <!--
       Routes the case past the whole owner-confirmation block when there are
@@ -124,7 +213,8 @@
     -->
     <bpmn:exclusiveGateway id="Gateway_NeedsConfirmation" name="Need owner confirmations?"
                            default="Flow_NeedsConfirmation_TrackingEmail">
-      <bpmn:incoming>Flow_Submit_NeedsConfirmation</bpmn:incoming>
+      <bpmn:incoming>Flow_HasPendingUpload_Skip</bpmn:incoming>
+      <bpmn:incoming>Flow_AttachIdDocument_NeedsConfirmation</bpmn:incoming>
       <bpmn:outgoing>Flow_NeedsConfirmation_GetPrice</bpmn:outgoing>
       <bpmn:outgoing>Flow_NeedsConfirmation_TrackingEmail</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -515,14 +605,132 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_HasEmail</bpmn:incoming>
-      <bpmn:outgoing>Flow_GeneratePdf_SendApprovalEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GeneratePdf_StoreApprovalPdf</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_GeneratePdf_SendApprovalEmail"
-                       sourceRef="Task_GeneratePdf" targetRef="Task_SendApprovalEmail" />
+    <bpmn:sequenceFlow id="Flow_GeneratePdf_StoreApprovalPdf"
+                       sourceRef="Task_GeneratePdf" targetRef="Task_StoreApprovalPdf" />
+
+    <!--
+      Posts the approval PDF bytes to the backend's internal server-upload
+      endpoint, which PUTs to RustFS under process/{piId}/... and creates a
+      Camunda Attachment with type=generated-approval-pdf. We send the bytes
+      base64-encoded inside the JSON payload because the cibseven http-
+      connector returns / sends only Strings — same reason approval-pdf
+      lives in a byte[] variable and the email task re-encodes for Mailpit.
+      The bytes stay in approvalPdfBytes for the subsequent email task.
+    -->
+    <bpmn:serviceTask id="Task_StoreApprovalPdf" name="Store approval PDF"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/server-upload-approval.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="approvalPdfAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GeneratePdf_StoreApprovalPdf</bpmn:incoming>
+      <bpmn:outgoing>Flow_StoreApprovalPdf_SendApprovalEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_StoreApprovalPdf_SendApprovalEmail"
+                       sourceRef="Task_StoreApprovalPdf" targetRef="Task_SendApprovalEmail" />
 
     <bpmn:sequenceFlow id="Flow_NoEmail_Approved"
-                       sourceRef="Gateway_SendApprovalEmail" targetRef="EndEvent_Approved" />
+                       sourceRef="Gateway_SendApprovalEmail" targetRef="Gateway_BeforeCertificate" />
+
+    <!--
+      Converging join — every approved case (auto-approved + reviewed-with-
+      email + reviewed-no-email) funnels through here to the certificate
+      generation tasks. The exclusive gateway is fine even though it has
+      two incoming sequence flows: only one fires per case (BPMN treats
+      this as a merge, not a synchronisation).
+    -->
+    <bpmn:exclusiveGateway id="Gateway_BeforeCertificate" name="(merge)">
+      <bpmn:incoming>Flow_NoEmail_Approved</bpmn:incoming>
+      <bpmn:incoming>Flow_ApprovalEmail_Certificate</bpmn:incoming>
+      <bpmn:outgoing>Flow_BeforeCertificate_Generate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_BeforeCertificate_Generate"
+                       sourceRef="Gateway_BeforeCertificate" targetRef="Task_GenerateCertificatePdf" />
+
+    <!--
+      Generates the certificate of approval via the same pdf-renderer sidecar
+      used by Task_GeneratePdf. Identical structure (JSON in, base64 PDF out,
+      decode to byte[] so it lands in ACT_GE_BYTEARRAY); different template
+      drives the document body. Runs for every approved case — auto-approval
+      and human-reviewed approval alike — because the certificate is the
+      record-of-approval the applicant + civil servant can download from
+      the Documents card.
+    -->
+    <bpmn:serviceTask id="Task_GenerateCertificatePdf" name="Generate certificate PDF"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${pdfApiBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/certificate-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="certificatePdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="certificatePdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_BeforeCertificate_Generate</bpmn:incoming>
+      <bpmn:outgoing>Flow_GenerateCertificate_Store</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_GenerateCertificate_Store"
+                       sourceRef="Task_GenerateCertificatePdf" targetRef="Task_StoreCertificatePdf" />
+
+    <bpmn:serviceTask id="Task_StoreCertificatePdf" name="Store certificate PDF"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/server-upload-certificate.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="certificatePdfAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GenerateCertificate_Store</bpmn:incoming>
+      <bpmn:outgoing>Flow_StoreCertificate_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_StoreCertificate_End"
+                       sourceRef="Task_StoreCertificatePdf" targetRef="EndEvent_Approved" />
 
     <!--
       Approval email via the Mailpit HTTP API. The payload is rendered from
@@ -551,12 +759,12 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_GeneratePdf_SendApprovalEmail</bpmn:incoming>
-      <bpmn:outgoing>Flow_ApprovalEmail_End</bpmn:outgoing>
+      <bpmn:incoming>Flow_StoreApprovalPdf_SendApprovalEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovalEmail_Certificate</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_ApprovalEmail_End"
-                       sourceRef="Task_SendApprovalEmail" targetRef="EndEvent_Approved" />
+    <bpmn:sequenceFlow id="Flow_ApprovalEmail_Certificate"
+                       sourceRef="Task_SendApprovalEmail" targetRef="Gateway_BeforeCertificate" />
 
     <!--
       Default branch: any non-approve decision (i.e. "sendback") emails the
@@ -596,8 +804,7 @@
                        sourceRef="Task_SendBackEmail" targetRef="Task_SubmitDetails" />
 
     <bpmn:endEvent id="EndEvent_Approved" name="Application approved">
-      <bpmn:incoming>Flow_NoEmail_Approved</bpmn:incoming>
-      <bpmn:incoming>Flow_ApprovalEmail_End</bpmn:incoming>
+      <bpmn:incoming>Flow_StoreCertificate_End</bpmn:incoming>
     </bpmn:endEvent>
 
   </bpmn:process>
@@ -737,10 +944,6 @@
         <di:waypoint x="156" y="200" />
         <di:waypoint x="200" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Submit_NeedsConfirmation_di" bpmnElement="Flow_Submit_NeedsConfirmation">
-        <di:waypoint x="300" y="200" />
-        <di:waypoint x="355" y="200" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NeedsConfirmation_GetPrice_di" bpmnElement="Flow_NeedsConfirmation_GetPrice">
         <di:waypoint x="405" y="200" />
         <di:waypoint x="460" y="200" />
@@ -789,14 +992,6 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1183" y="180" width="55" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_GeneratePdf_SendApprovalEmail_di" bpmnElement="Flow_GeneratePdf_SendApprovalEmail">
-        <di:waypoint x="1335" y="200" />
-        <di:waypoint x="1395" y="200" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ApprovalEmail_End_di" bpmnElement="Flow_ApprovalEmail_End">
-        <di:waypoint x="1495" y="200" />
-        <di:waypoint x="1550" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NoEmail_Approved_di" bpmnElement="Flow_NoEmail_Approved">
         <di:waypoint x="1155" y="225" />
@@ -880,6 +1075,37 @@
         <di:waypoint x="250" y="720" />
         <di:waypoint x="250" y="240" />
       </bpmndi:BPMNEdge>
+
+      <!--
+        ===== Documents pipeline (added with the RustFS feature) =====
+        Minimal DI stubs so Cockpit's diagram view doesn't crash on missing
+        shapes for the new BPMN elements. Coordinates are deliberately
+        offset onto a separate band (y = 880) so the new boxes don't
+        overlap the existing main row at y = 160 — at the price of arrow
+        crossings that a BPMN modeler will want to clean up. Functional;
+        not pretty.
+      -->
+      <bpmndi:BPMNShape id="Gateway_HasPendingUpload_di" bpmnElement="Gateway_HasPendingUpload" isMarkerVisible="true">
+        <dc:Bounds x="200" y="880" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="180" y="940" width="92" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AttachIdDocument_di" bpmnElement="Task_AttachIdDocument">
+        <dc:Bounds x="300" y="865" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreApprovalPdf_di" bpmnElement="Task_StoreApprovalPdf">
+        <dc:Bounds x="460" y="865" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BeforeCertificate_di" bpmnElement="Gateway_BeforeCertificate" isMarkerVisible="true">
+        <dc:Bounds x="620" y="880" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerateCertificatePdf_di" bpmnElement="Task_GenerateCertificatePdf">
+        <dc:Bounds x="700" y="865" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreCertificatePdf_di" bpmnElement="Task_StoreCertificatePdf">
+        <dc:Bounds x="860" y="865" width="130" height="80" />
+      </bpmndi:BPMNShape>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

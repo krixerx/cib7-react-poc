@@ -7,6 +7,7 @@ import {
   type CamundaVariables,
 } from '../api/camundaClient';
 import { formRegistry, parseFormId } from '../forms/registry';
+import DocumentsCard from '../components/DocumentsCard';
 
 /**
  * Renders one task: resolves its formKey to a React form and lets the user
@@ -92,27 +93,30 @@ export default function TaskDetailView({
   const Form = formId ? formRegistry[formId] : undefined;
 
   return (
-    <div className="card">
-      <div className="card-head">
-        <h1 className="card-title">{task.name}</h1>
-        {topSlot}
+    <>
+      <div className="card">
+        <div className="card-head">
+          <h1 className="card-title">{task.name}</h1>
+          {topSlot}
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+
+        {Form ? (
+          <Form
+            task={task}
+            data={data}
+            onComplete={handleComplete}
+            submitting={submitting}
+          />
+        ) : (
+          <p className="form-error">
+            No React form is registered for formKey <code>{task.formKey ?? '(none)'}</code>.
+          </p>
+        )}
       </div>
-
-      {error && <p className="form-error">{error}</p>}
-
-      {Form ? (
-        <Form
-          task={task}
-          data={data}
-          onComplete={handleComplete}
-          submitting={submitting}
-        />
-      ) : (
-        <p className="form-error">
-          No React form is registered for formKey <code>{task.formKey ?? '(none)'}</code>.
-        </p>
-      )}
-    </div>
+      <DocumentsCard processInstanceId={task.processInstanceId} />
+    </>
   );
 }
 

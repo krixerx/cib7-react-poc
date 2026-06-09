@@ -38,6 +38,14 @@ services:
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
       # Browser-visible SPA URL embedded in confirmation email links.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
+      # Public S3 endpoint = browser-visible RustFS URL. Per
+      # docs/deployment.md the operator points this at a TLS-fronted
+      # subdomain (e.g. https://s3.example.com) and sets RUSTFS_DOMAIN
+      # so virtual-host signing matches.
+      S3_PUBLIC_ENDPOINT: ${PUBLIC_S3_URL}
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
     # Override the two router keys that change for TLS-terminated prod:
     # entrypoints flips from `web` → `websecure`, and tls=true tells the
     # router to require a TLS connection. All other labels (the rule and
@@ -78,6 +86,21 @@ services:
     restart: unless-stopped
 
   gotenberg:
+    restart: unless-stopped
+
+  rustfs:
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+    # Replace the bind mount used in dev with a named volume so the data
+    # survives container recreation but doesn't depend on a host path.
+    volumes: !override
+      - rustfs-data:/data
+    # In prod the operator usually fronts RustFS with their own
+    # TLS-terminating proxy on a separate subdomain, so port 9000 stays
+    # bound to the docker network only. The base file's ports: 9000:9000
+    # is replaced with an empty list.
+    ports: !override []
     restart: unless-stopped
 
   mailpit:
@@ -144,3 +167,9 @@ services:
     entrypoint: ["true"]
     command: []
     restart: "no"
+
+volumes:
+  # Named volume for RustFS in prod (the dev base file uses a bind mount
+  # under ./.data/rustfs so devs can poke at the bytes; prod keeps it
+  # under the docker volumes root, managed by the container runtime).
+  rustfs-data:

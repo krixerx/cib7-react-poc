@@ -55,11 +55,16 @@ services:
     #
     # Routing is configured per-service via labels (see cib7, mcp, frontend
     # below) so each service owns its own routes — no central nginx.conf.
-    image: traefik:v3.2
+    image: traefik:v3.4
     container_name: cib7-poc-traefik
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      # Explicit endpoint avoids an empty-error retry loop seen with
+      # Docker Desktop on Windows + newer daemon API versions where
+      # Traefik's docker client can't auto-negotiate. Bumped Traefik
+      # from v3.2 to v3.4 for the same reason — newer docker client.
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
       - --entrypoints.web.address=:80
       - --api.dashboard=true
       - --api.insecure=true # dashboard auth-free, only safe because :8081 is dev-host only
@@ -67,7 +72,12 @@ services:
       - "3000:80"             # public front door — same port the SPA used to bind directly
       - "127.0.0.1:8081:8080" # Traefik dashboard at http://localhost:8081/dashboard/ — loopback only
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mounted RW (not :ro). Docker Desktop on Windows occasionally returns
+      # an empty error body to the daemon ping when the socket is mounted
+      # read-only, which Traefik treats as a provider failure and never
+      # finishes its first config scan — all routes 404. Traefik only reads
+      # from the socket; the RW mount is just to keep the daemon happy.
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - cib7
       - mcp
@@ -98,6 +108,47 @@ services:
       - "8088"
     depends_on:
       - gotenberg
+
+  rustfs:
+    # S3-compatible object storage. Holds two kinds of bytes for every
+    # process instance:
+    #   1. Applicant uploads (ID copy / passport) under process/{piId}/...
+    #   2. Engine-generated PDFs (approval PDF + certificate) under the
+    #      same prefix.
+    # Metadata lives as Camunda Attachments on the process instance
+    # (POST /process-instance/{id}/attachment); the `type` field carries
+    # our category and the `url` field holds the S3 key.
+    #
+    # Port 9000 is published directly to the host (not via Traefik) on
+    # purpose: S3 signature v4 hashes the host header, so a proxy that
+    # changes the host or path mid-flight breaks the signature. Keeping
+    # the browser and the backend talking to the same canonical endpoint
+    # (split on docker network vs host) is the simplest correct setup.
+    # See docs/deployment.md for the prod story (TLS-fronted, separate
+    # subdomain, RUSTFS_DOMAIN to make virtual-host signing work).
+    image: rustfs/rustfs:latest
+    container_name: cib7-poc-rustfs
+    ports:
+      - "9000:9000"
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
+      RUSTFS_REGION: us-east-1
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+    volumes:
+      - ./.data/rustfs:/data
+    # TCP probe via netcat — bash's /dev/tcp/<host>/<port> magic isn't
+    # available in the image's BusyBox sh. RustFS's /minio/health/live
+    # returns 403 (unsigned S3 request) even when fully up, so curl-based
+    # probes would need to special-case that exit code; `nc -z` is the
+    # cleanest "is the S3 listener accepting connections" signal.
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "9000"]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
 
   mcp:
     # Standalone MCP microservice — the "AI front door" sidecar. Wraps
@@ -295,6 +346,29 @@ services:
       # internal alias. Exposed via FrontendConfiguration as
       # ${frontendBaseUrl} in BPMN/FreeMarker.
       FRONTEND_BASE_URL: http://localhost:3000
+      # RustFS / S3 settings. Two URLs, same split-brain pattern as
+      # Keycloak:
+      #   S3_ENDPOINT        — internal docker network, used by the
+      #                        backend's S3Client + bucket bootstrap.
+      #   S3_PUBLIC_ENDPOINT — browser-visible, embedded in presigned
+      #                        URLs minted by the backend so the browser
+      #                        can hit RustFS directly for PUT/GET.
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_BUCKET: cib7-documents
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
+      S3_REGION: us-east-1
+      # Shared secret for engine→backend calls from BPMN service tasks
+      # (move-pending + server-upload). The BPMN http-connector POSTs
+      # this in an X-Internal-Token header; the DocumentsApiSecurityConfig
+      # internal chain checks it and bypasses JWT for those two paths.
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # Backend's own base URL as seen from inside the docker network —
+      # used by BPMN http-connector tasks that call the new
+      # /api/documents endpoints. Same loopback trick as MAIL_API_URL /
+      # PDF_API_URL.
+      API_BASE_URL: http://cib7:8080
     depends_on:
       keycloak:
         condition: service_healthy
@@ -302,14 +376,20 @@ services:
         condition: service_started
       pdf-renderer:
         condition: service_started
+      rustfs:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
     container_name: cib7-poc-frontend
-    # No published port — reached through Traefik on :3000. The catch-all
-    # route below has the lowest priority so /engine-rest, /api, /camunda,
-    # /oauth2, /login, /logout, /mcp, /.well-known/oauth-protected-resource
-    # win over `/` and reach their respective backends.
+    # WORKAROUND for the Traefik docker-provider "Error response from daemon: "
+    # bug on Docker Desktop + new daemon API. Until Traefik gets healthy we
+    # publish port 3000 from this container directly and rely on nginx.conf
+    # to proxy /engine-rest, /api, /camunda, /oauth2, /login, /logout, /mcp,
+    # and /.well-known/oauth-protected-resource to the right backends — the
+    # same pattern this repo used before Traefik landed.
+    ports:
+      - "3000:80"
     expose:
       - "80"
     labels:

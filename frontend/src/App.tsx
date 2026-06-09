@@ -1,4 +1,5 @@
-import { Routes, Route, Link, NavLink, Navigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
 import ServicesPage from './pages/ServicesPage';
 import TasksPage from './pages/TasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
@@ -6,6 +7,7 @@ import CompletedProcessPage from './pages/CompletedProcessPage';
 import IncidentsPage from './pages/IncidentsPage';
 import MyProcessesPage from './pages/MyProcessesPage';
 import { useAuth } from './auth/AuthProvider';
+import { countHistoricProcessInstancesByStarter } from './api/camundaClient';
 
 /**
  * Role-based shell. Anonymous visitors see Services only (catalogue browsing).
@@ -17,6 +19,31 @@ export default function App() {
   const { authenticated, username, isCivilServant, login, register, logout } = useAuth();
   const part = isCivilServant ? 'B' : 'A';
   const partLabel = isCivilServant ? 'Back office' : 'Applicant';
+  const location = useLocation();
+
+  // "My processes" count badge. Refetched whenever the path changes so the
+  // number stays in sync with the page: starting a new case from /, opening
+  // a task, or coming back to /my-processes all retrigger it. Silently
+  // falls back to null on error (e.g. transient 401 during token refresh)
+  // rather than blowing up the nav.
+  const [myProcessCount, setMyProcessCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!authenticated || isCivilServant || !username) {
+      setMyProcessCount(null);
+      return;
+    }
+    let cancelled = false;
+    countHistoricProcessInstancesByStarter(username)
+      .then((r) => {
+        if (!cancelled) setMyProcessCount(r.count);
+      })
+      .catch(() => {
+        if (!cancelled) setMyProcessCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, isCivilServant, username, location.pathname]);
 
   return (
     <div className="app">
@@ -48,7 +75,12 @@ export default function App() {
               <NavLink to="/" end>
                 Services
               </NavLink>
-              <NavLink to="/my-processes">My processes</NavLink>
+              <NavLink to="/my-processes">
+                My processes
+                {myProcessCount !== null && (
+                  <span className="nav-badge">{myProcessCount}</span>
+                )}
+              </NavLink>
             </>
           )}
           <span className="app-user">
