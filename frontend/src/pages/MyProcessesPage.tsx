@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   getHistoricVariable,
@@ -10,12 +10,14 @@ import {
   type ProcessDefinition,
 } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
+import { categoryOf, type CategoryId } from '../services/categories';
+import { CategoryIcon } from '../services/CategoryIcon';
 
 /**
- * PartA — the applicant's "My processes" page. Lists every process instance
- * they started, with a status pill computed from the active task (if any) +
- * the `sendBackReason` variable. When an applicant task is active they see
- * an "Open" link; otherwise the row just shows where the case is parked.
+ * PartA — the applicant's "My processes" page. Action-first inbox: a
+ * "Needs your attention" zone of large category-tinted cards puts cases
+ * waiting on the user up top; quieter rows show in-progress work parked
+ * with the back office; completed work collapses into a disclosure.
  */
 
 type RowStatus =
@@ -26,10 +28,24 @@ type RowStatus =
   | 'approved'
   | 'ended';
 
+type Bucket = 'attention' | 'progress' | 'done';
+
+const BUCKET_OF: Record<RowStatus, Bucket> = {
+  'awaiting-submission': 'attention',
+  'sent-back': 'attention',
+  'under-review': 'progress',
+  'processing': 'progress',
+  'approved': 'done',
+  'ended': 'done',
+};
+
 interface ProcessRow {
   pi: HistoricProcessInstance;
   serviceName: string;
+  category: CategoryId;
   status: RowStatus;
+  /** Reason text when the back office sent it back. */
+  sendBackReason: string | null;
   /** Set when there's an active applicant task the user can open. */
   openTaskId: string | null;
 }
@@ -52,18 +68,23 @@ const STATUS_PILL_CLASS: Record<RowStatus, string> = {
   'ended': 'status-pill status-done',
 };
 
-function shortId(id: string): string {
-  return id.length > 8 ? `…${id.slice(-8)}` : id;
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 async function buildRow(
   pi: HistoricProcessInstance,
   serviceName: string,
+  category: CategoryId,
 ): Promise<ProcessRow> {
   if (pi.endTime) {
     const status: RowStatus =
       pi.endActivityId === 'EndEvent_Approved' ? 'approved' : 'ended';
-    return { pi, serviceName, status, openTaskId: null };
+    return { pi, serviceName, category, status, sendBackReason: null, openTaskId: null };
   }
 
   // Active instance — determine where it's parked.
@@ -84,14 +105,16 @@ async function buildRow(
     return {
       pi,
       serviceName,
+      category,
       status: reason ? 'sent-back' : 'awaiting-submission',
+      sendBackReason: reason || null,
       openTaskId: applicantTask.id,
     };
   }
   if (reviewTask) {
-    return { pi, serviceName, status: 'under-review', openTaskId: null };
+    return { pi, serviceName, category, status: 'under-review', sendBackReason: null, openTaskId: null };
   }
-  return { pi, serviceName, status: 'processing', openTaskId: null };
+  return { pi, serviceName, category, status: 'processing', sendBackReason: null, openTaskId: null };
 }
 
 export default function MyProcessesPage() {
@@ -108,13 +131,15 @@ export default function MyProcessesPage() {
         listProcessDefinitions(),
         listHistoricProcessInstancesByStarter(username),
       ]);
-      const nameByDefId = new Map<string, string>(
-        defs.map((d: ProcessDefinition) => [d.id, d.name ?? d.key]),
+      const defById = new Map<string, ProcessDefinition>(
+        defs.map((d) => [d.id, d]),
       );
       const built = await Promise.all(
-        instances.map((pi) =>
-          buildRow(pi, nameByDefId.get(pi.processDefinitionId) ?? pi.processDefinitionKey),
-        ),
+        instances.map((pi) => {
+          const def = defById.get(pi.processDefinitionId);
+          const name = def?.name ?? def?.key ?? pi.processDefinitionKey;
+          return buildRow(pi, name, categoryOf(def?.key ?? pi.processDefinitionKey));
+        }),
       );
       setRows(built);
     } catch (e) {
@@ -128,80 +153,144 @@ export default function MyProcessesPage() {
     load();
   }, [load]);
 
+  const buckets = useMemo(() => {
+    const grouped: Record<Bucket, ProcessRow[]> = { attention: [], progress: [], done: [] };
+    for (const r of rows) grouped[BUCKET_OF[r.status]].push(r);
+    const byNewest = (a: ProcessRow, b: ProcessRow) =>
+      new Date(b.pi.startTime).getTime() - new Date(a.pi.startTime).getTime();
+    grouped.attention.sort(byNewest);
+    grouped.progress.sort(byNewest);
+    grouped.done.sort((a, b) => {
+      const ae = a.pi.endTime ? new Date(a.pi.endTime).getTime() : 0;
+      const be = b.pi.endTime ? new Date(b.pi.endTime).getTime() : 0;
+      return be - ae;
+    });
+    return grouped;
+  }, [rows]);
+
+  const showContent = !loading && !error;
+  const isEmpty = showContent && rows.length === 0;
+
   return (
-    <div className="card card-wide">
-      <div className="card-head">
-        <h1 className="card-title">My processes</h1>
+    <div className="mp">
+      <div className="mp-head">
+        <div>
+          <h1 className="mp-title">My processes</h1>
+          {showContent && rows.length > 0 && (
+            <p className="mp-kpi">
+              <span
+                className={`mp-kpi-strong${buckets.attention.length > 0 ? ' alert' : ''}`}
+              >
+                {buckets.attention.length} waiting on you
+              </span>
+              {' · '}
+              <span className="mp-kpi-strong">{buckets.progress.length} in progress</span>
+              {' · '}
+              <span className="mp-kpi-strong">{buckets.done.length} completed</span>
+            </p>
+          )}
+        </div>
         <button className="btn" onClick={load} disabled={loading}>
           Refresh
         </button>
       </div>
-      <p className="muted">
-        Every process you've started. Open the ones that are waiting on you —
-        the rest are with the back office.
-      </p>
 
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="form-error">{error}</p>}
 
-      {!loading && !error && rows.length === 0 && (
+      {isEmpty && (
         <p className="empty">
           You haven't started any processes yet. Pick one on the{' '}
           <Link to="/">Services</Link> page.
         </p>
       )}
 
-      {!loading && !error && rows.length > 0 && (
-        <ul className="row-list">
-          {rows.map((r) => {
-            const isOpenable = r.openTaskId !== null;
-            const isEnded = r.pi.endTime !== null;
-            // In-flight cases without an open applicant task (parked with the
-            // back office or in the owner-confirmation subprocess) still get a
-            // link so the applicant can review what they submitted in
-            // read-only mode. Same /processes/:id route as ended cases —
-            // CompletedProcessPage handles both shapes.
-            const to = isOpenable
-              ? `/tasks/${r.openTaskId}`
-              : `/processes/${r.pi.id}`;
-            const action = isOpenable ? 'Open →' : isEnded ? 'View →' : 'View submission →';
+      {showContent && buckets.attention.length > 0 && (
+        <section className="mp-section">
+          <h2 className="mp-section-title">Needs your attention</h2>
+          <div className="mp-action-grid">
+            {buckets.attention.map((r) => (
+              <ActionCard key={r.pi.id} row={r} />
+            ))}
+          </div>
+        </section>
+      )}
 
-            const content = (
-              <>
-                <span className="row-main">
-                  <span className="row-title">
-                    {r.serviceName} · {shortId(r.pi.id)}
-                  </span>
-                  <span className="row-sub">
-                    Started {new Date(r.pi.startTime).toLocaleString()}
-                    {r.pi.endTime && (
-                      <>
-                        {' '}
-                        <span className="muted">·</span> ended{' '}
-                        {new Date(r.pi.endTime).toLocaleString()}
-                      </>
-                    )}
-                  </span>
-                </span>
-                <span className="row-right">
-                  <span className={STATUS_PILL_CLASS[r.status]}>
-                    {STATUS_LABELS[r.status]}
-                  </span>
-                  {action && <span className="row-action">{action}</span>}
-                </span>
-              </>
-            );
+      {showContent && buckets.progress.length > 0 && (
+        <section className="mp-section">
+          <h2 className="mp-section-title">In progress · with the back office</h2>
+          <div className="mp-row-list">
+            {buckets.progress.map((r) => (
+              <ProgressRow key={r.pi.id} row={r} />
+            ))}
+          </div>
+        </section>
+      )}
 
-            return (
-              <li key={r.pi.id}>
-                <Link to={to} className="row">
-                  {content}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      {showContent && buckets.done.length > 0 && (
+        <details className="mp-completed" open={buckets.attention.length === 0 && buckets.progress.length === 0}>
+          <summary>
+            Completed <span className="muted">· {buckets.done.length}</span>
+          </summary>
+          <div className="mp-completed-body">
+            {buckets.done.map((r) => (
+              <ProgressRow key={r.pi.id} row={r} compact />
+            ))}
+          </div>
+        </details>
       )}
     </div>
+  );
+}
+
+function ActionCard({ row }: { row: ProcessRow }) {
+  // Active applicant task → /tasks; otherwise /processes for read-only.
+  const to = row.openTaskId ? `/tasks/${row.openTaskId}` : `/processes/${row.pi.id}`;
+  const isSentBack = row.status === 'sent-back';
+  return (
+    <Link
+      to={to}
+      className={`mp-action cat-${row.category}${isSentBack ? ' sent-back' : ''}`}
+    >
+      <span className="mp-action-icon" aria-hidden="true">
+        <CategoryIcon id={row.category} size={28} />
+      </span>
+      <span className="mp-action-body">
+        <span className="mp-action-title">{row.serviceName}</span>
+        <span className="mp-action-status">
+          {isSentBack ? '⚠ Sent back for corrections' : '◆ Awaiting your submission'}
+        </span>
+        {row.sendBackReason && (
+          <span className="mp-action-reason">“{row.sendBackReason}”</span>
+        )}
+        <span className="mp-action-meta">Started {formatDate(row.pi.startTime)}</span>
+      </span>
+      <span className="mp-action-cta">Open →</span>
+    </Link>
+  );
+}
+
+function ProgressRow({ row, compact = false }: { row: ProcessRow; compact?: boolean }) {
+  const isEnded = row.pi.endTime !== null;
+  const to = `/processes/${row.pi.id}`;
+  const action = isEnded ? 'View →' : 'View submission →';
+  return (
+    <Link to={to} className={`mp-row cat-${row.category}${compact ? ' compact' : ''}`}>
+      <span className="mp-row-icon" aria-hidden="true">
+        <CategoryIcon id={row.category} size={20} />
+      </span>
+      <span className="mp-row-body">
+        <span className="mp-row-title">{row.serviceName}</span>
+        <span className="mp-row-meta">
+          {isEnded
+            ? `Ended ${formatDate(row.pi.endTime!)}`
+            : `Started ${formatDate(row.pi.startTime)}`}
+        </span>
+      </span>
+      <span className="mp-row-right">
+        <span className={STATUS_PILL_CLASS[row.status]}>{STATUS_LABELS[row.status]}</span>
+        <span className="row-action">{action}</span>
+      </span>
+    </Link>
   );
 }

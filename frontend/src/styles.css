@@ -973,6 +973,326 @@ code {
 }
 
 /* ============================================================
+ * PartA — My processes (action-first inbox)
+ * ============================================================ */
+
+.mp {
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.mp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.mp-title {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.mp-kpi {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.mp-kpi-strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mp-kpi-strong.alert {
+  color: #c2410c;
+}
+
+.mp-section {
+  margin: 0 0 28px;
+}
+
+.mp-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+/* Hero action cards — "needs your attention". */
+.mp-action-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.mp-action {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 22px 18px 28px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+  transition: transform 0.15s, box-shadow 0.15s;
+  overflow: hidden;
+}
+
+.mp-action::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 6px;
+  background: var(--accent, var(--primary));
+}
+
+.mp-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, 0.09);
+}
+
+.mp-action-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--accent-bg, #eff6ff);
+  color: var(--accent, var(--primary));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mp-action-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mp-action-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.mp-action-status {
+  font-size: 13px;
+  color: var(--accent, var(--primary));
+  font-weight: 600;
+}
+
+.mp-action-reason {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mp-action-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.mp-action-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--accent, var(--primary));
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12);
+}
+
+/* Sent-back cards get a warm wash. */
+.mp-action.sent-back {
+  background: linear-gradient(180deg, #fffaf2 0%, var(--surface) 60%);
+}
+
+/* Quieter rows for in-progress and completed. */
+.mp-row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mp-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+
+.mp-row:hover {
+  border-color: var(--primary);
+  background: #f8faff;
+}
+
+.mp-row.compact {
+  padding: 10px 14px;
+  background: transparent;
+  border-color: transparent;
+}
+
+.mp-row.compact:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.mp-row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--accent-bg, var(--bg));
+  color: var(--accent, var(--muted));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mp-row.compact .mp-row-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.mp-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mp-row-title {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-row-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mp-row-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Category color tokens — drive both the hero cards and the row icons. */
+.mp-action.cat-business, .mp-row.cat-business { --accent: #c2410c; --accent-bg: #ffe8d6; }
+.mp-action.cat-family,   .mp-row.cat-family   { --accent: #9d174d; --accent-bg: #ffe0e7; }
+.mp-action.cat-property, .mp-row.cat-property { --accent: #166534; --accent-bg: #dcfce7; }
+.mp-action.cat-travel,   .mp-row.cat-travel   { --accent: #1e40af; --accent-bg: #dbeafe; }
+.mp-action.cat-social,   .mp-row.cat-social   { --accent: #5b21b6; --accent-bg: #ede9fe; }
+.mp-action.cat-other,    .mp-row.cat-other    { --accent: #854d0e; --accent-bg: #fef9c3; }
+
+/* Completed disclosure. */
+.mp-completed {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.mp-completed > summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  list-style: none;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mp-completed > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mp-completed > summary::after {
+  content: '›';
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.mp-completed[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.mp-completed-body {
+  padding: 4px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (max-width: 640px) {
+  .mp-action {
+    grid-template-columns: 48px 1fr;
+    grid-template-rows: auto auto;
+    padding: 16px 16px 16px 22px;
+    gap: 14px;
+  }
+  .mp-action-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+  .mp-action-cta {
+    grid-column: 1 / -1;
+    justify-content: center;
+    padding: 11px 20px;
+  }
+  .mp-row {
+    grid-template-columns: 32px 1fr;
+    grid-template-rows: auto auto;
+  }
+  .mp-row-right {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+}
+
+/* ============================================================
  * PartB — Civil-servant worklist (TasksPage v2)
  * ============================================================ */
 
