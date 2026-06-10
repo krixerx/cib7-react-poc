@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import type { FormProps } from '../types';
+import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
 
 /**
  * Founder form for businessRegistration. Collects company name, board
@@ -117,6 +118,26 @@ export default function BusinessDetailsForm({
   const [additionalFounders, setAdditionalFounders] = useState<AdditionalFounder[]>(
     () => parseAdditionalFounders(data.additionalFounders),
   );
+
+  // Articles of Association state. On the first submit this is always a fresh
+  // pending upload. On a resubmit after sendback, data.aoaDocumentAttachmentId
+  // is already populated by the previous round of Task_AttachAoaDocument — we
+  // surface it as a ready-to-download chip rather than asking the founder to
+  // re-upload. The contentType/size are best-effort fallbacks since they
+  // weren't preserved as process variables on the original round. Same
+  // pattern as personRegistration's idDocument handling.
+  const [aoaDocument, setAoaDocument] = useState<FileUploadValue | null>(() => {
+    const attachmentId = data.aoaDocumentAttachmentId;
+    if (typeof attachmentId === 'string' && attachmentId.length > 0) {
+      return {
+        attachmentId,
+        filename: 'Articles of Association',
+        contentType: 'application/octet-stream',
+        size: 0,
+      };
+    }
+    return null;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const sendBackReason = (data.sendBackReason as string) ?? '';
@@ -202,6 +223,11 @@ export default function BusinessDetailsForm({
       return;
     }
 
+    if (!aoaDocument || (!aoaDocument.pendingKey && !aoaDocument.attachmentId)) {
+      setError('Please upload the Articles of Association.');
+      return;
+    }
+
     const trimmedEmail = applicantEmail.trim();
     const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     if (trimmedEmail && !validEmail(trimmedEmail)) {
@@ -257,6 +283,24 @@ export default function BusinessDetailsForm({
       [applicantToken]: { status: 'approved', signedAt: new Date().toISOString() },
     };
 
+    // Always write pendingAoaDocument — non-null when there's a fresh upload
+    // to migrate, null otherwise. Camunda's complete-task doesn't clear
+    // unlisted variables, so a sendback resubmit that omitted this var
+    // would leave a stale Spin Json behind and re-trigger
+    // Task_AttachAoaDocument with a pendingKey that's already been moved.
+    // Explicitly nulling it on every submit avoids that hazard and keeps
+    // Gateway_HasPendingAoa's condition trivially correct.
+    const pendingAoaDocumentVar = aoaDocument.pendingKey
+      ? {
+          value: JSON.stringify({
+            pendingKey: aoaDocument.pendingKey,
+            filename: aoaDocument.filename,
+            contentType: aoaDocument.contentType,
+          }),
+          type: 'Json' as const,
+        }
+      : { value: null, type: 'Json' as const };
+
     await onComplete({
       companyName: { value: finalCompanyName, type: 'String' },
       boardMembers: { value: JSON.stringify(cleanedMembers), type: 'Json' },
@@ -274,6 +318,7 @@ export default function BusinessDetailsForm({
       // submission. The receive task and gateway re-read them fresh.
       rejectedByFounder: { value: false, type: 'Boolean' },
       sentToRegister: { value: false, type: 'Boolean' },
+      pendingAoaDocument: pendingAoaDocumentVar,
     });
   }
 
@@ -351,6 +396,25 @@ export default function BusinessDetailsForm({
           </button>
         )}
       </fieldset>
+
+      <div className="field">
+        <span className="field-label">Articles of Association (required)</span>
+        <p className="field-hint">
+          PDF, JPEG, or PNG up to 10 MB. The Business Register reviewer and
+          every co-founder reviewing the registration will be able to download
+          this file.
+        </p>
+        <FileUpload
+          accept="application/pdf,image/jpeg,image/png"
+          maxBytes={10 * 1024 * 1024}
+          scope="pending"
+          category="founder-articles-of-association"
+          value={aoaDocument}
+          onChange={setAoaDocument}
+          disabled={readOnly}
+          label="Drop your Articles of Association here, or click to choose"
+        />
+      </div>
 
       <label className="field">
         <span className="field-label">Share capital (EUR)</span>

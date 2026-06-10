@@ -14,6 +14,13 @@
       start (initiator = starting applicant founder)
         -> [Submit OÜ founding details]  user task         (applicant — PartA)
                                             form also captures additionalFounders
+                                            and uploads the Articles of Association
+        -> <New Articles of Association?> exclusive gateway
+             yes -> [Attach Articles of Association] service task
+                       (moves pending object into process scope; creates
+                        Camunda Attachment with category=
+                        founder-articles-of-association)
+             no  -> skip to next gateway (resubmit kept existing file)
         -> <Co-founder signatures needed?> exclusive gateway
              additionalFounders empty -> [Auto-approval policy]  (skip whole signing block)
              else                     -> (Send applicant tracking email)
@@ -73,6 +80,20 @@
                             written by FounderSignatureController on reject so the
                             existing Task_SendBackEmail can notify the applicant
                             without a separate task.
+      pendingAoaDocument        - written by the founder form when a new
+                                  Articles of Association was just uploaded into
+                                  the pending/ prefix of RustFS. Spin Json:
+                                  {pendingKey, filename, contentType}. Consumed
+                                  by Task_AttachAoaDocument which moves the
+                                  object into process/ and creates a Camunda
+                                  Attachment. Absent on resubmit-without-
+                                  replacing-the-file — see Gateway_HasPendingAoa.
+      aoaDocumentAttachmentId   - written by Task_AttachAoaDocument. The id of
+                                  the Camunda Attachment row that holds the
+                                  Articles of Association; surfaced in the SPA
+                                  so it can render a download button next to
+                                  the existing attachment instead of asking
+                                  for a fresh upload on every resubmit.
 
     Spec lives at docs/business/services/business-registration/. Hand-edited
     in PR #3 of the redomain plan to add the co-founder signing block.
@@ -98,8 +119,79 @@
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start</bpmn:incoming>
       <bpmn:incoming>Flow_SentBackEmail</bpmn:incoming>
-      <bpmn:outgoing>Flow_Submitted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Submit_HasPendingAoa</bpmn:outgoing>
     </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="Flow_Submit_HasPendingAoa"
+                       sourceRef="Task_SubmitBusinessDetails" targetRef="Gateway_HasPendingAoa" />
+
+    <!--
+      The founder form may submit a pendingAoaDocument variable (Spin Json
+      with pendingKey/filename/contentType) when a fresh Articles of
+      Association has just been uploaded into the pending/ prefix of RustFS.
+      On the first submit this variable is always present; on a resubmit
+      after a sendback the applicant may have kept the existing attachment,
+      in which case the form omits the variable so we skip the migration
+      entirely.
+
+      The condition uses execution.hasVariable() to defend against the
+      JUEL PropertyNotFoundException that a bare reference would throw
+      when the variable is missing — same defensive pattern as personReg's
+      Gateway_HasPendingUpload.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_HasPendingAoa" name="New Articles of Association?"
+                           default="Flow_HasPendingAoa_Skip">
+      <bpmn:incoming>Flow_Submit_HasPendingAoa</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasPendingAoa_Attach</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HasPendingAoa_Skip</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_HasPendingAoa_Attach" name="yes"
+                       sourceRef="Gateway_HasPendingAoa" targetRef="Task_AttachAoaDocument">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("pendingAoaDocument") and execution.getVariable("pendingAoaDocument") != null}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_HasPendingAoa_Skip" name="no"
+                       sourceRef="Gateway_HasPendingAoa" targetRef="Gateway_NeedsSignatures" />
+
+    <!--
+      Migrates the just-uploaded object from pending/{userId}/... to
+      process/{piId}/... and creates a Camunda Attachment on the process
+      instance with type=founder-articles-of-association. Internal-only
+      endpoint — DocumentsApiSecurityConfig matches the X-Internal-Token
+      header instead of a JWT, since the engine is calling itself.
+    -->
+    <bpmn:serviceTask id="Task_AttachAoaDocument" name="Attach Articles of Association"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/move-pending-aoa.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="aoaDocumentAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+            <!-- pendingAoaDocument is reset to null by the founder form on
+                 every submit (see BusinessDetailsForm.tsx) — no need to
+                 clear it here. Gateway_HasPendingAoa re-reads the latest
+                 value on the next iteration of a resubmit. -->
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasPendingAoa_Attach</bpmn:incoming>
+      <bpmn:outgoing>Flow_AttachAoa_NeedsSignatures</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_AttachAoa_NeedsSignatures"
+                       sourceRef="Task_AttachAoaDocument" targetRef="Gateway_NeedsSignatures" />
 
     <!--
       Routes the case past the whole signing block when there are no
@@ -112,7 +204,8 @@
     <bpmn:exclusiveGateway id="Gateway_NeedsSignatures"
                            name="Co-founder signatures needed?"
                            default="Flow_NeedsSignatures_TrackingEmail">
-      <bpmn:incoming>Flow_Submitted</bpmn:incoming>
+      <bpmn:incoming>Flow_HasPendingAoa_Skip</bpmn:incoming>
+      <bpmn:incoming>Flow_AttachAoa_NeedsSignatures</bpmn:incoming>
       <bpmn:outgoing>Flow_NeedsSignatures_AutoDecide</bpmn:outgoing>
       <bpmn:outgoing>Flow_NeedsSignatures_TrackingEmail</bpmn:outgoing>
     </bpmn:exclusiveGateway>
@@ -377,8 +470,6 @@
 
     <bpmn:sequenceFlow id="Flow_Start"
                        sourceRef="StartEvent_1" targetRef="Task_SubmitBusinessDetails" />
-    <bpmn:sequenceFlow id="Flow_Submitted"
-                       sourceRef="Task_SubmitBusinessDetails" targetRef="Gateway_NeedsSignatures" />
     <bpmn:sequenceFlow id="Flow_AutoDecided"
                        sourceRef="Task_AutoDecide" targetRef="Gateway_AutoApproval" />
     <bpmn:sequenceFlow id="Flow_AutoApproved" name="auto-approved"
@@ -484,12 +575,38 @@
         <dc:Bounds x="730" y="640" width="140" height="80" />
       </bpmndi:BPMNShape>
 
+      <!--
+        Documents pipeline (PR #4 — Articles of Association upload).
+        Minimal stubs on a separate band so the new gateway / service task
+        don't overlap the existing rows. Same pattern as person-registration's
+        documents pipeline: y=820 band, crossing arrows back to the main
+        row. Functional; not pretty — re-flow in cibseven-modeller if needed.
+      -->
+      <bpmndi:BPMNShape id="Gateway_HasPendingAoa_di" bpmnElement="Gateway_HasPendingAoa" isMarkerVisible="true">
+        <dc:Bounds x="415" y="795" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="380" y="852" width="120" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AttachAoaDocument_di" bpmnElement="Task_AttachAoaDocument">
+        <dc:Bounds x="515" y="780" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
       <!-- Edges: main row -->
       <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
         <di:waypoint x="196" y="200" /><di:waypoint x="240" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Submitted_di" bpmnElement="Flow_Submitted">
-        <di:waypoint x="370" y="200" /><di:waypoint x="415" y="200" />
+      <bpmndi:BPMNEdge id="Flow_Submit_HasPendingAoa_di" bpmnElement="Flow_Submit_HasPendingAoa">
+        <di:waypoint x="305" y="240" /><di:waypoint x="305" y="820" /><di:waypoint x="415" y="820" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HasPendingAoa_Attach_di" bpmnElement="Flow_HasPendingAoa_Attach">
+        <di:waypoint x="465" y="820" /><di:waypoint x="515" y="820" />
+        <bpmndi:BPMNLabel><dc:Bounds x="475" y="800" width="20" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HasPendingAoa_Skip_di" bpmnElement="Flow_HasPendingAoa_Skip">
+        <di:waypoint x="440" y="795" /><di:waypoint x="440" y="200" /><di:waypoint x="465" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="445" y="500" width="18" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AttachAoa_NeedsSignatures_di" bpmnElement="Flow_AttachAoa_NeedsSignatures">
+        <di:waypoint x="675" y="820" /><di:waypoint x="720" y="820" /><di:waypoint x="720" y="200" /><di:waypoint x="465" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NeedsSignatures_AutoDecide_di" bpmnElement="Flow_NeedsSignatures_AutoDecide">
         <di:waypoint x="465" y="200" /><di:waypoint x="510" y="200" />

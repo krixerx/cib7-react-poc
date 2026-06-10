@@ -48,6 +48,7 @@ export interface AttachmentResponse {
 
 export type DocumentCategory =
   | 'applicant-id-document'
+  | 'founder-articles-of-association'
   | 'generated-approval-pdf'
   | 'generated-certificate';
 
@@ -184,6 +185,8 @@ export function categoryLabel(category: DocumentCategory): string {
   switch (category) {
     case 'applicant-id-document':
       return 'ID document';
+    case 'founder-articles-of-association':
+      return 'Articles of Association';
     case 'generated-approval-pdf':
       return 'Approval PDF';
     case 'generated-certificate':

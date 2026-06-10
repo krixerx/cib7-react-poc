@@ -76,7 +76,8 @@ public class DocumentsController {
             "application/pdf", "image/jpeg", "image/png");
 
     private static final Set<String> ALLOWED_CATEGORIES = Set.of(
-            "applicant-id-document", "generated-approval-pdf", "generated-certificate");
+            "applicant-id-document", "founder-articles-of-association",
+            "generated-approval-pdf", "generated-certificate");
 
     private static final Duration PUT_TTL = Duration.ofMinutes(5);
     private static final Duration GET_TTL = Duration.ofSeconds(60);
