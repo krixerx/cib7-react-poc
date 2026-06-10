@@ -12,6 +12,7 @@ import {
 import { parseActivityNames, parseProcessName, parseUserTasks } from '../api/bpmn';
 import { formRegistry, parseFormId } from '../forms/registry';
 import DocumentsCard from '../components/DocumentsCard';
+import ProcessTimeline from '../components/ProcessTimeline';
 
 /**
  * Read-only view of a process instance. Loads the historic variables and
@@ -159,6 +160,10 @@ export default function ProcessHistoryView({
 
   return (
     <>
+      {/* Progress first: "where is my case and how did it get here" is the
+          question this read-only view usually answers — the submitted form
+          below is the supporting detail. */}
+      <ProcessTimeline processInstanceId={state.pi.id} />
       <div className="card">
         {!hideOwnHeader && (
           <>

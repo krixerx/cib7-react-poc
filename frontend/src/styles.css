@@ -2435,3 +2435,188 @@ code {
   margin-top: 24px;
   text-align: left;
 }
+
+/* ---- case-progress timeline (ProcessTimeline.tsx) -------------------- */
+
+.timeline-card .card-title {
+  font-size: 16px;
+}
+
+.timeline {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.tl-item {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 0 0 18px 0;
+}
+
+/* connector line between dots */
+.tl-item::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 16px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--border);
+}
+
+.tl-item:last-child::before {
+  display: none;
+}
+
+.tl-item.upcoming::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--border) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+.tl-dot {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #16a34a;
+  border: 2px solid #16a34a;
+  z-index: 1;
+}
+
+.tl-item.done .tl-dot {
+  background: #16a34a;
+  border-color: #16a34a;
+}
+
+.tl-item.active .tl-dot {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45);
+  animation: tl-pulse 1.8s ease-out infinite;
+}
+
+@keyframes tl-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45); }
+  70% { box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+.tl-item.canceled .tl-dot {
+  background: var(--surface);
+  border-color: var(--muted);
+}
+
+.tl-item.upcoming .tl-dot {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.tl-item.end .tl-dot {
+  border-radius: 4px; /* square-ish marker for terminal events */
+}
+
+.tl-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.tl-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tl-item.canceled .tl-name,
+.tl-item.upcoming .tl-name {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.tl-item.active .tl-name {
+  color: var(--primary);
+}
+
+.tl-count {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.tl-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.tl-chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+}
+
+.tl-chip.approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.tl-chip.sentback {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.tl-chip.waiting {
+  background: #dbeafe;
+  color: var(--primary);
+}
+
+.tl-upcoming-head {
+  list-style: none;
+  margin: 2px 0 10px;
+  padding-left: 26px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ---- payment-required alert ------------------------------------------ */
+
+.pay-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #fcd34d;
+  border-radius: var(--radius);
+  background: #fffbeb;
+}
+
+.pay-alert-icon {
+  font-size: 20px;
+}
+
+.pay-alert-body {
+  flex: 1;
+  font-size: 14px;
+}
+
+.pay-alert-btn {
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.worklist-waiting {
+  color: #b45309; /* amber — case parked on an external wait, not on us */
+}

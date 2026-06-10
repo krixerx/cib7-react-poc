@@ -10,6 +10,7 @@ import {
 import { parseProcessName } from '../api/bpmn';
 import { formRegistry, parseFormId } from '../forms/registry';
 import DocumentsCard from '../components/DocumentsCard';
+import ProcessTimeline from '../components/ProcessTimeline';
 
 /**
  * Renders one task: resolves its formKey to a React form and lets the user
@@ -165,6 +166,10 @@ export default function TaskDetailView({
           </p>
         )}
       </div>
+      {/* The open form is the action — the case history below is the context
+          a reviewer wants before deciding (who submitted what, when, which
+          loops the case already took). */}
+      <ProcessTimeline processInstanceId={task.processInstanceId} />
       {!hideDocuments && <DocumentsCard processInstanceId={task.processInstanceId} />}
     </>
   );

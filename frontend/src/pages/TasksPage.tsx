@@ -394,6 +394,12 @@ export default function TasksPage() {
                         {r.currentTask.name}
                       </>
                     )}
+                    {!r.currentTask && r.waitingOn && (
+                      <>
+                        <span className="worklist-step-sep">·</span>
+                        <span className="worklist-waiting">⏳ {r.waitingOn.name}</span>
+                      </>
+                    )}
                   </span>
                   <span className="worklist-date">
                     CASE-{shortCaseId(r.processInstanceId)} · {shortDate(r.startTime)}

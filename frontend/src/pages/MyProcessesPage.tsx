@@ -5,6 +5,7 @@ import {
   listHistoricProcessInstancesByStarter,
   listProcessDefinitions,
   listTasksByInstance,
+  listUnfinishedReceiveTasks,
   type CamundaTask,
   type HistoricProcessInstance,
   type ProcessDefinition,
@@ -23,6 +24,8 @@ import { CategoryIcon } from '../services/CategoryIcon';
 type RowStatus =
   | 'awaiting-submission'
   | 'sent-back'
+  | 'payment-needed'
+  | 'waiting-signatures'
   | 'under-review'
   | 'processing'
   | 'approved'
@@ -33,6 +36,8 @@ type Bucket = 'attention' | 'progress' | 'done';
 const BUCKET_OF: Record<RowStatus, Bucket> = {
   'awaiting-submission': 'attention',
   'sent-back': 'attention',
+  'payment-needed': 'attention',
+  'waiting-signatures': 'progress',
   'under-review': 'progress',
   'processing': 'progress',
   'approved': 'done',
@@ -48,11 +53,15 @@ interface ProcessRow {
   sendBackReason: string | null;
   /** Set when there's an active applicant task the user can open. */
   openTaskId: string | null;
+  /** Name of the open wait state, e.g. "Wait for co-owner signature". */
+  waitingOn: string | null;
 }
 
 const STATUS_LABELS: Record<RowStatus, string> = {
   'awaiting-submission': 'Awaiting submission',
   'sent-back': 'Sent back for corrections',
+  'payment-needed': 'Payment required',
+  'waiting-signatures': 'Waiting for signatures',
   'under-review': 'Under review',
   'processing': 'Processing',
   'approved': 'Approved',
@@ -62,11 +71,16 @@ const STATUS_LABELS: Record<RowStatus, string> = {
 const STATUS_PILL_CLASS: Record<RowStatus, string> = {
   'awaiting-submission': 'status-pill status-active',
   'sent-back': 'status-pill status-warn',
+  'payment-needed': 'status-pill status-warn',
+  'waiting-signatures': 'status-pill status-info',
   'under-review': 'status-pill status-info',
   'processing': 'status-pill status-info',
   'approved': 'status-pill status-done',
   'ended': 'status-pill status-done',
 };
+
+/** The payment wait state in both shipped BPMNs. */
+const PAYMENT_ACTIVITY_ID = 'Task_WaitForPayment';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -80,11 +94,14 @@ async function buildRow(
   pi: HistoricProcessInstance,
   serviceName: string,
   category: CategoryId,
+  username: string,
+  waitingOn: { activityId: string; name: string } | null,
 ): Promise<ProcessRow> {
+  const base = { pi, serviceName, category, sendBackReason: null, openTaskId: null, waitingOn: null };
   if (pi.endTime) {
     const status: RowStatus =
       pi.endActivityId === 'EndEvent_Approved' ? 'approved' : 'ended';
-    return { pi, serviceName, category, status, sendBackReason: null, openTaskId: null };
+    return { ...base, status };
   }
 
   // Active instance — determine where it's parked.
@@ -93,28 +110,36 @@ async function buildRow(
     getHistoricVariable(pi.id, 'sendBackReason'),
   ]);
 
+  // Applicant tasks are assigned to ${initiator} in both BPMNs, so "a task
+  // assigned to me" generalises across services (Task_SubmitDetails,
+  // Task_SubmitBusinessDetails, …) without hardcoding ids; any other open
+  // task belongs to the back office.
   const applicantTask: CamundaTask | undefined = tasks.find(
-    (t) => t.taskDefinitionKey === 'Task_SubmitDetails',
+    (t) => t.assignee === username,
   );
-  const reviewTask: CamundaTask | undefined = tasks.find(
-    (t) => t.taskDefinitionKey === 'Task_Review',
+  const backOfficeTask: CamundaTask | undefined = tasks.find(
+    (t) => t.assignee !== username,
   );
 
   if (applicantTask) {
     const reason = sendBackVar?.value ? String(sendBackVar.value) : '';
     return {
-      pi,
-      serviceName,
-      category,
+      ...base,
       status: reason ? 'sent-back' : 'awaiting-submission',
       sendBackReason: reason || null,
       openTaskId: applicantTask.id,
     };
   }
-  if (reviewTask) {
-    return { pi, serviceName, category, status: 'under-review', sendBackReason: null, openTaskId: null };
+  if (waitingOn?.activityId === PAYMENT_ACTIVITY_ID) {
+    return { ...base, status: 'payment-needed', waitingOn: waitingOn.name };
   }
-  return { pi, serviceName, category, status: 'processing', sendBackReason: null, openTaskId: null };
+  if (waitingOn) {
+    return { ...base, status: 'waiting-signatures', waitingOn: waitingOn.name };
+  }
+  if (backOfficeTask) {
+    return { ...base, status: 'under-review' };
+  }
+  return { ...base, status: 'processing' };
 }
 
 export default function MyProcessesPage() {
@@ -127,18 +152,35 @@ export default function MyProcessesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [defs, instances] = await Promise.all([
+      const [defs, instances, openWaits] = await Promise.all([
         listProcessDefinitions(),
         listHistoricProcessInstancesByStarter(username),
+        listUnfinishedReceiveTasks(),
       ]);
       const defById = new Map<string, ProcessDefinition>(
         defs.map((d) => [d.id, d]),
       );
+      // First open receive task per case — one batched call for the page.
+      const waitByPI = new Map<string, { activityId: string; name: string }>();
+      for (const w of openWaits) {
+        if (!waitByPI.has(w.processInstanceId)) {
+          waitByPI.set(w.processInstanceId, {
+            activityId: w.activityId,
+            name: w.activityName ?? w.activityId,
+          });
+        }
+      }
       const built = await Promise.all(
         instances.map((pi) => {
           const def = defById.get(pi.processDefinitionId);
           const name = def?.name ?? def?.key ?? pi.processDefinitionKey;
-          return buildRow(pi, name, categoryOf(def?.key ?? pi.processDefinitionKey));
+          return buildRow(
+            pi,
+            name,
+            categoryOf(def?.key ?? pi.processDefinitionKey),
+            username,
+            waitByPI.get(pi.id) ?? null,
+          );
         }),
       );
       setRows(built);
@@ -244,13 +286,19 @@ export default function MyProcessesPage() {
 }
 
 function ActionCard({ row }: { row: ProcessRow }) {
-  // Active applicant task → /tasks; otherwise /processes for read-only.
-  const to = row.openTaskId ? `/tasks/${row.openTaskId}` : `/processes/${row.pi.id}`;
   const isSentBack = row.status === 'sent-back';
+  const isPayment = row.status === 'payment-needed';
+  // Active applicant task → /tasks; payment wait → the public pay page;
+  // otherwise /processes for read-only.
+  const to = row.openTaskId
+    ? `/tasks/${row.openTaskId}`
+    : isPayment
+      ? `/pay/${row.pi.id}`
+      : `/processes/${row.pi.id}`;
   return (
     <Link
       to={to}
-      className={`mp-action cat-${row.category}${isSentBack ? ' sent-back' : ''}`}
+      className={`mp-action cat-${row.category}${isSentBack || isPayment ? ' sent-back' : ''}`}
     >
       <span className="mp-action-icon" aria-hidden="true">
         <CategoryIcon id={row.category} size={28} />
@@ -258,14 +306,18 @@ function ActionCard({ row }: { row: ProcessRow }) {
       <span className="mp-action-body">
         <span className="mp-action-title">{row.serviceName}</span>
         <span className="mp-action-status">
-          {isSentBack ? '⚠ Sent back for corrections' : '◆ Awaiting your submission'}
+          {isPayment
+            ? '💳 State fee payment required'
+            : isSentBack
+              ? '⚠ Sent back for corrections'
+              : '◆ Awaiting your submission'}
         </span>
         {row.sendBackReason && (
           <span className="mp-action-reason">“{row.sendBackReason}”</span>
         )}
         <span className="mp-action-meta">Started {formatDate(row.pi.startTime)}</span>
       </span>
-      <span className="mp-action-cta">Open →</span>
+      <span className="mp-action-cta">{isPayment ? 'Pay →' : 'Open →'}</span>
     </Link>
   );
 }
@@ -285,6 +337,7 @@ function ProgressRow({ row, compact = false }: { row: ProcessRow; compact?: bool
           {isEnded
             ? `Ended ${formatDate(row.pi.endTime!)}`
             : `Started ${formatDate(row.pi.startTime)}`}
+          {!isEnded && row.waitingOn && ` · ${row.waitingOn}`}
         </span>
       </span>
       <span className="mp-row-right">

@@ -345,6 +345,99 @@ export async function getHistoricVariable(
 }
 
 /**
+ * One historic activity instance — a single execution of a BPMN element
+ * (user task, service task, receive task, gateway, event …). The full
+ * stream for a process instance is the case's step-by-step history;
+ * entries with `endTime === null` are where the case is parked right now.
+ */
+export interface HistoricActivityInstance {
+  id: string;
+  processInstanceId: string;
+  /** BPMN element id, e.g. "Task_WaitForPayment". */
+  activityId: string;
+  /** BPMN `name=` of the element, or null when unnamed. */
+  activityName: string | null;
+  /** "userTask" | "serviceTask" | "receiveTask" | "businessRuleTask" | "noneEndEvent" | … */
+  activityType: string;
+  /** Set on user tasks. */
+  assignee: string | null;
+  startTime: string;
+  /** Null while the activity is still running / waiting. */
+  endTime: string | null;
+  canceled: boolean;
+  durationInMillis: number | null;
+}
+
+/**
+ * The full activity history of one process instance, oldest first. Drives
+ * the case-progress timeline: completed steps, plus the currently-open
+ * (endTime null) activities the case is waiting on.
+ */
+export function listActivityInstances(
+  processInstanceId: string,
+  maxResults = 500,
+): Promise<HistoricActivityInstance[]> {
+  const qs = new URLSearchParams({
+    processInstanceId,
+    sortBy: 'startTime',
+    sortOrder: 'asc',
+    maxResults: String(maxResults),
+  });
+  return request(`/history/activity-instance?${qs}`);
+}
+
+/**
+ * Every receive task the engine is currently waiting on, across all
+ * process instances — one batched call instead of one per case. Used to
+ * tag list rows with their wait state ("Waiting: state fee payment")
+ * without a per-row fan-out.
+ */
+export function listUnfinishedReceiveTasks(
+  maxResults = 500,
+): Promise<HistoricActivityInstance[]> {
+  const qs = new URLSearchParams({
+    unfinished: 'true',
+    activityType: 'receiveTask',
+    sortBy: 'startTime',
+    sortOrder: 'desc',
+    maxResults: String(maxResults),
+  });
+  return request(`/history/activity-instance?${qs}`);
+}
+
+/** One write to a process variable, from the history detail log. */
+export interface VariableUpdate {
+  id: string;
+  processInstanceId: string;
+  variableName: string;
+  value: unknown;
+  /** When the write happened. */
+  time: string;
+}
+
+/**
+ * Every historic write to one named variable of a process instance, oldest
+ * first. Unlike `/history/variable-instance` (latest value only), the
+ * detail log keeps one entry per write — so a `decision` variable written
+ * by each pass through the review task yields the per-review outcome
+ * trail the timeline renders ("approved" / "sent back" chips).
+ */
+export function listVariableUpdates(
+  processInstanceId: string,
+  variableName: string,
+): Promise<VariableUpdate[]> {
+  const qs = new URLSearchParams({
+    processInstanceId,
+    variableUpdates: 'true',
+    variableName,
+    deserializeValues: 'false',
+    sortBy: 'time',
+    sortOrder: 'asc',
+  });
+  return request(`/history/detail?${qs}`);
+}
+
+/**
  * Lists the newest N process instances (any state) sorted by start time desc.
  * Powers the civil-servant worklist on the redesigned Tasks page; pair with
  * variable + task lookups to build a `WorklistRow` per instance.
@@ -385,6 +478,12 @@ export interface WorklistRow {
     taskDefinitionKey: string;
     assignee: string | null;
   } | null;
+  /**
+   * The receive task the case is parked on when there's no open user task —
+   * e.g. "Wait for state fee payment" or "Wait for co-owner signature".
+   * Null when the case has a user task, is crunching service tasks, or ended.
+   */
+  waitingOn: { activityId: string; name: string } | null;
   /** Open incidents on the case (mostly failedJob from service tasks). Empty when healthy. */
   incidents: Incident[];
 }
@@ -438,10 +537,11 @@ function statusFor(
  * paginator once we add one.
  */
 export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
-  const [defs, instances, allIncidents] = await Promise.all([
+  const [defs, instances, allIncidents, openWaits] = await Promise.all([
     listProcessDefinitions(),
     listRecentProcessInstances(maxResults),
     listIncidents(),
+    listUnfinishedReceiveTasks(),
   ]);
 
   const nameByDefId = new Map(defs.map((d) => [d.id, d.name ?? d.key]));
@@ -451,6 +551,19 @@ export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
     const list = incidentsByPI.get(inc.processInstanceId);
     if (list) list.push(inc);
     else incidentsByPI.set(inc.processInstanceId, [inc]);
+  }
+
+  // First open receive task per case. Multi-instance waits (one receive task
+  // per co-owner) collapse to the first — the row label only needs the kind
+  // of wait, not the count.
+  const waitByPI = new Map<string, { activityId: string; name: string }>();
+  for (const w of openWaits) {
+    if (!waitByPI.has(w.processInstanceId)) {
+      waitByPI.set(w.processInstanceId, {
+        activityId: w.activityId,
+        name: w.activityName ?? w.activityId,
+      });
+    }
   }
 
   return Promise.all(
@@ -489,6 +602,7 @@ export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
         endTime: pi.endTime,
         status: statusFor(pi, incidents.length > 0),
         currentTask,
+        waitingOn: isActive && !currentTask ? waitByPI.get(pi.id) ?? null : null,
         incidents,
       };
     }),
