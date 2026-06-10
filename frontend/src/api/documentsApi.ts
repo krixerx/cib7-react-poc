@@ -50,7 +50,9 @@ export type DocumentCategory =
   | 'applicant-id-document'
   | 'founder-articles-of-association'
   | 'generated-approval-pdf'
-  | 'generated-certificate';
+  | 'generated-certificate'
+  | 'generated-business-fee-invoice'
+  | 'generated-bcard';
 
 export interface DocumentEntry {
   id: string;
@@ -191,5 +193,9 @@ export function categoryLabel(category: DocumentCategory): string {
       return 'Approval PDF';
     case 'generated-certificate':
       return 'Certificate of approval';
+    case 'generated-business-fee-invoice':
+      return 'State fee invoice';
+    case 'generated-bcard':
+      return 'B-card extract';
   }
 }

@@ -40,11 +40,20 @@
                                             (msg "SubmitToRegister")
         -> {Auto-approval policy}        business rule task  (DMN)
         -> <Auto-approve?>               exclusive gateway
-             autoDecision == approve -> (Send approval email) -> end approved
+             autoDecision == approve -> <Has applicant email?>
              else                    -> [Business Register review]  (civil-servant — PartB)
         -> <Decision?>                   exclusive gateway
-             decision == approve -> (Send approval email) -> end approved
+             decision == approve -> <Has applicant email?>
              else                -> (Send sent-back email) -> Submit (loop)
+        -> <Has applicant email?>        exclusive gateway   (merges both approved paths)
+             applicantEmail valid -> (Generate state fee invoice)
+                                      -> (Store fee invoice)
+                                      -> (Send approval email) -> (merge)
+             else (default)       -> (merge)
+        -> (merge)                       (Gateway_BeforeBcard — joins email + no-email paths)
+        -> (Generate B-card extract)     service task        (pdf-renderer)
+        -> (Store B-card extract)        service task        (server-upload)
+        -> end (OÜ entered in Business Register)
 
     Process variables:
       initiator           - login of the user that started the instance.
@@ -94,6 +103,22 @@
                                   so it can render a download button next to
                                   the existing attachment instead of asking
                                   for a fresh upload on every resubmit.
+      feeInvoicePdfBytes        - written by Task_GenerateFeeInvoicePdf
+                                  (Gotenberg via pdf-renderer); raw PDF bytes.
+                                  Stored as a bytes-typed variable so the engine
+                                  spills it to ACT_GE_BYTEARRAY instead of the
+                                  4000-char ACT_HI_VARINST.TEXT_ column.
+      feeInvoicePdfFilename     - written by Task_GenerateFeeInvoicePdf;
+                                  suggested filename used as the Mailpit
+                                  attachment name.
+      feeInvoicePdfAttachmentId - written by Task_StoreFeeInvoicePdf; the id
+                                  of the Camunda Attachment row holding the
+                                  state fee invoice in RustFS.
+      bcardPdfBytes             - written by Task_GenerateBcardPdf via
+                                  pdf-renderer, same bytes-typed pattern as
+                                  feeInvoicePdfBytes.
+      bcardPdfFilename          - written by Task_GenerateBcardPdf.
+      bcardPdfAttachmentId      - written by Task_StoreBcardPdf.
 
     Spec lives at docs/business/services/business-registration/. Hand-edited
     in PR #3 of the redomain plan to add the co-founder signing block.
@@ -410,6 +435,97 @@
       <bpmn:outgoing>Flow_SentBack</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
+    <!--
+      Joins both approval paths (auto and manual) and decides whether to
+      generate + email the state fee invoice. applicantEmail is optional
+      in the founder form, so the default branch falls through to the
+      B-card generation without sending an email; the conditional branch
+      fires only when applicantEmail looks like a real address. Defensive
+      `execution.hasVariable()` guard for cases started without the form
+      (e.g. seed-history scripts).
+    -->
+    <bpmn:exclusiveGateway id="Gateway_SendApprovalEmail"
+                           name="Has applicant email?"
+                           default="Flow_NoEmail_BeforeBcard">
+      <bpmn:incoming>Flow_AutoApproved</bpmn:incoming>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasEmail_GenerateFeeInvoice</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NoEmail_BeforeBcard</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_HasEmail_GenerateFeeInvoice" name="valid email"
+                       sourceRef="Gateway_SendApprovalEmail"
+                       targetRef="Task_GenerateFeeInvoicePdf">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("applicantEmail") and execution.getVariable("applicantEmail") != null and execution.getVariable("applicantEmail").contains("@")}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NoEmail_BeforeBcard"
+                       sourceRef="Gateway_SendApprovalEmail"
+                       targetRef="Gateway_BeforeBcard" />
+
+    <!--
+      Generates the state fee invoice PDF via the pdf-renderer sidecar.
+      Same shape as personReg's Task_GeneratePdf — JSON in, base64 PDF
+      out, decoded to byte[] so it lands in ACT_GE_BYTEARRAY instead of
+      overflowing the 4000-char ACT_HI_VARINST.TEXT_ column.
+    -->
+    <bpmn:serviceTask id="Task_GenerateFeeInvoicePdf" name="Generate state fee invoice"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${pdfApiBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/business-fee-invoice-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="feeInvoicePdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="feeInvoicePdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasEmail_GenerateFeeInvoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_GenerateFeeInvoice_Store</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_GenerateFeeInvoice_Store"
+                       sourceRef="Task_GenerateFeeInvoicePdf"
+                       targetRef="Task_StoreFeeInvoicePdf" />
+
+    <bpmn:serviceTask id="Task_StoreFeeInvoicePdf" name="Store fee invoice"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/server-upload-business-fee-invoice.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="feeInvoicePdfAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GenerateFeeInvoice_Store</bpmn:incoming>
+      <bpmn:outgoing>Flow_StoreFeeInvoice_SendEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_StoreFeeInvoice_SendEmail"
+                       sourceRef="Task_StoreFeeInvoicePdf" targetRef="Task_SendApprovalEmail" />
+
     <bpmn:serviceTask id="Task_SendApprovalEmail" name="Send approval email"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
@@ -429,10 +545,91 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_AutoApproved</bpmn:incoming>
-      <bpmn:incoming>Flow_Approved</bpmn:incoming>
-      <bpmn:outgoing>Flow_EmailSent</bpmn:outgoing>
+      <bpmn:incoming>Flow_StoreFeeInvoice_SendEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendEmail_BeforeBcard</bpmn:outgoing>
     </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_SendEmail_BeforeBcard"
+                       sourceRef="Task_SendApprovalEmail" targetRef="Gateway_BeforeBcard" />
+
+    <!--
+      Converging join — every approved case (auto-approved + reviewed-with-
+      email + reviewed-no-email) funnels through here to the B-card
+      generation. The exclusive gateway is fine even though it has two
+      incoming sequence flows: only one fires per case (BPMN treats this
+      as a merge, not a synchronisation).
+    -->
+    <bpmn:exclusiveGateway id="Gateway_BeforeBcard" name="(merge)">
+      <bpmn:incoming>Flow_NoEmail_BeforeBcard</bpmn:incoming>
+      <bpmn:incoming>Flow_SendEmail_BeforeBcard</bpmn:incoming>
+      <bpmn:outgoing>Flow_BeforeBcard_Generate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_BeforeBcard_Generate"
+                       sourceRef="Gateway_BeforeBcard" targetRef="Task_GenerateBcardPdf" />
+
+    <!--
+      Generates the B-card extract via the same pdf-renderer sidecar used
+      by Task_GenerateFeeInvoicePdf. Runs for every approved case — both
+      auto-approved and Business Register approved — because the B-card
+      is the canonical record-of-registration the applicant + reviewer
+      can download from the Documents card.
+    -->
+    <bpmn:serviceTask id="Task_GenerateBcardPdf" name="Generate B-card extract"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${pdfApiBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/bcard-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="bcardPdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="bcardPdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_BeforeBcard_Generate</bpmn:incoming>
+      <bpmn:outgoing>Flow_GenerateBcard_Store</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_GenerateBcard_Store"
+                       sourceRef="Task_GenerateBcardPdf" targetRef="Task_StoreBcardPdf" />
+
+    <bpmn:serviceTask id="Task_StoreBcardPdf" name="Store B-card extract"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/server-upload-bcard.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="bcardPdfAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GenerateBcard_Store</bpmn:incoming>
+      <bpmn:outgoing>Flow_StoreBcard_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_StoreBcard_End"
+                       sourceRef="Task_StoreBcardPdf" targetRef="EndEvent_Approved" />
 
     <!--
       Shared send-back email — fires from BOTH the civil-servant Decision
@@ -465,7 +662,7 @@
     </bpmn:serviceTask>
 
     <bpmn:endEvent id="EndEvent_Approved" name="OÜ entered in Business Register">
-      <bpmn:incoming>Flow_EmailSent</bpmn:incoming>
+      <bpmn:incoming>Flow_StoreBcard_End</bpmn:incoming>
     </bpmn:endEvent>
 
     <bpmn:sequenceFlow id="Flow_Start"
@@ -473,7 +670,7 @@
     <bpmn:sequenceFlow id="Flow_AutoDecided"
                        sourceRef="Task_AutoDecide" targetRef="Gateway_AutoApproval" />
     <bpmn:sequenceFlow id="Flow_AutoApproved" name="auto-approved"
-                       sourceRef="Gateway_AutoApproval" targetRef="Task_SendApprovalEmail">
+                       sourceRef="Gateway_AutoApproval" targetRef="Gateway_SendApprovalEmail">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${autoDecision == "approve"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_NeedsReview" name="needs review"
@@ -481,15 +678,13 @@
     <bpmn:sequenceFlow id="Flow_Reviewed"
                        sourceRef="Task_ReviewBusinessRegistration" targetRef="Gateway_Decision" />
     <bpmn:sequenceFlow id="Flow_Approved" name="approved"
-                       sourceRef="Gateway_Decision" targetRef="Task_SendApprovalEmail">
+                       sourceRef="Gateway_Decision" targetRef="Gateway_SendApprovalEmail">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${decision == "approve"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_SentBack" name="sent back"
                        sourceRef="Gateway_Decision" targetRef="Task_SendBackEmail" />
     <bpmn:sequenceFlow id="Flow_SentBackEmail"
                        sourceRef="Task_SendBackEmail" targetRef="Task_SubmitBusinessDetails" />
-    <bpmn:sequenceFlow id="Flow_EmailSent"
-                       sourceRef="Task_SendApprovalEmail" targetRef="EndEvent_Approved" />
   </bpmn:process>
 
   <!--
@@ -630,9 +825,32 @@
         <di:waypoint x="1005" y="200" /><di:waypoint x="1050" y="200" />
         <bpmndi:BPMNLabel><dc:Bounds x="1007" y="180" width="48" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_EmailSent_di" bpmnElement="Flow_EmailSent">
-        <di:waypoint x="1190" y="200" /><di:waypoint x="1240" y="200" />
-      </bpmndi:BPMNEdge>
+      <!--
+        PR #5: PDF pipeline (Gateway_SendApprovalEmail → fee invoice
+        → store → email → Gateway_BeforeBcard → B-card → store → end).
+        Stub shapes on a separate band at y=960 to avoid expanding the
+        main row — same "functional, not pretty" approach the AoA
+        pipeline uses. Re-flow in cibseven-modeller if needed.
+      -->
+      <bpmndi:BPMNShape id="Gateway_SendApprovalEmail_di" bpmnElement="Gateway_SendApprovalEmail" isMarkerVisible="true">
+        <dc:Bounds x="245" y="935" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="222" y="998" width="100" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerateFeeInvoicePdf_di" bpmnElement="Task_GenerateFeeInvoicePdf">
+        <dc:Bounds x="345" y="920" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreFeeInvoicePdf_di" bpmnElement="Task_StoreFeeInvoicePdf">
+        <dc:Bounds x="525" y="920" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BeforeBcard_di" bpmnElement="Gateway_BeforeBcard" isMarkerVisible="true">
+        <dc:Bounds x="855" y="935" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerateBcardPdf_di" bpmnElement="Task_GenerateBcardPdf">
+        <dc:Bounds x="935" y="920" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreBcardPdf_di" bpmnElement="Task_StoreBcardPdf">
+        <dc:Bounds x="1115" y="920" width="140" height="80" />
+      </bpmndi:BPMNShape>
 
       <!-- Edges: signing block -->
       <bpmndi:BPMNEdge id="Flow_NeedsSignatures_TrackingEmail_di" bpmnElement="Flow_NeedsSignatures_TrackingEmail">
