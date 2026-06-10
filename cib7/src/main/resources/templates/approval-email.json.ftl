@@ -22,6 +22,7 @@
   state fee is paid.
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
+<#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
 <#assign body>Hi ${firstName!""},
 
 Your vehicle registration with Transpordiamet has been approved. The
@@ -32,6 +33,9 @@ Certificate (tehniline pass) will be issued.
 Owner: ${fullName}
 Vehicle code: ${objectId!""}
 Vehicle value: €${(price!0)?string("0.00")}
+
+Pay the state fee here:
+${payUrl}
 
 Thanks,
 Transpordiamet POC</#assign>

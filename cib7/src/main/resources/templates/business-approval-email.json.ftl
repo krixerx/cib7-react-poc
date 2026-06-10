@@ -52,6 +52,9 @@ Board members:
 ${members}
 Decision made by:        ${((autoDecision!"")=="approve")?then("automated decision table (DMN)", "manual review by the Business Register")}
 
+Pay the state fee here:
+${frontendBaseUrl}/pay/${execution.processInstanceId}
+
 Once payment is received, the B-card extract will be available in the My
 processes page in the SPA.
 

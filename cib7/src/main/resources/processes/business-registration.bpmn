@@ -131,6 +131,7 @@
   -->
   <bpmn:message id="Message_FounderSignature" name="FounderSignature" />
   <bpmn:message id="Message_SubmitToRegister" name="SubmitToRegister" />
+  <bpmn:message id="Message_PaymentReceived" name="PaymentReceived" />
 
   <bpmn:process id="businessRegistration" name="Estonian OÜ Registration"
                 isExecutable="true" camunda:historyTimeToLive="P30D">
@@ -546,11 +547,27 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_StoreFeeInvoice_SendEmail</bpmn:incoming>
-      <bpmn:outgoing>Flow_SendEmail_BeforeBcard</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendEmail_WaitPayment</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_SendEmail_BeforeBcard"
-                       sourceRef="Task_SendApprovalEmail" targetRef="Gateway_BeforeBcard" />
+    <bpmn:sequenceFlow id="Flow_SendEmail_WaitPayment"
+                       sourceRef="Task_SendApprovalEmail" targetRef="Task_WaitForPayment" />
+
+    <!--
+      Park until the applicant clicks "Confirm payment" on the public
+      /pay/{piId} page. PaymentController correlates PaymentReceived by
+      processInstanceId, so only this one waiter is unblocked. Cases
+      without an applicantEmail skip this branch entirely (no invoice
+      was generated to pay).
+    -->
+    <bpmn:receiveTask id="Task_WaitForPayment" name="Wait for state fee payment"
+                      messageRef="Message_PaymentReceived">
+      <bpmn:incoming>Flow_SendEmail_WaitPayment</bpmn:incoming>
+      <bpmn:outgoing>Flow_Payment_BeforeBcard</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <bpmn:sequenceFlow id="Flow_Payment_BeforeBcard"
+                       sourceRef="Task_WaitForPayment" targetRef="Gateway_BeforeBcard" />
 
     <!--
       Converging join — every approved case (auto-approved + reviewed-with-
@@ -561,7 +578,7 @@
     -->
     <bpmn:exclusiveGateway id="Gateway_BeforeBcard" name="(merge)">
       <bpmn:incoming>Flow_NoEmail_BeforeBcard</bpmn:incoming>
-      <bpmn:incoming>Flow_SendEmail_BeforeBcard</bpmn:incoming>
+      <bpmn:incoming>Flow_Payment_BeforeBcard</bpmn:incoming>
       <bpmn:outgoing>Flow_BeforeBcard_Generate</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
@@ -850,6 +867,12 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_StoreBcardPdf_di" bpmnElement="Task_StoreBcardPdf">
         <dc:Bounds x="1115" y="920" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <!-- PR #7: payment wait. Sits between Task_SendApprovalEmail and
+           Gateway_BeforeBcard. Stub on the same band as the rest of the
+           PDF pipeline. -->
+      <bpmndi:BPMNShape id="Task_WaitForPayment_di" bpmnElement="Task_WaitForPayment">
+        <dc:Bounds x="700" y="920" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Edges: signing block -->

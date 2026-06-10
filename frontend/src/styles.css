@@ -2265,3 +2265,173 @@ code {
   letter-spacing: 0.02em;
   margin-top: 2px;
 }
+
+/* ===================================================================
+   PR #7 — /pay/:processInstanceId fake SEPA payment page
+   =================================================================== */
+
+.pay-page {
+  max-width: 900px;
+  margin: 60px auto;
+  padding: 0 20px;
+}
+
+.pay-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.pay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 28px;
+  color: white;
+}
+
+.pay-header-vehicle {
+  background: linear-gradient(135deg, #003c7a, #1c5da6);
+}
+
+.pay-header-business {
+  background: linear-gradient(135deg, #0b6e4f, #2e9670);
+}
+
+.pay-title {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+}
+
+.pay-subtitle {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.pay-status {
+  background: rgba(255, 255, 255, 0.18);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pay-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
+  padding: 28px;
+}
+
+@media (max-width: 720px) {
+  .pay-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+.pay-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.pay-summary-block,
+.pay-bank-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.pay-summary {
+  margin: 0;
+}
+
+.pay-summary .summary-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.pay-summary dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.pay-summary dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.pay-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.pay-amount {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: #f3f6fb;
+  border-left: 4px solid #003c7a;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.pay-header-business + .pay-grid .pay-amount {
+  background: #eef7f2;
+  border-left-color: #0b6e4f;
+}
+
+.pay-amount-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pay-amount-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pay-confirm {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 15px;
+  margin-top: 12px;
+}
+
+/* Success state */
+.pay-success {
+  text-align: center;
+  padding: 48px 32px;
+}
+
+.pay-success .pay-success-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #e8f5ee;
+  color: #0b6e4f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.pay-success .card-title {
+  color: #0b6e4f;
+  margin-bottom: 12px;
+}
+
+.pay-success .pay-summary {
+  margin-top: 24px;
+  text-align: left;
+}
