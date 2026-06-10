@@ -9,11 +9,11 @@
       "manifestPath": "business-registration/build/mcp-service.json"
     },
     {
-      "key": "personRegistration",
-      "name": "Person Registration",
-      "description": "Register an applicant's personal details and apply for a product from the public catalogue. Adults requesting cheap items (price < 100) are auto-approved by a DMN rule; everyone else is routed to a civil-servant review queue.",
+      "key": "vehicleRegistration",
+      "name": "Vehicle Registration",
+      "description": "Register a vehicle with Transpordiamet (Estonian Transport Authority), with optional co-owner signatures. The vehicle is looked up from a curated catalog; adult sole owners of low-value (under €5k) older (10+ years) vehicles are auto-approved by DMN, everyone else routes to a Transport Authority review.",
       "audience": "applicant",
-      "manifestPath": "person-registration/build/mcp-service.json"
+      "manifestPath": "vehicle-registration/build/mcp-service.json"
     }
   ]
 }

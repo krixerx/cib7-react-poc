@@ -790,7 +790,7 @@
       <!--
         Documents pipeline (PR #4 — Articles of Association upload).
         Minimal stubs on a separate band so the new gateway / service task
-        don't overlap the existing rows. Same pattern as person-registration's
+        don't overlap the existing rows. Same pattern as vehicle-registration's
         documents pipeline: y=820 band, crossing arrows back to the main
         row. Functional; not pretty — re-flow in cibseven-modeller if needed.
       -->

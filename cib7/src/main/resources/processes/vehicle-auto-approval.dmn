@@ -34,7 +34,7 @@
     historyTimeToLive is required by CIB seven 2.1 (enforceTTL is on by default).
     P30D mirrors the BPMN's process-level TTL so history rows expire together.
   -->
-  <decision id="auto-approval" name="Vehicle registration auto-approval" camunda:historyTimeToLive="P30D">
+  <decision id="vehicle-auto-approval" name="Vehicle registration auto-approval" camunda:historyTimeToLive="P30D">
     <decisionTable id="DecisionTable_AutoApproval" hitPolicy="FIRST">
       <input id="Input_Age" label="Owner age" camunda:inputVariable="age">
         <inputExpression id="InputExpression_Age" typeRef="integer">
@@ -91,7 +91,7 @@
 
   <dmndi:DMNDI>
     <dmndi:DMNDiagram id="DMNDiagram_1">
-      <dmndi:DMNShape id="DMNShape_AutoApproval" dmnElementRef="auto-approval">
+      <dmndi:DMNShape id="DMNShape_AutoApproval" dmnElementRef="vehicle-auto-approval">
         <dc:Bounds height="80" width="180" x="160" y="100" />
       </dmndi:DMNShape>
     </dmndi:DMNDiagram>

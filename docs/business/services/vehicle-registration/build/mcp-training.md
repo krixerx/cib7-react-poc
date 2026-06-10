@@ -1,4 +1,4 @@
-# personRegistration — guidance for the LLM
+# vehicleRegistration — guidance for the LLM
 
 This service registers an applicant's personal details and runs them through an
 auto-approval decision based on age and product price. It's the simpler of the
@@ -7,7 +7,7 @@ on the same pattern.
 
 ## What to ask the user for
 
-To start a personRegistration, you need exactly four pieces of information:
+To start a vehicleRegistration, you need exactly four pieces of information:
 
 - **firstName** — applicant's first name
 - **lastName** — applicant's last name

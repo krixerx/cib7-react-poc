@@ -1,9 +1,9 @@
 import type { ComponentType } from 'react';
 import type { FormProps } from './types';
 import BusinessDetailsForm from './business-details/BusinessDetailsForm';
-import PersonalDetailsForm from './personal-details/PersonalDetailsForm';
-import ReviewApplicationForm from './review-application/ReviewApplicationForm';
+import OwnerVehicleForm from './owner-vehicle/OwnerVehicleForm';
 import ReviewBusinessRegistrationForm from './review-business-registration/ReviewBusinessRegistrationForm';
+import VehicleReviewForm from './vehicle-review/VehicleReviewForm';
 
 /**
  * Maps a logical form id to a React component. The form id is the part of the
@@ -15,12 +15,12 @@ import ReviewBusinessRegistrationForm from './review-business-registration/Revie
  */
 export const formRegistry: Record<string, ComponentType<FormProps>> = {
   'business-details': BusinessDetailsForm,
-  'personal-details': PersonalDetailsForm,
-  'review-application': ReviewApplicationForm,
+  'owner-vehicle': OwnerVehicleForm,
   'review-business-registration': ReviewBusinessRegistrationForm,
+  'vehicle-review': VehicleReviewForm,
 };
 
-/** Parses a BPMN formKey ("react:personal-details") into a form id. */
+/** Parses a BPMN formKey ("react:owner-vehicle") into a form id. */
 export function parseFormId(formKey: string | null | undefined): string | null {
   if (!formKey) return null;
   const prefix = 'react:';

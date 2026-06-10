@@ -113,7 +113,7 @@ export default function PayPage() {
     );
   }
 
-  const isVehicle = status.processDefinitionKey === 'personRegistration';
+  const isVehicle = status.processDefinitionKey === 'vehicleRegistration';
   const issuer = isVehicle ? 'Transpordiamet POC' : 'Äriregister POC';
   const issuerSub = isVehicle
     ? 'Estonian Transport Authority'

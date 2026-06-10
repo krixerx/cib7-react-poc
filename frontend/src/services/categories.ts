@@ -40,7 +40,7 @@ export const CATEGORIES: Category[] = [
  */
 const SERVICE_CATEGORY: Record<string, CategoryId> = {
   businessRegistration: 'business',
-  personRegistration: 'travel',
+  vehicleRegistration: 'travel',
 };
 
 export function categoryOf(processDefinitionKey: string): CategoryId {

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Public REST surface for the owner-confirmation flow in
- * {@code person-registration.bpmn}.
+ * {@code vehicle-registration.bpmn}.
  *
  * <p>Endpoints under {@code /api/public/**} are unauthenticated (see
  * {@link PublicApiSecurityConfig}). Authorization is by knowledge of the
@@ -44,7 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </pre>
  *
  * <p>Token-to-process lookup is intentionally O(active instances): the POC
- * scans active {@code personRegistration} instances and matches against
+ * scans active {@code vehicleRegistration} instances and matches against
  * {@code applicantToken} / {@code additionalOwners[].token}. Move to a
  * dedicated index table if the case load ever grows beyond demo scale.
  */
@@ -54,7 +54,7 @@ public class OwnerConfirmationController {
 
     private static final Logger LOG = LoggerFactory.getLogger(OwnerConfirmationController.class);
 
-    private static final String PROCESS_KEY = "personRegistration";
+    private static final String PROCESS_KEY = "vehicleRegistration";
 
     private final RuntimeService runtimeService;
 

@@ -1,6 +1,6 @@
 <#--
   Mailpit /api/v1/send payload for the "Send owner tracking email"
-  service task in person-registration.bpmn.
+  service task in vehicle-registration.bpmn.
 
   Sent once at the start of the co-owner signing phase. The owner's
   own token is pre-confirmed by the form submission, so the link mainly

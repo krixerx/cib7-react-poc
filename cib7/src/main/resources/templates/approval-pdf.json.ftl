@@ -1,6 +1,6 @@
 <#--
   pdf-renderer /render payload for the "Generate state fee invoice"
-  service task in person-registration.bpmn.
+  service task in vehicle-registration.bpmn.
 
   Renders an Estonian-styled state fee invoice for the approved vehicle
   registration. Process variables in scope: firstName, lastName, age,

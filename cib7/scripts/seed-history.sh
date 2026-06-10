@@ -145,7 +145,7 @@ start_and_complete() {
 }
 
 # ---------------------------------------------------------------------
-# Seed personRegistration (firstName / lastName / age / objectId)
+# Seed vehicleRegistration (firstName / lastName / age / objectId)
 # ---------------------------------------------------------------------
 
 PERSON_VARS='{
@@ -155,7 +155,7 @@ PERSON_VARS='{
   "objectId":  {"value":"1","type":"String"}
 }'
 
-# personRegistration also has a co-owners gateway expression on the
+# vehicleRegistration also has a co-owners gateway expression on the
 # applicant task — `additionalOwners == null || additionalOwners.elements().isEmpty()` —
 # that throws "Cannot resolve identifier" on complete unless the variable
 # exists in scope. Pass an explicit empty Json array on completion so the
@@ -176,7 +176,7 @@ PERSON_COMPLETE_VARS='{
   "additionalOwners": {"value":"[]","type":"Json"}
 }'
 
-start_and_complete personRegistration "$PERSON_VARS" "$PERSON_COMPLETE_VARS"
+start_and_complete vehicleRegistration "$PERSON_VARS" "$PERSON_COMPLETE_VARS"
 
 # ---------------------------------------------------------------------
 # Seed businessRegistration (applicantFirstName / applicantLastName /
@@ -194,4 +194,4 @@ BIZ_VARS='{
 
 start_and_complete businessRegistration "$BIZ_VARS" "$BIZ_VARS"
 
-log "all seeds done. Bart now has personRegistration + businessRegistration history."
+log "all seeds done. Bart now has vehicleRegistration + businessRegistration history."

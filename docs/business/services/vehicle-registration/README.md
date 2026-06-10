@@ -1,11 +1,11 @@
-# Person Registration
+# Vehicle Registration
 
 **Status:** active (POC)
-**Process key:** `personRegistration`
-**BPMN:** [`cib7/src/main/resources/processes/person-registration.bpmn`](../../../../cib7/src/main/resources/processes/person-registration.bpmn)
-**DMN:** [`cib7/src/main/resources/processes/auto-approval.dmn`](../../../../cib7/src/main/resources/processes/auto-approval.dmn)
+**Process key:** `vehicleRegistration`
+**BPMN:** [`cib7/src/main/resources/processes/vehicle-registration.bpmn`](../../../../cib7/src/main/resources/processes/vehicle-registration.bpmn)
+**DMN:** [`cib7/src/main/resources/processes/vehicle-auto-approval.dmn`](../../../../cib7/src/main/resources/processes/vehicle-auto-approval.dmn)
 
-**When to read this:** before changing the person-registration flow, its forms,
+**When to read this:** before changing the vehicle-registration flow, its forms,
 or its integrations. Cross-cutting topics (platform architecture, engine config,
 form contract) live in [`../../../architecture.md`](../../../architecture.md),
 [`../../../cib7.md`](../../../cib7.md), [`../../../frontend.md`](../../../frontend.md),
@@ -34,8 +34,8 @@ Do not edit between the markers — run the script to refresh:
 ```sh
 cd scripts
 node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/person-registration.bpmn \
-  --out ../docs/business/services/person-registration/README.md
+  ../cib7/src/main/resources/processes/vehicle-registration.bpmn \
+  --out ../docs/business/services/vehicle-registration/README.md
 ```
 
 Legend: 👤 user task · 🔌 HTTP service task · 📋 DMN business-rule task ·
@@ -54,7 +54,7 @@ subprocess completes early as soon as any instance writes
 <!-- bpmn-diagram:start -->
 ```mermaid
 flowchart LR
-  %% Person Registration
+  %% Vehicle Registration
   StartEvent_1(("Registration started"))
   Task_SubmitDetails["👤 Submit personal details"]
   Task_Review["👤 Review application"]
@@ -185,7 +185,7 @@ JUEL variables by `MailConfiguration`, `PdfConfiguration`, and
 - Send-back loop reuses the same `Task_SubmitDetails`. The form must accept
   both first-submit and resubmit modes — check the form for that.
 - Token → process-instance lookup is a linear scan over active
-  `personRegistration` instances (the applicant lookup is indexed via
+  `vehicleRegistration` instances (the applicant lookup is indexed via
   `variableValueEquals`; the co-owner lookup walks each instance's
   `additionalOwners` list). Fine at POC scale; add a token-index table if
   the case load grows.

@@ -15,7 +15,7 @@ import java.util.Base64;
  *
  * <ol>
  *   <li>decode base64 → byte[] before storing the variable (see Task_GeneratePdf
- *       in person-registration.bpmn — {@code ${pdf.decode(...)}});</li>
+ *       in vehicle-registration.bpmn — {@code ${pdf.decode(...)}});</li>
  *   <li>encode byte[] → base64 inside approval-email.json.ftl when assembling
  *       the Mailpit attachment ({@code ${pdf.encode(approvalPdfBytes)}}).</li>
  * </ol>

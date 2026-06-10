@@ -113,7 +113,7 @@
   <bpmn:message id="Message_OwnerConfirmation" name="OwnerConfirmation" />
   <bpmn:message id="Message_SendToProcess" name="SendToProcess" />
   <bpmn:message id="Message_PaymentReceived" name="PaymentReceived" />
-  <bpmn:process id="personRegistration" name="Vehicle Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
+  <bpmn:process id="vehicleRegistration" name="Vehicle Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
 
     <bpmn:startEvent id="StartEvent_1" name="Registration started" camunda:initiator="initiator">
       <bpmn:outgoing>Flow_Start_Submit</bpmn:outgoing>
@@ -127,7 +127,7 @@
       the initial submit and when the civil servant sends the case back.
     -->
     <bpmn:userTask id="Task_SubmitDetails" name="Submit owner &amp; vehicle details"
-                   camunda:formKey="react:personal-details"
+                   camunda:formKey="react:owner-vehicle"
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
       <bpmn:incoming>Flow_SendBackEmail_Submit</bpmn:incoming>
@@ -433,7 +433,7 @@
       by earlier steps before this task runs.
     -->
     <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto-approval policy"
-                           camunda:decisionRef="auto-approval"
+                           camunda:decisionRef="vehicle-auto-approval"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="autoDecision">
       <bpmn:incoming>Flow_GetPrice_AutoDecide</bpmn:incoming>
@@ -472,7 +472,7 @@
       and can fire again — handy for repeated nudges.
     -->
     <bpmn:userTask id="Task_Review" name="Transport Authority review"
-                   camunda:formKey="react:review-application"
+                   camunda:formKey="react:vehicle-review"
                    camunda:candidateGroups="civil-servant">
       <bpmn:incoming>Flow_AutoApproval_Review</bpmn:incoming>
       <bpmn:outgoing>Flow_Review_Gateway</bpmn:outgoing>
@@ -852,7 +852,7 @@
     Re-open in a BPMN modeler to clean up further. Coordinates are points.
   -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
-    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="personRegistration">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="vehicleRegistration">
 
       <!-- ===== Main row (y = 160 - 240) ===== -->
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Public REST surface for the shared state-fee payment step used by
- * {@code person-registration.bpmn} (vehicle registration) and
+ * {@code vehicle-registration.bpmn} (vehicle registration) and
  * {@code business-registration.bpmn} (OÜ registration).
  *
  * <p>Endpoints under {@code /api/public/payments/**} are unauthenticated
@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Fee schedule:
  * <pre>
  *   businessRegistration → €265 flat (Estonian fast-track OÜ fee)
- *   personRegistration   → €25 / €75 / €150 tiered by vehicle value
+ *   vehicleRegistration  → €25 / €75 / €150 tiered by vehicle value
  *                          (mirrors the fee tiers rendered in the
  *                          state-fee-invoice PDF template)
  * </pre>
@@ -48,7 +48,7 @@ public class PaymentController {
 
     private static final Logger LOG = LoggerFactory.getLogger(PaymentController.class);
 
-    private static final String VEHICLE_KEY = "personRegistration";
+    private static final String VEHICLE_KEY = "vehicleRegistration";
     private static final String OU_KEY = "businessRegistration";
 
     private static final String VEHICLE_IBAN = "EE89 3300 3334 1110 3007";

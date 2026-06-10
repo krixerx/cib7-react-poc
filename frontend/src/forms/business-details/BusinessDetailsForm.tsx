@@ -22,7 +22,7 @@ import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
  * boardMembers is a separate concern (board-of-management appointment data
  * for the OÜ register entry). Co-founders are the people signing the
  * Articles of Association; they may or may not overlap with board members.
- * Mirror of PartA's owner / co-owner editor in personRegistration.
+ * Mirror of PartA's owner / co-owner editor in vehicleRegistration.
  */
 
 interface BoardMember {
@@ -75,7 +75,7 @@ function parseBoardMembers(raw: unknown): BoardMember[] {
 }
 
 /**
- * Same defensive shape as personRegistration's parseAdditionalOwners —
+ * Same defensive shape as vehicleRegistration's parseAdditionalOwners —
  * CIB seven returns Spin Json variables as either JS arrays or JSON
  * strings depending on the storage path; handle both.
  */
@@ -146,7 +146,7 @@ export default function BusinessDetailsForm({
   // surface it as a ready-to-download chip rather than asking the founder to
   // re-upload. The contentType/size are best-effort fallbacks since they
   // weren't preserved as process variables on the original round. Same
-  // pattern as personRegistration's idDocument handling.
+  // pattern as vehicleRegistration's idDocument handling.
   const [aoaDocument, setAoaDocument] = useState<FileUploadValue | null>(() => {
     const attachmentId = data.aoaDocumentAttachmentId;
     if (typeof attachmentId === 'string' && attachmentId.length > 0) {

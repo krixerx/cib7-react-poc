@@ -1,7 +1,7 @@
 <#--
   Mailpit /api/v1/send payload for the "Send co-owner signing email"
   service task inside SubProcess_OwnerConfirmations in
-  person-registration.bpmn.
+  vehicle-registration.bpmn.
 
   Scope: this template runs inside one multi-instance subprocess iteration.
   The per-iteration element variable `owner` is a SpinJsonNode with prop()

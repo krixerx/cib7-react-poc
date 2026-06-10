@@ -1,42 +1,42 @@
 {
-  "key": "personRegistration",
-  "name": "Person Registration",
-  "description": "Register an applicant's personal details and apply for a product from the public catalogue. Adults requesting cheap items (price < 100) are auto-approved by a DMN rule; everyone else is routed to a civil-servant review queue.",
+  "key": "vehicleRegistration",
+  "name": "Vehicle Registration",
+  "description": "Register a vehicle with Transpordiamet (Estonian Transport Authority). The vehicle is looked up from a curated catalog; adult sole owners of low-value (under €5k) older (10+ years) vehicles are auto-approved by DMN, everyone else routes to a Transport Authority review queue.",
   "audience": "applicant",
   "candidateGroups": ["applicant"],
   "initialTask": {
-    "formKey": "personal-details",
+    "formKey": "owner-vehicle",
     "audience": "applicant",
-    "name": "Submit personal details"
+    "name": "Submit owner & vehicle details"
   },
   "variables": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
-    "title": "personRegistration start-time variables",
-    "description": "Variables collected from the applicant. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "title": "vehicleRegistration start-time variables",
+    "description": "Variables collected from the registering owner. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
     "properties": {
       "firstName": {
         "type": "string",
         "minLength": 1,
         "maxLength": 100,
-        "description": "Applicant's first name."
+        "description": "Registering owner's first name."
       },
       "lastName": {
         "type": "string",
         "minLength": 1,
         "maxLength": 100,
-        "description": "Applicant's last name."
+        "description": "Registering owner's last name."
       },
       "age": {
         "type": "integer",
         "minimum": 0,
         "maximum": 130,
-        "description": "Applicant's age in years. Affects the auto-approval branch (adults only)."
+        "description": "Registering owner's age in years. Drives the auto-approval branch (adults only)."
       },
       "objectId": {
         "type": "string",
         "minLength": 1,
-        "description": "Product ID from the public catalogue at https://api.restful-api.dev/objects. The engine fetches the product price server-side via http-connector and feeds it to the auto-approval DMN."
+        "description": "Vehicle VIN. The engine looks the vehicle up against the curated registry served by VehicleRegistryController at /api/public/vehicle-registry/vehicles/{vin}; the response (value, year, fuel type, etc.) feeds the auto-approval DMN."
       }
     },
     "required": ["firstName", "lastName", "age", "objectId"],
@@ -44,17 +44,17 @@
   },
   "userTasks": [
     {
-      "formKey": "personal-details",
-      "name": "Submit personal details",
+      "formKey": "owner-vehicle",
+      "name": "Submit owner & vehicle details",
       "audience": "applicant",
-      "description": "The applicant confirms (or corrects) their personal details, product choice, and uploads a copy of their ID document. Call upload_document FIRST to stage the ID file, then pass the returned object as `pendingIdDocument` here. If start_process pre-filled the names/age/objectId, the LLM only needs to gather the document and call complete_task.",
+      "description": "The registering owner confirms (or corrects) their details, picks a vehicle from the catalog (a VIN), and uploads their ID document. Call upload_document FIRST to stage the ID file, then pass the returned object as `pendingIdDocument` here. If start_process pre-filled the names/age/VIN, the LLM only needs to gather the document and call complete_task.",
       "requiredDocuments": [
         {
           "category": "applicant-id-document",
           "writeTo": "pendingIdDocument",
           "accept": ["application/pdf", "image/jpeg", "image/png"],
           "maxBytes": 10485760,
-          "description": "Copy of the applicant's national ID card or passport. The civil servant will download this during review."
+          "description": "Copy of the owner's national ID card, passport, or driving licence. The Transport Authority reviewer will download this during review."
         }
       ],
       "schema": {
@@ -65,33 +65,33 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
-            "description": "Applicant's first name."
+            "description": "Registering owner's first name."
           },
           "lastName": {
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
-            "description": "Applicant's last name."
+            "description": "Registering owner's last name."
           },
           "age": {
             "type": "integer",
             "minimum": 0,
             "maximum": 130,
-            "description": "Applicant's age in years."
+            "description": "Registering owner's age in years."
           },
           "objectId": {
             "type": "string",
             "minLength": 1,
-            "description": "Product ID from the public catalogue."
+            "description": "Vehicle VIN, matched against the curated registry."
           },
           "applicantEmail": {
             "type": "string",
-            "description": "Optional. Required only if the applicant lists additional co-owners (so they can receive a tracking link). Leave empty otherwise.",
+            "description": "Optional. Required only if the owner lists co-owners (so they can receive a tracking link) or wants the state fee invoice emailed. Leave empty otherwise.",
             "default": ""
           },
           "additionalOwners": {
             "type": "array",
-            "description": "Optional list of co-owners that must sign before the case reaches the back office. Leave empty unless the applicant explicitly asks for it. Note: the co-owner sign-off flow uses applicantEmail + per-owner tracking links and is best driven from the web portal — MCP does not surface the sign-off receive task today.",
+            "description": "Optional list of co-owners that must sign the registration before it reaches Transport Authority review. Leave empty unless the owner explicitly asks for it. Note: the co-owner sign-off flow uses applicantEmail + per-owner tracking links and is best driven from the web portal — MCP does not surface the sign-off receive task today.",
             "items": {
               "type": "object",
               "properties": {
@@ -126,10 +126,10 @@
       }
     },
     {
-      "formKey": "review-application",
-      "name": "Review application",
+      "formKey": "vehicle-review",
+      "name": "Transport Authority review",
       "audience": "civil-servant",
-      "description": "The civil servant accepts the application or sends it back to the applicant with a reason. A non-interrupting timer fires every two minutes while this task is open and sends a reminder email via Mailpit. If sent back, the process loops to the applicant's personal-details task.",
+      "description": "The Transport Authority reviewer accepts the registration or sends it back to the owner with a reason. A non-interrupting timer fires every two minutes while this task is open and sends a reminder email via Mailpit. If sent back, the process loops to the owner's owner-vehicle task.",
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -137,12 +137,12 @@
           "decision": {
             "type": "string",
             "enum": ["approve", "sendback"],
-            "description": "approve = end the process as approved. sendback = email the applicant with the reason and loop back to the personal-details task."
+            "description": "approve = end the process as approved. sendback = email the owner with the reason and loop back to the owner-vehicle task."
           },
           "sendBackReason": {
             "type": "string",
             "minLength": 1,
-            "description": "Required when decision = sendback. The applicant sees this as a banner above the personal-details form on re-entry."
+            "description": "Required when decision = sendback. The owner sees this as a banner above the owner-vehicle form on re-entry."
           }
         },
         "required": ["decision"],

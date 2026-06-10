@@ -1,6 +1,6 @@
 <#--
   pdf-renderer /render payload for Task_GenerateCertificatePdf
-  in person-registration.bpmn.
+  in vehicle-registration.bpmn.
 
   Renders a Vehicle Registration Certificate (Estonian tehniline pass
   styled, POC) for every approved case — auto-approved and Transport

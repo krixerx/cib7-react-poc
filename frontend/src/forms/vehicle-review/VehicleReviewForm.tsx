@@ -9,7 +9,7 @@ import type { FormProps } from '../types';
  *   Send back → reveals a reason textarea; completing writes decision="sendback"
  *               and sendBackReason so the owner sees why it was returned.
  */
-export default function ReviewApplicationForm({
+export default function VehicleReviewForm({
   data,
   onComplete,
   submitting,

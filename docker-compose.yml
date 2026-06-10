@@ -229,7 +229,7 @@ services:
         condition: service_started
 
   # One-shot service: ROPCs as bart via the dedicated `cib7-seed` Keycloak
-  # client and starts + completes one personRegistration + one
+  # client and starts + completes one vehicleRegistration + one
   # businessRegistration so `query_user_history` returns values from the
   # very first MCP call after a cold `docker compose up`. Exits 0 once
   # both seeds land. See cib7/scripts/seed-history.sh for the gory detail.

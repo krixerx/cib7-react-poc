@@ -1,6 +1,6 @@
 <#--
   Mailpit /api/v1/send payload for the "Send state fee invoice email"
-  service task in person-registration.bpmn. Sent when the applicant
+  service task in vehicle-registration.bpmn. Sent when the applicant
   provided an email address; attaches the State fee invoice PDF
   produced by the preceding "Generate state fee invoice" task.
 

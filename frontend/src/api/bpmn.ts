@@ -4,7 +4,7 @@ export interface UserTaskDef {
   id: string;
   /** Display name (falls back to the id if unnamed). */
   name: string;
-  /** The `camunda:formKey` attribute, e.g. "react:personal-details". */
+  /** The `camunda:formKey` attribute, e.g. "react:owner-vehicle". */
   formKey: string | null;
 }
 

@@ -1,23 +1,18 @@
 /**
  * Client for the curated Estonian vehicle registry served by the
  * backend's VehicleRegistryController under
- * /api/public/vehicle-registry — see redomain plan D4.
+ * /api/public/vehicle-registry.
  *
- * The PartA form uses this to populate its vehicle dropdown. The engine's
- * Task_GetPrice service task hits the same backend path server-side via
- * the http-connector, so the SPA and the engine see the same catalog at
- * any moment.
- *
- * Module / file rename (objectsApi.ts → vehicleRegistryApi.ts;
- * `listPricedObjects` → `listVehicles`; `PricedObject` → `Vehicle`) is
- * deferred to PR #8 alongside the rest of the structural renames so this
- * PR stays focused on the behavior change.
+ * The OwnerVehicleForm uses this to populate its vehicle dropdown. The
+ * engine's Task_GetPrice service task hits the same backend path server-
+ * side via the http-connector, so the SPA and the engine see the same
+ * catalog at any moment.
  */
 
 const VEHICLES_URL = '/api/public/vehicle-registry/vehicles';
 
 /** Dropdown row — only what the form renders. */
-export interface PricedObject {
+export interface Vehicle {
   id: string;
   name: string;
 }
@@ -42,7 +37,7 @@ function formatLabel(v: VehicleResponse): string {
   return `${v.make} ${v.model} ${v.year} · ${price}`;
 }
 
-export async function listPricedObjects(): Promise<PricedObject[]> {
+export async function listVehicles(): Promise<Vehicle[]> {
   const res = await fetch(VEHICLES_URL);
   if (!res.ok) {
     throw new Error(`Vehicle registry ${res.status} ${res.statusText}`);

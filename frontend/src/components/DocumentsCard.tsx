@@ -20,7 +20,7 @@ interface Props {
 /**
  * Renders the Documents card shown on both the applicant detail view
  * (ProcessHistoryView) and the civil-servant worklist
- * (TaskDetailView + ReviewApplicationForm).
+ * (TaskDetailView + VehicleReviewForm).
  *
  * Two visual subsections:
  *   - "Submitted by applicant"  — uploads (today: ID document)

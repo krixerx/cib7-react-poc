@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import type { FormProps } from '../types';
-import { listPricedObjects, type PricedObject } from '../../api/objectsApi';
+import { listVehicles, type Vehicle } from '../../api/vehicleRegistryApi';
 import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
 
 /**
@@ -18,7 +18,7 @@ import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
  * shown to the owner as a banner. Resubmission regenerates ALL tokens so
  * old confirmation links can't be reused against the new round.
  */
-export default function PersonalDetailsForm({
+export default function OwnerVehicleForm({
   data,
   onComplete,
   submitting,
@@ -56,7 +56,7 @@ export default function PersonalDetailsForm({
     return null;
   });
 
-  const [products, setProducts] = useState<PricedObject[]>([]);
+  const [products, setProducts] = useState<Vehicle[]>([]);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +64,7 @@ export default function PersonalDetailsForm({
   const isResubmission = Boolean(sendBackReason) && !readOnly;
 
   useEffect(() => {
-    listPricedObjects()
+    listVehicles()
       .then(setProducts)
       .catch((e) => setProductsError(e instanceof Error ? e.message : String(e)));
   }, []);

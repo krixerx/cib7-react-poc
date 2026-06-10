@@ -1,6 +1,6 @@
 // MCP sidecar — T9 surface.
 //
-// Eight tools wired against the existing personRegistration definition:
+// Eight tools wired against the existing vehicleRegistration definition:
 //   list_services         (T3)
 //   describe_service      (T6)
 //   start_process         (T6)
@@ -920,7 +920,7 @@ function createMcpServer(): Server {
       inputSchema: {
         type: 'object',
         properties: {
-          key: { type: 'string', description: 'Service key, e.g. "personRegistration".' },
+          key: { type: 'string', description: 'Service key, e.g. "vehicleRegistration".' },
         },
         required: ['key'],
         additionalProperties: false,
@@ -933,7 +933,7 @@ function createMcpServer(): Server {
       inputSchema: {
         type: 'object',
         properties: {
-          key: { type: 'string', description: 'Service key, e.g. "personRegistration".' },
+          key: { type: 'string', description: 'Service key, e.g. "vehicleRegistration".' },
           variables: {
             type: 'object',
             description: 'Start-time variables. Shape is per-service — call describe_service first if you do not already know it.',
@@ -984,7 +984,7 @@ function createMcpServer(): Server {
     {
       name: 'upload_document',
       description:
-        'Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine\'s pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task\'s requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for personRegistration\'s personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.',
+        'Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine\'s pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task\'s requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for vehicleRegistration\'s personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.',
       inputSchema: {
         type: 'object',
         properties: {

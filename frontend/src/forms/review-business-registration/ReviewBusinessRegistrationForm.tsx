@@ -12,7 +12,7 @@ import type { FormProps } from '../types';
  *                why the case was returned. The process loops back to the
  *                founder's OÜ-details task.
  *
- * Mirrors review-application/ReviewApplicationForm.tsx — same overall shape
+ * Mirrors vehicle-review/VehicleReviewForm.tsx — same overall shape
  * (read-only summary, action row, optional reason input), different fields.
  */
 

@@ -14,7 +14,7 @@ COPY mcp/tsconfig.json ./
 COPY mcp/src ./src
 
 # LLM-facing per-service artifacts (manifests + training md). Hand-written
-# placeholders for personRegistration during T6; /service-builder regenerates
+# placeholders for vehicleRegistration during T6; /service-builder regenerates
 # them in T14.
 COPY docs/business/services /app/services-spec
 

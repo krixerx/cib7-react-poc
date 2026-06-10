@@ -72,8 +72,9 @@
     </dependency>
 
     <!-- Official HTTP connector (connectorId="http-connector"). Pulls in
-         httpclient5 transitively. The "Get price" service task in
-         person-registration.bpmn uses it to call api.restful-api.dev. -->
+         httpclient5 transitively. The "Look up vehicle in registry" service
+         task in vehicle-registration.bpmn uses it to call our own
+         VehicleRegistryController via apiBaseUrl. -->
     <dependency>
       <groupId>org.cibseven.connect</groupId>
       <artifactId>cibseven-connect-http-client</artifactId>

@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>The CIB seven Spring Boot starter embeds the process engine and the
  * {@code /engine-rest} REST API. Any {@code *.bpmn} file on the classpath is
  * auto-deployed on startup (see {@code deployment-resource-pattern} in
- * {@code application.yaml}), so {@code processes/person-registration.bpmn}
+ * {@code application.yaml}), so {@code processes/vehicle-registration.bpmn}
  * is deployed automatically — no code needed.
  */
 @SpringBootApplication

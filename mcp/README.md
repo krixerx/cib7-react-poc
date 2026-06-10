@@ -112,7 +112,7 @@ In Claude Desktop, on a fresh chat:
 > What services are available on the cib7 server?
 
 Expected: 11 tools listed; `list_services` returns
-`personRegistration` and `businessRegistration` with `mcpCallable: true`.
+`vehicleRegistration` and `businessRegistration` with `mcpCallable: true`.
 
 > Register Acme OÜ for me. I'm Bart Simpson, age 35, share capital €3000, board member Bart Simpson 38501010001 and Lisa Simpson 39102020002.
 

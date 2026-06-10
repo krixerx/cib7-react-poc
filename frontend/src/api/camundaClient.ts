@@ -34,7 +34,7 @@ export interface CamundaTask {
   processDefinitionId: string;
   /** BPMN id of the user task — matches a <userTask> id in the model. */
   taskDefinitionKey: string;
-  /** e.g. "react:personal-details" — see forms/registry.ts. */
+  /** e.g. "react:owner-vehicle" — see forms/registry.ts. */
   formKey: string | null;
   assignee: string | null;
 }
@@ -398,12 +398,12 @@ export interface WorklistRow {
  *   ended at any other end event                       → confirmed
  *
  * Why default-confirmed instead of default-rejected: the BPMNs that ship
- * today (person-registration, business-registration) have no terminal
+ * today (vehicle-registration, business-registration) have no terminal
  * "rejected" end event — the civil servant's send-back loops the case
  * back to the applicant, it never ends in a rejected state. The only
  * terminal is EndEvent_Approved.
  *
- * The wrinkle: person-registration has a non-interrupting repeating timer
+ * The wrinkle: vehicle-registration has a non-interrupting repeating timer
  * (R/PT2M) on Task_Review that spawns reminder branches terminating at
  * EndEvent_ReminderSent. When the civil servant takes long enough that
  * reminders fire and then approves, both EndEvent_ReminderSent and
