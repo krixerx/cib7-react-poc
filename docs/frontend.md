@@ -47,24 +47,36 @@ frontend/src/
 │   └── AuthProvider.tsx           — login gate, useAuth() context (exposes role flags)
 ├── api/
 │   ├── camundaClient.ts           — typed /engine-rest client + interfaces (attaches Bearer JWT)
-│   ├── bpmn.ts                    — parseUserTasks(bpmnXml) → UserTaskDef[]
-│   └── objectsApi.ts              — listPricedObjects() from restful-api.dev
+│   ├── bpmn.ts                    — BPMN XML parsing: user tasks, activity names, flow graph + nextSteps()
+│   ├── documentsApi.ts            — /api/documents client (upload-url, attachments, download-url)
+│   ├── paymentsApi.ts             — /api/public/payments client (pay page)
+│   ├── ownerConfirmationsApi.ts   — /api/public/owner-confirmations client (confirm page)
+│   ├── founderSignaturesApi.ts    — /api/public/founder-signatures client (signing page)
+│   └── vehicleRegistryApi.ts      — /api/public/vehicle-registry client (vehicle dropdown)
 ├── services/
 │   └── categories.ts              — PartA life-event categories + service-key → category mapping
+├── components/
+│   ├── CaseDetailLayout.tsx       — shared case-detail chrome (header + sticky Documents sidebar)
+│   ├── ProcessTimeline.tsx        — "Case progress" card: milestone stepper + Full history + payment alert
+│   ├── DocumentsCard.tsx          — submitted/generated documents list with presigned downloads
+│   └── FileUpload.tsx             — drag-and-drop upload via /api/documents presigned PUT
 ├── pages/
 │   ├── ServicesPage.tsx           — PartA route "/" (life-event catalog)
-│   ├── MyProcessesPage.tsx        — PartA route "/my-processes"
+│   ├── MyProcessesPage.tsx        — PartA route "/my-processes" (action-first inbox)
 │   ├── TasksPage.tsx              — PartB route "/" (two-pane worklist)
 │   ├── IncidentsPage.tsx          — PartB route "/incidents" (cross-service overview)
 │   ├── TaskDetailPage.tsx         — shared route "/tasks/:taskId" (thin route wrapper)
 │   ├── TaskDetailView.tsx         — embeddable form host (route page + worklist right pane)
 │   ├── CompletedProcessPage.tsx   — shared route "/processes/:processInstanceId" (thin route wrapper)
-│   └── ProcessHistoryView.tsx     — embeddable read-only history view (route page + worklist right pane)
+│   ├── ProcessHistoryView.tsx     — embeddable read-only history view (route page + worklist right pane)
+│   ├── ConfirmOwnerPage.tsx       — public route "/confirm-owner/:token" (no Keycloak; token is the credential)
+│   ├── SignFounderPage.tsx        — public route "/sign-founder/:token" (no Keycloak)
+│   └── PayPage.tsx                — public route "/pay/:processInstanceId" (no Keycloak)
 └── forms/
     ├── types.ts                   — FormProps contract
     ├── registry.ts                — formId → React component map
-    ├── personal-details/PersonalDetailsForm.tsx
-    ├── review-application/ReviewApplicationForm.tsx
+    ├── owner-vehicle/OwnerVehicleForm.tsx
+    ├── vehicle-review/VehicleReviewForm.tsx
     ├── business-details/BusinessDetailsForm.tsx
     └── review-business-registration/ReviewBusinessRegistrationForm.tsx
 ```
@@ -75,6 +87,25 @@ The `*View.tsx` files (`TaskDetailView`, `ProcessHistoryView`) hold the actual
 load + render logic; their matching `*Page.tsx` files are thin route wrappers
 that supply a Back button. This split is what lets the civil-servant worklist
 embed the same view in its right pane while preserving the deep-link routes.
+
+**`ProcessTimeline` (the "Case progress" card)** is embedded by both views —
+above the form in `ProcessHistoryView`, below it in `TaskDetailView` — so
+applicants and civil servants see the same answer to "where is this case and
+how did it get here" without opening Cockpit:
+
+- a horizontal **milestone stepper** (start, user tasks, the DMN
+  auto-decision, wait states, end events) built from
+  `listActivityInstances()`; completed steps show who/when, review steps get
+  an **Approved / Sent back** chip derived from the `decision` variable's
+  write history (`listVariableUpdates()`), the current wait pulses, and the
+  expected remainder is walked forward through the BPMN sequence-flow graph
+  (`parseFlowGraph()` + `nextSteps()` in `bpmn.ts` — one likely path,
+  branching gateways resolved non-default-first);
+- a collapsed **Full history** disclosure with every named activity,
+  including the service-task machinery (emails, PDF generation, storage),
+  consecutive repeats collapsed to one row with a ×N count;
+- a **payment-required alert** with a link to `/pay/{piId}` whenever the
+  case is parked on `Task_WaitForPayment`.
 
 ## Routing
 
@@ -138,24 +169,32 @@ Other). Inspired by portals like monentreprise.bj and lesotho.eregulations.org
 ### `MyProcessesPage` (`src/pages/MyProcessesPage.tsx`) — PartA
 
 - `listHistoricProcessInstancesByStarter(username)` returns every instance
-  the applicant started (active + finished, newest first).
+  the applicant started (active + finished, newest first), plus one batched
+  `listUnfinishedReceiveTasks()` call mapping each case to the receive task
+  it is parked on (if any).
 - For each active instance: `listTasksByInstance(id)` + `getHistoricVariable(id, 'sendBackReason')`
-  decide the status:
+  + the wait-state map decide the status. The applicant's own task is
+  detected by `assignee === username` (the BPMNs assign it to
+  `${initiator}`), so the logic works for every service without hardcoded
+  task ids:
 
-  | Active task | `sendBackReason` | Status pill |
-  |---|---|---|
-  | `Task_SubmitDetails` | empty / absent | **Awaiting submission** |
-  | `Task_SubmitDetails` | non-empty | **Sent back for corrections** |
-  | `Task_Review` | — | **Under review** |
-  | none (service task in flight) | — | **Processing** |
+  | Case state | `sendBackReason` | Status pill | Bucket |
+  |---|---|---|---|
+  | task assigned to me | empty / absent | **Awaiting submission** | Needs your attention |
+  | task assigned to me | non-empty | **Sent back for corrections** | Needs your attention |
+  | parked on `Task_WaitForPayment` | — | **Payment required** (card links to `/pay/{piId}`) | Needs your attention |
+  | parked on another receive task | — | **Waiting for signatures** (wait-state name in the meta line) | In progress |
+  | back-office task open | — | **Under review** | In progress |
+  | none (service task in flight) | — | **Processing** | In progress |
 
 - Finished instances are labelled **Approved** if `endActivityId === 'EndEvent_Approved'`,
   otherwise **Ended**.
 - Every row is clickable. When the applicant task is active, the row links to
-  `/tasks/{taskId}` (editable form). Otherwise — finished OR in-flight with no
-  applicant task — the row links to `/processes/{instanceId}` (read-only form
-  with the data the applicant submitted), so an applicant can always go back
-  and see what they sent while the back office holds the case.
+  `/tasks/{taskId}` (editable form); a payment-required card links straight
+  to the public `/pay/{instanceId}` page. Otherwise — finished OR in-flight
+  with no applicant task — the row links to `/processes/{instanceId}`
+  (read-only form + case-progress stepper), so an applicant can always see
+  where the case is while the back office holds it.
 
 ### `TasksPage` (`src/pages/TasksPage.tsx`) — PartB
 
@@ -164,10 +203,14 @@ selected case's detail (active form, read-only history, or incident block —
 whichever applies).
 
 - `listWorklist()` (in `camundaClient.ts`) loads the worklist in one call:
-  joins `listRecentProcessInstances()` + `listIncidents()` + per-instance
-  `firstName`/`lastName` history vars + per-active-instance current task.
-  Returns one `WorklistRow` per case (denormalised, sorted by `startTime`
-  desc).
+  joins `listRecentProcessInstances()` + `listIncidents()` +
+  `listUnfinishedReceiveTasks()` (one batched call — fills `waitingOn` for
+  cases parked on a receive task) + per-instance `firstName`/`lastName`
+  history vars + per-active-instance current task. Returns one
+  `WorklistRow` per case (denormalised, sorted by `startTime` desc). Rows
+  without an open user task show the wait-state name inline, e.g.
+  "⏳ Wait for state fee payment" — no Cockpit needed to see where a case
+  is parked.
 - **Filters** (all multi-select, empty = show all):
   - **Service** — process definition key
   - **Task** — current user-task `taskDefinitionKey`
@@ -262,12 +305,14 @@ complete with an outcome variable.
 
 ```ts
 export const formRegistry: Record<string, ComponentType<FormProps>> = {
-  'personal-details': PersonalDetailsForm,
-  'review-application': ReviewApplicationForm,
+  'owner-vehicle': OwnerVehicleForm,
+  'vehicle-review': VehicleReviewForm,
+  'business-details': BusinessDetailsForm,
+  'review-business-registration': ReviewBusinessRegistrationForm,
 };
 
 export function parseFormId(formKey: string | null | undefined): string | null {
-  // "react:personal-details" → "personal-details"
+  // "react:owner-vehicle" → "owner-vehicle"
 }
 ```
 
@@ -275,8 +320,10 @@ export function parseFormId(formKey: string | null | undefined): string | null {
 
 | Form id | Component | Reads | Writes |
 |---|---|---|---|
-| `personal-details` | `PersonalDetailsForm.tsx` | `firstName`, `lastName`, `age`, `objectId`, `sendBackReason` (shown as a banner on re-submit) + product list from `restful-api.dev` | `firstName: String`, `lastName: String`, `age: Integer`, `objectId: String`, `sendBackReason: ''` (cleared on resubmit) |
-| `review-application` | `ReviewApplicationForm.tsx` | `firstName`, `lastName`, `age`, `price`, `sendBackReason` (read-only) | **Accept:** `decision: 'approve'` / **Send back:** `decision: 'sendback'` + `sendBackReason: String` |
+| `owner-vehicle` | `OwnerVehicleForm.tsx` | `firstName`, `lastName`, `age`, `applicantEmail`, `objectId`, `additionalOwners`, `sendBackReason` (banner on re-submit) + vehicle list from `/api/public/vehicle-registry` + ID upload via `/api/documents` | names/age/email Strings + `objectId: String` (VIN), `applicantToken: String`, `additionalOwners`/`ownerConfirmations`/`pendingIdDocument: Json`, `rejectedByOwner`/`sentToProcess: false`, `sendBackReason: ''` |
+| `vehicle-review` | `VehicleReviewForm.tsx` | submitted data + registry values + `sendBackReason` (read-only) | **Accept:** `decision: 'approve'` / **Send back:** `decision: 'sendback'` + `sendBackReason: String` |
+| `business-details` | `BusinessDetailsForm.tsx` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
+| `review-business-registration` | `ReviewBusinessRegistrationForm.tsx` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
 
 ## REST client (`api/`)
 
@@ -314,12 +361,15 @@ Just one export: `parseUserTasks(bpmnXml)`. Uses `DOMParser` and matches by
 `localName === 'userTask'`, so it works regardless of the BPMN namespace prefix
 (`bpmn:userTask` vs. `userTask`).
 
-### `objectsApi.ts`
+### Backend API clients (`documentsApi.ts`, `paymentsApi.ts`, `ownerConfirmationsApi.ts`, `founderSignaturesApi.ts`, `vehicleRegistryApi.ts`)
 
-`listPricedObjects()` calls `https://api.restful-api.dev/objects` directly
-**from the browser** and filters to objects whose `data.price` is set. This is
-the only browser call to the external API — the actual price *fetch* happens
-server-side in the engine.
+Thin typed clients for the business microservice's `/api/**` surface (same
+origin, routed to `backend:8085` by Vite/nginx/Traefik). `documentsApi`
+attaches the Keycloak Bearer (uploads stage via presigned PUT directly to
+RustFS — the one browser call that leaves the SPA origin); the others are
+deliberately unauthenticated: they serve the public token-link pages
+(`/confirm-owner`, `/sign-founder`, `/pay`) and the vehicle dropdown, where
+the UUID token or process-instance id in the URL is the credential.
 
 ## Authentication
 
@@ -386,6 +436,9 @@ All under `/engine-rest` (standard CIB seven / Camunda 7 REST API):
 | `GET  /history/task?processDefinitionId=…&taskDefinitionKey=…` | `listHistoricTasksByDefinition` → (reserved; old tree view used it) |
 | `GET  /history/variable-instance?processInstanceId={id}` | `listHistoricVariables` → ProcessHistoryView |
 | `GET  /history/variable-instance?…&variableName=…` | `getHistoricVariable` → MyProcessesPage, TasksPage (via `listWorklist`) |
+| `GET  /history/activity-instance?processInstanceId={id}` | `listActivityInstances` → ProcessTimeline (case-progress stepper) |
+| `GET  /history/activity-instance?unfinished=true&activityType=receiveTask` | `listUnfinishedReceiveTasks` → MyProcessesPage, TasksPage (wait-state labels, one batched call) |
+| `GET  /history/detail?…&variableUpdates=true&variableName=…` | `listVariableUpdates` → ProcessTimeline (Approved / Sent back chips per review pass) |
 
 If you add an endpoint, add it both as a function in `camundaClient.ts` (with
 JSDoc) and as a row in this table.

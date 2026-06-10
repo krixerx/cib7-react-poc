@@ -43,7 +43,8 @@ The docs are split into two layers:
 
 | Service | Process key | Doc |
 |---|---|---|
-| Person Registration | `personRegistration` | [`business/services/person-registration/`](business/services/person-registration/README.md) |
+| Vehicle Registration | `vehicleRegistration` | [`business/services/vehicle-registration/`](business/services/vehicle-registration/README.md) |
+| Estonian OÜ Registration | `businessRegistration` | [`business/services/business-registration/`](business/services/business-registration/README.md) |
 
 ## Conventions
 

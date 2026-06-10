@@ -48,12 +48,14 @@ below are POSIX; Windows hosts need a different mount path):
     separate to preserve the issuer URL stamped into existing JWTs;
     front it with its own TLS terminator or extend Traefik to route
     it too)
+  - RustFS (object storage) — `s3.example.com` → container `rustfs:9000`,
+    fronted by your own TLS terminator. Browsers hit it directly with
+    presigned PUT/GET URLs minted by the backend, so it needs its own
+    public hostname (`PUBLIC_S3_URL` in `.env`); set `RUSTFS_DOMAIN`
+    inside the rustfs container to match so virtual-host signing passes.
 - **A clone of this repo on the server.** The build runs from source —
   no published images yet (the GitHub Actions workflow publishes images,
   but compose still builds locally by default).
-- **Outbound internet** from the engine container (it hits
-  `api.restful-api.dev` from the "Get price" service task; without it
-  the demo flow fails at step 2).
 - **Ports 80 and 443 free** on the host — Traefik binds both. :80
   exists only to issue a 308 redirect to :443.
 
@@ -98,8 +100,11 @@ secrets. Three clients need attention:
   "post.logout.redirect.uris": "https://app.example.com/*"
 }
 
-// cib7-backend (engine service account)
+// cib7-backend (engine's identity-plugin service account)
 "secret": "<paste KEYCLOAK_BACKEND_CLIENT_SECRET>"
+
+// cib7-business (business microservice's /engine-rest service account)
+"secret": "<paste KEYCLOAK_BUSINESS_CLIENT_SECRET>"
 ```
 
 Generate strong secrets — e.g. `openssl rand -base64 36`. Use the
@@ -116,8 +121,10 @@ cp .env.example .env
 ```
 
 Minimum fields: `PUBLIC_KEYCLOAK_URL`, `PUBLIC_FRONTEND_URL`,
-`PUBLIC_ENGINE_URL`, `KEYCLOAK_ADMIN_PASSWORD`,
-`KEYCLOAK_BACKEND_CLIENT_SECRET`, `KEYCLOAK_WEBAPPS_CLIENT_SECRET`.
+`PUBLIC_ENGINE_URL`, `PUBLIC_S3_URL`, `KEYCLOAK_ADMIN_PASSWORD`,
+`KEYCLOAK_BACKEND_CLIENT_SECRET`, `KEYCLOAK_WEBAPPS_CLIENT_SECRET`,
+`KEYCLOAK_BUSINESS_CLIENT_SECRET`, `RUSTFS_ACCESS_KEY`,
+`RUSTFS_SECRET_KEY`, `INTERNAL_TASK_TOKEN`.
 
 ### 3. Prepare `/opt/volumes/traefik/`
 
@@ -182,6 +189,7 @@ docker compose logs -f
 | Open `https://app.example.com/` in a browser | Redirects to `https://kc.example.com/realms/cib7-poc/...` |
 | Log in with a Keycloak user | Lands on the SPA |
 | `curl -sI https://app.example.com/engine-rest/engine` | `200`, JSON array (Traefik routes `/engine-rest` to `cib7:8080`) |
+| `curl -s https://app.example.com/api/public/vehicle-registry/vehicles` | `200`, JSON array of ten vehicles (Traefik routes `/api` to `backend:8085`) |
 | Open `https://app.example.com/camunda/app/cockpit/` | Cockpit login page (OAuth2 round-trip through Keycloak) |
 | `curl -sI https://kc.example.com/realms/cib7-poc/.well-known/openid-configuration` | `200`, `issuer: https://kc.example.com/realms/cib7-poc` |
 | Open MCP from Claude Desktop / Cursor at `https://app.example.com/mcp` | OAuth pop, then `list_services` returns the two services |
@@ -245,6 +253,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 
 ```bash
 docker compose logs -f cib7        # engine
+docker compose logs -f backend     # business microservice (/api, documents, S3)
 docker compose logs -f keycloak    # auth
 docker compose logs -f mcp         # AI sidecar
 docker compose logs -f traefik     # ingress (router + cert decisions)
@@ -289,14 +298,15 @@ you have to make before exposing the stack to real users.
 
 | Gap | What's actually there | What production needs |
 |---|---|---|
-| **Engine database** | In-memory H2 — process state, history, and deployments wipe on every backend restart. Auto-deploy of BPMN/DMN on startup is what makes the app come back at all. | PostgreSQL with a mounted volume. Remove the H2 runtime dep from `cib7/pom.xml`, add `spring.datasource.*` and a `postgres` compose service. Non-trivial — schema migration on every CIB seven upgrade. |
+| **Engine + backend databases** | In-memory H2 in both Java modules — engine process state, history, and deployments wipe on every engine restart, and the backend's `Document` metadata table wipes with the backend. Auto-deploy of BPMN/DMN on startup is what makes the app come back at all. | PostgreSQL with a mounted volume for both modules (TODOS T1). Remove the H2 runtime deps, add `spring.datasource.*` and a `postgres` compose service. Non-trivial — schema migration on every CIB seven upgrade. |
 | **Keycloak database** | Built-in dev H2; the realm is re-imported from `realm-export.json` on every container start. User-created accounts (via `send_account_invitation`, self sign-up, password resets) are wiped on every Keycloak restart. | External Postgres for Keycloak as well, `start` (not `start-dev`), and remove `--import-realm` after the first boot. |
 | **Mailpit as mail backend** | The BPMN's email service tasks POST to Mailpit's `/api/v1/send` JSON endpoint — a Mailpit-specific wire format, not standard SMTP. | Either keep Mailpit and forward its SMTP relay to a real mail server (cleanest), or rewrite the connector calls in `cib7/src/main/resources/processes/*.bpmn` + `templates/*.ftl` to talk to your mail provider's API. |
 | **Webapps client secrets in YAML defaults** | `application.yaml` has `${KEYCLOAK_*_CLIENT_SECRET:cib7-*-secret}` defaults that match the dev realm export. Forgetting to set the env var falls back to the dev secret silently. | Remove the defaults, fail-fast on missing env vars, manage secrets via Docker secrets or your platform's secret store. |
 | **No BFF** | The SPA calls `/engine-rest` directly with a Bearer JWT. JWT is validated and authorization runs against `IdentityService`, but every engine REST endpoint is reachable from the browser. | Add a backend-for-frontend that exposes only the calls the SPA needs (the spec calls for this — see [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md)). |
 | **Bart/Homer demo users** | Seeded in the realm export with username-equals-password. | Remove or disable them before going live. |
-| **External API dependency** | The "Get price" service task calls `api.restful-api.dev` from the engine. No retry / circuit breaker. | Replace with your actual catalogue source, or front it with a service that handles outages. |
-| **Public Mailpit UI** | Port 8025 is published from `mailpit` in the base compose. | Remove the `ports:` mapping in the prod overlay, or put it behind an auth gateway. |
+| **Curated vehicle registry** | The "Look up vehicle in registry" service task calls the backend's hard-coded ten-vehicle catalog (`/api/public/vehicle-registry`) — a stand-in for the real Liiklusregister. | Point the backend (or the BPMN connector) at the real registry API, with retry / circuit-breaker handling. |
+| **Public payment confirmation** | `POST /api/public/payments/{piId}/confirm` trusts the opaque process-instance id as the only credential — anyone with the id can mark the fee paid. | Integrate a real PSP callback (signed webhook) or add a payment-side token/session before exposing the pay page publicly. |
+| **Document read authorization** | Any authenticated user who knows a process-instance id can list/download its documents — the engine's per-instance permission check was dropped when documents moved to the backend (documented in `DocumentsController`). | Forward the caller's Bearer to `/engine-rest` and require READ_INSTANCE on the case before serving metadata or presigned URLs. |
 
 For the runtime topology these all sit inside, read
 [`architecture.md`](architecture.md). For BPMN / engine wiring, see

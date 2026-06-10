@@ -69,54 +69,43 @@ Full realm in `keycloak/realm-export.json`.
 
 ## What it does
 
+Two services ship today — **Vehicle Registration** (`vehicleRegistration`)
+and **Estonian OÜ Registration** (`businessRegistration`). They share the
+same shape; the vehicle flow end to end:
+
 ```
-Person Registration (BPMN + DMN)
+Vehicle Registration (BPMN + DMN)
 
   start (initiator = applicant)
     │
-    ▼  Submit personal details   user task   (applicant — PartA)
-    │    first / last name, age, and a product picked from api.restful-api.dev
-    │    assignee = ${initiator}
-    │  ◀──────────────────────────────────────────────────────────────────┐
-    ▼  Get price                 service task (http-connector)            │
-    │    GET api.restful-api.dev/objects/{id} → data.price → price        │
-    │                                                                     │
-    ▼  Auto approval?            business rule task (DMN)                 │
-    │    age + price → autoDecision ("approve" / "review")                │
-    │                                                                     │
-    ▼  Auto-approve? ── exclusive gateway ───▶ end approved   (skips PartB)
-    │      else                                                           │
-    ▼  Review application        user task   (civil servant — PartB)      │
-    │    ⏱  PT2M non-interrupting timer ─▶  Send reminder email (Mailpit) │
-    │    Accept → end approved                                            │
-    │    Send back ─▶ Send "sent back" email (Mailpit) ───────────────────┘
-    │                                                with reason
-    ▼  Decision?  ── exclusive gateway ──▶  end approved
+    ▼  Submit owner & vehicle details   user task   (applicant — PartA)
+    │    names, age, email, ID-document upload, a vehicle picked from the
+    │    curated registry, optional co-owners — assignee = ${initiator}
+    │  ◀───────────────────────────────────────────────────────────────────┐
+    ▼  Attach owner ID document   service task → backend /api/documents    │
+    ▼  Co-owner signatures        multi-instance subprocess (email links,  │
+    │    public /confirm-owner/{token} pages, message correlation)         │
+    ▼  Look up vehicle in registry  service task (http-connector)          │
+    │    GET {apiBaseUrl}/api/public/vehicle-registry/vehicles/{vin}       │
+    │    → price, vehicleAgeYears, make/model/year/fuelType                │
+    ▼  Auto-approval policy       business rule task (DMN)                 │
+    │    age + price + vehicleAgeYears → autoDecision                      │
+    ▼  Auto-approve? ── gateway ──else──▶ Transport Authority review       │
+    │                                      user task (civil servant)       │
+    │                                      ⏱ PT2M reminder · Accept /      │
+    │                                      Send back ───────────────────────┘
+    ▼  Generate + store state-fee invoice PDF  (pdf-renderer → backend S3)
+    ▼  Wait for state fee payment   receive task — public /pay/{piId} page
+    ▼  Generate + store registration certificate
+    ▼  end — "Vehicle registered"
 ```
 
-1. **Submit personal details** (applicant) — a React form collects first name,
-   last name, age, and a product chosen from `api.restful-api.dev`. The task
-   is assigned to the starting user via `camunda:assignee="${initiator}"`, so
-   only that applicant sees it.
-2. **Get price** — a service task using the
-   [`http-connector`](#service-task--the-http-connector)
-   calls `GET https://api.restful-api.dev/objects/{objectId}` and reads
-   `data.price` from the JSON response into the `price` variable via Spin.
-3. **Auto approval?** — a business rule task evaluates the
-   [`auto-approval.dmn`](#dmn-decision-table) decision table (hit policy
-   FIRST) on `age` and `price` and writes the result into `autoDecision`.
-   Adults (age ≥ 18) picking cheap products (price &lt; 100) skip the human
-   review; minors and expensive picks fall through.
-4. **Review application** (civil servant) — a React form shows the submitted
-   data and the fetched `price` read-only, and lets the reviewer **Accept**
-   (sets `decision="approve"`) or **Send back** (sets `decision="sendback"`
-   plus a `sendBackReason` variable). A **non-interrupting timer boundary
-   event** fires every `PT2M` and triggers a [reminder email](#mailpit)
-   without closing the task.
-5. An exclusive gateway branches on `decision`. `approve` ends the process;
-   any other value runs a **Send "sent back" email** service task (also via
-   `http-connector` → Mailpit) and then loops back to the applicant task so
-   they can fix the data based on the reason and resubmit.
+The OÜ flow swaps vehicle semantics for company founding (Articles of
+Association upload, co-founder signing via `/sign-founder/{token}`, a flat
+€265 fee, B-card extract at the end) — same building blocks throughout. Both
+SPAs surface the case's position live: a **case-progress stepper** on every
+case view, payment-required alerts in the applicant inbox, and wait-state
+labels in the back-office worklist.
 
 ## Spec-first services — portable across instances
 
@@ -172,47 +161,59 @@ run the builder, how to test — see
 ## Architecture
 
 ```
-  React SPA ──OIDC PKCE──▶ Keycloak ◀──Admin REST── CIB seven backend
+  React SPA ──OIDC PKCE──▶ Keycloak ◀──Admin REST── cib7 engine service
    │   (keycloak-js)         │ ▲                    (identity provider plugin)
    │                         │ │ OAuth2 code flow
    │   Bearer JWT            │ │ (cib7-webapps client)
    ▼                         │ │
   /engine-rest               │ ▼
   /camunda/*  ─────▶  CIB seven 2.1 engine + REST + Cockpit/Tasklist/Admin
-  (nginx / Vite proxy)  (Spring Boot, embedded engine, in-memory H2)
-                                │
-                                ├──▶  http-connector → api.restful-api.dev
-                                │                       (product catalogue)
-                                ├──▶  http-connector → Mailpit  (notifications
-                                │                       + PDF attachments)
-                                │                       :8025 (UI), :1025 (SMTP)
-                                └──▶  http-connector → pdf-renderer → Gotenberg
-                                                       (HTML → PDF, internal)
+   │ (nginx / Vite      (cib7/ — Spring Boot, embedded engine, in-memory H2;
+   │  proxy)             plugins + connectors only, no business endpoints)
+   │                            │
+   │                            ├──▶  http-connector → backend /api
+   │                            │      (vehicle registry lookup, document
+   │                            │       move-pending / server-upload)
+   │                            ├──▶  http-connector → Mailpit  (notifications
+   │                            │                       + PDF attachments)
+   │                            └──▶  http-connector → pdf-renderer → Gotenberg
+   │                                                   (HTML → PDF, internal)
+   ▼
+  /api/*  ────────▶  backend business microservice  (backend/ — Spring Boot 4)
+                       public confirmations · payments · vehicle registry ·
+                       documents (JPA metadata + RustFS S3 presigned URLs)
+                       └──▶ /engine-rest  (cib7-business service account)
 ```
 
 - The browser logs in against **Keycloak** (OIDC, PKCE) and then calls the
-  same-origin path `/engine-rest/...` with a Bearer JWT on every request. In
-  Docker, **nginx** proxies it to the backend; in dev, the **Vite** dev server
-  does. No CORS configuration needed.
-- The backend validates JWTs (Spring Security OAuth2 Resource Server) and the
+  same-origin paths `/engine-rest/...` (engine) and `/api/...` (backend)
+  with a Bearer JWT where required. In Docker, **nginx**/Traefik route the
+  paths; in dev, the **Vite** dev server does. No CORS configuration needed.
+- The engine validates JWTs (Spring Security OAuth2 Resource Server) and the
   **CIB seven Keycloak Identity Provider Plugin** (`cibseven-keycloak` 2.1.0)
   reads users and groups from Keycloak's Admin REST API. Engine authorization
   is on, so `candidateGroups` on user tasks is enforced.
-- The BPMN file lives in the backend and is **auto-deployed on startup**.
-- The **Get price** service task calls the external API server-side, from the
-  engine — via the official `http-connector`. The **Send reminder email**,
-  **Send approval email**, and **Send "sent back" email** service tasks
-  reuse the same `http-connector` against Mailpit's `/api/v1/send` JSON
-  endpoint. The **Generate approval PDF** task uses the same connector
-  against a tiny Node sidecar (`pdf-renderer/`) that fronts Gotenberg; the
-  resulting PDF rides along as an attachment on the approval email.
+- The **backend** owns every business endpoint: the public token-link pages
+  (owner confirmations, founder signing, state-fee payments), the curated
+  vehicle registry, and document storage (presigned RustFS uploads, JPA
+  `Document` metadata). It talks to the engine only via `/engine-rest`,
+  authenticated as the `cib7-business` Keycloak service account.
+- The BPMN/DMN files live in the engine module and are **auto-deployed on
+  startup**.
+- The **Look up vehicle in registry** service task calls the backend's
+  registry server-side via the official `http-connector`. The email service
+  tasks reuse the same connector against Mailpit's `/api/v1/send` JSON
+  endpoint; the PDF tasks call a tiny Node sidecar (`pdf-renderer/`) that
+  fronts Gotenberg, then store the result through the backend's
+  `/api/documents/server-upload`.
 - The **CIB seven webapps** (Cockpit / Tasklist / Admin) live under
   `/camunda/*` on the engine. A second `SecurityFilterChain` drives the
   Spring Security OAuth2 Authorization Code flow against the
   `cib7-webapps` Keycloak client and bridges the OIDC user into the
   engine's `IdentityService` via the cibseven-keycloak plugin's
   `ContainerBasedAuthenticationProvider` recipe.
-- The database is **in-memory H2** — all data is lost when the backend stops.
+- Both Java modules run **in-memory H2** — process state and document
+  metadata are lost together when the containers stop.
 
 ## Talk to it from Claude Desktop (or any MCP client)
 
@@ -263,7 +264,7 @@ the React SPA:
 
 | Tool | Purpose |
 |---|---|
-| `list_services` | "What can I do here?" — enumerates `personRegistration` and `businessRegistration`. |
+| `list_services` | "What can I do here?" — enumerates `vehicleRegistration` and `businessRegistration`. |
 | `describe_service(key)` | Returns the per-service variable schema + LLM training markdown. |
 | `start_process(key, variables)` | Validates variables with Ajv, starts a real BPMN instance. |
 | `list_my_tasks` | Tasks waiting on the current user (assigned OR claimable via candidate group). |
@@ -380,8 +381,9 @@ cib7-react-poc/
     └── src/
         ├── api/
         │   ├── camundaClient.ts        typed /engine-rest client
-        │   ├── bpmn.ts                 reads user tasks from BPMN XML
-        │   └── objectsApi.ts           product list from api.restful-api.dev
+        │   ├── bpmn.ts                 BPMN XML parsing (tasks, names, flow graph)
+        │   ├── documentsApi.ts         /api/documents client (uploads, downloads)
+        │   └── *Api.ts                 payments / confirmations / vehicle registry
         ├── pages/                      role-aware pages
         │   ├── ServicesPage.tsx        PartA — start a service
         │   ├── MyProcessesPage.tsx     PartA — applicant's instances + status
@@ -432,7 +434,14 @@ cd cib7
 mvn spring-boot:run
 ```
 
-**Frontend** (terminal 2):
+**Business backend** (terminal 2):
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+**Frontend** (terminal 3):
 
 ```bash
 cd frontend
@@ -441,7 +450,7 @@ npm run dev
 ```
 
 Then open <http://localhost:5173>. The Vite dev server proxies `/engine-rest`
-to the backend on port 8080.
+to the engine on port 8080 and `/api` to the backend on port 8085.
 
 ---
 
@@ -471,7 +480,7 @@ Two starting points:
   and `decisions/example-decision.md` with placeholder fields and inline
   documentation on every section.
 - **Worked example** —
-  [`person-registration/`](docs/business/services/person-registration/README.md)
+  [`vehicle-registration/`](docs/business/services/vehicle-registration/README.md)
   is the canonical filled-in spec. Read it side-by-side with the templates
   to see what good looks like.
 
@@ -579,7 +588,7 @@ Each BPMN user task carries a `camunda:formKey`:
 
 ```xml
 <bpmn:userTask id="Task_SubmitDetails" name="Submit personal details"
-               camunda:formKey="react:personal-details" />
+               camunda:formKey="react:owner-vehicle" />
 ```
 
 The React app reads the task's `formKey` from the REST API, strips the
@@ -587,8 +596,9 @@ The React app reads the task's `formKey` from the REST API, strips the
 
 ```ts
 export const formRegistry = {
-  'personal-details':  PersonalDetailsForm,
-  'review-application': ReviewApplicationForm,
+  'owner-vehicle':  OwnerVehicleForm,
+  'vehicle-review': VehicleReviewForm,
+  // + business-details, review-business-registration
 };
 ```
 
@@ -597,7 +607,7 @@ create the component under `src/forms/`, and add one registry entry.
 
 ## Service task & the http-connector
 
-The **Get price** service task uses the official
+The **Look up vehicle in registry** service task uses the official
 [`cibseven-connect-http-client`](https://mvnrepository.com/artifact/org.cibseven.connect/cibseven-connect-http-client)
 connector — a CIB seven Connect SPI connector that wraps Apache HttpClient 5.
 It is wired in two places:
@@ -608,20 +618,21 @@ It is wired in two places:
   registers the connector itself through the Connect SPI.
 - **BPMN** — the service task carries the connector config inline. The
   response body comes back as the `response` variable; Spin (bundled with the
-  CIB seven engine) parses it inline to pull `data.price` out:
+  CIB seven engine) parses it inline — with per-property fallbacks so a
+  malformed response degrades to "review" instead of crashing:
 
   ```xml
   <camunda:connector>
     <camunda:connectorId>http-connector</camunda:connectorId>
     <camunda:inputOutput>
-      <camunda:inputParameter name="url">https://api.restful-api.dev/objects/${objectId}</camunda:inputParameter>
+      <camunda:inputParameter name="url">${apiBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
       <camunda:inputParameter name="method">GET</camunda:inputParameter>
       <camunda:inputParameter name="headers">
         <camunda:map>
           <camunda:entry key="Accept">application/json</camunda:entry>
         </camunda:map>
       </camunda:inputParameter>
-      <camunda:outputParameter name="price">${S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
+      <camunda:outputParameter name="price">${!S(response).hasProp('value') ? 9999 : S(response).prop('value').numberValue()}</camunda:outputParameter>
     </camunda:inputOutput>
   </camunda:connector>
   ```
@@ -784,8 +795,8 @@ reinstated.
 - Keycloak runs in `start-dev` mode with its own in-memory H2 — the realm is
   re-imported from `keycloak/realm-export.json` on every container start, so
   user-created users/groups are also lost on restart.
-- The **Get price** service task calls the public `api.restful-api.dev` — an
-  internet connection is needed for that step.
+- The vehicle catalog is a hard-coded ten-entry stand-in served by the
+  backend (`/api/public/vehicle-registry`) — no real Liiklusregister behind it.
 - The DMN's `PT2M` timer cycle is a demo value — switch to `PT8H` / `PT1D`
   for anything real, otherwise Mailpit fills up fast.
 - Mailpit's storage is non-persistent (no volume mounted); restarting the

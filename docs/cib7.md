@@ -4,9 +4,12 @@
 the BPMN, the engine config, the connector wiring, or `pom.xml`; when
 investigating a startup failure or a service-task execution issue.
 
-This module is the embedded CIB seven 2.1 process engine + REST API. The
-directory is named `cib7/` (not `cib7/`) so the name is free for a real
-cib7/BFF module if and when one is added.
+This module is the embedded CIB seven 2.1 process engine + REST API — and
+deliberately nothing else: engine, plugins, connectors, security wiring, and
+the BPMN/DMN/FreeMarker resources. Every business REST endpoint (`/api/**` —
+public confirmation/payment links, the vehicle registry, documents) lives in
+the separate `backend/` microservice; the engine reaches it via the
+http-connector like any other external REST service.
 
 **Contents**
 1. [Stack](#stack)
@@ -33,7 +36,7 @@ cib7/BFF module if and when one is added.
 | Database | H2, in-memory (no `spring.datasource` configured) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
 | Template engine | `cibseven-template-engines-freemarker` — renders connector payloads from `templates/*.ftl` |
-| DMN | Bundled with the engine; `auto-approval.dmn` auto-deployed alongside BPMN |
+| DMN | Bundled with the engine; `vehicle-auto-approval.dmn` + `business-auto-approval.dmn` auto-deployed alongside BPMN |
 | PDF generation | Out-of-process: [Gotenberg](https://gotenberg.dev/) (headless Chromium) fronted by a tiny [`pdf-renderer/`](../pdf-renderer/) Node sidecar that does JSON-in / JSON-out so the http-connector can call it like any other REST endpoint |
 | Webapp SSO | `spring-boot-starter-oauth2-client` + `ContainerBasedAuthenticationFilter` (cibseven-keycloak plugin recipe) |
 | Build | Maven, `spring-boot-maven-plugin` |
@@ -50,28 +53,31 @@ cib7/
     │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin + Spin plugin
     │   ├── MailConfiguration.java         — exposes ${mailApiBaseUrl} to BPMN JUEL
     │   ├── PdfConfiguration.java          — exposes ${pdfApiBaseUrl} to BPMN JUEL
+    │   ├── BackendConfiguration.java      — exposes ${apiBaseUrl} + ${internalTaskToken} (backend microservice)
+    │   ├── FrontendConfiguration.java     — exposes ${frontendBaseUrl} (links in emails)
     │   ├── PdfHelper.java                 — @Component("pdf") — base64 ↔ byte[] bridge
-    │   ├── AuthorizationBootstrap.java    — grants the applicant group engine perms on startup
+    │   ├── AuthorizationBootstrap.java    — grants applicant + civil-servant engine perms on startup
     │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
     │       └── webapp/                    — OAuth2 login + ContainerBasedAuthenticationProvider for Cockpit/Tasklist/Admin
     └── resources/
         ├── application.yaml               — engine + auto-deploy + OAuth2 client config
-        ├── processes/
-        │   ├── person-registration.bpmn   — auto-deployed on startup
-        │   └── auto-approval.dmn          — auto-deployed alongside BPMN
-        └── templates/
-            ├── approval-email.json.ftl    — Mailpit /api/v1/send payload (FreeMarker)
-            └── approval-pdf.json.ftl      — pdf-renderer /render payload (FreeMarker)
+        ├── processes/                     — auto-deployed on startup
+        │   ├── vehicle-registration.bpmn,  business-registration.bpmn
+        │   └── vehicle-auto-approval.dmn,  business-auto-approval.dmn
+        └── templates/                     — FreeMarker payloads for the http-connector
+            └── *.json.ftl                 — Mailpit emails, pdf-renderer renders,
+                                             backend /api/documents calls
 ```
 
 The `com.poc.cib7.keycloak` package contains five classes verbatim from the
 `cibseven-keycloak` plugin's reference example (see
 [§ Authentication and authorization](#authentication-and-authorization)).
 Everything else is local: the application entry point, the connector plugin
-bean, and the applicant-group authorization bootstrap. When adding new
-logic (delegate beans, listeners, custom REST controllers), follow Spring
-Boot conventions (a `@Component` / `@Configuration` class under
-`com.poc.cib7`).
+bean, the JUEL config beans, and the group authorization bootstrap. When
+adding new engine-side logic (delegate beans, listeners, engine plugins),
+follow Spring Boot conventions (a `@Component` / `@Configuration` class under
+`com.poc.cib7`). New `@RestController`s do **not** belong here — business
+endpoints go in `backend/`.
 
 ## Spring Boot wiring
 
@@ -90,15 +96,23 @@ and the "Get price" service task fails at deploy/runtime.
 If you add another engine plugin (e.g. an LDAP identity provider), add it as
 another `@Bean` in the same `@Configuration` class or split per concern.
 
-### `MailConfiguration.java` / `PdfConfiguration.java`
+### `MailConfiguration.java` / `PdfConfiguration.java` / `BackendConfiguration.java`
 
-Each exposes a single Spring `String` bean (`mailApiBaseUrl`,
-`pdfApiBaseUrl`) driven by the `MAIL_API_URL` / `PDF_API_URL` env vars. The
-engine's expression manager auto-binds beans by name, so the BPMN can
-reference them as `${mailApiBaseUrl}/api/v1/send` and `${pdfApiBaseUrl}/render`
-without any further wiring. Defaults are `http://localhost:8025` and
-`http://localhost:8088` for `mvn spring-boot:run`; docker-compose overrides
-them to the docker-network aliases (`mailpit`, `pdf-renderer`).
+Each exposes Spring `String` beans driven by env vars. The engine's
+expression manager auto-binds beans by name, so the BPMN can reference them
+without any further wiring:
+
+| Bean | Env var | Used by BPMN as |
+|---|---|---|
+| `mailApiBaseUrl` | `MAIL_API_URL` | `${mailApiBaseUrl}/api/v1/send` (Mailpit emails) |
+| `pdfApiBaseUrl` | `PDF_API_URL` | `${pdfApiBaseUrl}/render` (pdf-renderer) |
+| `apiBaseUrl` | `BACKEND_API_URL` | `${apiBaseUrl}/api/public/vehicle-registry/...`, `${apiBaseUrl}/api/documents/move-pending`, `.../server-upload` (backend microservice) |
+| `internalTaskToken` | `INTERNAL_TASK_TOKEN` | `X-Internal-Token` header on the two internal document calls — must match the backend's value |
+| `frontendBaseUrl` | `FRONTEND_BASE_URL` | links embedded in confirmation / payment emails |
+
+Defaults target `localhost` ports for `mvn spring-boot:run`; docker-compose
+overrides them to docker-network aliases (`mailpit`, `pdf-renderer`,
+`backend`).
 
 ### `PdfHelper.java`
 
@@ -197,7 +211,7 @@ manifest validation — if the key is wrong, the TaskDetail page renders an
 error. See [`frontend.md` — Forms](frontend.md#forms).
 
 **Task gating — `assignee` / `candidateGroups`.** The applicant task in
-`person-registration.bpmn` carries `camunda:assignee="${initiator}"` so it
+each BPMN carries `camunda:assignee="${initiator}"` so it
 goes only to the user who started the case; the review task carries
 `camunda:candidateGroups="civil-servant"` so it goes to the back-office
 group. Engine authorization is on (`camunda.bpm.authorization.enabled:
@@ -218,45 +232,65 @@ See [Authentication and authorization](#authentication-and-authorization).
 `price: Double`, `decision: String`, …), not a single `json` Spin variable.
 The variable name + type form part of the form contract.
 
-**Existing process — `person-registration.bpmn`.**
+**Reference process — `vehicle-registration.bpmn`** (the OÜ flow in
+`business-registration.bpmn` has the same shape with founder semantics):
 
 ```
 StartEvent_1 (camunda:initiator="initiator")
-  → Task_SubmitDetails       userTask          formKey="react:personal-details"
-                                                camunda:assignee="${initiator}"
-                                                (also re-entered on send-back)
-  → Task_GetPrice            serviceTask       asyncBefore=true, connector="http-connector"
-  → Task_AutoDecide          businessRuleTask  decisionRef="auto-approval"
-                                                → autoDecision (singleEntry)
-  → Gateway_AutoApproval     exclusiveGateway
-       autoDecision == "approve"  → EndEvent_Approved (auto-approved, skips PartB)
-       default                     → Task_Review
-  → Task_Review              userTask          formKey="react:review-application"
-                                                camunda:candidateGroups="civil-servant"
-       ┊
+  → Task_SubmitDetails            userTask         formKey="react:owner-vehicle"
+                                                    camunda:assignee="${initiator}"
+                                                    (also re-entered on send-back)
+  → Task_AttachIdDocument         serviceTask      http-connector → backend /api/documents/move-pending
+  → SubProcess_OwnerConfirmations multi-instance   one branch per co-owner: signing email +
+                                                    ReceiveTask_OwnerConfirmation (message
+                                                    correlation from the public confirm page)
+  → Task_WaitSendToProcess        receiveTask      "owner submits to process" message
+  → Task_GetPrice                 serviceTask      asyncBefore, http-connector →
+                                                    backend /api/public/vehicle-registry
+  → Task_AutoDecide               businessRuleTask decisionRef="vehicle-auto-approval"
+                                                    → autoDecision (singleEntry)
+  → Gateway_AutoApproval          exclusiveGateway
+       autoDecision == "approve"  → (skips review)
+       default                    → Task_Review
+  → Task_Review                   userTask         formKey="react:vehicle-review"
+                                                    camunda:candidateGroups="civil-servant"
        ┊ boundary timer R/PT2M (non-interrupting)
-       ▼
-       Task_SendReminderEmail (http-connector → Mailpit) → EndEvent_ReminderSent
-  → Gateway_Decision         exclusiveGateway
-       decision == "approve"  → EndEvent_Approved
-       default (sendback)     → Task_SendBackEmail (http-connector → Mailpit)
-                              → Task_SubmitDetails  (loops back to applicant)
+       ▼ Task_SendReminderEmail (http-connector → Mailpit) → EndEvent_ReminderSent
+  → Gateway_Decision              exclusiveGateway
+       decision == "approve"  → invoice + payment path below
+       default (sendback)     → Task_SendBackEmail → Task_SubmitDetails (loop)
+  → Task_GeneratePdf → Task_StoreApprovalPdf       fee invoice (pdf-renderer →
+                                                    backend /api/documents/server-upload)
+  → Task_SendApprovalEmail                          invoice email with /pay link
+  → Task_WaitForPayment           receiveTask      "PaymentReceived" message —
+                                                    correlated by the backend when the
+                                                    public /pay/{piId} page confirms
+  → Task_GenerateCertificatePdf → Task_StoreCertificatePdf
+  → EndEvent_Approved  "Vehicle registered"
 ```
 
-Process variables:
+Key process variables:
 - `initiator` — login of the applicant who started the case (written by the
   start event so the applicant task can be reassigned on every loop).
-- `firstName`, `lastName`, `age`, `objectId` — written by the applicant task.
-- `price` — written by `Task_GetPrice` via the Spin expression on the
-  `http-connector`'s response.
-- `autoDecision` — written by `Task_AutoDecide`, mapped from the `auto-approval`
-  DMN's single output. Values: `"approve"` or `"review"`.
+- `firstName`, `lastName`, `age`, `objectId` (VIN), `applicantEmail`,
+  `applicantToken`, `additionalOwners` (Json), `pendingIdDocument` (Json) —
+  written by the applicant task.
+- `price`, `vehicleAgeYears`, `vehicleMake/Model/Year/FuelType` — written by
+  `Task_GetPrice` via Spin expressions on the `http-connector` response.
+- `ownerConfirmations` (Json), `rejectedByOwner`, `sentToProcess` — written
+  by the backend's public owner-confirmation endpoints via `/engine-rest`.
+- `autoDecision` — written by `Task_AutoDecide`, mapped from the
+  `vehicle-auto-approval` DMN's single output (`"approve"` or `"review"`).
 - `decision` — written by the review task (`"approve"` or `"sendback"`).
 - `sendBackReason` — set by the review form when sending back; cleared by
   the applicant form on resubmit so the next review cycle starts clean.
+- `paymentReceived` — set by the backend's payment confirmation via
+  message correlation.
 
-**DMN — `auto-approval.dmn`.** Hit policy `FIRST`. Two inputs (`age`,
-`price`), one output (`autoDecision`). Mapped into the process via
+**DMN — `vehicle-auto-approval.dmn`.** Hit policy `FIRST`. Inputs `age`,
+`price`, and `vehicleAgeYears`; one output (`autoDecision`). (The OÜ flow's
+`business-auto-approval.dmn` adds `applicantResidency`.) Mapped into the
+process via
 `camunda:resultVariable="autoDecision"` + `camunda:mapDecisionResult="singleEntry"`
 on the business rule task — `singleEntry` extracts the single value of the
 single-row result; if no rule matches you get `null`, which falls through to
@@ -299,26 +333,28 @@ Input parameters: `method`, `url`, `headers` (a `<camunda:map>`), `payload`,
 `contentType`. Output parameters: `statusCode`, `headers`, `response` (the raw
 body as a String).
 
-It is wired inline inside five service tasks: `Task_GetPrice` (catalogue
-lookup), `Task_SendReminderEmail` (timer-driven email),
-`Task_GeneratePdf` (PDF render via the pdf-renderer sidecar),
-`Task_SendApprovalEmail` (post-PDF approval notification), and
-`Task_SendBackEmail` (sent on the rejection path). For `Task_GetPrice` the
-response body is parsed with Spin (bundled with the CIB seven engine) to read
-`data.price` out:
+It is wired inline inside every integration service task across the two
+BPMNs: registry lookup (`Task_GetPrice`), document promotion and storage
+(`Task_AttachIdDocument` / `Task_AttachAoaDocument` → backend
+`/api/documents/move-pending`; the `Task_Store*Pdf` tasks → backend
+`/api/documents/server-upload`), email sends (Mailpit), and PDF renders
+(pdf-renderer). For `Task_GetPrice` the response body is parsed with Spin
+(bundled with the CIB seven engine), with per-property fallbacks so a
+malformed response degrades to "review" instead of crashing the activity:
 
 ```xml
 <camunda:connector>
   <camunda:connectorId>http-connector</camunda:connectorId>
   <camunda:inputOutput>
-    <camunda:inputParameter name="url">https://api.restful-api.dev/objects/${objectId}</camunda:inputParameter>
+    <camunda:inputParameter name="url">${apiBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
     <camunda:inputParameter name="method">GET</camunda:inputParameter>
     <camunda:inputParameter name="headers">
       <camunda:map>
         <camunda:entry key="Accept">application/json</camunda:entry>
       </camunda:map>
     </camunda:inputParameter>
-    <camunda:outputParameter name="price">${S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
+    <camunda:outputParameter name="price">${!S(response).hasProp('value') ? 9999 : S(response).prop('value').numberValue()}</camunda:outputParameter>
+    <!-- + vehicleMake / vehicleModel / vehicleYear / vehicleFuelType / vehicleAgeYears -->
   </camunda:inputOutput>
 </camunda:connector>
 ```
@@ -370,8 +406,8 @@ caller's Keycloak group membership.
 | Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
 | Engine authorization | `camunda.bpm.authorization.enabled: true` | `application.yaml` |
 | Admin group → engine admin | `administratorGroupName: cib7-admin` on the identity plugin | `application.yaml` |
-| Applicant group → narrow grants | `AuthorizationBootstrap` adds READ / CREATE_INSTANCE / READ_INSTANCE / READ_HISTORY / UPDATE_INSTANCE / READ_TASK / UPDATE_TASK for the `applicant` group on the `personRegistration` definition, plus CREATE on `ProcessInstance:*` and READ / UPDATE on `Task:*` | `AuthorizationBootstrap.java` |
-| BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | `person-registration.bpmn` |
+| Group → narrow grants | `AuthorizationBootstrap` adds READ / CREATE_INSTANCE / READ_INSTANCE / READ_HISTORY / UPDATE_INSTANCE / READ_TASK / UPDATE_TASK for the `applicant` group (and a read/update set for `civil-servant`) on `ProcessDefinition:*`, plus CREATE on `ProcessInstance:*` and READ / UPDATE on `Task:*` | `AuthorizationBootstrap.java` |
+| BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | both BPMNs |
 
 The five Java files under `com/poc/cib7/keycloak/` are **verbatim copies of
 the plugin's reference example** (`examples/sso-kubernetes/.../rest/` and
@@ -381,9 +417,13 @@ plugin author's published recipe for wiring Spring Security to the engine's
 its version.
 
 `AuthorizationBootstrap.java` is the one piece of custom auth code, and it
-is intentionally narrow: it only adds grants for `applicant`. Admin
-(`cib7-admin`) is covered by the plugin's `administratorGroupName` config,
-and civil-servant access is gated by the BPMN's `candidateGroups`.
+is intentionally narrow: it only adds grants for the `applicant` and
+`civil-servant` groups (wildcard resource ids so new services need no Java
+change). Admin (`cib7-admin`) is covered by the plugin's
+`administratorGroupName` config — which also makes the backend's
+`service-account-cib7-business` an engine admin, since the realm export puts
+that service account in `/cib7-admin`. Per-task access is still gated by the
+BPMN's `assignee` / `candidateGroups`.
 
 ### Configuration surface (`application.yaml`)
 
