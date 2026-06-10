@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.0.6</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.poc.backend</groupId>
+  <artifactId>cib7-react-poc-backend</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>cib7-react-poc-backend</name>
+  <description>Business microservice for the CIB seven React POC — owns every /api/** surface
+    (owner confirmations, founder signatures, payments, vehicle registry, documents).
+    Talks to the engine exclusively over /engine-rest; the cib7 module stays a clean
+    engine (plugins + connectors only).</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <!-- AWS SDK v2 pinned directly (no BOM) — same rationale as before the
+         move out of cib7: one artifact isn't worth the BOM resolution step. -->
+    <awssdk.version>2.28.16</awssdk.version>
+  </properties>
+
+  <dependencies>
+    <!-- Spring MVC + embedded Tomcat. Boot 4 name; spring-boot-starter-web
+         still exists but only as a deprecated alias. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+
+    <!-- Document metadata persistence: JPA entity + Spring Data repository.
+         Replaces the engine Attachment API the old in-engine controller used —
+         attachment metadata is business data, so it now lives here. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+
+    <!-- In-memory database. Matches the engine's own POC posture (the engine
+         runs in-memory H2 too): document metadata resets on restart together
+         with the process instances it points at. Swap for Postgres via
+         standard spring.datasource.* properties when the stack gets a real DB. -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- Resource server: validates the SPA's Keycloak JWTs on /api/documents/**.
+         Configured purely via spring.security.oauth2.resourceserver.jwt.*
+         (jwk-set-uri + issuer-uri + audiences) — no custom decoder code. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+    </dependency>
+
+    <!-- OAuth2 client: mints the cib7-business service-account token
+         (client_credentials) that EngineClient puts on every /engine-rest
+         call. Only token-uri is configured, so no OIDC discovery at startup
+         (the container can't reach the browser-visible Keycloak URL). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security-oauth2-client</artifactId>
+    </dependency>
+
+    <!-- AWS SDK v2 — S3 client + presigner for RustFS, moved verbatim from
+         cib7. Presigner classes live inside the `s3` artifact in 2.x. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>${awssdk.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

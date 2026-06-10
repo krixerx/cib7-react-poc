@@ -21,9 +21,6 @@
   <properties>
     <java.version>17</java.version>
     <cibseven.version>2.1.0</cibseven.version>
-    <!-- AWS SDK v2 artifacts pinned directly (no BOM); two coordinates is
-         small enough that the BOM isn't worth the extra resolution step. -->
-    <awssdk.version>2.28.16</awssdk.version>
   </properties>
 
   <dependencies>
@@ -73,8 +70,8 @@
 
     <!-- Official HTTP connector (connectorId="http-connector"). Pulls in
          httpclient5 transitively. The "Look up vehicle in registry" service
-         task in vehicle-registration.bpmn uses it to call our own
-         VehicleRegistryController via apiBaseUrl. -->
+         task in vehicle-registration.bpmn uses it to call the backend
+         microservice's vehicle registry via apiBaseUrl. -->
     <dependency>
       <groupId>org.cibseven.connect</groupId>
       <artifactId>cibseven-connect-http-client</artifactId>
@@ -145,20 +142,6 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-client</artifactId>
-    </dependency>
-
-    <!-- AWS SDK v2 — S3 client for talking to RustFS from the backend
-         (bucket bootstrap, HeadObject before attachment, server-side PUT
-         from BPMN-generated PDFs) and the URL presigner that hands the
-         browser short-lived PUT / GET URLs. RustFS implements the S3
-         protocol verbatim so the standard SDK works without tweaks.
-         The presigner classes (S3Presigner et al under
-         software.amazon.awssdk.services.s3.presigner) live INSIDE the
-         `s3` artifact in 2.x — no separate `s3-presigner` artifact exists. -->
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
-      <artifactId>s3</artifactId>
-      <version>${awssdk.version}</version>
     </dependency>
   </dependencies>
 

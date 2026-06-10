@@ -13,6 +13,10 @@
 
 const ENGINE_URL = process.env.ENGINE_URL ?? 'http://cib7:8080'
 
+// The business microservice that owns /api/** (documents, public
+// confirmations, payments). Split out of the engine — see backend/.
+const BUSINESS_URL = process.env.BUSINESS_URL ?? 'http://backend:8085'
+
 export interface EngineEnvelope<T = unknown> {
   ok: boolean
   status: number
@@ -32,7 +36,27 @@ export interface EngineRequestOptions {
   body?: unknown
 }
 
+/**
+ * Same Bearer-proxy contract as engineRequest, but against the business
+ * microservice (BUSINESS_URL) instead of /engine-rest. Used by tools that
+ * hit /api/** endpoints, e.g. upload_document → /api/documents/stage.
+ */
+export async function businessRequest<T = unknown>(
+  path: string,
+  opts: EngineRequestOptions,
+): Promise<EngineEnvelope<T>> {
+  return requestAgainst(BUSINESS_URL, path, opts)
+}
+
 export async function engineRequest<T = unknown>(
+  path: string,
+  opts: EngineRequestOptions,
+): Promise<EngineEnvelope<T>> {
+  return requestAgainst(ENGINE_URL, path, opts)
+}
+
+async function requestAgainst<T = unknown>(
+  baseUrl: string,
   path: string,
   opts: EngineRequestOptions,
 ): Promise<EngineEnvelope<T>> {
@@ -46,7 +70,7 @@ export async function engineRequest<T = unknown>(
     }
   }
 
-  const url = new URL(path, ENGINE_URL)
+  const url = new URL(path, baseUrl)
   if (opts.query) {
     for (const [k, v] of Object.entries(opts.query)) {
       if (v !== undefined) url.searchParams.set(k, v)
@@ -73,7 +97,7 @@ export async function engineRequest<T = unknown>(
       ok: false,
       status: 0,
       code: 'unreachable',
-      message: `Engine unreachable at ${ENGINE_URL}: ${(e as Error).message}`,
+      message: `Service unreachable at ${baseUrl}: ${(e as Error).message}`,
       retryable: true,
     }
   }

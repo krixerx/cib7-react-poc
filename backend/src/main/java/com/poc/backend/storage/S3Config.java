@@ -1,4 +1,4 @@
-package com.poc.cib7.documents;
+package com.poc.backend.storage;
 
 import java.net.URI;
 
@@ -33,7 +33,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
  */
 @Configuration
 @EnableConfigurationProperties(S3Properties.class)
-public class S3Configuration {
+public class S3Config {
 
     @Bean
     public S3Client s3Client(S3Properties props) {

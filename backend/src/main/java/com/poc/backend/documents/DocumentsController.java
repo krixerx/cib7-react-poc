@@ -1,30 +1,26 @@
-package com.poc.cib7.documents;
+package com.poc.backend.documents;
 
-import java.io.IOException;
-import java.net.URLConnection;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.cibseven.bpm.engine.IdentityService;
-import org.cibseven.bpm.engine.ProcessEngineException;
-import org.cibseven.bpm.engine.TaskService;
-import org.cibseven.bpm.engine.task.Attachment;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.poc.backend.storage.S3Properties;
 
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
@@ -42,19 +38,28 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequ
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 /**
- * REST surface for document upload, download, and listing.
+ * REST surface for document upload, download, and listing. Moved out of the
+ * engine module: metadata that used to live as engine {@code Attachment}
+ * rows is now the {@link Document} JPA entity, so the engine carries no
+ * document concept at all.
  *
- * <p>Two distinct authentication paths in here, gated by
- * {@link DocumentsApiSecurityConfig}:
+ * <p>Two distinct authentication paths, gated by
+ * {@link com.poc.backend.security.SecurityConfig}:
  *
  * <ul>
- *   <li>JWT-authenticated endpoints (called by the SPA) — the
- *       {@link KeycloakAuthenticationFilter} has already pushed the user into
- *       {@link IdentityService}, so engine permission checks "just work".</li>
+ *   <li>JWT-authenticated endpoints (called by the SPA) — Keycloak Bearer,
+ *       uploader recorded from {@code preferred_username}.</li>
  *   <li>Internal endpoints {@code /move-pending} + {@code /server-upload} —
- *       called by BPMN service tasks via the cibseven http-connector. Auth is
- *       by shared header; no engine identity context.</li>
+ *       called by BPMN service tasks via the cibseven http-connector. Auth
+ *       is by shared {@code X-Internal-Token} header.</li>
  * </ul>
+ *
+ * <p>POC simplification vs the in-engine version: the engine used to run a
+ * per-user permission check on the process instance before listing or
+ * downloading. Here any authenticated user can read documents for a case
+ * whose process instance id they know. A production version would forward
+ * the caller's Bearer to {@code /engine-rest} and require READ_INSTANCE on
+ * the case before serving metadata.
  *
  * <p>Object key layout:
  * <pre>
@@ -62,15 +67,13 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  *   process/{piId}/{uuid}/{safeFilename}     — process-scoped, kept forever
  * </pre>
  *
- * <p>{@link Attachment#getUrl()} stores the S3 key (not a presigned URL,
+ * <p>{@link Document#getS3Key()} stores the S3 key (not a presigned URL,
  * since those expire). The presigned GET is minted on demand by
  * {@code /attachments/{aid}/download-url}.
  */
 @RestController
 @RequestMapping("/api/documents")
 public class DocumentsController {
-
-    private static final Logger LOG = LoggerFactory.getLogger(DocumentsController.class);
 
     private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
             "application/pdf", "image/jpeg", "image/png");
@@ -86,16 +89,14 @@ public class DocumentsController {
     private final S3Client s3;
     private final S3Presigner presigner;
     private final S3Properties props;
-    private final TaskService taskService;
-    private final IdentityService identityService;
+    private final DocumentRepository documents;
 
     public DocumentsController(S3Client s3, S3Presigner presigner, S3Properties props,
-                               TaskService taskService, IdentityService identityService) {
+                               DocumentRepository documents) {
         this.s3 = s3;
         this.presigner = presigner;
         this.props = props;
-        this.taskService = taskService;
-        this.identityService = identityService;
+        this.documents = documents;
     }
 
     // ----------------- JWT-authenticated endpoints (SPA) -----------------
@@ -169,9 +170,7 @@ public class DocumentsController {
      * {@code { pendingKey, filename, contentType }} into
      * {@code complete_task} as the value of {@code pendingIdDocument}; the
      * BPMN's existing {@code Task_AttachIdDocument} step picks it up and
-     * promotes the object to {@code process/} scope with an engine Attachment.
-     *
-     * <p>JWT-authed via the order(4) chain, same as {@code /upload-url}.
+     * promotes the object to {@code process/} scope with a {@link Document} row.
      */
     @PostMapping("/stage")
     public ResponseEntity<?> stagePending(@RequestBody StagePendingRequest req) {
@@ -224,74 +223,41 @@ public class DocumentsController {
         if (!objectExists(req.key())) {
             return badRequest("Object not found in storage. Did the upload complete?");
         }
-        try {
-            Attachment a = taskService.createAttachment(
-                    req.category(), null, processInstanceId, req.filename(), "", req.key());
-            return ResponseEntity.ok(new AttachmentResponse(a.getId(), req.key()));
-        } catch (ProcessEngineException e) {
-            LOG.warn("Engine refused createAttachment on PI {}: {}", processInstanceId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new ErrorResponse("engine_denied", e.getMessage()));
-        }
+        Document doc = documents.save(new Document(
+                processInstanceId, req.category(), req.filename(),
+                req.contentType(), req.key(), currentUserId()));
+        return ResponseEntity.ok(new AttachmentResponse(doc.getId(), req.key()));
     }
 
     @GetMapping("/{processInstanceId}")
     public ResponseEntity<?> listAttachments(@PathVariable String processInstanceId) {
-        try {
-            List<Attachment> raw = taskService.getProcessInstanceAttachments(processInstanceId);
-            List<DocumentEntry> out = new ArrayList<>(raw.size());
-            for (Attachment a : raw) {
-                out.add(new DocumentEntry(
-                        a.getId(),
-                        a.getType(),
-                        a.getName(),
-                        contentTypeFromName(a.getName()),
-                        a.getCreateTime() == null ? null
-                                : DateTimeFormatter.ISO_INSTANT.format(a.getCreateTime().toInstant()),
-                        // The engine's Attachment interface has no getUserId
-                        // (the uploader is stored against the task, not the
-                        // attachment), so we don't surface a per-attachment
-                        // uploader. Leave the SPA field null for now; we can
-                        // backfill from history if it becomes useful.
-                        null,
-                        a.getUrl()));
-            }
-            return ResponseEntity.ok(out);
-        } catch (ProcessEngineException e) {
-            LOG.warn("Engine refused getProcessInstanceAttachments on PI {}: {}", processInstanceId, e.getMessage());
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new ErrorResponse("engine_denied", e.getMessage()));
-        }
+        List<DocumentEntry> out = documents
+                .findByProcessInstanceIdOrderByCreatedAtAsc(processInstanceId)
+                .stream()
+                .map(d -> new DocumentEntry(
+                        d.getId(),
+                        d.getCategory(),
+                        d.getFilename(),
+                        d.getContentType(),
+                        DateTimeFormatter.ISO_INSTANT.format(d.getCreatedAt()),
+                        d.getUploaderUserId(),
+                        d.getS3Key()))
+                .toList();
+        return ResponseEntity.ok(out);
     }
 
     @GetMapping("/attachments/{attachmentId}/download-url")
     public ResponseEntity<?> mintDownloadUrl(@PathVariable String attachmentId) {
-        // The attachment id is opaque; we have to look it up first to learn
-        // which PI it lives on. The engine itself runs the read permission
-        // check, so a user without access to the PI gets a ProcessEngineException
-        // here even before we know which key to sign.
-        Attachment a;
-        try {
-            a = taskService.getAttachment(attachmentId);
-        } catch (ProcessEngineException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new ErrorResponse("engine_denied", e.getMessage()));
-        }
-        if (a == null) {
+        Document doc = documents.findById(attachmentId).orElse(null);
+        if (doc == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ErrorResponse("not_found", "No such attachment."));
         }
 
-        String key = a.getUrl();
-        if (key == null || key.isBlank()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ErrorResponse("not_found", "Attachment has no storage key."));
-        }
-
         GetObjectRequest get = GetObjectRequest.builder()
                 .bucket(props.getBucket())
-                .key(key)
-                .responseContentDisposition("attachment; filename=\"" + safeFilename(a.getName()) + "\"")
+                .key(doc.getS3Key())
+                .responseContentDisposition("attachment; filename=\"" + safeFilename(doc.getFilename()) + "\"")
                 .build();
         PresignedGetObjectRequest presigned = presigner.presignGetObject(GetObjectPresignRequest.builder()
                 .signatureDuration(GET_TTL)
@@ -332,10 +298,12 @@ public class DocumentsController {
                 .key(req.pendingKey())
                 .build());
 
-        Attachment a = taskService.createAttachment(
-                req.category(), null, req.processInstanceId(),
-                req.filename(), "", destKey);
-        return ResponseEntity.ok(new AttachmentResponse(a.getId(), destKey));
+        // The uploader is recoverable from the pending/{userId}/... key —
+        // keep it so the metadata survives the move out of the pending prefix.
+        Document doc = documents.save(new Document(
+                req.processInstanceId(), req.category(), req.filename(),
+                req.contentType(), destKey, uploaderFromPendingKey(req.pendingKey())));
+        return ResponseEntity.ok(new AttachmentResponse(doc.getId(), destKey));
     }
 
     @PostMapping("/server-upload")
@@ -369,10 +337,10 @@ public class DocumentsController {
                 .build(),
                 software.amazon.awssdk.core.sync.RequestBody.fromBytes(bytes));
 
-        Attachment a = taskService.createAttachment(
-                req.category(), null, req.processInstanceId(),
-                req.filename(), "", key);
-        return ResponseEntity.ok(new AttachmentResponse(a.getId(), key));
+        Document doc = documents.save(new Document(
+                req.processInstanceId(), req.category(), req.filename(),
+                req.contentType(), key, null));
+        return ResponseEntity.ok(new AttachmentResponse(doc.getId(), key));
     }
 
     // ----------------- helpers -----------------
@@ -392,22 +360,25 @@ public class DocumentsController {
         }
     }
 
-    private String currentUserId() {
-        return identityService.getCurrentAuthentication() == null
-                ? null
-                : identityService.getCurrentAuthentication().getUserId();
+    /** Keycloak username from the validated Bearer; null on the internal chain. */
+    private static String currentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken jwt) {
+            return jwt.getToken().getClaimAsString("preferred_username");
+        }
+        return null;
+    }
+
+    /** pending/{userId}/{uuid}/{file} → userId, or null when the shape is off. */
+    private static String uploaderFromPendingKey(String pendingKey) {
+        String[] parts = pendingKey.split("/");
+        return parts.length >= 4 ? parts[1] : null;
     }
 
     private static String safeFilename(String raw) {
         if (raw == null) return "file";
         String trimmed = raw.replaceAll("[^A-Za-z0-9._-]", "_");
         return trimmed.isBlank() ? "file" : trimmed;
-    }
-
-    private static String contentTypeFromName(String name) {
-        if (name == null) return "application/octet-stream";
-        String guess = URLConnection.guessContentTypeFromName(name);
-        return guess != null ? guess : "application/octet-stream";
     }
 
     private static ResponseEntity<?> badRequest(String message) {

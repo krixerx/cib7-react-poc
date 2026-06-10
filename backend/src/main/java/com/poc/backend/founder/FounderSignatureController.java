@@ -1,17 +1,11 @@
-package com.poc.cib7.founder;
+package com.poc.backend.founder;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-import org.cibseven.bpm.engine.MismatchingMessageCorrelationException;
-import org.cibseven.bpm.engine.RuntimeService;
-import org.cibseven.bpm.engine.runtime.ProcessInstance;
-import org.cibseven.spin.Spin;
-import org.cibseven.spin.json.SpinJsonNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,16 +15,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import com.poc.backend.engine.EngineClient;
+
 /**
  * Public REST surface for the co-founder signing flow in
  * {@code business-registration.bpmn}.
  *
- * <p>Mirrors {@link com.poc.cib7.owner.OwnerConfirmationController}
+ * <p>Mirrors {@link com.poc.backend.owner.OwnerConfirmationController}
  * line-for-line; OÜ founder semantics swapped for vehicle-owner semantics.
  * Both controllers use the same pattern: per-participant UUID token in the
  * URL is the credential, message correlation on a local variable carries
- * the decision back into the multi-instance subprocess. PublicApiSecurityConfig
- * already opens {@code /api/public/**}.
+ * the decision back into the multi-instance subprocess.
  *
  * <p>State machine surfaced to the SPA via {@link FounderStatus#state}:
  *
@@ -53,14 +51,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/public/founder-signatures")
 public class FounderSignatureController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(FounderSignatureController.class);
-
     private static final String PROCESS_KEY = "businessRegistration";
 
-    private final RuntimeService runtimeService;
+    private final EngineClient engine;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public FounderSignatureController(RuntimeService runtimeService) {
-        this.runtimeService = runtimeService;
+    public FounderSignatureController(EngineClient engine) {
+        this.engine = engine;
     }
 
     @GetMapping("/{token}/status")
@@ -110,8 +107,8 @@ public class FounderSignatureController {
                     .body(new ErrorResponse("already_sent",
                             "This case has already been submitted to the Business Register."));
         }
-        SpinJsonNode signatures = vars.founderSignatures();
-        if (hasStatus(signatures, token)) {
+        ObjectNode signatures = vars.founderSignatures();
+        if (signatures.has(token)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("already_signed",
                             "You have already signed this registration."));
@@ -121,27 +118,23 @@ public class FounderSignatureController {
         // status endpoint reflects it even if a sibling instance fires the
         // completion condition immediately after.
         writeSignature(signatures, token, decision, req.reason());
-        runtimeService.setVariable(lookup.processInstanceId(), "founderSignatures", signatures);
+        engine.setJsonVariable(lookup.processInstanceId(), "founderSignatures", signatures);
 
         if ("reject".equals(decision)) {
             // Process-scope flag drives both the multi-instance completionCondition
-            // and the post-subprocess gateway. setVariable on the PI puts it at
-            // process scope; the correlate's localVariableEquals on the
-            // receiveTask just identifies WHICH instance is being unblocked.
-            runtimeService.setVariable(lookup.processInstanceId(), "rejectedByFounder", true);
-            runtimeService.setVariable(lookup.processInstanceId(), "sendBackReason",
+            // and the post-subprocess gateway. The correlate's localCorrelationKeys
+            // on the receiveTask just identifies WHICH instance is being unblocked.
+            engine.setBooleanVariable(lookup.processInstanceId(), "rejectedByFounder", true);
+            engine.setStringVariable(lookup.processInstanceId(), "sendBackReason",
                     "Co-founder " + lookup.founderName()
                             + " rejected the registration: " + req.reason().trim());
         }
 
-        try {
-            runtimeService.createMessageCorrelation("FounderSignature")
-                    .processInstanceId(lookup.processInstanceId())
-                    .localVariableEquals("founderToken", token)
-                    .correlate();
-        } catch (MismatchingMessageCorrelationException e) {
-            LOG.warn("FounderSignature message had no waiting receive task for token {}: {}",
-                    token, e.getMessage());
+        boolean correlated = engine.correlateMessage("FounderSignature",
+                lookup.processInstanceId(),
+                Map.of("founderToken", token),
+                Map.of());
+        if (!correlated) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("not_waiting",
                             "This case is no longer waiting for co-founder signatures."));
@@ -176,14 +169,11 @@ public class FounderSignatureController {
                             "Not all co-founders have signed yet."));
         }
 
-        try {
-            runtimeService.createMessageCorrelation("SubmitToRegister")
-                    .processInstanceId(lookup.processInstanceId())
-                    .setVariable("sentToRegister", true)
-                    .correlate();
-        } catch (MismatchingMessageCorrelationException e) {
-            LOG.warn("SubmitToRegister had no waiting receive task for PI {}: {}",
-                    lookup.processInstanceId(), e.getMessage());
+        boolean correlated = engine.correlateMessage("SubmitToRegister",
+                lookup.processInstanceId(),
+                Map.of(),
+                Map.of("sentToRegister", true));
+        if (!correlated) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("not_waiting",
                             "This case is not waiting on a submit-to-register signal."));
@@ -204,31 +194,21 @@ public class FounderSignatureController {
         if (token == null || token.isBlank()) {
             return null;
         }
-        // Fast path for the applicant: variableValueEquals is indexed.
-        List<ProcessInstance> applicantHits = runtimeService.createProcessInstanceQuery()
-                .processDefinitionKey(PROCESS_KEY)
-                .active()
-                .variableValueEquals("applicantToken", token)
-                .list();
+        // Fast path for the applicant: variable equality is indexed engine-side.
+        List<String> applicantHits = engine.findActiveByVariable(PROCESS_KEY, "applicantToken", token);
         if (!applicantHits.isEmpty()) {
-            ProcessInstance pi = applicantHits.get(0);
-            String name = applicantName(pi.getId());
-            return new TokenLookup(pi.getId(), name, true);
+            String piId = applicantHits.get(0);
+            return new TokenLookup(piId, applicantName(piId), true);
         }
 
-        // Slow path: scan additionalFounders. CIB seven doesn't index inside
-        // Spin Json lists, so we read each variable and walk it.
-        List<ProcessInstance> all = runtimeService.createProcessInstanceQuery()
-                .processDefinitionKey(PROCESS_KEY)
-                .active()
-                .list();
-        for (ProcessInstance pi : all) {
-            Object raw = runtimeService.getVariable(pi.getId(), "additionalFounders");
-            if (!(raw instanceof SpinJsonNode)) continue;
-            for (SpinJsonNode founder : ((SpinJsonNode) raw).elements()) {
-                if (token.equals(founder.prop("token").stringValue())) {
-                    return new TokenLookup(pi.getId(),
-                            founder.prop("name").stringValue(), false);
+        // Slow path: scan additionalFounders. The engine doesn't index inside
+        // Json-typed lists, so we read each variable and walk it.
+        for (String piId : engine.findActive(PROCESS_KEY)) {
+            JsonNode founders = engine.getJsonVariable(piId, "additionalFounders");
+            if (founders == null || !founders.isArray()) continue;
+            for (JsonNode founder : founders) {
+                if (token.equals(founder.path("token").asText(null))) {
+                    return new TokenLookup(piId, founder.path("name").asText(""), false);
                 }
             }
         }
@@ -236,42 +216,38 @@ public class FounderSignatureController {
     }
 
     private String applicantName(String piId) {
-        String first = (String) runtimeService.getVariable(piId, "applicantFirstName");
-        String last = (String) runtimeService.getVariable(piId, "applicantLastName");
+        String first = engine.getStringVariable(piId, "applicantFirstName");
+        String last = engine.getStringVariable(piId, "applicantLastName");
         return ((first != null ? first : "") + " " + (last != null ? last : "")).trim();
     }
 
     private ProcessVars readVars(String piId) {
         return new ProcessVars(
-                (String) runtimeService.getVariable(piId, "applicantFirstName"),
-                (String) runtimeService.getVariable(piId, "applicantLastName"),
-                (String) runtimeService.getVariable(piId, "applicantEmail"),
-                (String) runtimeService.getVariable(piId, "applicantToken"),
-                (String) runtimeService.getVariable(piId, "companyName"),
-                (SpinJsonNode) runtimeService.getVariable(piId, "additionalFounders"),
-                ensureMap((SpinJsonNode) runtimeService.getVariable(piId, "founderSignatures")),
-                (Boolean) runtimeService.getVariable(piId, "rejectedByFounder"),
-                (Boolean) runtimeService.getVariable(piId, "sentToRegister"));
+                engine.getStringVariable(piId, "applicantFirstName"),
+                engine.getStringVariable(piId, "applicantLastName"),
+                engine.getStringVariable(piId, "applicantEmail"),
+                engine.getStringVariable(piId, "applicantToken"),
+                engine.getStringVariable(piId, "companyName"),
+                engine.getJsonVariable(piId, "additionalFounders"),
+                ensureMap(engine.getJsonVariable(piId, "founderSignatures")),
+                engine.getBooleanVariable(piId, "rejectedByFounder"),
+                engine.getBooleanVariable(piId, "sentToRegister"));
     }
 
-    private static SpinJsonNode ensureMap(SpinJsonNode in) {
-        return in != null ? in : Spin.JSON("{}");
+    private ObjectNode ensureMap(JsonNode in) {
+        return in instanceof ObjectNode obj ? obj : mapper.createObjectNode();
     }
 
-    private static boolean hasStatus(SpinJsonNode signatures, String token) {
-        return signatures != null && signatures.hasProp(token);
-    }
-
-    /** Mutates {@code signatures} in place — caller must {@code setVariable} after. */
-    private static void writeSignature(SpinJsonNode signatures, String token,
-                                       String decision, String reason) {
-        SpinJsonNode entry = Spin.JSON("{}");
-        entry.prop("status", "approve".equals(decision) ? "approved" : "rejected");
-        entry.prop("signedAt", Instant.now().toString());
+    /** Mutates {@code signatures} in place — caller must setJsonVariable after. */
+    private void writeSignature(ObjectNode signatures, String token,
+                                String decision, String reason) {
+        ObjectNode entry = mapper.createObjectNode();
+        entry.put("status", "approve".equals(decision) ? "approved" : "rejected");
+        entry.put("signedAt", Instant.now().toString());
         if (reason != null && !reason.isBlank()) {
-            entry.prop("reason", reason.trim());
+            entry.put("reason", reason.trim());
         }
-        signatures.prop(token, entry);
+        signatures.set(token, entry);
     }
 
     private FounderStatus buildStatus(TokenLookup lookup, String requestToken) {
@@ -283,12 +259,12 @@ public class FounderSignatureController {
         List<FounderEntry> founders = new ArrayList<>();
         founders.add(buildFounderEntry(applicantName, vars.applicantEmail(),
                 vars.applicantToken(), true, vars.founderSignatures()));
-        if (vars.additionalFounders() != null) {
-            for (SpinJsonNode founder : vars.additionalFounders().elements()) {
+        if (vars.additionalFounders() != null && vars.additionalFounders().isArray()) {
+            for (JsonNode founder : vars.additionalFounders()) {
                 founders.add(buildFounderEntry(
-                        founder.prop("name").stringValue(),
-                        founder.prop("email").stringValue(),
-                        founder.prop("token").stringValue(),
+                        founder.path("name").asText(""),
+                        founder.path("email").asText(""),
+                        founder.path("token").asText(null),
                         false,
                         vars.founderSignatures()));
             }
@@ -323,15 +299,15 @@ public class FounderSignatureController {
     }
 
     private static FounderEntry buildFounderEntry(String name, String email, String token,
-                                                  boolean isApplicant, SpinJsonNode signatures) {
+                                                  boolean isApplicant, JsonNode signatures) {
         String status = "pending";
         String signedAt = null;
         String reason = null;
-        if (signatures != null && token != null && signatures.hasProp(token)) {
-            SpinJsonNode entry = signatures.prop(token);
-            if (entry.hasProp("status")) status = entry.prop("status").stringValue();
-            if (entry.hasProp("signedAt")) signedAt = entry.prop("signedAt").stringValue();
-            if (entry.hasProp("reason")) reason = entry.prop("reason").stringValue();
+        if (signatures != null && token != null && signatures.has(token)) {
+            JsonNode entry = signatures.get(token);
+            if (entry.hasNonNull("status")) status = entry.get("status").asText();
+            if (entry.hasNonNull("signedAt")) signedAt = entry.get("signedAt").asText();
+            if (entry.hasNonNull("reason")) reason = entry.get("reason").asText();
         }
         return new FounderEntry(name, email, token, isApplicant, status, signedAt, reason);
     }
@@ -374,8 +350,8 @@ public class FounderSignatureController {
             String applicantEmail,
             String applicantToken,
             String companyName,
-            SpinJsonNode additionalFounders,
-            SpinJsonNode founderSignatures,
+            JsonNode additionalFounders,
+            ObjectNode founderSignatures,
             Boolean rejectedByFounder,
             Boolean sentToRegister) {}
 }

@@ -25,7 +25,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { engineRequest, engineBaseUrl } from './engine/client.js'
+import { engineRequest, businessRequest, engineBaseUrl } from './engine/client.js'
 import { toCamundaVariables } from './engine/variables.js'
 import { decodeBearerUsername } from './auth/identity.js'
 import { verifyBearer } from './auth/verify.js'
@@ -452,7 +452,8 @@ async function handleUploadDocument(args: unknown): Promise<ToolResult> {
     )
   }
 
-  const result = await engineRequest<{
+  // /api/documents moved from the engine into the backend business service.
+  const result = await businessRequest<{
     pendingKey: string
     filename: string
     contentType: string

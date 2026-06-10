@@ -1,4 +1,4 @@
-package com.poc.cib7.documents;
+package com.poc.backend.storage;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

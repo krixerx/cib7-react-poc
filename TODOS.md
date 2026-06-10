@@ -6,7 +6,7 @@ Captured during plan reviews. Items here are deferred work the team agreed to re
 
 ## T1 — Replace in-memory H2 with PostgreSQL + volume
 
-**What:** Swap `cib7/`'s in-memory H2 database for PostgreSQL with a persistent docker-compose volume. Add `spring.datasource.*` config in `cib7/src/main/resources/application.yaml`, drop the `org.h2:h2` runtime dependency from `cib7/pom.xml`, add the `postgresql` driver, add a `postgres` service and a `cib7-data` volume to `docker-compose.yml`.
+**What:** Swap `cib7/`'s in-memory H2 database for PostgreSQL with a persistent docker-compose volume. Add `spring.datasource.*` config in `cib7/src/main/resources/application.yaml`, drop the `org.h2:h2` runtime dependency from `cib7/pom.xml`, add the `postgresql` driver, add a `postgres` service and a `cib7-data` volume to `docker-compose.yml`. The same swap now also applies to `backend/` (the business microservice), whose `Document` metadata table runs on in-memory H2 with the same wipe-on-restart posture — both modules should move to Postgres in one go so document rows never outlive (or predate) the process instances they point at.
 
 **Why:** Today the engine loses all process state on restart, so the autofill demo (`query_user_history`) only works after someone completes a flow in the current engine session. With persistence, the autofill story works across compose restarts, internal pilots, and CI-driven end-to-end runs. (A `seed-history` one-shot compose service used to paper over this; it has been removed from the stack.)
 

@@ -114,8 +114,8 @@ Form contract: see [`../../../human-role-react-forms-spec.md`](../../../human-ro
 Registry resolution lives in `frontend/src/forms/registry.ts`. The owner
 confirmation page is NOT a BPMN form — it's a public, unauthenticated SPA
 route reached from `${frontendBaseUrl}/confirm-owner/{token}` email links
-and backed by `/api/public/owner-confirmations/**` in the engine
-([`OwnerConfirmationController`](../../../../cib7/src/main/java/com/poc/cib7/owner/OwnerConfirmationController.java)).
+and backed by `/api/public/owner-confirmations/**` in the backend business service
+([`OwnerConfirmationController`](../../../../backend/src/main/java/com/poc/backend/owner/OwnerConfirmationController.java)).
 
 ## Service tasks (integrations)
 
@@ -172,7 +172,7 @@ JUEL variables by `MailConfiguration`, `PdfConfiguration`, and
 - **Co-owners** — NOT Keycloak users. They authorise themselves to the
   public confirmation endpoints by presenting the per-owner UUID token
   embedded in their email link. The `/api/public/**` filter chain
-  ([`PublicApiSecurityConfig`](../../../../cib7/src/main/java/com/poc/cib7/owner/PublicApiSecurityConfig.java))
+  ([`SecurityConfig`](../../../../backend/src/main/java/com/poc/backend/security/SecurityConfig.java))
   is `permitAll()`; the token IS the credential.
 
 ## Known trade-offs

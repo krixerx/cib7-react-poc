@@ -1,4 +1,4 @@
-package com.poc.cib7.documents;
+package com.poc.backend.storage;
 
 import java.util.List;
 
@@ -35,9 +35,9 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  *       file but never submitted the form.</li>
  * </ol>
  *
- * <p>Runs after the engine is up; any failure is logged loudly but does
- * NOT crash the application — RustFS may be temporarily unhealthy and the
- * BPMN tasks would surface a more useful error than a startup crash.
+ * <p>Any failure is logged loudly but does NOT crash the application —
+ * RustFS may be temporarily unhealthy and the BPMN tasks would surface a
+ * more useful error than a startup crash.
  */
 @Component
 public class BucketBootstrap {

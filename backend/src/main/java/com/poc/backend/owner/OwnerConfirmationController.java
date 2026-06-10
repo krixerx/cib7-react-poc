@@ -1,17 +1,11 @@
-package com.poc.cib7.owner;
+package com.poc.backend.owner;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-import org.cibseven.bpm.engine.MismatchingMessageCorrelationException;
-import org.cibseven.bpm.engine.RuntimeService;
-import org.cibseven.bpm.engine.runtime.ProcessInstance;
-import org.cibseven.spin.Spin;
-import org.cibseven.spin.json.SpinJsonNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,17 +15,27 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
+import com.poc.backend.engine.EngineClient;
+
 /**
  * Public REST surface for the owner-confirmation flow in
  * {@code vehicle-registration.bpmn}.
  *
  * <p>Endpoints under {@code /api/public/**} are unauthenticated (see
- * {@link PublicApiSecurityConfig}). Authorization is by knowledge of the
- * per-owner UUID token: the applicant's form generates a token for the
- * applicant and one for each additional owner, the engine stores them as
- * process variables, and the controller correlates back to the waiting
- * receive task in the multi-instance subprocess via
- * {@link org.cibseven.bpm.engine.runtime.MessageCorrelationBuilder#localVariableEquals(String, Object)}.
+ * {@link com.poc.backend.security.SecurityConfig}). Authorization is by
+ * knowledge of the per-owner UUID token: the applicant's form generates a
+ * token for the applicant and one for each additional owner, the engine
+ * stores them as process variables, and the controller correlates back to
+ * the waiting receive task in the multi-instance subprocess via the
+ * message API's {@code localCorrelationKeys}.
+ *
+ * <p>All engine access goes through {@link EngineClient} over
+ * {@code /engine-rest} — this service has no embedded engine. Spin JSON
+ * process variables round-trip as engine type {@code Json} and are handled
+ * here as Jackson trees.
  *
  * <p>State machine surfaced to the SPA via {@link OwnerStatus#state}:
  *
@@ -52,14 +56,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/public/owner-confirmations")
 public class OwnerConfirmationController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(OwnerConfirmationController.class);
-
     private static final String PROCESS_KEY = "vehicleRegistration";
 
-    private final RuntimeService runtimeService;
+    private final EngineClient engine;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-    public OwnerConfirmationController(RuntimeService runtimeService) {
-        this.runtimeService = runtimeService;
+    public OwnerConfirmationController(EngineClient engine) {
+        this.engine = engine;
     }
 
     @GetMapping("/{token}/status")
@@ -109,8 +112,8 @@ public class OwnerConfirmationController {
                     .body(new ErrorResponse("already_sent",
                             "This case has already been sent to the back office."));
         }
-        SpinJsonNode confirmations = vars.ownerConfirmations();
-        if (hasStatus(confirmations, token)) {
+        ObjectNode confirmations = vars.ownerConfirmations();
+        if (confirmations.has(token)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("already_signed",
                             "You have already signed this application."));
@@ -120,26 +123,22 @@ public class OwnerConfirmationController {
         // status endpoint reflects it even if a sibling instance fires the
         // completion condition immediately after.
         writeConfirmation(confirmations, token, decision, req.reason());
-        runtimeService.setVariable(lookup.processInstanceId(), "ownerConfirmations", confirmations);
+        engine.setJsonVariable(lookup.processInstanceId(), "ownerConfirmations", confirmations);
 
         if ("reject".equals(decision)) {
             // Process-scope flag drives both the multi-instance completionCondition
-            // and the post-subprocess gateway. setVariable on the PI puts it at
-            // process scope; the correlate's localVariableEquals on the
-            // receiveTask just identifies WHICH instance is being unblocked.
-            runtimeService.setVariable(lookup.processInstanceId(), "rejectedByOwner", true);
-            runtimeService.setVariable(lookup.processInstanceId(), "sendBackReason",
+            // and the post-subprocess gateway. The correlate's localCorrelationKeys
+            // on the receiveTask just identifies WHICH instance is being unblocked.
+            engine.setBooleanVariable(lookup.processInstanceId(), "rejectedByOwner", true);
+            engine.setStringVariable(lookup.processInstanceId(), "sendBackReason",
                     "Owner " + lookup.ownerName() + " rejected the application: " + req.reason().trim());
         }
 
-        try {
-            runtimeService.createMessageCorrelation("OwnerConfirmation")
-                    .processInstanceId(lookup.processInstanceId())
-                    .localVariableEquals("ownerToken", token)
-                    .correlate();
-        } catch (MismatchingMessageCorrelationException e) {
-            LOG.warn("OwnerConfirmation message had no waiting receive task for token {}: {}",
-                    token, e.getMessage());
+        boolean correlated = engine.correlateMessage("OwnerConfirmation",
+                lookup.processInstanceId(),
+                Map.of("ownerToken", token),
+                Map.of());
+        if (!correlated) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("not_waiting",
                             "This case is no longer waiting for owner signatures."));
@@ -174,14 +173,11 @@ public class OwnerConfirmationController {
                             "Not all owners have signed yet."));
         }
 
-        try {
-            runtimeService.createMessageCorrelation("SendToProcess")
-                    .processInstanceId(lookup.processInstanceId())
-                    .setVariable("sentToProcess", true)
-                    .correlate();
-        } catch (MismatchingMessageCorrelationException e) {
-            LOG.warn("SendToProcess had no waiting receive task for PI {}: {}",
-                    lookup.processInstanceId(), e.getMessage());
+        boolean correlated = engine.correlateMessage("SendToProcess",
+                lookup.processInstanceId(),
+                Map.of(),
+                Map.of("sentToProcess", true));
+        if (!correlated) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("not_waiting",
                             "This case is not waiting on a send-to-process signal."));
@@ -202,30 +198,21 @@ public class OwnerConfirmationController {
         if (token == null || token.isBlank()) {
             return null;
         }
-        // Fast path for the applicant: variableValueEquals is indexed.
-        List<ProcessInstance> applicantHits = runtimeService.createProcessInstanceQuery()
-                .processDefinitionKey(PROCESS_KEY)
-                .active()
-                .variableValueEquals("applicantToken", token)
-                .list();
+        // Fast path for the applicant: variable equality is indexed engine-side.
+        List<String> applicantHits = engine.findActiveByVariable(PROCESS_KEY, "applicantToken", token);
         if (!applicantHits.isEmpty()) {
-            ProcessInstance pi = applicantHits.get(0);
-            String name = applicantName(pi.getId());
-            return new TokenLookup(pi.getId(), name, true);
+            String piId = applicantHits.get(0);
+            return new TokenLookup(piId, applicantName(piId), true);
         }
 
-        // Slow path: scan additionalOwners. CIB seven doesn't index inside
-        // Spin Json lists, so we read each variable and walk it.
-        List<ProcessInstance> all = runtimeService.createProcessInstanceQuery()
-                .processDefinitionKey(PROCESS_KEY)
-                .active()
-                .list();
-        for (ProcessInstance pi : all) {
-            Object raw = runtimeService.getVariable(pi.getId(), "additionalOwners");
-            if (!(raw instanceof SpinJsonNode)) continue;
-            for (SpinJsonNode owner : ((SpinJsonNode) raw).elements()) {
-                if (token.equals(owner.prop("token").stringValue())) {
-                    return new TokenLookup(pi.getId(), owner.prop("name").stringValue(), false);
+        // Slow path: scan additionalOwners. The engine doesn't index inside
+        // Json-typed lists, so we read each variable and walk it.
+        for (String piId : engine.findActive(PROCESS_KEY)) {
+            JsonNode owners = engine.getJsonVariable(piId, "additionalOwners");
+            if (owners == null || !owners.isArray()) continue;
+            for (JsonNode owner : owners) {
+                if (token.equals(owner.path("token").asText(null))) {
+                    return new TokenLookup(piId, owner.path("name").asText(""), false);
                 }
             }
         }
@@ -233,41 +220,37 @@ public class OwnerConfirmationController {
     }
 
     private String applicantName(String piId) {
-        String first = (String) runtimeService.getVariable(piId, "firstName");
-        String last = (String) runtimeService.getVariable(piId, "lastName");
+        String first = engine.getStringVariable(piId, "firstName");
+        String last = engine.getStringVariable(piId, "lastName");
         return ((first != null ? first : "") + " " + (last != null ? last : "")).trim();
     }
 
     private ProcessVars readVars(String piId) {
         return new ProcessVars(
-                (String) runtimeService.getVariable(piId, "firstName"),
-                (String) runtimeService.getVariable(piId, "lastName"),
-                (String) runtimeService.getVariable(piId, "applicantEmail"),
-                (String) runtimeService.getVariable(piId, "applicantToken"),
-                (SpinJsonNode) runtimeService.getVariable(piId, "additionalOwners"),
-                ensureMap((SpinJsonNode) runtimeService.getVariable(piId, "ownerConfirmations")),
-                (Boolean) runtimeService.getVariable(piId, "rejectedByOwner"),
-                (Boolean) runtimeService.getVariable(piId, "sentToProcess"));
+                engine.getStringVariable(piId, "firstName"),
+                engine.getStringVariable(piId, "lastName"),
+                engine.getStringVariable(piId, "applicantEmail"),
+                engine.getStringVariable(piId, "applicantToken"),
+                engine.getJsonVariable(piId, "additionalOwners"),
+                ensureMap(engine.getJsonVariable(piId, "ownerConfirmations")),
+                engine.getBooleanVariable(piId, "rejectedByOwner"),
+                engine.getBooleanVariable(piId, "sentToProcess"));
     }
 
-    private static SpinJsonNode ensureMap(SpinJsonNode in) {
-        return in != null ? in : Spin.JSON("{}");
+    private ObjectNode ensureMap(JsonNode in) {
+        return in instanceof ObjectNode obj ? obj : mapper.createObjectNode();
     }
 
-    private static boolean hasStatus(SpinJsonNode confirmations, String token) {
-        return confirmations != null && confirmations.hasProp(token);
-    }
-
-    /** Mutates {@code confirmations} in place — caller must {@code setVariable} after. */
-    private static void writeConfirmation(SpinJsonNode confirmations, String token,
-                                          String decision, String reason) {
-        SpinJsonNode entry = Spin.JSON("{}");
-        entry.prop("status", "approve".equals(decision) ? "approved" : "rejected");
-        entry.prop("signedAt", Instant.now().toString());
+    /** Mutates {@code confirmations} in place — caller must setJsonVariable after. */
+    private void writeConfirmation(ObjectNode confirmations, String token,
+                                   String decision, String reason) {
+        ObjectNode entry = mapper.createObjectNode();
+        entry.put("status", "approve".equals(decision) ? "approved" : "rejected");
+        entry.put("signedAt", Instant.now().toString());
         if (reason != null && !reason.isBlank()) {
-            entry.prop("reason", reason.trim());
+            entry.put("reason", reason.trim());
         }
-        confirmations.prop(token, entry);
+        confirmations.set(token, entry);
     }
 
     private OwnerStatus buildStatus(TokenLookup lookup, String requestToken) {
@@ -279,12 +262,12 @@ public class OwnerConfirmationController {
         List<OwnerEntry> owners = new ArrayList<>();
         owners.add(buildOwnerEntry(applicantName, vars.applicantEmail(),
                 vars.applicantToken(), true, vars.ownerConfirmations()));
-        if (vars.additionalOwners() != null) {
-            for (SpinJsonNode owner : vars.additionalOwners().elements()) {
+        if (vars.additionalOwners() != null && vars.additionalOwners().isArray()) {
+            for (JsonNode owner : vars.additionalOwners()) {
                 owners.add(buildOwnerEntry(
-                        owner.prop("name").stringValue(),
-                        owner.prop("email").stringValue(),
-                        owner.prop("token").stringValue(),
+                        owner.path("name").asText(""),
+                        owner.path("email").asText(""),
+                        owner.path("token").asText(null),
                         false,
                         vars.ownerConfirmations()));
             }
@@ -318,15 +301,15 @@ public class OwnerConfirmationController {
     }
 
     private static OwnerEntry buildOwnerEntry(String name, String email, String token,
-                                              boolean isApplicant, SpinJsonNode confirmations) {
+                                              boolean isApplicant, JsonNode confirmations) {
         String status = "pending";
         String signedAt = null;
         String reason = null;
-        if (confirmations != null && token != null && confirmations.hasProp(token)) {
-            SpinJsonNode entry = confirmations.prop(token);
-            if (entry.hasProp("status")) status = entry.prop("status").stringValue();
-            if (entry.hasProp("signedAt")) signedAt = entry.prop("signedAt").stringValue();
-            if (entry.hasProp("reason")) reason = entry.prop("reason").stringValue();
+        if (confirmations != null && token != null && confirmations.has(token)) {
+            JsonNode entry = confirmations.get(token);
+            if (entry.hasNonNull("status")) status = entry.get("status").asText();
+            if (entry.hasNonNull("signedAt")) signedAt = entry.get("signedAt").asText();
+            if (entry.hasNonNull("reason")) reason = entry.get("reason").asText();
         }
         return new OwnerEntry(name, email, token, isApplicant, status, signedAt, reason);
     }
@@ -367,8 +350,8 @@ public class OwnerConfirmationController {
             String lastName,
             String applicantEmail,
             String applicantToken,
-            SpinJsonNode additionalOwners,
-            SpinJsonNode ownerConfirmations,
+            JsonNode additionalOwners,
+            ObjectNode ownerConfirmations,
             Boolean rejectedByOwner,
             Boolean sentToProcess) {}
 }

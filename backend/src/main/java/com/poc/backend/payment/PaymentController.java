@@ -1,14 +1,8 @@
-package com.poc.cib7.payment;
+package com.poc.backend.payment;
 
+import java.util.Map;
 import java.util.Objects;
 
-import org.cibseven.bpm.engine.MismatchingMessageCorrelationException;
-import org.cibseven.bpm.engine.RepositoryService;
-import org.cibseven.bpm.engine.RuntimeService;
-import org.cibseven.bpm.engine.repository.ProcessDefinition;
-import org.cibseven.bpm.engine.runtime.ProcessInstance;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,13 +11,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.poc.backend.engine.EngineClient;
+import com.poc.backend.engine.EngineClient.ProcessInstanceRef;
+
 /**
  * Public REST surface for the shared state-fee payment step used by
  * {@code vehicle-registration.bpmn} (vehicle registration) and
  * {@code business-registration.bpmn} (OÜ registration).
  *
  * <p>Endpoints under {@code /api/public/payments/**} are unauthenticated
- * (see {@link com.poc.cib7.owner.PublicApiSecurityConfig} — the matcher
+ * (see {@link com.poc.backend.security.SecurityConfig} — the matcher
  * already opens {@code /api/public/**}). The process instance id in the
  * URL is opaque enough for the POC; production would add a payment-side
  * token or session.
@@ -46,20 +43,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/public/payments")
 public class PaymentController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PaymentController.class);
-
     private static final String VEHICLE_KEY = "vehicleRegistration";
     private static final String OU_KEY = "businessRegistration";
 
     private static final String VEHICLE_IBAN = "EE89 3300 3334 1110 3007";
     private static final String OU_IBAN = "EE76 1010 2200 2401 4115";
 
-    private final RuntimeService runtimeService;
-    private final RepositoryService repositoryService;
+    private final EngineClient engine;
 
-    public PaymentController(RuntimeService runtimeService, RepositoryService repositoryService) {
-        this.runtimeService = runtimeService;
-        this.repositoryService = repositoryService;
+    public PaymentController(EngineClient engine) {
+        this.engine = engine;
     }
 
     @GetMapping("/{piId}/status")
@@ -87,14 +80,10 @@ public class PaymentController {
                             "This state fee has already been paid."));
         }
 
-        try {
-            runtimeService.createMessageCorrelation("PaymentReceived")
-                    .processInstanceId(piId)
-                    .setVariable("paymentReceived", true)
-                    .correlate();
-        } catch (MismatchingMessageCorrelationException e) {
-            LOG.warn("PaymentReceived had no waiting receive task for PI {}: {}",
-                    piId, e.getMessage());
+        boolean correlated = engine.correlateMessage("PaymentReceived", piId,
+                Map.of(),
+                Map.of("paymentReceived", true));
+        if (!correlated) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("not_waiting",
                             "This case is not waiting on a payment confirmation."));
@@ -113,35 +102,29 @@ public class PaymentController {
      */
     private PaymentContext resolve(String piId) {
         if (piId == null || piId.isBlank()) return null;
-        ProcessInstance pi = runtimeService.createProcessInstanceQuery()
-                .processInstanceId(piId)
-                .active()
-                .singleResult();
+        ProcessInstanceRef pi = engine.findActiveById(piId);
         if (pi == null) return null;
 
-        ProcessDefinition def = repositoryService.getProcessDefinition(pi.getProcessDefinitionId());
-        String key = def != null ? def.getKey() : "";
+        Boolean alreadyPaid = engine.getBooleanVariable(piId, "paymentReceived");
 
-        Boolean alreadyPaid = (Boolean) runtimeService.getVariable(piId, "paymentReceived");
-
-        if (VEHICLE_KEY.equals(key)) {
-            String firstName = (String) runtimeService.getVariable(piId, "firstName");
-            String lastName = (String) runtimeService.getVariable(piId, "lastName");
+        if (VEHICLE_KEY.equals(pi.definitionKey())) {
+            String firstName = engine.getStringVariable(piId, "firstName");
+            String lastName = engine.getStringVariable(piId, "lastName");
             String payerName = ((Objects.toString(firstName, "") + " "
                     + Objects.toString(lastName, "")).trim());
             String item = formatVehicleItem(piId);
             double amount = vehicleFee(piId);
-            return new PaymentContext(piId, key, payerName, item,
+            return new PaymentContext(piId, pi.definitionKey(), payerName, item,
                     amount, "Transpordiamet",
                     VEHICLE_IBAN, alreadyPaid);
         }
-        if (OU_KEY.equals(key)) {
-            String firstName = (String) runtimeService.getVariable(piId, "applicantFirstName");
-            String lastName = (String) runtimeService.getVariable(piId, "applicantLastName");
+        if (OU_KEY.equals(pi.definitionKey())) {
+            String firstName = engine.getStringVariable(piId, "applicantFirstName");
+            String lastName = engine.getStringVariable(piId, "applicantLastName");
             String payerName = ((Objects.toString(firstName, "") + " "
                     + Objects.toString(lastName, "")).trim());
-            String company = (String) runtimeService.getVariable(piId, "companyName");
-            return new PaymentContext(piId, key, payerName,
+            String company = engine.getStringVariable(piId, "companyName");
+            return new PaymentContext(piId, pi.definitionKey(), payerName,
                     Objects.toString(company, "OÜ registration"),
                     265.0, "Äriregister (Justiitsministeerium)",
                     OU_IBAN, alreadyPaid);
@@ -151,7 +134,7 @@ public class PaymentController {
 
     /** Tiered vehicle fee — mirrors approval-pdf.json.ftl's if/elseif/else. */
     private double vehicleFee(String piId) {
-        Object raw = runtimeService.getVariable(piId, "price");
+        Object raw = engine.getRawVariable(piId, "price");
         double value = parseAmount(raw);
         if (value < 5000) return 25.0;
         if (value < 20000) return 75.0;
@@ -168,7 +151,7 @@ public class PaymentController {
         if (raw instanceof Number n) return n.doubleValue();
         if (raw instanceof String s) {
             String stripped = s.replace(",", "").replace(" ", "")
-                    .replace(" ", "").replace("$", "").replace("€", "");
+                    .replace(" ", "").replace("$", "").replace("€", "");
             try {
                 return Double.parseDouble(stripped);
             } catch (NumberFormatException e) {
@@ -179,9 +162,9 @@ public class PaymentController {
     }
 
     private String formatVehicleItem(String piId) {
-        String make = (String) runtimeService.getVariable(piId, "vehicleMake");
-        String model = (String) runtimeService.getVariable(piId, "vehicleModel");
-        Object year = runtimeService.getVariable(piId, "vehicleYear");
+        String make = engine.getStringVariable(piId, "vehicleMake");
+        String model = engine.getStringVariable(piId, "vehicleModel");
+        Object year = engine.getRawVariable(piId, "vehicleYear");
         StringBuilder sb = new StringBuilder();
         if (make != null) sb.append(make);
         if (model != null) {

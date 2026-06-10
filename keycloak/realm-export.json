@@ -103,6 +103,13 @@
           "manage-users"
         ]
       }
+    },
+    {
+      "username": "service-account-cib7-business",
+      "enabled": true,
+      "serviceAccountClientId": "cib7-business",
+      "groups": ["/cib7-admin"],
+      "realmRoles": ["cib7-admin"]
     }
   ],
 
@@ -217,6 +224,20 @@
       "attributes": {
         "use.refresh.tokens": "false"
       }
+    },
+    {
+      "clientId": "cib7-business",
+      "name": "Business microservice (backend module) — engine REST service account",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-business-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "use.refresh.tokens": "false"
+      },
+      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
     },
     {
       "clientId": "cib7-webapps",

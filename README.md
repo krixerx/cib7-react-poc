@@ -322,6 +322,8 @@ generated from the spec), read [`docs/mcp.md`](docs/mcp.md).
 cib7-react-poc/
 ├── docker-compose.yml
 ├── cib7/                           CIB seven 2.1 Spring Boot engine module
+│   │                               (engine + plugins + connectors ONLY — no
+│   │                               business endpoints; those live in backend/)
 │   ├── pom.xml
 │   ├── Dockerfile
 │   └── src/main/
@@ -330,6 +332,7 @@ cib7-react-poc/
 │       │   ├── ConnectorConfiguration.java   registers the Connect plugin
 │       │   ├── MailConfiguration.java        exposes ${mailApiBaseUrl}
 │       │   ├── PdfConfiguration.java         exposes ${pdfApiBaseUrl}
+│       │   ├── BackendConfiguration.java     exposes ${apiBaseUrl} + ${internalTaskToken}
 │       │   ├── PdfHelper.java                @Component("pdf") base64↔byte[]
 │       │   ├── AuthorizationBootstrap.java   grants /applicant engine perms
 │       │   └── keycloak/                     Spring Security + Keycloak identity wiring
@@ -337,6 +340,24 @@ cib7-react-poc/
 │           ├── application.yaml
 │           ├── processes/                    BPMN + DMN (auto-deployed)
 │           └── templates/                    FreeMarker payloads for connectors
+├── backend/                        Business microservice (Spring Boot 4)
+│   │                               Owns every /api/** surface; talks to the
+│   │                               engine only via /engine-rest using the
+│   │                               cib7-business Keycloak service account
+│   ├── pom.xml
+│   ├── Dockerfile
+│   └── src/main/
+│       ├── java/com/poc/backend/
+│       │   ├── BackendApplication.java
+│       │   ├── engine/                       EngineClient (REST) + OAuth2 client-credentials wiring
+│       │   ├── security/                     public / internal-token / JWT chains
+│       │   ├── storage/                      S3 client + presigner + bucket bootstrap (RustFS)
+│       │   ├── documents/                    Document JPA entity + repository + /api/documents
+│       │   ├── owner/                        /api/public/owner-confirmations
+│       │   ├── founder/                      /api/public/founder-signatures
+│       │   ├── payment/                      /api/public/payments
+│       │   └── vehicleregistry/              /api/public/vehicle-registry (Liiklusregister stand-in)
+│       └── resources/application.yaml
 ├── pdf-renderer/                   Node sidecar (JSON-in/JSON-out over Gotenberg)
 │   ├── server.js                   ~25 LOC Express wrapper
 │   ├── package.json

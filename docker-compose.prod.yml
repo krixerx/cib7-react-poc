@@ -38,13 +38,6 @@ services:
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
       # Browser-visible SPA URL embedded in confirmation email links.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
-      # Public S3 endpoint = browser-visible RustFS URL. Per
-      # docs/deployment.md the operator points this at a TLS-fronted
-      # subdomain (e.g. https://s3.example.com) and sets RUSTFS_DOMAIN
-      # so virtual-host signing matches.
-      S3_PUBLIC_ENDPOINT: ${PUBLIC_S3_URL}
-      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
-      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY}
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
     # Override the two router keys that change for TLS-terminated prod:
     # entrypoints flips from `web` → `websecure`, and tls=true tells the
@@ -53,6 +46,26 @@ services:
     labels:
       traefik.http.routers.cib7-engine.entrypoints: "websecure"
       traefik.http.routers.cib7-engine.tls: "true"
+    restart: unless-stopped
+
+  backend:
+    environment:
+      # Same iss string-compare as the engine — must equal KC_HOSTNAME_URL.
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET}
+      # Public S3 endpoint = browser-visible RustFS URL. Per
+      # docs/deployment.md the operator points this at a TLS-fronted
+      # subdomain (e.g. https://s3.example.com) and sets RUSTFS_DOMAIN
+      # so virtual-host signing matches.
+      S3_PUBLIC_ENDPOINT: ${PUBLIC_S3_URL}
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      # SPA origin allowed in the bucket CORS policy.
+      FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
+    labels:
+      traefik.http.routers.backend-api.entrypoints: "websecure"
+      traefik.http.routers.backend-api.tls: "true"
     restart: unless-stopped
 
   frontend:

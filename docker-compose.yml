@@ -93,6 +93,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - cib7
+      - backend
       - mcp
       - frontend
 
@@ -194,6 +195,10 @@ services:
       # stateless Bearer-proxy). The engine validates issuer + audience +
       # signature against Keycloak and binds the user into IdentityService.
       ENGINE_URL: http://cib7:8080
+      # Business microservice base — upload_document stages files via the
+      # backend's /api/documents/stage (the documents API moved out of the
+      # engine). Bearer-proxied the same way as engine calls.
+      BUSINESS_URL: http://backend:8085
       # Internal Keycloak base URL — used by send_account_invitation to
       # mint a cib7-backend service-account token (client_credentials) and
       # call Keycloak's admin REST API to create invite-pending users. We
@@ -226,6 +231,8 @@ services:
       keycloak:
         condition: service_healthy
       cib7:
+        condition: service_started
+      backend:
         condition: service_started
 
   keycloak:
@@ -264,13 +271,71 @@ services:
       retries: 60
       start_period: 20s
 
+  backend:
+    # Business microservice (Spring Boot 4). Owns every /api/** surface:
+    # public owner-confirmation / founder-signature / payment endpoints,
+    # the curated vehicle registry, and document storage (S3 + JPA metadata).
+    # Talks to the engine exclusively via /engine-rest using the
+    # cib7-business Keycloak service account — the engine itself stays a
+    # clean CIB seven distribution of plugins and connectors.
+    build: ./backend
+    container_name: cib7-poc-backend
+    expose:
+      - "8085"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.backend-api.rule: 'PathPrefix(`/api`)'
+      traefik.http.routers.backend-api.entrypoints: "web"
+      traefik.http.services.backend-api.loadbalancer.server.port: "8085"
+    environment:
+      # Same internal/public Keycloak URL split as the engine: KEYCLOAK_URL
+      # for JWKS + token fetches from inside the docker network,
+      # KEYCLOAK_ISSUER_URL for the string-compare `iss` validation.
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ISSUER_URL: http://localhost:8180
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_REST_AUDIENCE: cib7-rest-api
+      # Service-account client used for /engine-rest calls (client_credentials).
+      # The realm export puts service-account-cib7-business in /cib7-admin so
+      # the engine treats it as an admin.
+      KEYCLOAK_BUSINESS_CLIENT_ID: cib7-business
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: cib7-business-secret
+      # Engine REST base — the only channel to the engine.
+      ENGINE_URL: http://cib7:8080
+      # RustFS / S3 settings. Two URLs, same split-brain pattern as Keycloak:
+      #   S3_ENDPOINT        — internal docker network, used by the
+      #                        backend's S3Client + bucket bootstrap.
+      #   S3_PUBLIC_ENDPOINT — browser-visible, embedded in presigned
+      #                        URLs minted by the backend so the browser
+      #                        can hit RustFS directly for PUT/GET.
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PUBLIC_ENDPOINT: http://localhost:9000
+      S3_BUCKET: cib7-documents
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
+      S3_REGION: us-east-1
+      # Shared secret for engine→backend calls from BPMN service tasks
+      # (move-pending + server-upload). The BPMN http-connector POSTs
+      # this in an X-Internal-Token header; the backend's internal
+      # security chain checks it and bypasses JWT for those two paths.
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # SPA origin allowed in the bucket's CORS policy.
+      FRONTEND_BASE_URL: http://localhost:3000
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      cib7:
+        condition: service_started
+
   cib7:
     build: ./cib7
     container_name: cib7-poc-cib7
     # No published port — the engine is reachable only through Traefik on
-    # :3000. Routes below cover the four engine surfaces:
+    # :3000. Routes below cover the three engine surfaces (the /api business
+    # endpoints moved to the `backend` service above):
     #   /engine-rest  REST API (JWT Bearer, used by the SPA + MCP)
-    #   /api          public owner-confirmation endpoints
     #   /camunda      legacy Cockpit / Tasklist / Admin webapps
     #   /oauth2 /login /logout  Spring Security OAuth2 callbacks for /camunda
     # ForwardedHeaderFilter (WebappSecurityConfig.java) trusts X-Forwarded-*
@@ -285,7 +350,7 @@ services:
     # with full duplication of every label.
     labels:
       traefik.enable: "true"
-      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/engine-rest`) || PathPrefix(`/api`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
+      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/engine-rest`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
       traefik.http.routers.cib7-engine.entrypoints: "web"
       traefik.http.services.cib7-engine.loadbalancer.server.port: "8080"
     environment:
@@ -324,29 +389,16 @@ services:
       # internal alias. Exposed via FrontendConfiguration as
       # ${frontendBaseUrl} in BPMN/FreeMarker.
       FRONTEND_BASE_URL: http://localhost:3000
-      # RustFS / S3 settings. Two URLs, same split-brain pattern as
-      # Keycloak:
-      #   S3_ENDPOINT        — internal docker network, used by the
-      #                        backend's S3Client + bucket bootstrap.
-      #   S3_PUBLIC_ENDPOINT — browser-visible, embedded in presigned
-      #                        URLs minted by the backend so the browser
-      #                        can hit RustFS directly for PUT/GET.
-      S3_ENDPOINT: http://rustfs:9000
-      S3_PUBLIC_ENDPOINT: http://localhost:9000
-      S3_BUCKET: cib7-documents
-      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
-      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
-      S3_REGION: us-east-1
-      # Shared secret for engine→backend calls from BPMN service tasks
-      # (move-pending + server-upload). The BPMN http-connector POSTs
-      # this in an X-Internal-Token header; the DocumentsApiSecurityConfig
-      # internal chain checks it and bypasses JWT for those two paths.
+      # Business microservice base URL — used by BPMN http-connector tasks
+      # that call /api/documents/move-pending, /api/documents/server-upload,
+      # and the vehicle-registry lookup. Same loopback trick as MAIL_API_URL /
+      # PDF_API_URL: the engine treats the backend as just another external
+      # REST service. Exposed as ${apiBaseUrl} via BackendConfiguration.
+      BACKEND_API_URL: http://backend:8085
+      # Shared secret the BPMN http-connector sends as X-Internal-Token on
+      # the two internal document endpoints above. Must match the backend
+      # service's INTERNAL_TASK_TOKEN.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
-      # Backend's own base URL as seen from inside the docker network —
-      # used by BPMN http-connector tasks that call the new
-      # /api/documents endpoints. Same loopback trick as MAIL_API_URL /
-      # PDF_API_URL.
-      API_BASE_URL: http://cib7:8080
     depends_on:
       keycloak:
         condition: service_healthy
@@ -354,8 +406,6 @@ services:
         condition: service_started
       pdf-renderer:
         condition: service_started
-      rustfs:
-        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -382,4 +432,5 @@ services:
     # for a different environment, pass them as Docker build args.
     depends_on:
       - cib7
+      - backend
       - mcp

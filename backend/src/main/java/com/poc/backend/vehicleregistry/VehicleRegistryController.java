@@ -1,4 +1,4 @@
-package com.poc.cib7.vehicleregistry;
+package com.poc.backend.vehicleregistry;
 
 import java.time.Year;
 import java.util.List;
@@ -17,8 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
  * used by the PartA form to populate its vehicle dropdown, and a
  * single-vehicle lookup the engine hits from {@code Task_GetPrice} via
  * the http-connector. Both unauthenticated — the matcher in
- * {@link com.poc.cib7.owner.PublicApiSecurityConfig} already opens
+ * {@link com.poc.backend.security.SecurityConfig} already opens
  * {@code /api/public/**}.
+ *
+ * <p>From the engine's point of view this is exactly the external REST
+ * service the http-connector exists for — it just happens to be served by
+ * this microservice instead of a real government registry.
  *
  * <p>The catalog is hard-coded — POC only. Each entry carries enough
  * to drive the demo:
