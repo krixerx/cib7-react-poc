@@ -215,27 +215,109 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
         </div>
       )}
 
+      {state && <Stepper state={state} />}
+
       {state && (
-        <ol className="timeline">
-          {state.rows.map((row) => (
-            <TimelineItem key={row.key} row={row} />
-          ))}
-          {state.upcoming.length > 0 && (
-            <li className="tl-upcoming-head" aria-hidden="true">
-              Expected next steps <span className="muted">· one possible path</span>
-            </li>
-          )}
-          {state.upcoming.map((step) => (
-            <li key={`up-${step.id}`} className="tl-item upcoming">
-              <span className="tl-dot" aria-hidden="true" />
-              <span className="tl-body">
-                <span className="tl-name">{step.name}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
+        <details className="tl-details">
+          <summary>Full history</summary>
+          <ol className="timeline">
+            {state.rows.map((row) => (
+              <TimelineItem key={row.key} row={row} />
+            ))}
+            {state.upcoming.length > 0 && (
+              <li className="tl-upcoming-head" aria-hidden="true">
+                Expected next steps <span className="muted">· one possible path</span>
+              </li>
+            )}
+            {state.upcoming.map((step) => (
+              <li key={`up-${step.id}`} className="tl-item upcoming">
+                <span className="tl-dot" aria-hidden="true" />
+                <span className="tl-body">
+                  <span className="tl-name">{step.name}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
     </div>
+  );
+}
+
+/** Activity types that read as a *milestone* — the horizontal stepper hides
+ * the machinery (emails, PDF generation, storage) the full history keeps. */
+const MILESTONE_TYPES = new Set([
+  'startEvent',
+  'userTask',
+  'receiveTask',
+  'businessRuleTask',
+  'noneEndEvent',
+  'messageEndEvent',
+  'errorEndEvent',
+  'terminateEndEvent',
+]);
+
+/** BPMN localNames (upcoming steps come from the model, not from history). */
+const MILESTONE_MODEL_TYPES = new Set([
+  'userTask',
+  'receiveTask',
+  'businessRuleTask',
+  'subProcess',
+  'endEvent',
+]);
+
+/**
+ * Compact horizontal milestone bar — dots joined by a progress line, one
+ * label per milestone, completed in green, the current wait pulsing, the
+ * expected remainder grayed out. Service-task detail lives in the
+ * "Full history" disclosure below it.
+ */
+function Stepper({ state }: { state: LoadedState }) {
+  const past = state.rows.filter((r) => MILESTONE_TYPES.has(r.type) && !r.canceled);
+  const future = state.upcoming.filter(
+    (s) => MILESTONE_MODEL_TYPES.has(s.type) && !past.some((p) => p.activityId === s.id),
+  );
+
+  return (
+    <ol className="stepper">
+      {past.map((row) => {
+        const meta = row.open
+          ? `since ${stepTime(row.startTime)}`
+          : row.type === 'userTask' && row.assignee
+            ? `${row.assignee} · ${stepTime(row.endTime ?? row.startTime)}`
+            : stepTime(row.endTime ?? row.startTime);
+        return (
+          <li key={row.key} className={`step ${row.open ? 'active' : 'done'}`}>
+            <span className="step-dot" aria-hidden="true">
+              {!row.open && <CheckIcon />}
+            </span>
+            <span className="step-label">
+              {row.name}
+              {row.count > 1 && <span className="tl-count"> ×{row.count}</span>}
+            </span>
+            {row.decision === 'approve' && <span className="tl-chip approved">Approved</span>}
+            {row.decision === 'sendback' && <span className="tl-chip sentback">Sent back</span>}
+            {row.open && <span className="tl-chip waiting">In progress</span>}
+            <span className="step-meta">{meta}</span>
+          </li>
+        );
+      })}
+      {future.map((step) => (
+        <li key={`up-${step.id}`} className="step upcoming">
+          <span className="step-dot" aria-hidden="true" />
+          <span className="step-label">{step.name}</span>
+          <span className="step-meta">upcoming</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12l5 5L20 7" />
+    </svg>
   );
 }
 
