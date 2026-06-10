@@ -7,20 +7,31 @@
              id="Definitions_BusinessAutoApproval"
              name="OÜ registration auto-approval"
              namespace="http://camunda.org/schema/1.0/dmn"
-             exporter="cib7-react-poc" exporterVersion="0.5.0">
+             exporter="cib7-react-poc" exporterVersion="0.6.0">
   <!--
-    Decides whether the businessRegistration process can skip the civil-
-    servant review or has to go through it. Hit policy FIRST: rules
+    Decides whether the businessRegistration process can skip the Business
+    Register review or has to go through it. Hit policy FIRST: rules
     evaluated in order; the first match wins. Engine returns a single
     output via singleEntry mapping into the autoDecision variable.
 
     Inputs:
-      applicantAge  (integer) — applicant's age, written by Task_SubmitBusinessDetails
-      shareCapital  (double)  — share capital in EUR, written by the same task
+      applicantAge       (integer) — founder's age, written by
+                                     Task_SubmitBusinessDetails
+      shareCapital       (double)  — share capital in EUR, written by the
+                                     same task
+      applicantResidency (string)  — "citizen" / "e-resident" / "foreign",
+                                     written by the same task
 
     Output:
       autoDecision  (string)  — "approve" auto-completes the process,
-                                "review"  routes to the civil-servant task
+                                "review"  routes to the Business Register task
+
+    Policy summary (matches Äriregister POC framing):
+
+      Below minimum capital            → review (statutory €2500 floor)
+      Underage founder                 → review (no corporate-signing capacity)
+      Foreign founder                  → review (always — KYB depth varies)
+      Citizen / e-resident adult       → approve (capital ≥ €2500)
 
     historyTimeToLive is required by CIB seven 2.1 (enforceTTL on by default).
     P30D mirrors the BPMN's process-level TTL so history rows expire together.
@@ -38,12 +49,18 @@
           <text>shareCapital</text>
         </inputExpression>
       </input>
+      <input id="Input_ApplicantResidency" label="Founder residency" camunda:inputVariable="applicantResidency">
+        <inputExpression id="InputExpression_ApplicantResidency" typeRef="string">
+          <text>applicantResidency</text>
+        </inputExpression>
+      </input>
       <output id="Output_Decision" label="Decision" name="autoDecision" typeRef="string" />
 
       <!-- Share capital below the statutory €2500 floor always needs human review. -->
       <rule id="Rule_BelowMinimumCapital">
         <inputEntry id="Rule_BelowMinimumCapital_Age"><text>-</text></inputEntry>
         <inputEntry id="Rule_BelowMinimumCapital_Capital"><text>&lt; 2500</text></inputEntry>
+        <inputEntry id="Rule_BelowMinimumCapital_Residency"><text>-</text></inputEntry>
         <outputEntry id="Rule_BelowMinimumCapital_Out"><text>"review"</text></outputEntry>
       </rule>
 
@@ -51,14 +68,27 @@
       <rule id="Rule_UnderageFounder">
         <inputEntry id="Rule_UnderageFounder_Age"><text>&lt; 18</text></inputEntry>
         <inputEntry id="Rule_UnderageFounder_Capital"><text>-</text></inputEntry>
+        <inputEntry id="Rule_UnderageFounder_Residency"><text>-</text></inputEntry>
         <outputEntry id="Rule_UnderageFounder_Out"><text>"review"</text></outputEntry>
       </rule>
 
-      <!-- Adult founder with sufficient share capital auto-approves. -->
-      <rule id="Rule_AdultFounderSufficientCapital">
-        <inputEntry id="Rule_AdultFounderSufficientCapital_Age"><text>&gt;= 18</text></inputEntry>
-        <inputEntry id="Rule_AdultFounderSufficientCapital_Capital"><text>&gt;= 2500</text></inputEntry>
-        <outputEntry id="Rule_AdultFounderSufficientCapital_Out"><text>"approve"</text></outputEntry>
+      <!-- Foreign founders are always reviewed — KYB depth and statutory
+           representation rules differ from Estonian residents. -->
+      <rule id="Rule_ForeignFounder">
+        <inputEntry id="Rule_ForeignFounder_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_ForeignFounder_Capital"><text>-</text></inputEntry>
+        <inputEntry id="Rule_ForeignFounder_Residency"><text>"foreign"</text></inputEntry>
+        <outputEntry id="Rule_ForeignFounder_Out"><text>"review"</text></outputEntry>
+      </rule>
+
+      <!-- Estonian citizen or e-resident, adult, sufficient share capital
+           — the routine auto-approve path. FEEL list syntax: comma-
+           separated values mean "matches any". -->
+      <rule id="Rule_CitizenOrEResidentAdult">
+        <inputEntry id="Rule_CitizenOrEResidentAdult_Age"><text>&gt;= 18</text></inputEntry>
+        <inputEntry id="Rule_CitizenOrEResidentAdult_Capital"><text>&gt;= 2500</text></inputEntry>
+        <inputEntry id="Rule_CitizenOrEResidentAdult_Residency"><text>"citizen", "e-resident"</text></inputEntry>
+        <outputEntry id="Rule_CitizenOrEResidentAdult_Out"><text>"approve"</text></outputEntry>
       </rule>
     </decisionTable>
   </decision>

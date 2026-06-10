@@ -22,6 +22,19 @@ interface BoardMember {
   personalCode?: string;
 }
 
+function residencyLabel(raw: string | undefined): string {
+  switch (raw) {
+    case 'citizen':
+      return 'Estonian citizen';
+    case 'e-resident':
+      return 'E-resident';
+    case 'foreign':
+      return 'Foreign founder';
+    default:
+      return '—';
+  }
+}
+
 function parseBoardMembers(raw: unknown): BoardMember[] {
   if (Array.isArray(raw)) return raw as BoardMember[];
   if (typeof raw === 'string' && raw.trim()) {
@@ -95,6 +108,10 @@ export default function ReviewBusinessRegistrationForm({
             {(data.applicantLastName as string) ?? ''}
             {data.applicantAge != null && ` (age ${String(data.applicantAge)})`}
           </dd>
+        </div>
+        <div className="summary-row">
+          <dt>Residency</dt>
+          <dd>{residencyLabel(data.applicantResidency as string | undefined)}</dd>
         </div>
         <div className="summary-row">
           <dt>Board members</dt>

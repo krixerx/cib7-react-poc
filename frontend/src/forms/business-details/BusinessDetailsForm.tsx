@@ -36,6 +36,24 @@ interface AdditionalFounder {
   email: string;
 }
 
+/** Drives the residency input in the founder form + the auto-approval DMN. */
+type Residency = 'citizen' | 'e-resident' | 'foreign';
+
+const RESIDENCY_OPTIONS: Array<{ value: Residency; label: string; hint: string }> = [
+  { value: 'citizen',    label: 'Estonian citizen',     hint: 'Lives and works in Estonia under Estonian citizenship.' },
+  { value: 'e-resident', label: 'E-resident',           hint: 'Holds an Estonian e-Residency digital ID; lives abroad.' },
+  { value: 'foreign',    label: 'Foreign founder',      hint: 'Neither Estonian citizen nor e-resident — always requires Business Register review.' },
+];
+
+function normaliseResidency(raw: unknown): Residency {
+  if (typeof raw !== 'string') return 'citizen';
+  const lower = raw.toLowerCase();
+  if (lower === 'citizen' || lower === 'e-resident' || lower === 'foreign') {
+    return lower;
+  }
+  return 'citizen';
+}
+
 function parseBoardMembers(raw: unknown): BoardMember[] {
   if (Array.isArray(raw)) {
     return raw.map((m) => ({
@@ -111,6 +129,9 @@ export default function BusinessDetailsForm({
   );
   const [applicantAge, setApplicantAge] = useState(
     data.applicantAge != null ? String(data.applicantAge) : '',
+  );
+  const [applicantResidency, setApplicantResidency] = useState<Residency>(
+    () => normaliseResidency(data.applicantResidency),
   );
   const [applicantEmail, setApplicantEmail] = useState(
     (data.applicantEmail as string) ?? '',
@@ -308,6 +329,7 @@ export default function BusinessDetailsForm({
       applicantFirstName: { value: applicantFirstName.trim(), type: 'String' },
       applicantLastName: { value: applicantLastName.trim(), type: 'String' },
       applicantAge: { value: ageNum, type: 'Integer' },
+      applicantResidency: { value: applicantResidency, type: 'String' },
       applicantEmail: { value: trimmedEmail, type: 'String' },
       // Clear the send-back reason so a future cycle doesn't show a stale banner.
       sendBackReason: { value: '', type: 'String' },
@@ -465,6 +487,31 @@ export default function BusinessDetailsForm({
           required
         />
       </label>
+
+      <fieldset className="field-group">
+        <legend className="field-label">Your residency status</legend>
+        <p className="field-hint">
+          Drives the Business Register's auto-approval policy: foreign
+          founders always go to a reviewer; Estonian citizens and
+          e-residents with the minimum share capital can auto-approve.
+        </p>
+        {RESIDENCY_OPTIONS.map((opt) => (
+          <label key={opt.value} className="radio-row">
+            <input
+              type="radio"
+              name="applicantResidency"
+              value={opt.value}
+              checked={applicantResidency === opt.value}
+              onChange={() => setApplicantResidency(opt.value)}
+              disabled={readOnly}
+            />
+            <span className="radio-body">
+              <span className="radio-label">{opt.label}</span>
+              <span className="radio-hint">{opt.hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
 
       <label className="field">
         <span className="field-label">Your email (required if you list co-founders)</span>

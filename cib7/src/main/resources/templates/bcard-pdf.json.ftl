@@ -7,9 +7,10 @@
   alike.
 
   Process variables in scope: companyName, shareCapital, applicantFirstName,
-  applicantLastName, applicantAge, boardMembers (Spin Json list),
-  additionalFounders (Spin Json list, may be null), initiator, plus the
-  standard execution properties.
+  applicantLastName, applicantAge, applicantResidency (one of citizen /
+  e-resident / foreign), boardMembers (Spin Json list), additionalFounders
+  (Spin Json list, may be null), initiator, plus the standard execution
+  properties.
 
   shareCapital coerced defensively (?is_number guard + replace-and-parse
   fallback) because some engine→JUEL paths surface numeric process
@@ -29,6 +30,14 @@
   <#assign capitalNumber = rawCapital?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
 </#if>
 <#assign hasFounders = additionalFounders?? && additionalFounders.elements()?size gt 0>
+<#assign residencyRaw = (applicantResidency!"citizen")>
+<#if residencyRaw == "e-resident">
+  <#assign residencyLabel = "E-resident">
+<#elseif residencyRaw == "foreign">
+  <#assign residencyLabel = "Foreign founder">
+<#else>
+  <#assign residencyLabel = "Estonian citizen">
+</#if>
 <#assign html>
 <!doctype html>
 <html lang="en">
@@ -90,7 +99,8 @@
 
     <h2>Founder<#if hasFounders>s</#if></h2>
     <ul class="party-list">
-      <li>${fullName} <span style="color: #666">&middot; applicant</span></li>
+      <li>${fullName}
+          <span style="color: #666">&middot; applicant &middot; ${residencyLabel}</span></li>
       <#if hasFounders>
         <#list additionalFounders.elements() as f>
           <li>${f.prop("name").stringValue()}</li>

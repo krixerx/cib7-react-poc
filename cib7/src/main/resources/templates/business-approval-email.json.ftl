@@ -30,6 +30,14 @@
 - ${(m.prop("firstName").stringValue())!""} ${(m.prop("lastName").stringValue())!""} (isikukood ${(m.prop("personalCode").stringValue())!""})
 </#list>
 </#assign>
+<#assign residencyRaw = (applicantResidency!"citizen")>
+<#if residencyRaw == "e-resident">
+  <#assign residencyLabel = "e-resident">
+<#elseif residencyRaw == "foreign">
+  <#assign residencyLabel = "foreign founder">
+<#else>
+  <#assign residencyLabel = "Estonian citizen">
+</#if>
 <#assign body>Tere ${(applicantFirstName!"")} ${(applicantLastName!"")},
 
 Your Estonian OÜ has been approved by the Business Register and the
@@ -39,6 +47,7 @@ extract will be issued.
 Business Register code:  ${regCode}
 Company:                 ${(companyName!"")}
 Share capital:           ${(shareCapital!0.0)?string("0.00")} EUR
+Founder residency:       ${residencyLabel}
 Board members:
 ${members}
 Decision made by:        ${((autoDecision!"")=="approve")?then("automated decision table (DMN)", "manual review by the Business Register")}
