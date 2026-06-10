@@ -7,22 +7,37 @@
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   id="Definitions_BusinessRegistration"
                   targetNamespace="http://bpmn.io/schema/bpmn"
-                  exporter="cib7-react-poc" exporterVersion="0.5.0">
+                  exporter="cib7-react-poc" exporterVersion="0.6.0">
   <!--
-    Business Registration process (Estonian OÜ).
+    Estonian OÜ Registration process.
 
-      start (initiator = starting applicant)
-        -> [Submit business details]   user task           (applicant — PartA)
-                                          form collects companyName, boardMembers,
-                                          shareCapital, applicant identity
-        -> {Auto approval?}            business rule task  (DMN business-auto-approval)
-        -> <Auto?>                     exclusive gateway
-             autoDecision == "approve" -> (Send approval email)
-             else                       -> [Review business registration]
-        -> [Review business registration]  user task       (civil-servant — PartB)
-        -> <Decision?>                 exclusive gateway
-             decision == "approve" -> (Send approval email) -> end approved
-             else                   -> (Send sent-back email) -> Submit (loop)
+      start (initiator = starting applicant founder)
+        -> [Submit OÜ founding details]  user task         (applicant — PartA)
+                                            form also captures additionalFounders
+        -> <Co-founder signatures needed?> exclusive gateway
+             additionalFounders empty -> [Auto-approval policy]  (skip whole signing block)
+             else                     -> (Send applicant tracking email)
+        -> (Send applicant tracking email) service task    (Mailpit; applicant's own
+                                                              /sign-founder/{token} link)
+        -> [Co-founder signatures]        subprocess        (parallel multi-instance
+                                                              over additionalFounders)
+              per instance:
+                  (Send co-founder signing email) service task
+                  -> [Wait for co-founder signature] receiveTask    (msg "FounderSignature"
+                                                                      correlated on local
+                                                                      founderToken)
+              completionCondition: ${rejectedByFounder == true}  (any reject short-circuits)
+        -> <Anyone rejected?>             exclusive gateway
+             rejectedByFounder == true -> (Send sent-back email) -> Submit (loop)
+             else                      -> [Wait for submit-to-register] receiveTask
+                                            (msg "SubmitToRegister")
+        -> {Auto-approval policy}        business rule task  (DMN)
+        -> <Auto-approve?>               exclusive gateway
+             autoDecision == approve -> (Send approval email) -> end approved
+             else                    -> [Business Register review]  (civil-servant — PartB)
+        -> <Decision?>                   exclusive gateway
+             decision == approve -> (Send approval email) -> end approved
+             else                -> (Send sent-back email) -> Submit (loop)
 
     Process variables:
       initiator           - login of the user that started the instance.
@@ -30,18 +45,47 @@
       boardMembers        - written by submit-business-details. Spin Json list of
                             {firstName, lastName, personalCode}.
       shareCapital        - written by submit-business-details. Double; >= 2500.
-      applicantFirstName  - written by submit-business-details. Autofilled from
-                            history by the MCP agent when available.
+      applicantFirstName  - written by submit-business-details.
       applicantLastName   - same.
       applicantAge        - same. Drives the auto-approval DMN.
+      applicantEmail      - written by submit-business-details. Required when
+                            additionalFounders is non-empty (we need to email
+                            the applicant their tracking link).
+      applicantToken      - written by submit-business-details; UUID that powers
+                            the applicant's own /sign-founder/{token} link.
+                            Pre-confirmed by submitting the form.
+      additionalFounders  - written by submit-business-details; Spin Json list of
+                            {name, email, token} for each co-founder that must
+                            sign before the case proceeds. Drives the multi-instance
+                            subprocess.
+      founderSignatures   - written by FounderSignatureController on every
+                            approve/reject; Spin Json map of token ->
+                            {status, reason?, signedAt}. Includes the applicant's
+                            token pre-set to "approved".
+      rejectedByFounder   - written by FounderSignatureController on reject; Boolean.
+                            Drives the multi-instance completionCondition and the
+                            post-subprocess gateway.
+      sentToRegister      - written by the SubmitToRegister message correlation;
+                            Boolean. Used by the public status endpoint.
       autoDecision        - written by the DMN ("approve" / "review").
       decision            - written by the review user task ("approve" / "sendback").
-      sendBackReason      - written by the review user task on sendback.
+      sendBackReason      - written by the review user task on sendback. Also
+                            written by FounderSignatureController on reject so the
+                            existing Task_SendBackEmail can notify the applicant
+                            without a separate task.
 
-    Spec lives at docs/business/services/business-registration/. This BPMN is
-    generated by /service-builder — do not hand-edit beyond round-tripping
-    BPMNDI layout through Camunda Modeller.
+    Spec lives at docs/business/services/business-registration/. Hand-edited
+    in PR #3 of the redomain plan to add the co-founder signing block.
   -->
+
+  <!--
+    Message definitions used by the receiveTasks in the founder-signing block.
+    FounderSignatureController correlates these from Spring via
+    runtimeService.createMessageCorrelation(...).
+  -->
+  <bpmn:message id="Message_FounderSignature" name="FounderSignature" />
+  <bpmn:message id="Message_SubmitToRegister" name="SubmitToRegister" />
+
   <bpmn:process id="businessRegistration" name="Estonian OÜ Registration"
                 isExecutable="true" camunda:historyTimeToLive="P30D">
     <bpmn:startEvent id="StartEvent_1" name="Registration started"
@@ -57,11 +101,197 @@
       <bpmn:outgoing>Flow_Submitted</bpmn:outgoing>
     </bpmn:userTask>
 
+    <!--
+      Routes the case past the whole signing block when there are no
+      additional founders. The applicant alone is treated as already
+      confirmed (the form submission is their signature).
+
+      Default branch goes through the signing path so any malformed
+      additionalFounders variable fails loudly rather than silently skipping.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_NeedsSignatures"
+                           name="Co-founder signatures needed?"
+                           default="Flow_NeedsSignatures_TrackingEmail">
+      <bpmn:incoming>Flow_Submitted</bpmn:incoming>
+      <bpmn:outgoing>Flow_NeedsSignatures_AutoDecide</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NeedsSignatures_TrackingEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_NeedsSignatures_AutoDecide" name="sole founder"
+                       sourceRef="Gateway_NeedsSignatures" targetRef="Task_AutoDecide">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${additionalFounders == null || additionalFounders.elements().isEmpty()}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NeedsSignatures_TrackingEmail" name="has co-founders"
+                       sourceRef="Gateway_NeedsSignatures"
+                       targetRef="Task_SendApplicantTrackingEmail" />
+
+    <!--
+      Emails the applicant their own tracking link. Same UI as every other
+      co-founder — applicant's token is pre-confirmed at submit time, so
+      opening the link shows status + the "Submit to register" button once
+      all co-founders have signed.
+    -->
+    <bpmn:serviceTask id="Task_SendApplicantTrackingEmail"
+                      name="Send applicant tracking email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/founder-tracking-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NeedsSignatures_TrackingEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_TrackingEmail_FounderSubprocess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_TrackingEmail_FounderSubprocess"
+                       sourceRef="Task_SendApplicantTrackingEmail"
+                       targetRef="SubProcess_FounderSignatures" />
+
+    <!--
+      Parallel multi-instance subprocess. One instance per element of
+      additionalFounders (a Spin Json list). Each instance gets its own
+      element variable `founder` (a SpinJsonNode) plus a local `founderToken`
+      set from founder.token via inputOutput — the receiveTask correlation
+      keys off that local variable so the public signing endpoint reaches
+      exactly the waiting execution.
+
+      completionCondition fires as soon as ANY instance writes
+      rejectedByFounder=true at process scope, which cancels the remaining
+      waiters and routes the case back to the applicant via the existing
+      send-back email.
+    -->
+    <bpmn:subProcess id="SubProcess_FounderSignatures" name="Co-founder signatures">
+      <bpmn:incoming>Flow_TrackingEmail_FounderSubprocess</bpmn:incoming>
+      <bpmn:outgoing>Flow_FounderSubprocess_AllSigned</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="false"
+                                             camunda:collection="${additionalFounders.elements()}"
+                                             camunda:elementVariable="founder">
+        <bpmn:completionCondition xsi:type="bpmn:tFormalExpression">${rejectedByFounder == true}</bpmn:completionCondition>
+      </bpmn:multiInstanceLoopCharacteristics>
+
+      <bpmn:startEvent id="StartEvent_FounderInstance">
+        <bpmn:outgoing>Flow_Founder_Start_SendEmail</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <bpmn:sequenceFlow id="Flow_Founder_Start_SendEmail"
+                         sourceRef="StartEvent_FounderInstance"
+                         targetRef="Task_SendFounderSigningEmail" />
+
+      <bpmn:serviceTask id="Task_SendFounderSigningEmail"
+                        name="Send co-founder signing email"
+                        camunda:asyncBefore="true">
+        <bpmn:extensionElements>
+          <camunda:connector>
+            <camunda:connectorId>http-connector</camunda:connectorId>
+            <camunda:inputOutput>
+              <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+              <camunda:inputParameter name="method">POST</camunda:inputParameter>
+              <camunda:inputParameter name="headers">
+                <camunda:map>
+                  <camunda:entry key="Content-Type">application/json</camunda:entry>
+                </camunda:map>
+              </camunda:inputParameter>
+              <camunda:inputParameter name="payload">
+                <camunda:script scriptFormat="freemarker" resource="templates/founder-signing-email.json.ftl" />
+              </camunda:inputParameter>
+            </camunda:inputOutput>
+          </camunda:connector>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Founder_Start_SendEmail</bpmn:incoming>
+        <bpmn:outgoing>Flow_Founder_SendEmail_Wait</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+      <bpmn:sequenceFlow id="Flow_Founder_SendEmail_Wait"
+                         sourceRef="Task_SendFounderSigningEmail"
+                         targetRef="ReceiveTask_FounderSignature" />
+
+      <!--
+        Park until the co-founder clicks Approve/Reject in their signing page.
+        The inputOutput mapping promotes founder.token to a flat local variable
+        so MessageCorrelationBuilder.localVariableEquals("founderToken", ...) in
+        the controller finds this exact execution.
+      -->
+      <bpmn:receiveTask id="ReceiveTask_FounderSignature"
+                        name="Wait for co-founder signature"
+                        messageRef="Message_FounderSignature">
+        <bpmn:extensionElements>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="founderToken">${founder.prop('token').stringValue()}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Founder_SendEmail_Wait</bpmn:incoming>
+        <bpmn:outgoing>Flow_Founder_Wait_End</bpmn:outgoing>
+      </bpmn:receiveTask>
+
+      <bpmn:sequenceFlow id="Flow_Founder_Wait_End"
+                         sourceRef="ReceiveTask_FounderSignature"
+                         targetRef="EndEvent_FounderInstance" />
+
+      <bpmn:endEvent id="EndEvent_FounderInstance">
+        <bpmn:incoming>Flow_Founder_Wait_End</bpmn:incoming>
+      </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <bpmn:sequenceFlow id="Flow_FounderSubprocess_AllSigned"
+                       sourceRef="SubProcess_FounderSignatures"
+                       targetRef="Gateway_AllSigned" />
+
+    <!--
+      After the multi-instance subprocess exits: either everyone signed
+      (default path -> wait for submit-to-register), or someone rejected
+      (loop back via the existing send-back email). The controller writes
+      sendBackReason on reject so the existing email template renders
+      cleanly without a separate "founder-reject" task.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_AllSigned" name="Anyone rejected?"
+                           default="Flow_AllSigned_WaitSubmitToRegister">
+      <bpmn:incoming>Flow_FounderSubprocess_AllSigned</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllSigned_SendBack</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AllSigned_WaitSubmitToRegister</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_AllSigned_SendBack" name="rejected"
+                       sourceRef="Gateway_AllSigned" targetRef="Task_SendBackEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejectedByFounder == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_AllSigned_WaitSubmitToRegister" name="all signed"
+                       sourceRef="Gateway_AllSigned" targetRef="Task_WaitSubmitToRegister" />
+
+    <!--
+      Final synchronisation gate. The process parks here until any founder
+      clicks "Submit to register" in their public signing page. The
+      controller correlates the SubmitToRegister message by processInstanceId,
+      so only one instance is waiting and no correlation key is needed.
+    -->
+    <bpmn:receiveTask id="Task_WaitSubmitToRegister" name="Wait for submit-to-register"
+                      messageRef="Message_SubmitToRegister">
+      <bpmn:incoming>Flow_AllSigned_WaitSubmitToRegister</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitSubmitToRegister_AutoDecide</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <bpmn:sequenceFlow id="Flow_WaitSubmitToRegister_AutoDecide"
+                       sourceRef="Task_WaitSubmitToRegister" targetRef="Task_AutoDecide" />
+
     <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto-approval policy"
                            camunda:decisionRef="business-auto-approval"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="autoDecision">
-      <bpmn:incoming>Flow_Submitted</bpmn:incoming>
+      <bpmn:incoming>Flow_NeedsSignatures_AutoDecide</bpmn:incoming>
+      <bpmn:incoming>Flow_WaitSubmitToRegister_AutoDecide</bpmn:incoming>
       <bpmn:outgoing>Flow_AutoDecided</bpmn:outgoing>
     </bpmn:businessRuleTask>
 
@@ -111,6 +341,12 @@
       <bpmn:outgoing>Flow_EmailSent</bpmn:outgoing>
     </bpmn:serviceTask>
 
+    <!--
+      Shared send-back email — fires from BOTH the civil-servant Decision
+      gateway AND from any co-founder reject. The controller writes
+      sendBackReason on reject so the existing template renders cleanly
+      regardless of the source.
+    -->
     <bpmn:serviceTask id="Task_SendBackEmail" name="Send sent-back email"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
@@ -131,6 +367,7 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_SentBack</bpmn:incoming>
+      <bpmn:incoming>Flow_AllSigned_SendBack</bpmn:incoming>
       <bpmn:outgoing>Flow_SentBackEmail</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -141,7 +378,7 @@
     <bpmn:sequenceFlow id="Flow_Start"
                        sourceRef="StartEvent_1" targetRef="Task_SubmitBusinessDetails" />
     <bpmn:sequenceFlow id="Flow_Submitted"
-                       sourceRef="Task_SubmitBusinessDetails" targetRef="Task_AutoDecide" />
+                       sourceRef="Task_SubmitBusinessDetails" targetRef="Gateway_NeedsSignatures" />
     <bpmn:sequenceFlow id="Flow_AutoDecided"
                        sourceRef="Task_AutoDecide" targetRef="Gateway_AutoApproval" />
     <bpmn:sequenceFlow id="Flow_AutoApproved" name="auto-approved"
@@ -164,69 +401,161 @@
                        sourceRef="Task_SendApprovalEmail" targetRef="EndEvent_Approved" />
   </bpmn:process>
 
+  <!--
+    BPMNDI: hand-authored layout, organised into horizontal bands so the new
+    signing block doesn't overlap the existing main row.
+
+      y =  80          auto-approve skip arc (over the top)
+      y = 160 - 240    main row: Start -> Submit -> Gateway_NeedsSignatures ->
+                       AutoDecide -> Gateway_AutoApproval -> Review ->
+                       Gateway_Decision -> ApprovalEmail -> End
+      y = 380 - 540    signing block (tracking email -> subprocess ->
+                       Gateway_AllSigned -> Task_WaitSubmitToRegister)
+      y = 640 - 720    send-back loop (shared between civil-servant send-back
+                       AND co-founder reject)
+  -->
   <bpmndi:BPMNDiagram id="BPMNDiagram_BusinessRegistration">
     <bpmndi:BPMNPlane id="BPMNPlane_BusinessRegistration" bpmnElement="businessRegistration">
+
+      <!-- Main row -->
       <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
-        <dc:Bounds x="160" y="180" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="140" y="223" width="80" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="160" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="140" y="225" width="80" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SubmitBusinessDetails_di" bpmnElement="Task_SubmitBusinessDetails">
-        <dc:Bounds x="250" y="160" width="120" height="80" />
+        <dc:Bounds x="240" y="160" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NeedsSignatures_di" bpmnElement="Gateway_NeedsSignatures" isMarkerVisible="true">
+        <dc:Bounds x="415" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="392" y="132" width="100" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_AutoDecide_di" bpmnElement="Task_AutoDecide">
-        <dc:Bounds x="410" y="160" width="120" height="80" />
+        <dc:Bounds x="510" y="160" width="130" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_AutoApproval_di" bpmnElement="Gateway_AutoApproval" isMarkerVisible="true">
-        <dc:Bounds x="575" y="175" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="563" y="145" width="74" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="680" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="668" y="145" width="74" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_ReviewBusinessRegistration_di" bpmnElement="Task_ReviewBusinessRegistration">
-        <dc:Bounds x="670" y="160" width="140" height="80" />
+        <dc:Bounds x="770" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Gateway_Decision_di" bpmnElement="Gateway_Decision" isMarkerVisible="true">
-        <dc:Bounds x="855" y="175" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="850" y="145" width="60" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="955" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="950" y="145" width="60" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
-        <dc:Bounds x="950" y="160" width="140" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
-        <dc:Bounds x="670" y="290" width="140" height="80" />
+        <dc:Bounds x="1050" y="160" width="140" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
-        <dc:Bounds x="1140" y="182" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1115" y="223" width="86" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1240" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1215" y="225" width="86" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
+      <!-- Signing block -->
+      <bpmndi:BPMNShape id="Task_SendApplicantTrackingEmail_di" bpmnElement="Task_SendApplicantTrackingEmail">
+        <dc:Bounds x="290" y="400" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubProcess_FounderSignatures_di" bpmnElement="SubProcess_FounderSignatures" isExpanded="true">
+        <dc:Bounds x="490" y="360" width="500" height="160" />
+        <bpmndi:BPMNLabel><dc:Bounds x="666" y="367" width="148" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_FounderInstance_di" bpmnElement="StartEvent_FounderInstance">
+        <dc:Bounds x="520" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendFounderSigningEmail_di" bpmnElement="Task_SendFounderSigningEmail">
+        <dc:Bounds x="580" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReceiveTask_FounderSignature_di" bpmnElement="ReceiveTask_FounderSignature">
+        <dc:Bounds x="760" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_FounderInstance_di" bpmnElement="EndEvent_FounderInstance">
+        <dc:Bounds x="935" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AllSigned_di" bpmnElement="Gateway_AllSigned" isMarkerVisible="true">
+        <dc:Bounds x="1025" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1015" y="378" width="71" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_WaitSubmitToRegister_di" bpmnElement="Task_WaitSubmitToRegister">
+        <dc:Bounds x="1115" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Send-back loop -->
+      <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
+        <dc:Bounds x="730" y="640" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Edges: main row -->
       <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
-        <di:waypoint x="196" y="200" /><di:waypoint x="250" y="200" />
+        <di:waypoint x="196" y="200" /><di:waypoint x="240" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Submitted_di" bpmnElement="Flow_Submitted">
-        <di:waypoint x="370" y="200" /><di:waypoint x="410" y="200" />
+        <di:waypoint x="370" y="200" /><di:waypoint x="415" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeedsSignatures_AutoDecide_di" bpmnElement="Flow_NeedsSignatures_AutoDecide">
+        <di:waypoint x="465" y="200" /><di:waypoint x="510" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="468" y="180" width="62" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AutoDecided_di" bpmnElement="Flow_AutoDecided">
-        <di:waypoint x="530" y="200" /><di:waypoint x="575" y="200" />
+        <di:waypoint x="640" y="200" /><di:waypoint x="680" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_AutoApproved_di" bpmnElement="Flow_AutoApproved">
-        <di:waypoint x="600" y="175" /><di:waypoint x="600" y="100" /><di:waypoint x="1020" y="100" /><di:waypoint x="1020" y="160" />
+        <di:waypoint x="705" y="175" /><di:waypoint x="705" y="100" /><di:waypoint x="1120" y="100" /><di:waypoint x="1120" y="160" />
+        <bpmndi:BPMNLabel><dc:Bounds x="880" y="82" width="80" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_NeedsReview_di" bpmnElement="Flow_NeedsReview">
-        <di:waypoint x="625" y="200" /><di:waypoint x="670" y="200" />
+        <di:waypoint x="730" y="200" /><di:waypoint x="770" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="730" y="180" width="76" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Reviewed_di" bpmnElement="Flow_Reviewed">
-        <di:waypoint x="810" y="200" /><di:waypoint x="855" y="200" />
+        <di:waypoint x="910" y="200" /><di:waypoint x="955" y="200" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
-        <di:waypoint x="905" y="200" /><di:waypoint x="950" y="200" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SentBack_di" bpmnElement="Flow_SentBack">
-        <di:waypoint x="880" y="225" /><di:waypoint x="880" y="330" /><di:waypoint x="810" y="330" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SentBackEmail_di" bpmnElement="Flow_SentBackEmail">
-        <di:waypoint x="670" y="330" /><di:waypoint x="310" y="330" /><di:waypoint x="310" y="240" />
+        <di:waypoint x="1005" y="200" /><di:waypoint x="1050" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1007" y="180" width="48" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_EmailSent_di" bpmnElement="Flow_EmailSent">
-        <di:waypoint x="1090" y="200" /><di:waypoint x="1140" y="200" />
+        <di:waypoint x="1190" y="200" /><di:waypoint x="1240" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Edges: signing block -->
+      <bpmndi:BPMNEdge id="Flow_NeedsSignatures_TrackingEmail_di" bpmnElement="Flow_NeedsSignatures_TrackingEmail">
+        <di:waypoint x="440" y="225" /><di:waypoint x="440" y="440" /><di:waypoint x="450" y="440" />
+        <bpmndi:BPMNLabel><dc:Bounds x="345" y="300" width="100" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TrackingEmail_FounderSubprocess_di" bpmnElement="Flow_TrackingEmail_FounderSubprocess">
+        <di:waypoint x="450" y="440" /><di:waypoint x="490" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Founder_Start_SendEmail_di" bpmnElement="Flow_Founder_Start_SendEmail">
+        <di:waypoint x="556" y="440" /><di:waypoint x="580" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Founder_SendEmail_Wait_di" bpmnElement="Flow_Founder_SendEmail_Wait">
+        <di:waypoint x="720" y="440" /><di:waypoint x="760" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Founder_Wait_End_di" bpmnElement="Flow_Founder_Wait_End">
+        <di:waypoint x="900" y="440" /><di:waypoint x="935" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FounderSubprocess_AllSigned_di" bpmnElement="Flow_FounderSubprocess_AllSigned">
+        <di:waypoint x="990" y="440" /><di:waypoint x="1025" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllSigned_WaitSubmitToRegister_di" bpmnElement="Flow_AllSigned_WaitSubmitToRegister">
+        <di:waypoint x="1075" y="440" /><di:waypoint x="1115" y="440" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1080" y="420" width="60" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WaitSubmitToRegister_AutoDecide_di" bpmnElement="Flow_WaitSubmitToRegister_AutoDecide">
+        <di:waypoint x="1185" y="400" /><di:waypoint x="1185" y="330" /><di:waypoint x="575" y="330" /><di:waypoint x="575" y="240" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Edges: send-back loop (shared) -->
+      <bpmndi:BPMNEdge id="Flow_SentBack_di" bpmnElement="Flow_SentBack">
+        <di:waypoint x="980" y="225" /><di:waypoint x="980" y="680" /><di:waypoint x="870" y="680" />
+        <bpmndi:BPMNLabel><dc:Bounds x="916" y="660" width="55" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllSigned_SendBack_di" bpmnElement="Flow_AllSigned_SendBack">
+        <di:waypoint x="1050" y="465" /><di:waypoint x="1050" y="720" /><di:waypoint x="870" y="720" />
+        <bpmndi:BPMNLabel><dc:Bounds x="950" y="702" width="47" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SentBackEmail_di" bpmnElement="Flow_SentBackEmail">
+        <di:waypoint x="730" y="700" /><di:waypoint x="305" y="700" /><di:waypoint x="305" y="240" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

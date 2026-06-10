@@ -3,20 +3,36 @@ import type { FormProps } from '../types';
 
 /**
  * Founder form for businessRegistration. Collects company name, board
- * members, share capital, and the founder's own identity. The send-back
- * loop shares this same form: when sendBackReason is present and the form
- * is not read-only, a banner with the Business Register reviewer's reason
+ * members, share capital, the applicant founder's identity + email, and
+ * an optional list of *additional* co-founders that must sign the Articles
+ * of Association before the case reaches the Business Register.
+ *
+ * The send-back loop shares this same form: when sendBackReason is present
+ * and the form is not read-only, a banner with the reviewer's reason
  * appears above the fields and is cleared on the next submit.
  *
- * boardMembers is a list of `{firstName, lastName, personalCode}` rendered
- * as repeating rows. The form requires at least one row; if the user
- * removes the last row, an empty row is silently re-added.
+ * On submit the form generates one UUID token per participant (applicant
+ * plus each additional co-founder), seeds `founderSignatures` with the
+ * applicant's signature already recorded, and writes everything as process
+ * variables. The BPMN gateway downstream branches on whether
+ * `additionalFounders` is non-empty — sole-founder cases skip the whole
+ * signing block.
+ *
+ * boardMembers is a separate concern (board-of-management appointment data
+ * for the OÜ register entry). Co-founders are the people signing the
+ * Articles of Association; they may or may not overlap with board members.
+ * Mirror of PartA's owner / co-owner editor in personRegistration.
  */
 
 interface BoardMember {
   firstName: string;
   lastName: string;
   personalCode: string;
+}
+
+interface AdditionalFounder {
+  name: string;
+  email: string;
 }
 
 function parseBoardMembers(raw: unknown): BoardMember[] {
@@ -37,6 +53,30 @@ function parseBoardMembers(raw: unknown): BoardMember[] {
     }
   }
   return [];
+}
+
+/**
+ * Same defensive shape as personRegistration's parseAdditionalOwners —
+ * CIB seven returns Spin Json variables as either JS arrays or JSON
+ * strings depending on the storage path; handle both.
+ */
+function parseAdditionalFounders(raw: unknown): AdditionalFounder[] {
+  if (!raw) return [];
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((f): f is { name?: unknown; email?: unknown } => typeof f === 'object' && f !== null)
+    .map((f) => ({
+      name: typeof f.name === 'string' ? f.name : '',
+      email: typeof f.email === 'string' ? f.email : '',
+    }));
 }
 
 function ensureCompanySuffix(name: string): string {
@@ -71,6 +111,12 @@ export default function BusinessDetailsForm({
   const [applicantAge, setApplicantAge] = useState(
     data.applicantAge != null ? String(data.applicantAge) : '',
   );
+  const [applicantEmail, setApplicantEmail] = useState(
+    (data.applicantEmail as string) ?? '',
+  );
+  const [additionalFounders, setAdditionalFounders] = useState<AdditionalFounder[]>(
+    () => parseAdditionalFounders(data.additionalFounders),
+  );
   const [error, setError] = useState<string | null>(null);
 
   const sendBackReason = (data.sendBackReason as string) ?? '';
@@ -90,6 +136,20 @@ export default function BusinessDetailsForm({
   function updateMember(index: number, field: keyof BoardMember, value: string) {
     setBoardMembers((prev) =>
       prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)),
+    );
+  }
+
+  function addFounder() {
+    setAdditionalFounders((prev) => [...prev, { name: '', email: '' }]);
+  }
+
+  function removeFounder(index: number) {
+    setAdditionalFounders((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateFounder(index: number, field: 'name' | 'email', value: string) {
+    setAdditionalFounders((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, [field]: value } : f)),
     );
   }
 
@@ -142,6 +202,61 @@ export default function BusinessDetailsForm({
       return;
     }
 
+    const trimmedEmail = applicantEmail.trim();
+    const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+    if (trimmedEmail && !validEmail(trimmedEmail)) {
+      setError('Please enter a valid email address, or leave the field blank.');
+      return;
+    }
+
+    const cleanedFounders = additionalFounders
+      .map((f) => ({ name: f.name.trim(), email: f.email.trim() }))
+      .filter((f) => f.name || f.email);
+
+    if (cleanedFounders.length > 0) {
+      if (!trimmedEmail) {
+        setError(
+          'Your own email is required when adding co-founders — we send you a tracking link.',
+        );
+        return;
+      }
+      for (const f of cleanedFounders) {
+        if (!f.name) {
+          setError('Every co-founder needs a name.');
+          return;
+        }
+        if (!f.email || !validEmail(f.email)) {
+          setError(`Co-founder "${f.name || '(unnamed)'}" needs a valid email address.`);
+          return;
+        }
+      }
+      const emails = cleanedFounders.map((f) => f.email.toLowerCase());
+      const dupe = emails.find((e, i) => emails.indexOf(e) !== i);
+      if (dupe) {
+        setError(`Two co-founders share the email "${dupe}". Each founder needs a unique address.`);
+        return;
+      }
+      if (emails.includes(trimmedEmail.toLowerCase())) {
+        setError(
+          'Your own email cannot also appear in the co-founder list — the applicant is already counted as a founder.',
+        );
+        return;
+      }
+    }
+
+    // Regenerate every token on every submit. The first round and any
+    // resubmit after a reject both produce fresh links — old emails stop
+    // working as soon as new tokens replace them in the process variables.
+    const applicantToken = crypto.randomUUID();
+    const foundersWithTokens = cleanedFounders.map((f) => ({
+      name: f.name,
+      email: f.email,
+      token: crypto.randomUUID(),
+    }));
+    const initialSignatures: Record<string, { status: string; signedAt: string }> = {
+      [applicantToken]: { status: 'approved', signedAt: new Date().toISOString() },
+    };
+
     await onComplete({
       companyName: { value: finalCompanyName, type: 'String' },
       boardMembers: { value: JSON.stringify(cleanedMembers), type: 'Json' },
@@ -149,8 +264,16 @@ export default function BusinessDetailsForm({
       applicantFirstName: { value: applicantFirstName.trim(), type: 'String' },
       applicantLastName: { value: applicantLastName.trim(), type: 'String' },
       applicantAge: { value: ageNum, type: 'Integer' },
+      applicantEmail: { value: trimmedEmail, type: 'String' },
       // Clear the send-back reason so a future cycle doesn't show a stale banner.
       sendBackReason: { value: '', type: 'String' },
+      applicantToken: { value: applicantToken, type: 'String' },
+      additionalFounders: { value: JSON.stringify(foundersWithTokens), type: 'Json' },
+      founderSignatures: { value: JSON.stringify(initialSignatures), type: 'Json' },
+      // Reset the flags so a previous reject round doesn't bleed into this
+      // submission. The receive task and gateway re-read them fresh.
+      rejectedByFounder: { value: false, type: 'Boolean' },
+      sentToRegister: { value: false, type: 'Boolean' },
     });
   }
 
@@ -167,8 +290,8 @@ export default function BusinessDetailsForm({
         {readOnly
           ? 'A read-only view of the submitted OÜ founding details.'
           : isResubmission
-          ? 'Update the founding details below and resubmit to the Business Register.'
-          : 'Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, and your own details. The Business Register will review the application.'}
+          ? 'Update the founding details below and resubmit to the Business Register. New signing links will be sent to every co-founder.'
+          : 'Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, your own details, and list any co-founders that must sign the Articles of Association before the case goes to the Business Register.'}
       </p>
 
       <label className="field">
@@ -279,12 +402,72 @@ export default function BusinessDetailsForm({
         />
       </label>
 
+      <label className="field">
+        <span className="field-label">Your email (required if you list co-founders)</span>
+        <input
+          className="field-input"
+          type="email"
+          placeholder="you@example.com"
+          value={applicantEmail}
+          onChange={(e) => setApplicantEmail(e.target.value)}
+          disabled={readOnly}
+        />
+      </label>
+
+      <fieldset className="field-group">
+        <legend className="field-label">
+          Co-founders ({additionalFounders.length})
+        </legend>
+        <p className="field-hint">
+          Each co-founder gets an email with a link to sign the Articles of
+          Association or reject. Once all co-founders sign, any founder can
+          click "Submit to register" to forward the case to the Business
+          Register. Leave empty if you are the sole founder.
+        </p>
+        {additionalFounders.map((founder, i) => (
+          <div key={i} className="owner-row">
+            <input
+              className="field-input owner-row-name"
+              placeholder="Name"
+              value={founder.name}
+              onChange={(e) => updateFounder(i, 'name', e.target.value)}
+              disabled={readOnly}
+            />
+            <input
+              className="field-input owner-row-email"
+              type="email"
+              placeholder="founder@example.com"
+              value={founder.email}
+              onChange={(e) => updateFounder(i, 'email', e.target.value)}
+              disabled={readOnly}
+            />
+            {!readOnly && (
+              <button
+                type="button"
+                className="btn btn-link"
+                onClick={() => removeFounder(i)}
+                aria-label={`Remove co-founder ${i + 1}`}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        {!readOnly && (
+          <div className="form-actions">
+            <button type="button" className="btn" onClick={addFounder}>
+              + Add co-founder
+            </button>
+          </div>
+        )}
+      </fieldset>
+
       {error && <p className="form-error">{error}</p>}
 
       {!readOnly && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Submit'}
+            {submitting ? 'Submitting…' : isResubmission ? 'Resubmit' : 'Submit'}
           </button>
         </div>
       )}
