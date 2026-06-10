@@ -159,15 +159,6 @@ services:
       - /opt/volumes/traefik/logs:/logs
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
-  # The seed-history one-shot pre-populates Bart's process history for the
-  # demo. Disable in production by overriding the entrypoint to a no-op so
-  # the image still pulls (compose won't let us "remove" a service in an
-  # overlay, only replace its config).
-  seed-history:
-    entrypoint: ["true"]
-    command: []
-    restart: "no"
-
 volumes:
   # Named volume for RustFS in prod (the dev base file uses a bind mount
   # under ./.data/rustfs so devs can poke at the bytes; prod keeps it

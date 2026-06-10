@@ -228,41 +228,6 @@ services:
       cib7:
         condition: service_started
 
-  # One-shot service: ROPCs as bart via the dedicated `cib7-seed` Keycloak
-  # client and starts + completes one vehicleRegistration + one
-  # businessRegistration so `query_user_history` returns values from the
-  # very first MCP call after a cold `docker compose up`. Exits 0 once
-  # both seeds land. See cib7/scripts/seed-history.sh for the gory detail.
-  #
-  # Re-run manually after a `docker compose restart cib7` (in-memory H2
-  # wipes process history on engine restart):
-  #     docker compose start seed-history
-  seed-history:
-    image: alpine:3.20
-    container_name: cib7-poc-seed-history
-    depends_on:
-      keycloak:
-        condition: service_healthy
-      cib7:
-        condition: service_started
-    environment:
-      KEYCLOAK_URL: http://keycloak:8080
-      KEYCLOAK_REALM: cib7-poc
-      KEYCLOAK_SEED_CLIENT_ID: cib7-seed
-      KEYCLOAK_SEED_CLIENT_SECRET: cib7-seed-secret
-      BART_USERNAME: bart
-      BART_PASSWORD: bart
-      ENGINE_URL: http://cib7:8080
-    volumes:
-      - ./cib7/scripts:/scripts:ro
-    command:
-      - sh
-      - -c
-      - |
-        apk add --no-cache curl jq >/dev/null
-        exec sh /scripts/seed-history.sh
-    restart: "no"
-
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).

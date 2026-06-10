@@ -172,7 +172,7 @@ automatically. If the connector looks wedged in Claude Desktop:
 | `complete_task` returns `INVALID_VARIABLES` with `"must NOT have additional properties"` | Claude included a field the per-task schema doesn't accept. Pass only the fields `get_form_schema` listed. |
 | `send_account_invitation` returns `KEYCLOAK_ERROR: HTTP 401 Unauthorized` | cib7-backend's service-account token is stale, typically right after a realm re-import. Restart the MCP container to clear the in-process token cache. |
 | Invitation email arrives but the link points at `http://keycloak:8080/...` | Realm `frontendUrl` attribute isn't set or the keycloak container wasn't rebuilt after editing the realm export. The export now ships `attributes.frontendUrl: "http://localhost:8180"`; re-import via `docker compose rm -sf keycloak && docker compose up -d keycloak`. |
-| `query_user_history` returns `found: false` despite history existing | Prior process instances were wiped by an engine restart (in-memory H2). The `seed-history` compose service pre-populates Bart's history on a cold `docker compose up`; if you've restarted `cib7` since, re-run it: `docker compose start seed-history`. Permanent fix is in TODOS.md T1 (H2 → Postgres). |
+| `query_user_history` returns `found: false` despite history existing | Prior process instances were wiped by an engine restart (in-memory H2). Complete at least one registration flow as that user to repopulate history. Permanent fix is in TODOS.md T1 (H2 → Postgres). |
 
 ## Files
 

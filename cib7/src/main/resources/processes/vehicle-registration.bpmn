@@ -562,8 +562,8 @@
                        sourceRef="Gateway_SendApprovalEmail" targetRef="Task_GeneratePdf">
       <!--
         `applicantEmail` is optional and the React form always writes it (even
-        as ""), but cases started without the form — the seed-history script,
-        ad-hoc /engine-rest start calls, future external integrations — won't
+        as ""), but cases started without the form — ad-hoc /engine-rest
+        start calls, future external integrations — won't
         have the variable in scope. JUEL throws PropertyNotFoundException on
         a bare `applicantEmail` reference in that case, blowing up the review
         task complete and stranding the case. `execution.hasVariable(...)`

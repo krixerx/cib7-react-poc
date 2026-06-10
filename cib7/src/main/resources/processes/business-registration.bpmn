@@ -443,7 +443,7 @@
       B-card generation without sending an email; the conditional branch
       fires only when applicantEmail looks like a real address. Defensive
       `execution.hasVariable()` guard for cases started without the form
-      (e.g. seed-history scripts).
+      (e.g. ad-hoc /engine-rest start calls).
     -->
     <bpmn:exclusiveGateway id="Gateway_SendApprovalEmail"
                            name="Has applicant email?"

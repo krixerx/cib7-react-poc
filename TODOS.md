@@ -8,11 +8,11 @@ Captured during plan reviews. Items here are deferred work the team agreed to re
 
 **What:** Swap `cib7/`'s in-memory H2 database for PostgreSQL with a persistent docker-compose volume. Add `spring.datasource.*` config in `cib7/src/main/resources/application.yaml`, drop the `org.h2:h2` runtime dependency from `cib7/pom.xml`, add the `postgresql` driver, add a `postgres` service and a `cib7-data` volume to `docker-compose.yml`.
 
-**Why:** Today the engine loses all process state on restart. The `seed-history` compose service exists only to work around this for the autofill demo. With persistence, the seed dependency dissolves and the autofill story works across compose restarts, internal pilots, and CI-driven end-to-end runs.
+**Why:** Today the engine loses all process state on restart, so the autofill demo (`query_user_history`) only works after someone completes a flow in the current engine session. With persistence, the autofill story works across compose restarts, internal pilots, and CI-driven end-to-end runs. (A `seed-history` one-shot compose service used to paper over this; it has been removed from the stack.)
 
 **Pros:**
 - Process state survives `docker compose restart`.
-- Seed service becomes obsolete; demo prep simplifies.
+- Demo prep simplifies — no manual history repopulation after restarts.
 - Closer to a deployable shape — what a real CIB7 user would run.
 - Unblocks longer-running demos and integration tests against persistent state.
 
@@ -23,4 +23,4 @@ Captured during plan reviews. Items here are deferred work the team agreed to re
 
 **Context:** The current H2 setup is documented in `docs/architecture.md § Data persistence` and `docs/cib7.md § Engine configuration (application.yaml)`. The Camunda 7 starter (and CIB seven 2.1) auto-configures H2 when no `spring.datasource` is set; swapping is the standard "add a real datasource" Spring Boot pattern. The CIB seven 2.1 schema is documented in their reference; `camunda.bpm.database.schema-update: true` already handles first-start migrations. The MCP design (`~/.gstack/projects/cib7-react-poc/kriks-main-design-20260604-102459.md`) explicitly flags the H2 limitation in P4 and Open Question 4.
 
-**Depends on / blocked by:** Nothing structural. Most cleanly tackled after the MCP POC ships and demo-gate-2 has been verified once, so the seed-script approach is fully proven before being deleted.
+**Depends on / blocked by:** Nothing structural. Most cleanly tackled after the MCP POC ships and demo-gate-2 has been verified once.

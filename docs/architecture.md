@@ -113,8 +113,7 @@ Seven runtime pieces:
 | MCP sidecar | `mcp/` (Node + TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`) | local module, compose service | Streamable HTTP MCP transport at `/mcp`; OAuth2 PKCE-loopback against Keycloak; JOSE jwtVerify at the door; Bearer-forwards to `/engine-rest`; Ajv-validates inputs against per-service manifests; uses `cib7-backend` service account for invitation emails |
 | Per-service MCP manifests | `docs/business/services/<svc>/build/mcp-service.json` (generated) | `/service-builder` skill | Variable schemas + audience metadata; loaded by the MCP sidecar at startup |
 | Aggregated MCP index | `docs/business/services/build/services.json` (generated) | `/service-builder` skill | Top-level catalog of MCP-callable services |
-| Seed history (one-shot) | `cib7/scripts/seed-history.sh` + `seed-history` compose service | local module | Alpine + curl + jq; ROPCs as `bart` via the dedicated `cib7-seed` Keycloak client and starts + completes one `personRegistration` + one `businessRegistration` so `query_user_history` returns autofill values on a cold start. Runs once per `docker compose up`; re-run after `docker compose restart cib7` via `docker compose start seed-history`. Goes away when H2 is replaced with Postgres (TODOS.md T1). |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Nine services + ingress: `traefik`, `keycloak`, `cib7`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `mcp`, `seed-history` |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Eight services + ingress: `traefik`, `keycloak`, `cib7`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `mcp` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
