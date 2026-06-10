@@ -7,21 +7,30 @@
              id="Definitions_AutoApproval"
              name="Vehicle registration auto-approval"
              namespace="http://camunda.org/schema/1.0/dmn"
-             exporter="cib7-react-poc" exporterVersion="0.4.0">
+             exporter="cib7-react-poc" exporterVersion="0.5.0">
   <!--
-    Decides whether the personRegistration process can skip the civil-servant
-    review or has to go through it. Hit policy FIRST: rules evaluated in order;
-    the first match wins. Engine returns a single output via getSingleResult().
+    Decides whether the vehicleRegistration process can skip the Transport
+    Authority review or has to go through it. Hit policy FIRST: rules
+    evaluated in order; the first match wins. Engine returns a single
+    output via singleEntry mapping into the autoDecision variable.
 
     Inputs:
-      age   (number) — applicant's age, written by Task_SubmitDetails
-      price (number) — fetched product price, written by Task_GetPrice
+      age              (integer) — owner's age, written by Task_SubmitDetails
+      price            (double)  — vehicle value in EUR, written by Task_GetPrice
+      vehicleAgeYears  (integer) — derived from the registry's year field by
+                                   Task_GetPrice (currentYear - vehicle.year)
 
     Output:
       autoDecision (string) — "approve" auto-completes the process,
-                              "review"  routes to the civil-servant task
-  -->
-  <!--
+                              "review"  routes to the Transport Authority task
+
+    Policy summary (matches Transpordiamet POC framing):
+
+      Underage owner       → review  (Transport Authority validates ID flow)
+      Luxury (≥ €50k)      → review  (high-value always reviewed)
+      Cheap and old        → approve (adult + value < €5k + ≥ 10 years old)
+      Everything else      → review  (default — safe side)
+
     historyTimeToLive is required by CIB seven 2.1 (enforceTTL is on by default).
     P30D mirrors the BPMN's process-level TTL so history rows expire together.
   -->
@@ -37,27 +46,45 @@
           <text>price</text>
         </inputExpression>
       </input>
+      <input id="Input_VehicleAgeYears" label="Vehicle age (years)" camunda:inputVariable="vehicleAgeYears">
+        <inputExpression id="InputExpression_VehicleAgeYears" typeRef="integer">
+          <text>vehicleAgeYears</text>
+        </inputExpression>
+      </input>
       <output id="Output_Decision" label="Decision" name="autoDecision" typeRef="string" />
 
       <!-- Underage owners cannot be sole registered owners; always reviewed. -->
       <rule id="Rule_UnderageOwner">
         <inputEntry id="Rule_UnderageOwner_Age"><text>&lt; 18</text></inputEntry>
         <inputEntry id="Rule_UnderageOwner_Price"><text>-</text></inputEntry>
+        <inputEntry id="Rule_UnderageOwner_AgeYears"><text>-</text></inputEntry>
         <outputEntry id="Rule_UnderageOwner_Out"><text>"review"</text></outputEntry>
       </rule>
 
-      <!-- Adult owner registering a low-value vehicle (&lt; €100) auto-approves. -->
+      <!-- Luxury vehicles (≥ €50k) always go to Transport Authority review. -->
+      <rule id="Rule_LuxuryVehicle">
+        <inputEntry id="Rule_LuxuryVehicle_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_LuxuryVehicle_Price"><text>&gt;= 50000</text></inputEntry>
+        <inputEntry id="Rule_LuxuryVehicle_AgeYears"><text>-</text></inputEntry>
+        <outputEntry id="Rule_LuxuryVehicle_Out"><text>"review"</text></outputEntry>
+      </rule>
+
+      <!-- Adult owner registering a low-value (< €5k), older-than-10-year
+           vehicle auto-approves. Captures the routine "cheap second car"
+           use case where extra Transport Authority scrutiny adds no signal. -->
       <rule id="Rule_LowValueAdultOwner">
         <inputEntry id="Rule_LowValueAdultOwner_Age"><text>&gt;= 18</text></inputEntry>
-        <inputEntry id="Rule_LowValueAdultOwner_Price"><text>&lt; 100</text></inputEntry>
+        <inputEntry id="Rule_LowValueAdultOwner_Price"><text>&lt; 5000</text></inputEntry>
+        <inputEntry id="Rule_LowValueAdultOwner_AgeYears"><text>&gt;= 10</text></inputEntry>
         <outputEntry id="Rule_LowValueAdultOwner_Out"><text>"approve"</text></outputEntry>
       </rule>
 
-      <!-- Higher-value vehicles always go to Transport Authority review. -->
-      <rule id="Rule_HighValueReview">
-        <inputEntry id="Rule_HighValueReview_Age"><text>-</text></inputEntry>
-        <inputEntry id="Rule_HighValueReview_Price"><text>-</text></inputEntry>
-        <outputEntry id="Rule_HighValueReview_Out"><text>"review"</text></outputEntry>
+      <!-- Default safe-side: anything else (mid-value, newer, etc.) gets reviewed. -->
+      <rule id="Rule_DefaultReview">
+        <inputEntry id="Rule_DefaultReview_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DefaultReview_Price"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DefaultReview_AgeYears"><text>-</text></inputEntry>
+        <outputEntry id="Rule_DefaultReview_Out"><text>"review"</text></outputEntry>
       </rule>
     </decisionTable>
   </decision>

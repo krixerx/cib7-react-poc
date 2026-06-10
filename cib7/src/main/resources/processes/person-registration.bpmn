@@ -389,23 +389,30 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">https://api.restful-api.dev/objects/${objectId}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
                 <camunda:entry key="Accept">application/json</camunda:entry>
               </camunda:map>
             </camunda:inputParameter>
-            <!-- 'response' is the raw JSON body returned by the connector;
-                 Spin parses it and we read data.price into the 'price' variable.
-                 restful-api.dev returns objects whose `data` may be missing,
-                 null, or lack a `price` field (e.g. the default "/objects/1"
-                 Google Pixel has color/capacity but no price). Falling back to
-                 9999 keeps the engine running and routes those cases to
-                 Rule_DefaultReview in auto-approval.dmn — a missing price
-                 surfaces as "review by a civil servant" instead of crashing
-                 the service task. -->
-            <camunda:outputParameter name="price">${!S(response).hasProp('data') || S(response).prop('data').isNull() || !S(response).prop('data').hasProp('price') ? 9999 : S(response).prop('data').prop('price').numberValue()}</camunda:outputParameter>
+            <!--
+              'response' is the raw JSON body from VehicleRegistryController.
+              Schema: {vin, make, model, year, ageYears, value, fuelType}.
+              The PartA form only lets the applicant pick a VIN that's already
+              in the catalog, so the controller returns 200; if a tampered
+              objectId ever reaches the engine, the controller returns 404 and
+              the http-connector raises an incident (visible on IncidentsPage).
+              Each outputParameter falls back to a safe default that routes the
+              case to Rule_DefaultReview in auto-approval.dmn so a malformed
+              response degrades to "review" instead of crashing the activity.
+            -->
+            <camunda:outputParameter name="price">${!S(response).hasProp('value') ? 9999 : S(response).prop('value').numberValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="vehicleMake">${!S(response).hasProp('make') ? '' : S(response).prop('make').stringValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="vehicleModel">${!S(response).hasProp('model') ? '' : S(response).prop('model').stringValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="vehicleYear">${!S(response).hasProp('year') ? 0 : S(response).prop('year').numberValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="vehicleFuelType">${!S(response).hasProp('fuelType') ? '' : S(response).prop('fuelType').stringValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="vehicleAgeYears">${!S(response).hasProp('ageYears') ? 0 : S(response).prop('ageYears').numberValue()}</camunda:outputParameter>
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>

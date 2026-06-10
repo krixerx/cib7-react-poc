@@ -7,9 +7,11 @@
   Authority approved alike.
 
   Process variables in scope: firstName, lastName, age, objectId
-  (vehicle code), price (vehicle value), initiator, additionalOwners
-  (Spin Json list of co-owners, may be null), plus the standard
-  execution properties.
+  (VIN), price (vehicle value), initiator, additionalOwners (Spin Json
+  list of co-owners, may be null), plus the vehicle-registry fields
+  written by Task_GetPrice (vehicleMake, vehicleModel, vehicleYear,
+  vehicleFuelType, vehicleAgeYears) and the standard execution
+  properties.
 
   Same shape as state-fee-invoice — HTML body rendered into the `html`
   assign block first, then ?json_string'd inline.
@@ -17,6 +19,14 @@
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 <#assign hasCoOwners = additionalOwners?? && additionalOwners.elements()?size gt 0>
 <#assign certificateNumber = "EE" + execution.processInstanceId?substring(0, 8)?upper_case>
+<#-- Same defensive coercion as approval-pdf.json.ftl — see the
+     comment there for the rationale. -->
+<#assign rawPrice = (price!0)>
+<#if rawPrice?is_number>
+  <#assign vehicleValue = rawPrice>
+<#else>
+  <#assign vehicleValue = rawPrice?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
+</#if>
 <#assign html>
 <!doctype html>
 <html lang="en">
@@ -61,8 +71,11 @@
 
     <h2>Vehicle</h2>
     <table>
-      <tr><th>Vehicle code</th><td>${objectId!""}</td></tr>
-      <tr><th>Declared value</th><td>&euro;${(price!0)?string("0.00")}</td></tr>
+      <tr><th>Make &amp; model</th><td>${vehicleMake!""} ${vehicleModel!""}</td></tr>
+      <tr><th>Year of make</th><td>${(vehicleYear!0)}</td></tr>
+      <tr><th>Fuel type</th><td>${vehicleFuelType!"&mdash;"}</td></tr>
+      <tr><th>VIN</th><td>${objectId!""}</td></tr>
+      <tr><th>Declared value</th><td>&euro;${vehicleValue?string("0.00")}</td></tr>
     </table>
 
     <h2>Registered owner</h2>

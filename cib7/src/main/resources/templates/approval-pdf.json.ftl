@@ -4,7 +4,9 @@
 
   Renders an Estonian-styled state fee invoice for the approved vehicle
   registration. Process variables in scope: firstName, lastName, age,
-  objectId (vehicle code), price (vehicle value), applicantEmail.
+  objectId (VIN), price (vehicle value), applicantEmail, plus the
+  vehicle-registry fields written by Task_GetPrice — vehicleMake,
+  vehicleModel, vehicleYear, vehicleFuelType, vehicleAgeYears.
 
   The displayed state fee follows a simple tiered schedule based on
   vehicle value (POC demo — the real Transpordiamet schedule is more
@@ -20,7 +22,19 @@
   external stylesheets.
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
-<#assign vehicleValue = (price!0)?number>
+<#-- `price` is written by Task_GetPrice via a JUEL output mapping. It
+     should be a Double, but cases driven by the legacy restful-api.dev
+     stub or a locale-formatting quirk in the engine's variable
+     serializer have been observed arriving as a String like "38,000".
+     Defend against both shapes: number → use as-is; string → strip
+     thousands separators (comma, space, NBSP) and currency symbols
+     before parsing. -->
+<#assign rawPrice = (price!0)>
+<#if rawPrice?is_number>
+  <#assign vehicleValue = rawPrice>
+<#else>
+  <#assign vehicleValue = rawPrice?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
+</#if>
 <#-- Tiered state fee schedule. POC demo — Transpordiamet's real schedule
      is more granular and varies by CO2, fuel type, and first-registration
      status. The brackets here are picked to be visibly different across
@@ -77,7 +91,10 @@
 
   <h2>Vehicle</h2>
   <table>
-    <tr><th>Vehicle code</th><td>${objectId!""}</td></tr>
+    <tr><th>Make &amp; model</th><td>${vehicleMake!""} ${vehicleModel!""}</td></tr>
+    <tr><th>Year</th><td>${(vehicleYear!0)} <#if (vehicleAgeYears!0) gt 0>(${vehicleAgeYears} years old)</#if></td></tr>
+    <tr><th>Fuel type</th><td>${vehicleFuelType!"&mdash;"}</td></tr>
+    <tr><th>VIN</th><td>${objectId!""}</td></tr>
     <tr><th>Declared value</th><td>&euro;${vehicleValue?string("0.00")}</td></tr>
   </table>
 

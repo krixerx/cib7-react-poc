@@ -1,39 +1,52 @@
 /**
- * Client for api.restful-api.dev — the external API the "Look up vehicle in
- * registry" service task calls (POC stub for the Estonian vehicle registry).
- * The owner form uses this to populate its vehicle dropdown.
+ * Client for the curated Estonian vehicle registry served by the
+ * backend's VehicleRegistryController under
+ * /api/public/vehicle-registry — see redomain plan D4.
  *
- * A later PR moves this lookup behind our own backend endpoint that returns
- * a curated catalog of believable Estonian-market vehicles (see redomain
- * plan D4).
+ * The PartA form uses this to populate its vehicle dropdown. The engine's
+ * Task_GetPrice service task hits the same backend path server-side via
+ * the http-connector, so the SPA and the engine see the same catalog at
+ * any moment.
+ *
+ * Module / file rename (objectsApi.ts → vehicleRegistryApi.ts;
+ * `listPricedObjects` → `listVehicles`; `PricedObject` → `Vehicle`) is
+ * deferred to PR #8 alongside the rest of the structural renames so this
+ * PR stays focused on the behavior change.
  */
 
-const OBJECTS_URL = 'https://api.restful-api.dev/objects';
+const VEHICLES_URL = '/api/public/vehicle-registry/vehicles';
 
-/** A product whose `data` carries a price — the only ones worth selecting. */
+/** Dropdown row — only what the form renders. */
 export interface PricedObject {
   id: string;
   name: string;
 }
 
-interface RawObject {
-  id: string;
-  name: string;
-  data: Record<string, unknown> | null;
+interface VehicleResponse {
+  vin: string;
+  make: string;
+  model: string;
+  year: number;
+  ageYears: number;
+  value: number;
+  fuelType: string;
 }
 
-/**
- * Fetches the objects from api.restful-api.dev, keeping only those whose
- * `data` contains a `price`. Selecting one of these means the service task's
- * GET /objects/{id} will have a `data.price` for the Spin response mapping.
- */
+/** Formats "VW Golf 1.4 TSI 2018 · €8,400" for the dropdown row. */
+function formatLabel(v: VehicleResponse): string {
+  const price = v.value.toLocaleString('et-EE', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  });
+  return `${v.make} ${v.model} ${v.year} · ${price}`;
+}
+
 export async function listPricedObjects(): Promise<PricedObject[]> {
-  const res = await fetch(OBJECTS_URL);
+  const res = await fetch(VEHICLES_URL);
   if (!res.ok) {
-    throw new Error(`restful-api.dev ${res.status} ${res.statusText}`);
+    throw new Error(`Vehicle registry ${res.status} ${res.statusText}`);
   }
-  const objects = (await res.json()) as RawObject[];
-  return objects
-    .filter((o) => o.data != null && o.data.price != null)
-    .map((o) => ({ id: o.id, name: o.name }));
+  const vehicles = (await res.json()) as VehicleResponse[];
+  return vehicles.map((v) => ({ id: v.vin, name: formatLabel(v) }));
 }
