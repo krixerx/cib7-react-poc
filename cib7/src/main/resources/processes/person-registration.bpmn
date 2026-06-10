@@ -112,7 +112,7 @@
   -->
   <bpmn:message id="Message_OwnerConfirmation" name="OwnerConfirmation" />
   <bpmn:message id="Message_SendToProcess" name="SendToProcess" />
-  <bpmn:process id="personRegistration" name="Person Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
+  <bpmn:process id="personRegistration" name="Vehicle Registration" isExecutable="true" camunda:historyTimeToLive="P30D">
 
     <bpmn:startEvent id="StartEvent_1" name="Registration started" camunda:initiator="initiator">
       <bpmn:outgoing>Flow_Start_Submit</bpmn:outgoing>
@@ -125,7 +125,7 @@
       started the case is the only person who can complete this step — both on
       the initial submit and when the civil servant sends the case back.
     -->
-    <bpmn:userTask id="Task_SubmitDetails" name="Submit personal details"
+    <bpmn:userTask id="Task_SubmitDetails" name="Submit owner &amp; vehicle details"
                    camunda:formKey="react:personal-details"
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
@@ -171,7 +171,7 @@
       DocumentsApiSecurityConfig matches the X-Internal-Token header
       instead of a JWT, since the engine is calling itself.
     -->
-    <bpmn:serviceTask id="Task_AttachIdDocument" name="Attach ID document"
+    <bpmn:serviceTask id="Task_AttachIdDocument" name="Attach owner ID document"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -211,7 +211,7 @@
       Default branch goes through the confirmation path so any malformed
       additionalOwners variable fails loudly rather than silently skipping.
     -->
-    <bpmn:exclusiveGateway id="Gateway_NeedsConfirmation" name="Need owner confirmations?"
+    <bpmn:exclusiveGateway id="Gateway_NeedsConfirmation" name="Co-owner signatures needed?"
                            default="Flow_NeedsConfirmation_TrackingEmail">
       <bpmn:incoming>Flow_HasPendingUpload_Skip</bpmn:incoming>
       <bpmn:incoming>Flow_AttachIdDocument_NeedsConfirmation</bpmn:incoming>
@@ -219,12 +219,12 @@
       <bpmn:outgoing>Flow_NeedsConfirmation_TrackingEmail</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <bpmn:sequenceFlow id="Flow_NeedsConfirmation_GetPrice" name="no extra owners"
+    <bpmn:sequenceFlow id="Flow_NeedsConfirmation_GetPrice" name="sole owner"
                        sourceRef="Gateway_NeedsConfirmation" targetRef="Task_GetPrice">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${additionalOwners == null || additionalOwners.elements().isEmpty()}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
-    <bpmn:sequenceFlow id="Flow_NeedsConfirmation_TrackingEmail" name="needs confirmations"
+    <bpmn:sequenceFlow id="Flow_NeedsConfirmation_TrackingEmail" name="has co-owners"
                        sourceRef="Gateway_NeedsConfirmation" targetRef="Task_SendApplicantTrackingEmail" />
 
     <!--
@@ -233,7 +233,7 @@
       the link shows status + the "Send to process" button when all owners
       have signed.
     -->
-    <bpmn:serviceTask id="Task_SendApplicantTrackingEmail" name="Send applicant tracking email"
+    <bpmn:serviceTask id="Task_SendApplicantTrackingEmail" name="Send owner tracking email"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -273,7 +273,7 @@
       waiters and routes the case back to the applicant via the existing
       send-back email.
     -->
-    <bpmn:subProcess id="SubProcess_OwnerConfirmations" name="Owner confirmations">
+    <bpmn:subProcess id="SubProcess_OwnerConfirmations" name="Co-owner signatures">
       <bpmn:incoming>Flow_TrackingEmail_OwnerSubprocess</bpmn:incoming>
       <bpmn:outgoing>Flow_OwnerSubprocess_AllConfirmed</bpmn:outgoing>
       <bpmn:multiInstanceLoopCharacteristics isSequential="false"
@@ -290,7 +290,7 @@
                          sourceRef="StartEvent_OwnerInstance"
                          targetRef="Task_SendOwnerConfirmEmail" />
 
-      <bpmn:serviceTask id="Task_SendOwnerConfirmEmail" name="Send owner confirmation email"
+      <bpmn:serviceTask id="Task_SendOwnerConfirmEmail" name="Send co-owner signing email"
                         camunda:asyncBefore="true">
         <bpmn:extensionElements>
           <camunda:connector>
@@ -323,7 +323,7 @@
         so MessageCorrelationBuilder.localVariableEquals("ownerToken", ...) in
         the controller finds this exact execution.
       -->
-      <bpmn:receiveTask id="ReceiveTask_OwnerConfirmation" name="Wait for owner confirmation"
+      <bpmn:receiveTask id="ReceiveTask_OwnerConfirmation" name="Wait for co-owner signature"
                         messageRef="Message_OwnerConfirmation">
         <bpmn:extensionElements>
           <camunda:inputOutput>
@@ -375,7 +375,7 @@
       controller correlates the SendToProcess message by processInstanceId,
       so only one instance is waiting and no correlation key is needed.
     -->
-    <bpmn:receiveTask id="Task_WaitSendToProcess" name="Wait for send-to-process"
+    <bpmn:receiveTask id="Task_WaitSendToProcess" name="Wait for owner to submit"
                       messageRef="Message_SendToProcess">
       <bpmn:incoming>Flow_AllConfirmed_WaitSendToProcess</bpmn:incoming>
       <bpmn:outgoing>Flow_WaitSendToProcess_GetPrice</bpmn:outgoing>
@@ -384,7 +384,7 @@
     <bpmn:sequenceFlow id="Flow_WaitSendToProcess_GetPrice"
                        sourceRef="Task_WaitSendToProcess" targetRef="Task_GetPrice" />
 
-    <bpmn:serviceTask id="Task_GetPrice" name="Get price" camunda:asyncBefore="true">
+    <bpmn:serviceTask id="Task_GetPrice" name="Look up vehicle in registry" camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
@@ -424,7 +424,7 @@
       Inputs read by the DMN: age (Integer) and price (Double). Both are set
       by earlier steps before this task runs.
     -->
-    <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto approval?"
+    <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto-approval policy"
                            camunda:decisionRef="auto-approval"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="autoDecision">
@@ -463,7 +463,7 @@
       interrupting" (cancelActivity="false") means the user task stays open
       and can fire again — handy for repeated nudges.
     -->
-    <bpmn:userTask id="Task_Review" name="Review application"
+    <bpmn:userTask id="Task_Review" name="Transport Authority review"
                    camunda:formKey="react:review-application"
                    camunda:candidateGroups="civil-servant">
       <bpmn:incoming>Flow_AutoApproval_Review</bpmn:incoming>
@@ -488,7 +488,7 @@
       container's view of Mailpit (docker-compose alias "mailpit"); the
       MailApiBaseUrlConfiguration bean exposes it as a JUEL variable.
     -->
-    <bpmn:serviceTask id="Task_SendReminderEmail" name="Send reminder email"
+    <bpmn:serviceTask id="Task_SendReminderEmail" name="Send reviewer reminder email"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -502,10 +502,10 @@
               </camunda:map>
             </camunda:inputParameter>
             <camunda:inputParameter name="payload">{
-              "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
-              "To": [ { "Email": "civil-servant@cib7-poc.local", "Name": "Civil servant" } ],
-              "Subject": "Reminder: application waiting for review",
-              "Text": "An application from ${firstName} ${lastName} has been waiting for review. Please open the Tasks page in the SPA."
+              "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
+              "To": [ { "Email": "civil-servant@cib7-poc.local", "Name": "Transport Authority officer" } ],
+              "Subject": "Reminder: vehicle registration awaiting review",
+              "Text": "A vehicle registration submitted by ${firstName} ${lastName} has been waiting for Transport Authority review. Please open the Tasks page in the SPA."
             }</camunda:inputParameter>
           </camunda:inputOutput>
         </camunda:connector>
@@ -573,7 +573,7 @@
       native API is multipart-in/binary-out and would require a custom Java
       delegate to plug into the http-connector pattern.
     -->
-    <bpmn:serviceTask id="Task_GeneratePdf" name="Generate approval PDF"
+    <bpmn:serviceTask id="Task_GeneratePdf" name="Generate state fee invoice"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -620,7 +620,7 @@
       lives in a byte[] variable and the email task re-encodes for Mailpit.
       The bytes stay in approvalPdfBytes for the subsequent email task.
     -->
-    <bpmn:serviceTask id="Task_StoreApprovalPdf" name="Store approval PDF"
+    <bpmn:serviceTask id="Task_StoreApprovalPdf" name="Store fee invoice"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -676,7 +676,7 @@
       record-of-approval the applicant + civil servant can download from
       the Documents card.
     -->
-    <bpmn:serviceTask id="Task_GenerateCertificatePdf" name="Generate certificate PDF"
+    <bpmn:serviceTask id="Task_GenerateCertificatePdf" name="Generate vehicle registration certificate"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -704,7 +704,7 @@
     <bpmn:sequenceFlow id="Flow_GenerateCertificate_Store"
                        sourceRef="Task_GenerateCertificatePdf" targetRef="Task_StoreCertificatePdf" />
 
-    <bpmn:serviceTask id="Task_StoreCertificatePdf" name="Store certificate PDF"
+    <bpmn:serviceTask id="Task_StoreCertificatePdf" name="Store registration certificate"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -740,7 +740,7 @@
       cibseven-template-engines-freemarker artifact is on the classpath —
       no Java wiring needed.
     -->
-    <bpmn:serviceTask id="Task_SendApprovalEmail" name="Send approval email"
+    <bpmn:serviceTask id="Task_SendApprovalEmail" name="Send state fee invoice email"
                       camunda:asyncBefore="true">
       <bpmn:extensionElements>
         <camunda:connector>
@@ -787,10 +787,10 @@
               </camunda:map>
             </camunda:inputParameter>
             <camunda:inputParameter name="payload">{
-              "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
+              "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
               "To": [ { "Email": "${initiator}@cib7-poc.local", "Name": "${firstName} ${lastName}" } ],
-              "Subject": "Your application needs corrections",
-              "Text": "Hi ${firstName},\n\nThe civil servant has sent your application back for corrections. Reason: ${sendBackReason}\n\nOpen the My processes page in the SPA and resubmit when ready."
+              "Subject": "Your vehicle registration needs corrections",
+              "Text": "Hi ${firstName},\n\nThe Transport Authority has sent your vehicle registration back for corrections. Reason: ${sendBackReason}\n\nOpen the My processes page in the SPA and resubmit when ready."
             }</camunda:inputParameter>
           </camunda:inputOutput>
         </camunda:connector>
@@ -803,7 +803,7 @@
     <bpmn:sequenceFlow id="Flow_SendBackEmail_Submit"
                        sourceRef="Task_SendBackEmail" targetRef="Task_SubmitDetails" />
 
-    <bpmn:endEvent id="EndEvent_Approved" name="Application approved">
+    <bpmn:endEvent id="EndEvent_Approved" name="Vehicle registered">
       <bpmn:incoming>Flow_StoreCertificate_End</bpmn:incoming>
     </bpmn:endEvent>
 

@@ -29,7 +29,7 @@ export const CATEGORIES: Category[] = [
   { id: 'business', name: 'Business & Trade',       blurb: 'Register a business, change ownership, file declarations.' },
   { id: 'family',   name: 'Family & Civil Status',  blurb: 'Birth, marriage, name changes, family certificates.' },
   { id: 'property', name: 'Property & Land',        blurb: 'Land titles, transfers, building permits.' },
-  { id: 'travel',   name: 'Travel & Identity',      blurb: 'Passports, ID cards, residence permits.' },
+  { id: 'travel',   name: 'Travel & Identity',      blurb: 'Passports, ID cards, vehicle registrations, residence permits.' },
   { id: 'social',   name: 'Social & Health',        blurb: 'Benefits, health entitlements, support requests.' },
   { id: 'other',    name: 'Other Services',         blurb: 'Anything that does not fit the categories above.' },
 ];
@@ -40,7 +40,7 @@ export const CATEGORIES: Category[] = [
  */
 const SERVICE_CATEGORY: Record<string, CategoryId> = {
   businessRegistration: 'business',
-  personRegistration: 'family',
+  personRegistration: 'travel',
 };
 
 export function categoryOf(processDefinitionKey: string): CategoryId {

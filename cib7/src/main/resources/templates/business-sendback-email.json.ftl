@@ -5,21 +5,21 @@
 -->
 <#assign body>Tere ${(applicantFirstName!"")} ${(applicantLastName!"")},
 
-Your business registration for "${(companyName!"")}" was sent back for
-corrections by the reviewer.
+Your Estonian OÜ registration for "${(companyName!"")}" was sent back for
+corrections by the Business Register reviewer.
 
 Reason: ${(sendBackReason!"")}
 
 Please open the portal at ${(frontendBaseUrl!"http://localhost:3000")} and
-update your application. The reviewer's reason will be shown at the top of
-the form.
+update your founding details. The reviewer's reason will be shown at the
+top of the form.
 
-Tere,
-CIB7 POC
+Tervitustega,
+Äriregister POC
 </#assign>
 {
-  "From":    { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
+  "From":    { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
   "To":      [ { "Email": "applicant@cib7-poc.local" } ],
-  "Subject": "${("Business registration sent back: " + (companyName!""))?json_string}",
+  "Subject": "${("OÜ registration sent back for corrections: " + (companyName!""))?json_string}",
   "Text":    "${body?json_string}"
 }

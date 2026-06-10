@@ -5,7 +5,7 @@
              xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
              xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
              id="Definitions_BusinessAutoApproval"
-             name="Business auto approval"
+             name="OÜ registration auto-approval"
              namespace="http://camunda.org/schema/1.0/dmn"
              exporter="cib7-react-poc" exporterVersion="0.5.0">
   <!--
@@ -25,40 +25,40 @@
     historyTimeToLive is required by CIB seven 2.1 (enforceTTL on by default).
     P30D mirrors the BPMN's process-level TTL so history rows expire together.
   -->
-  <decision id="business-auto-approval" name="Business auto approval"
+  <decision id="business-auto-approval" name="OÜ registration auto-approval"
             camunda:historyTimeToLive="P30D">
     <decisionTable id="DecisionTable_BusinessAutoApproval" hitPolicy="FIRST">
-      <input id="Input_ApplicantAge" label="Applicant age" camunda:inputVariable="applicantAge">
+      <input id="Input_ApplicantAge" label="Founder age" camunda:inputVariable="applicantAge">
         <inputExpression id="InputExpression_ApplicantAge" typeRef="integer">
           <text>applicantAge</text>
         </inputExpression>
       </input>
-      <input id="Input_ShareCapital" label="Share capital" camunda:inputVariable="shareCapital">
+      <input id="Input_ShareCapital" label="Share capital (EUR)" camunda:inputVariable="shareCapital">
         <inputExpression id="InputExpression_ShareCapital" typeRef="double">
           <text>shareCapital</text>
         </inputExpression>
       </input>
       <output id="Output_Decision" label="Decision" name="autoDecision" typeRef="string" />
 
-      <!-- Share capital below the €2500 floor always needs human review. -->
-      <rule id="Rule_LowCapital">
-        <inputEntry id="Rule_LowCapital_Age"><text>-</text></inputEntry>
-        <inputEntry id="Rule_LowCapital_Capital"><text>&lt; 2500</text></inputEntry>
-        <outputEntry id="Rule_LowCapital_Out"><text>"review"</text></outputEntry>
+      <!-- Share capital below the statutory €2500 floor always needs human review. -->
+      <rule id="Rule_BelowMinimumCapital">
+        <inputEntry id="Rule_BelowMinimumCapital_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_BelowMinimumCapital_Capital"><text>&lt; 2500</text></inputEntry>
+        <outputEntry id="Rule_BelowMinimumCapital_Out"><text>"review"</text></outputEntry>
       </rule>
 
-      <!-- Minors lack corporate-signing capacity; always reviewed. -->
-      <rule id="Rule_Minor">
-        <inputEntry id="Rule_Minor_Age"><text>&lt; 18</text></inputEntry>
-        <inputEntry id="Rule_Minor_Capital"><text>-</text></inputEntry>
-        <outputEntry id="Rule_Minor_Out"><text>"review"</text></outputEntry>
+      <!-- Underage founders lack corporate-signing capacity; always reviewed. -->
+      <rule id="Rule_UnderageFounder">
+        <inputEntry id="Rule_UnderageFounder_Age"><text>&lt; 18</text></inputEntry>
+        <inputEntry id="Rule_UnderageFounder_Capital"><text>-</text></inputEntry>
+        <outputEntry id="Rule_UnderageFounder_Out"><text>"review"</text></outputEntry>
       </rule>
 
-      <!-- Adult applicant with sufficient capital auto-approves. -->
-      <rule id="Rule_AutoApprove">
-        <inputEntry id="Rule_AutoApprove_Age"><text>&gt;= 18</text></inputEntry>
-        <inputEntry id="Rule_AutoApprove_Capital"><text>&gt;= 2500</text></inputEntry>
-        <outputEntry id="Rule_AutoApprove_Out"><text>"approve"</text></outputEntry>
+      <!-- Adult founder with sufficient share capital auto-approves. -->
+      <rule id="Rule_AdultFounderSufficientCapital">
+        <inputEntry id="Rule_AdultFounderSufficientCapital_Age"><text>&gt;= 18</text></inputEntry>
+        <inputEntry id="Rule_AdultFounderSufficientCapital_Capital"><text>&gt;= 2500</text></inputEntry>
+        <outputEntry id="Rule_AdultFounderSufficientCapital_Out"><text>"approve"</text></outputEntry>
       </rule>
     </decisionTable>
   </decision>

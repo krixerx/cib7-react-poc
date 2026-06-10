@@ -11,7 +11,7 @@ import { parseActivityNames } from '../api/bpmn';
 
 interface DefinitionInfo {
   def: ProcessDefinition;
-  /** BPMN element id → display name (e.g. "Task_GetPrice" → "Get price"). */
+  /** BPMN element id → display name (e.g. "Task_GetPrice" → "Look up vehicle in registry"). */
   activityNames: Map<string, string>;
 }
 

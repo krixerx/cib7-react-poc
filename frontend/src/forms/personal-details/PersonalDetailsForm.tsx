@@ -4,20 +4,19 @@ import { listPricedObjects, type PricedObject } from '../../api/objectsApi';
 import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
 
 /**
- * Applicant form (PartA) — collects personal details, the chosen product,
- * and an optional list of *additional* owners that must co-sign the
- * application before it reaches the back office.
+ * Owner form (PartA) — collects the registering owner's details, the
+ * vehicle being registered, and an optional list of co-owners that must
+ * co-sign the registration before it reaches Transport Authority review.
  *
- * On submit the form generates one UUID token per participant (applicant
- * plus each additional owner), seeds `ownerConfirmations` with the
- * applicant's signature already recorded, and writes everything as
- * process variables. The BPMN gateway downstream branches on whether
- * `additionalOwners` is non-empty.
+ * On submit the form generates one UUID token per participant (owner plus
+ * each co-owner), seeds `ownerConfirmations` with the owner's signature
+ * already recorded, and writes everything as process variables. The BPMN
+ * gateway downstream branches on whether `additionalOwners` is non-empty.
  *
- * If the civil servant or an owner sent the case back for corrections,
- * `sendBackReason` is set in process variables and is shown to the
- * applicant as a banner. Resubmission regenerates ALL tokens so old
- * confirmation links can't be reused against the new round.
+ * If the Transport Authority reviewer or a co-owner sent the case back
+ * for corrections, `sendBackReason` is set in process variables and is
+ * shown to the owner as a banner. Resubmission regenerates ALL tokens so
+ * old confirmation links can't be reused against the new round.
  */
 export default function PersonalDetailsForm({
   data,
@@ -98,7 +97,7 @@ export default function PersonalDetailsForm({
       return;
     }
     if (!objectId) {
-      setError('Please choose a product.');
+      setError('Please choose a vehicle from the registry.');
       return;
     }
     if (!idDocument || (!idDocument.pendingKey && !idDocument.attachmentId)) {
@@ -207,10 +206,10 @@ export default function PersonalDetailsForm({
 
       <p className="form-intro">
         {readOnly
-          ? 'Read-only view of the details you submitted. Edits are not possible while the case is with the back office.'
+          ? 'Read-only view of the registration you submitted. Edits are not possible while Transport Authority has the case.'
           : isResubmission
-            ? 'Update the details below and resubmit the application. New confirmation links will be sent to every co-owner.'
-            : 'Applicant form — fill in the personal details, choose a product, and list any co-owners that must sign before the case is sent on.'}
+            ? 'Update the details below and resubmit the registration. New signing links will be sent to every co-owner.'
+            : 'Owner form — fill in your details, choose the vehicle you are registering, and list any co-owners that must sign before the case goes to Transport Authority.'}
       </p>
 
       <label className="field">
@@ -260,10 +259,10 @@ export default function PersonalDetailsForm({
       </label>
 
       <div className="field">
-        <span className="field-label">ID card or passport (required)</span>
+        <span className="field-label">Owner ID document (required)</span>
         <p className="field-hint">
-          PDF, JPEG, or PNG up to 10 MB. The civil servant reviewing your
-          application will be able to download this file.
+          ID card, passport, or driving licence. PDF, JPEG, or PNG up to 10 MB.
+          The Transport Authority reviewer will be able to download this file.
         </p>
         <FileUpload
           accept="application/pdf,image/jpeg,image/png"
@@ -278,14 +277,14 @@ export default function PersonalDetailsForm({
       </div>
 
       <label className="field">
-        <span className="field-label">Product</span>
+        <span className="field-label">Vehicle (from registry)</span>
         <select
           className="field-input"
           value={objectId}
           onChange={(e) => setObjectId(e.target.value)}
           disabled={readOnly}
         >
-          <option value="">— choose a product —</option>
+          <option value="">— choose a vehicle —</option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -294,17 +293,18 @@ export default function PersonalDetailsForm({
         </select>
       </label>
       {productsError && !readOnly && (
-        <p className="form-error">Could not load products: {productsError}</p>
+        <p className="form-error">Could not load the vehicle registry: {productsError}</p>
       )}
 
       <fieldset className="field-group">
         <legend className="field-label">
-          Additional co-owners ({additionalOwners.length})
+          Vehicle co-owners ({additionalOwners.length})
         </legend>
         <p className="field-hint">
-          Each co-owner gets an email with a link to approve or reject the application.
-          Once all co-owners sign, any owner can click "Send to process" to forward the
-          case to the back office. Leave empty if you're the sole owner.
+          Each co-owner gets an email with a link to approve or reject the
+          vehicle registration. Once all co-owners sign, any owner can click
+          "Send to Transport Authority" to forward the case for review. Leave
+          empty if you are the sole owner.
         </p>
         {additionalOwners.map((owner, i) => (
           <div key={i} className="owner-row">

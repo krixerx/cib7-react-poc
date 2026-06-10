@@ -2,12 +2,12 @@ import { useState } from 'react';
 import type { FormProps } from '../types';
 
 /**
- * Civil-servant review form (PartB). Shows the applicant's submitted data and
- * the fetched price read-only, then either:
+ * Transport Authority review form (PartB). Shows the owner's submitted data
+ * and the looked-up vehicle value read-only, then either:
  *
  *   Accept   → completes the task with decision="approve" (process ends).
  *   Send back → reveals a reason textarea; completing writes decision="sendback"
- *               and sendBackReason so the applicant sees why it was returned.
+ *               and sendBackReason so the owner sees why it was returned.
  */
 export default function ReviewApplicationForm({
   data,
@@ -28,7 +28,7 @@ export default function ReviewApplicationForm({
     setError(null);
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError('Please give the applicant a reason for sending the case back.');
+      setError('Please give the owner a reason for sending the registration back.');
       return;
     }
     return onComplete({
@@ -46,8 +46,8 @@ export default function ReviewApplicationForm({
     <div className="form">
       <p className="form-intro">
         {readOnly
-          ? 'A read-only view of the submitted details, the fetched price, and the reviewer’s decision.'
-          : 'Review the submitted details and the fetched price. Accept the application, or send it back to the applicant with a reason.'}
+          ? 'A read-only view of the owner details, the vehicle value from the registry, and the reviewer’s decision.'
+          : 'Transport Authority review. Check the owner details and the vehicle value from the registry. Accept the registration, or send it back to the owner with a reason.'}
       </p>
 
       <dl className="summary">
@@ -80,13 +80,13 @@ export default function ReviewApplicationForm({
       </dl>
 
       <label className="field">
-        <span className="field-label">Price (fetched by the Get price service task)</span>
+        <span className="field-label">Vehicle value (€, from registry)</span>
         <input className="field-input" value={price} disabled readOnly />
       </label>
 
       {!readOnly && priorReason && (
         <p className="muted">
-          Previous send-back reason (now resubmitted by the applicant):{' '}
+          Previous send-back reason (now resubmitted by the owner):{' '}
           <em>{priorReason}</em>
         </p>
       )}
@@ -99,7 +99,7 @@ export default function ReviewApplicationForm({
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Tell the applicant what to fix (e.g. age looks wrong)."
+            placeholder="Tell the owner what to fix (e.g. ID document is unreadable)."
             autoFocus
           />
         </label>

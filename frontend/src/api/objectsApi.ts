@@ -1,6 +1,11 @@
 /**
- * Client for api.restful-api.dev — the external API the "Get price" service
- * task calls. The first form uses this to populate its product dropdown.
+ * Client for api.restful-api.dev — the external API the "Look up vehicle in
+ * registry" service task calls (POC stub for the Estonian vehicle registry).
+ * The owner form uses this to populate its vehicle dropdown.
+ *
+ * A later PR moves this lookup behind our own backend endpoint that returns
+ * a curated catalog of believable Estonian-market vehicles (see redomain
+ * plan D4).
  */
 
 const OBJECTS_URL = 'https://api.restful-api.dev/objects';

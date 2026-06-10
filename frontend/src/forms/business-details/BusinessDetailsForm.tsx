@@ -2,11 +2,11 @@ import { useState, type FormEvent } from 'react';
 import type { FormProps } from '../types';
 
 /**
- * Applicant form for businessRegistration. Collects company name, board
- * members, share capital, and the applicant's own identity. The send-back
+ * Founder form for businessRegistration. Collects company name, board
+ * members, share capital, and the founder's own identity. The send-back
  * loop shares this same form: when sendBackReason is present and the form
- * is not read-only, a banner with the reason appears above the fields and
- * is cleared on the next submit.
+ * is not read-only, a banner with the Business Register reviewer's reason
+ * appears above the fields and is cleared on the next submit.
  *
  * boardMembers is a list of `{firstName, lastName, personalCode}` rendered
  * as repeating rows. The form requires at least one row; if the user
@@ -165,10 +165,10 @@ export default function BusinessDetailsForm({
 
       <p className="form-intro">
         {readOnly
-          ? 'A read-only view of the submitted business registration.'
+          ? 'A read-only view of the submitted OÜ founding details.'
           : isResubmission
-          ? 'Update the details below and resubmit the application.'
-          : 'Register a new private limited company (OÜ). Fill in the company details and at least one board member, then submit.'}
+          ? 'Update the founding details below and resubmit to the Business Register.'
+          : 'Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, and your own details. The Business Register will review the application.'}
       </p>
 
       <label className="field">

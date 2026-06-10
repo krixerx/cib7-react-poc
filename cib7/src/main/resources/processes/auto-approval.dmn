@@ -5,7 +5,7 @@
              xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
              xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
              id="Definitions_AutoApproval"
-             name="Auto approval"
+             name="Vehicle registration auto-approval"
              namespace="http://camunda.org/schema/1.0/dmn"
              exporter="cib7-react-poc" exporterVersion="0.4.0">
   <!--
@@ -25,39 +25,39 @@
     historyTimeToLive is required by CIB seven 2.1 (enforceTTL is on by default).
     P30D mirrors the BPMN's process-level TTL so history rows expire together.
   -->
-  <decision id="auto-approval" name="Auto approval" camunda:historyTimeToLive="P30D">
+  <decision id="auto-approval" name="Vehicle registration auto-approval" camunda:historyTimeToLive="P30D">
     <decisionTable id="DecisionTable_AutoApproval" hitPolicy="FIRST">
-      <input id="Input_Age" label="Age" camunda:inputVariable="age">
+      <input id="Input_Age" label="Owner age" camunda:inputVariable="age">
         <inputExpression id="InputExpression_Age" typeRef="integer">
           <text>age</text>
         </inputExpression>
       </input>
-      <input id="Input_Price" label="Price" camunda:inputVariable="price">
+      <input id="Input_Price" label="Vehicle value (EUR)" camunda:inputVariable="price">
         <inputExpression id="InputExpression_Price" typeRef="double">
           <text>price</text>
         </inputExpression>
       </input>
       <output id="Output_Decision" label="Decision" name="autoDecision" typeRef="string" />
 
-      <!-- Minors always need a human reviewer, regardless of price. -->
-      <rule id="Rule_Minor">
-        <inputEntry id="Rule_Minor_Age"><text>&lt; 18</text></inputEntry>
-        <inputEntry id="Rule_Minor_Price"><text>-</text></inputEntry>
-        <outputEntry id="Rule_Minor_Out"><text>"review"</text></outputEntry>
+      <!-- Underage owners cannot be sole registered owners; always reviewed. -->
+      <rule id="Rule_UnderageOwner">
+        <inputEntry id="Rule_UnderageOwner_Age"><text>&lt; 18</text></inputEntry>
+        <inputEntry id="Rule_UnderageOwner_Price"><text>-</text></inputEntry>
+        <outputEntry id="Rule_UnderageOwner_Out"><text>"review"</text></outputEntry>
       </rule>
 
-      <!-- Adults with cheap picks (price &lt; 100) auto-approve. -->
-      <rule id="Rule_AutoApprove">
-        <inputEntry id="Rule_AutoApprove_Age"><text>&gt;= 18</text></inputEntry>
-        <inputEntry id="Rule_AutoApprove_Price"><text>&lt; 100</text></inputEntry>
-        <outputEntry id="Rule_AutoApprove_Out"><text>"approve"</text></outputEntry>
+      <!-- Adult owner registering a low-value vehicle (&lt; €100) auto-approves. -->
+      <rule id="Rule_LowValueAdultOwner">
+        <inputEntry id="Rule_LowValueAdultOwner_Age"><text>&gt;= 18</text></inputEntry>
+        <inputEntry id="Rule_LowValueAdultOwner_Price"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="Rule_LowValueAdultOwner_Out"><text>"approve"</text></outputEntry>
       </rule>
 
-      <!-- Anything else (adults with expensive picks) goes to review. -->
-      <rule id="Rule_DefaultReview">
-        <inputEntry id="Rule_DefaultReview_Age"><text>-</text></inputEntry>
-        <inputEntry id="Rule_DefaultReview_Price"><text>-</text></inputEntry>
-        <outputEntry id="Rule_DefaultReview_Out"><text>"review"</text></outputEntry>
+      <!-- Higher-value vehicles always go to Transport Authority review. -->
+      <rule id="Rule_HighValueReview">
+        <inputEntry id="Rule_HighValueReview_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_HighValueReview_Price"><text>-</text></inputEntry>
+        <outputEntry id="Rule_HighValueReview_Out"><text>"review"</text></outputEntry>
       </rule>
     </decisionTable>
   </decision>
