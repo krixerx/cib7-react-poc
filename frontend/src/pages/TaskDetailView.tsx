@@ -143,6 +143,10 @@ export default function TaskDetailView({
 
   return (
     <>
+      {/* The milestone stepper sits above the form, like the reference
+          civic portals: first "here is where your case stands", then the
+          action. The full history stays in its disclosure for reviewers. */}
+      <ProcessTimeline processInstanceId={task.processInstanceId} />
       <div className="card">
         {!hideOwnHeader && (
           <div className="card-head">
@@ -166,10 +170,6 @@ export default function TaskDetailView({
           </p>
         )}
       </div>
-      {/* The open form is the action — the case history below is the context
-          a reviewer wants before deciding (who submitted what, when, which
-          loops the case already took). */}
-      <ProcessTimeline processInstanceId={task.processInstanceId} />
       {!hideDocuments && <DocumentsCard processInstanceId={task.processInstanceId} />}
     </>
   );

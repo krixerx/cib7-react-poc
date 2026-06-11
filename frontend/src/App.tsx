@@ -49,10 +49,32 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <Link to="/" className="app-title">
-          CIB&nbsp;seven <span className="app-title-sep">·</span> React POC
+          <span className="app-logo" aria-hidden="true">
+            {/* Civic building mark — columns under a roof. */}
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m3 9 9-6 9 6" />
+              <path d="M4 21h16" />
+              <path d="M6 21v-8" />
+              <path d="M10 21v-8" />
+              <path d="M14 21v-8" />
+              <path d="M18 21v-8" />
+            </svg>
+          </span>
+          <span className="app-brand-text">
+            <span className="app-brand-name">CIB seven</span>
+            <span className="app-brand-sub">Digital government · React POC</span>
+          </span>
           {authenticated && (
             <>
-              <span className="app-title-sep">·</span>{' '}
               <span className={`part-badge part-${part.toLowerCase()}`}>Part {part}</span>{' '}
               <span className="muted">{partLabel}</span>
             </>

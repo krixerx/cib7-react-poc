@@ -302,9 +302,11 @@ function Stepper({ state }: { state: LoadedState }) {
           </li>
         );
       })}
-      {future.map((step) => (
+      {future.map((step, i) => (
         <li key={`up-${step.id}`} className="step upcoming">
-          <span className="step-dot" aria-hidden="true" />
+          <span className="step-dot" aria-hidden="true">
+            <span className="step-num">{past.length + i + 1}</span>
+          </span>
           <span className="step-label">{step.name}</span>
           <span className="step-meta">upcoming</span>
         </li>
@@ -315,7 +317,7 @@ function Stepper({ state }: { state: LoadedState }) {
 
 function CheckIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M5 12l5 5L20 7" />
     </svg>
   );
