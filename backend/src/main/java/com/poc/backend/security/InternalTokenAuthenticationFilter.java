@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -45,12 +47,12 @@ public class InternalTokenAuthenticationFilter extends OncePerRequestFilter {
     chain.doFilter(request, response);
   }
 
+  /**
+   * {@link MessageDigest#isEqual} instead of a hand-rolled loop: it is time-constant even across
+   * different lengths, so the comparison leaks neither content nor token length.
+   */
   private static boolean constantTimeEquals(String a, String b) {
-    if (a.length() != b.length()) return false;
-    int diff = 0;
-    for (int i = 0; i < a.length(); i++) {
-      diff |= a.charAt(i) ^ b.charAt(i);
-    }
-    return diff == 0;
+    return MessageDigest.isEqual(
+        a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
   }
 }
