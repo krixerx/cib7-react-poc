@@ -26,6 +26,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { engineRequest, businessRequest, engineBaseUrl } from './engine/client.js';
 import { toCamundaVariables, type JsonSchema } from './engine/variables.js';
 import { decodeBearerUsername } from './auth/identity.js';
+import { audiencesOf, hasInviterAccess, realmRolesOf } from './auth/inviterRole.js';
 import { verifyBearer } from './auth/verify.js';
 import { adminRequest } from './keycloak/admin.js';
 import {
@@ -746,30 +747,16 @@ function handleGetSignupUrl(): ToolResult {
   });
 }
 
-/** Realm roles allowed to invite new users. */
-const INVITER_ROLES = ['applicant', 'civil-servant', 'cib7-admin'];
-
 /**
- * Authorization gate for the one tool that is NOT engine-proxied. Every other
- * tool forwards the caller's Bearer to /engine-rest, where the engine
- * re-validates it; this one runs against the Keycloak admin API with the
- * cib7-backend service account, so nothing downstream checks the caller.
- * Require both the cib7-rest-api audience (only this POC's user-facing
- * clients add it via the cib7-rest-api-audience scope) and a known realm
- * role — a bare client-credentials token from some other realm client has
- * neither.
+ * Authorization gate for the one tool that is NOT engine-proxied. The actual
+ * audience + realm-role predicate lives in auth/inviterRole.ts (unit-tested);
+ * this wrapper turns a denial into the LLM-facing ToolResult.
  */
 function requireInviterRole(): ToolResult | null {
   const claims = currentClaims();
-  const aud = claims?.aud;
-  const audiences = Array.isArray(aud) ? aud : aud ? [aud] : [];
-  const realmAccess = claims?.realm_access as { roles?: string[] } | undefined;
-  const roles = realmAccess?.roles ?? [];
-  if (audiences.includes('cib7-rest-api') && roles.some((r) => INVITER_ROLES.includes(r))) {
-    return null;
-  }
+  if (hasInviterAccess(claims)) return null;
   console.warn(
-    `[send_account_invitation] denied: sub=${claims?.sub ?? '(none)'} aud=[${audiences.join(',')}] roles=[${roles.join(',')}]`,
+    `[send_account_invitation] denied: sub=${claims?.sub ?? '(none)'} aud=[${audiencesOf(claims).join(',')}] roles=[${realmRolesOf(claims).join(',')}]`,
   );
   return textResult(
     {
