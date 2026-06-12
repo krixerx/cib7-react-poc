@@ -54,7 +54,7 @@
       the register of the General Traffic Department, Sultanate of Oman.
     </p>
 
-    <div class="plate"><span>${(plateNumber!"&mdash;")?html}</span></div>
+    <div class="plate"><span>${(plateNumber!"-")?html}</span></div>
 
     <h2>Vehicle</h2>
     <table>

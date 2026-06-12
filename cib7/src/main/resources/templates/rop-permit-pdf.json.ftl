@@ -39,7 +39,7 @@
       </div>
       <div class="permitno">
         Permit no.
-        <strong>${(permitNumber!"&mdash;")?html}</strong>
+        <strong>${(permitNumber!"-")?html}</strong>
       </div>
     </div>
 

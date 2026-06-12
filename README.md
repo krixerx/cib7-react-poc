@@ -69,9 +69,19 @@ Full realm in `keycloak/realm-export.json`.
 
 ## What it does
 
-Two services ship today — **Vehicle Registration** (`vehicleRegistration`)
-and **Estonian OÜ Registration** (`businessRegistration`). They share the
-same shape; the vehicle flow end to end:
+Four services ship today — **Vehicle Registration** (`vehicleRegistration`),
+**Estonian OÜ Registration** (`businessRegistration`), and the two **ROP ITS
+demo scenarios** from the Royal Oman Police Integrated Traffic System tender:
+**ROP Vehicle Registration** (`ropVehicleRegistration`, Demo Scenario 1 —
+fee-schedule preview, clearance checks, eligibility DMN, traffic-officer
+review, OMR fee payment, plate allocation, certificate PDF) and **ROP
+Driving Learning Permit** (`ropLearningPermit`, Demo Scenario 2 — flat 6 OMR
+fee, approved-optician eye-test lookup, Police Hospital weak-vision branch,
+electronic license PDF). See
+[`docs/business/services/rop-vehicle-registration/`](docs/business/services/rop-vehicle-registration/README.md)
+and
+[`docs/business/services/rop-learning-permit/`](docs/business/services/rop-learning-permit/README.md).
+The original services share the same shape; the vehicle flow end to end:
 
 ```
 Vehicle Registration (BPMN + DMN)

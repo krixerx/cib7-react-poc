@@ -3,6 +3,9 @@ package com.poc.backend.engine;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
@@ -28,6 +31,19 @@ import org.springframework.web.client.RestClient;
 @Configuration
 public class EngineClientConfig {
 
+  /**
+   * Constant principal for the client-credentials token cache. The engine client always acts as
+   * the {@code cib7-business} service account, never as the inbound caller — and the default
+   * SecurityContext-based resolver crashes with "principalName cannot be empty" when the inbound
+   * request is authenticated by the documents JWT chain (the resolved authentication carries no
+   * usable name for the authorized-client store).
+   */
+  private static final Authentication ENGINE_PRINCIPAL =
+      new AnonymousAuthenticationToken(
+          "engine-client",
+          "cib7-business-engine-client",
+          AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
+
   @Bean
   public RestClient engineRestClient(
       ClientRegistrationRepository registrations,
@@ -40,6 +56,7 @@ public class EngineClientConfig {
 
     OAuth2ClientHttpRequestInterceptor bearer = new OAuth2ClientHttpRequestInterceptor(manager);
     bearer.setClientRegistrationIdResolver(request -> "engine");
+    bearer.setPrincipalResolver(request -> ENGINE_PRINCIPAL);
 
     // RestClient.builder() (not an injected RestClient.Builder bean):
     // Boot 4 moved the client auto-configuration into the separate

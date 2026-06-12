@@ -862,6 +862,25 @@ code {
   line-height: 1.5;
 }
 
+/* Inline checkbox / radio rows used by the ROP demo-service forms
+   (rop-permit-application, rop-hospital-assessment). */
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+.field-checkbox input {
+  margin: 0;
+  flex: none;
+}
+.field-checkbox .field-label {
+  margin: 0;
+}
+.field-checkbox .field-hint {
+  margin: 0 0 0 4px;
+}
+
 /* Radio rows used by the residency picker in BusinessDetailsForm and
    anywhere else a fieldset wants a stack of label-plus-hint options. */
 .radio-row {
