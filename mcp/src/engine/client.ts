@@ -11,29 +11,29 @@
 // machinery on the next call. No refresh logic here — that is the load-
 // bearing simplicity of Model A.
 
-const ENGINE_URL = process.env.ENGINE_URL ?? 'http://cib7:8080'
+const ENGINE_URL = process.env.ENGINE_URL ?? 'http://cib7:8080';
 
 // The business microservice that owns /api/** (documents, public
 // confirmations, payments). Split out of the engine — see backend/.
-const BUSINESS_URL = process.env.BUSINESS_URL ?? 'http://backend:8085'
+const BUSINESS_URL = process.env.BUSINESS_URL ?? 'http://backend:8085';
 
 export interface EngineEnvelope<T = unknown> {
-  ok: boolean
-  status: number
-  code?: string
-  message?: string
-  retryable?: boolean
-  data?: T
+  ok: boolean;
+  status: number;
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+  data?: T;
 }
 
 export interface EngineRequestOptions {
   /** The user's Authorization header, including the "Bearer " prefix. */
-  bearer: string
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  bearer: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   /** Query params appended to the URL. */
-  query?: Record<string, string | undefined>
+  query?: Record<string, string | undefined>;
   /** Body for non-GET methods. Will be JSON-encoded. */
-  body?: unknown
+  body?: unknown;
 }
 
 /**
@@ -45,14 +45,14 @@ export async function businessRequest<T = unknown>(
   path: string,
   opts: EngineRequestOptions,
 ): Promise<EngineEnvelope<T>> {
-  return requestAgainst(BUSINESS_URL, path, opts)
+  return requestAgainst(BUSINESS_URL, path, opts);
 }
 
 export async function engineRequest<T = unknown>(
   path: string,
   opts: EngineRequestOptions,
 ): Promise<EngineEnvelope<T>> {
-  return requestAgainst(ENGINE_URL, path, opts)
+  return requestAgainst(ENGINE_URL, path, opts);
 }
 
 async function requestAgainst<T = unknown>(
@@ -65,33 +65,34 @@ async function requestAgainst<T = unknown>(
       ok: false,
       status: 401,
       code: 'no_bearer',
-      message: 'MCP tool invoked without an Authorization header. Re-authenticate via Claude Desktop.',
+      message:
+        'MCP tool invoked without an Authorization header. Re-authenticate via Claude Desktop.',
       retryable: false,
-    }
+    };
   }
 
-  const url = new URL(path, baseUrl)
+  const url = new URL(path, baseUrl);
   if (opts.query) {
     for (const [k, v] of Object.entries(opts.query)) {
-      if (v !== undefined) url.searchParams.set(k, v)
+      if (v !== undefined) url.searchParams.set(k, v);
     }
   }
 
   const headers: Record<string, string> = {
     Authorization: opts.bearer,
     Accept: 'application/json',
-  }
+  };
   if (opts.body !== undefined) {
-    headers['Content-Type'] = 'application/json'
+    headers['Content-Type'] = 'application/json';
   }
 
-  let res: Response
+  let res: Response;
   try {
     res = await fetch(url.toString(), {
       method: opts.method ?? 'GET',
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    })
+    });
   } catch (e) {
     return {
       ok: false,
@@ -99,7 +100,7 @@ async function requestAgainst<T = unknown>(
       code: 'unreachable',
       message: `Service unreachable at ${baseUrl}: ${(e as Error).message}`,
       retryable: true,
-    }
+    };
   }
 
   // Map engine HTTP responses to the standard envelope. Per the eng-review
@@ -113,7 +114,7 @@ async function requestAgainst<T = unknown>(
       message:
         'Engine rejected the Bearer token. Claude Desktop should re-authenticate against Keycloak.',
       retryable: false,
-    }
+    };
   }
   if (res.status === 403) {
     return {
@@ -123,7 +124,7 @@ async function requestAgainst<T = unknown>(
       message:
         'Engine denied access to this resource for the authenticated user. Check group memberships and BPMN candidateGroups.',
       retryable: false,
-    }
+    };
   }
   if (res.status >= 500) {
     return {
@@ -132,23 +133,23 @@ async function requestAgainst<T = unknown>(
       code: 'engine_error',
       message: `Engine returned ${res.status} ${res.statusText}`,
       retryable: true,
-    }
+    };
   }
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    const body = await res.text().catch(() => '');
     return {
       ok: false,
       status: res.status,
       code: 'engine_4xx',
       message: body || `Engine returned ${res.status} ${res.statusText}`,
       retryable: false,
-    }
+    };
   }
 
-  const data = (await res.json().catch(() => null)) as T | null
-  return { ok: true, status: res.status, data: data ?? (undefined as unknown as T) }
+  const data = (await res.json().catch(() => null)) as T | null;
+  return { ok: true, status: res.status, data: data ?? (undefined as unknown as T) };
 }
 
 export function engineBaseUrl(): string {
-  return ENGINE_URL
+  return ENGINE_URL;
 }

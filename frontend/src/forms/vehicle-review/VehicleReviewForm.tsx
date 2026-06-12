@@ -9,12 +9,7 @@ import type { FormProps } from '../types';
  *   Send back → reveals a reason textarea; completing writes decision="sendback"
  *               and sendBackReason so the owner sees why it was returned.
  */
-export default function VehicleReviewForm({
-  data,
-  onComplete,
-  submitting,
-  readOnly,
-}: FormProps) {
+export default function VehicleReviewForm({ data, onComplete, submitting, readOnly }: FormProps) {
   const [showSendBack, setShowSendBack] = useState(false);
   const [reason, setReason] = useState((data.sendBackReason as string) ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +32,7 @@ export default function VehicleReviewForm({
     });
   }
 
-  const price =
-    data.price != null && data.price !== '' ? String(data.price) : '—';
+  const price = data.price != null && data.price !== '' ? String(data.price) : '—';
   const decision = (data.decision as string) ?? null;
   const priorReason = (data.sendBackReason as string) ?? '';
 
@@ -86,8 +80,7 @@ export default function VehicleReviewForm({
 
       {!readOnly && priorReason && (
         <p className="muted">
-          Previous send-back reason (now resubmitted by the owner):{' '}
-          <em>{priorReason}</em>
+          Previous send-back reason (now resubmitted by the owner): <em>{priorReason}</em>
         </p>
       )}
 
@@ -109,11 +102,7 @@ export default function VehicleReviewForm({
 
       {!readOnly && (
         <div className="form-actions">
-          <button
-            className="btn btn-primary"
-            disabled={submitting}
-            onClick={accept}
-          >
+          <button className="btn btn-primary" disabled={submitting} onClick={accept}>
             {submitting ? 'Working…' : 'Accept'}
           </button>
           {!showSendBack ? (
@@ -127,11 +116,7 @@ export default function VehicleReviewForm({
             </button>
           ) : (
             <>
-              <button
-                className="btn btn-danger"
-                disabled={submitting}
-                onClick={sendBack}
-              >
+              <button className="btn btn-danger" disabled={submitting} onClick={sendBack}>
                 {submitting ? 'Working…' : 'Confirm send back'}
               </button>
               <button

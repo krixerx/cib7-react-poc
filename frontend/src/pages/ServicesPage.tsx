@@ -82,7 +82,7 @@ export default function ServicesPage() {
   }
 
   const pickedCategory = picked ? CATEGORIES.find((c) => c.id === picked) : null;
-  const pickedServices = picked ? byCategory.get(picked) ?? [] : [];
+  const pickedServices = picked ? (byCategory.get(picked) ?? []) : [];
 
   return (
     <div className="catalog">
@@ -96,9 +96,8 @@ export default function ServicesPage() {
               <span className="hero-accent">made simple.</span>
             </h1>
             <p className="catalog-hero-sub">
-              Start a service, sign documents, and follow every step of your
-              case in one secure portal. Fast, transparent, accessible to
-              everyone.
+              Start a service, sign documents, and follow every step of your case in one secure
+              portal. Fast, transparent, accessible to everyone.
             </p>
             {!authenticated && (
               <div className="hero-cta">
@@ -224,8 +223,7 @@ export default function ServicesPage() {
               </div>
               {!authenticated && (
                 <p className="muted">
-                  Starting a service requires an account — register or sign in from the
-                  top right.
+                  Starting a service requires an account — register or sign in from the top right.
                 </p>
               )}
               {pickedServices.length === 0 ? (
@@ -343,14 +341,7 @@ function HeroIllustration() {
 
       {/* small progress stepper on a chip card, echoing the case stepper */}
       <g className="hero-float-slow">
-        <rect
-          x="44"
-          y="156"
-          width="118"
-          height="40"
-          rx="20"
-          fill="rgba(255,255,255,0.95)"
-        />
+        <rect x="44" y="156" width="118" height="40" rx="20" fill="rgba(255,255,255,0.95)" />
         <circle cx="70" cy="176" r="8" fill="#005c4c" />
         <path
           d="M66.5 176 l2.6 2.6 l4.6 -5.2"
@@ -385,4 +376,3 @@ function HeroIllustration() {
     </svg>
   );
 }
-

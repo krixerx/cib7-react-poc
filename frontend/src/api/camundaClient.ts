@@ -169,10 +169,10 @@ export function listIncidents(processDefinitionId?: string): Promise<Incident[]>
 }
 
 /** Returns the number of active process instances for a service. */
-export function countActiveProcessInstances(processDefinitionId: string): Promise<{ count: number }> {
-  return request(
-    `/process-instance/count?processDefinitionId=${processDefinitionId}&active=true`,
-  );
+export function countActiveProcessInstances(
+  processDefinitionId: string,
+): Promise<{ count: number }> {
+  return request(`/process-instance/count?processDefinitionId=${processDefinitionId}&active=true`);
 }
 
 /**
@@ -338,9 +338,7 @@ export async function getHistoricVariable(
     variableName,
     deserializeValues: 'false',
   });
-  const items: HistoricVariableInstance[] = await request(
-    `/history/variable-instance?${qs}`,
-  );
+  const items: HistoricVariableInstance[] = await request(`/history/variable-instance?${qs}`);
   return items[0] ?? null;
 }
 
@@ -392,9 +390,7 @@ export function listActivityInstances(
  * tag list rows with their wait state ("Waiting: state fee payment")
  * without a per-row fan-out.
  */
-export function listUnfinishedReceiveTasks(
-  maxResults = 500,
-): Promise<HistoricActivityInstance[]> {
+export function listUnfinishedReceiveTasks(maxResults = 500): Promise<HistoricActivityInstance[]> {
   const qs = new URLSearchParams({
     unfinished: 'true',
     activityType: 'receiveTask',
@@ -442,9 +438,7 @@ export function listVariableUpdates(
  * Powers the civil-servant worklist on the redesigned Tasks page; pair with
  * variable + task lookups to build a `WorklistRow` per instance.
  */
-export function listRecentProcessInstances(
-  maxResults = 100,
-): Promise<HistoricProcessInstance[]> {
+export function listRecentProcessInstances(maxResults = 100): Promise<HistoricProcessInstance[]> {
   const qs = new URLSearchParams({
     sortBy: 'startTime',
     sortOrder: 'desc',
@@ -516,10 +510,7 @@ export interface WorklistRow {
  * forward-compatible: a future BPMN that adds an EndEvent_Rejected (or
  * similar) gets correctly tagged without any code change.
  */
-function statusFor(
-  pi: HistoricProcessInstance,
-  hasIncidents: boolean,
-): WorklistRow['status'] {
+function statusFor(pi: HistoricProcessInstance, hasIncidents: boolean): WorklistRow['status'] {
   if (pi.endTime === null) return hasIncidents ? 'incident' : 'pending';
   if (pi.endActivityId && /reject/i.test(pi.endActivityId)) return 'rejected';
   return 'confirmed';
@@ -602,7 +593,7 @@ export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
         endTime: pi.endTime,
         status: statusFor(pi, incidents.length > 0),
         currentTask,
-        waitingOn: isActive && !currentTask ? waitByPI.get(pi.id) ?? null : null,
+        waitingOn: isActive && !currentTask ? (waitByPI.get(pi.id) ?? null) : null,
         incidents,
       };
     }),

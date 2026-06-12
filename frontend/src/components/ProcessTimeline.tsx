@@ -78,10 +78,7 @@ function buildRows(
   decisions: VariableUpdate[],
 ): TimelineRow[] {
   const interesting = activities.filter(
-    (a) =>
-      DISPLAY_TYPES.has(a.activityType) &&
-      !!a.activityName &&
-      !a.activityId.includes('#'),
+    (a) => DISPLAY_TYPES.has(a.activityType) && !!a.activityName && !a.activityId.includes('#'),
   );
 
   const rows: TimelineRow[] = [];
@@ -199,10 +196,12 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
 
       {state && state.paymentDue && (
         <div className="pay-alert">
-          <span className="pay-alert-icon" aria-hidden="true">💳</span>
+          <span className="pay-alert-icon" aria-hidden="true">
+            💳
+          </span>
           <span className="pay-alert-body">
-            <strong>State fee payment required.</strong> The case stays parked
-            until the fee is paid.
+            <strong>State fee payment required.</strong> The case stays parked until the fee is
+            paid.
           </span>
           <a
             className="btn btn-primary pay-alert-btn"
@@ -317,7 +316,17 @@ function Stepper({ state }: { state: LoadedState }) {
 
 function CheckIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="white"
+      strokeWidth={3.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M5 12l5 5L20 7" />
     </svg>
   );

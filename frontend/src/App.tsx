@@ -99,9 +99,7 @@ export default function App() {
               </NavLink>
               <NavLink to="/my-processes">
                 My processes
-                {myProcessCount !== null && (
-                  <span className="nav-badge">{myProcessCount}</span>
-                )}
+                {myProcessCount !== null && <span className="nav-badge">{myProcessCount}</span>}
               </NavLink>
             </>
           )}

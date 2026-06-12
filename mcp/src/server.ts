@@ -17,19 +17,16 @@
 // docs/business/services/<id>/build/, hand-written for T9 and regenerated
 // by /service-builder in T14.
 
-import { AsyncLocalStorage } from 'node:async_hooks'
-import express, { type Request, type Response, type NextFunction } from 'express'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js'
-import { engineRequest, businessRequest, engineBaseUrl } from './engine/client.js'
-import { toCamundaVariables, type JsonSchema } from './engine/variables.js'
-import { decodeBearerUsername } from './auth/identity.js'
-import { verifyBearer } from './auth/verify.js'
-import { adminRequest } from './keycloak/admin.js'
+import { AsyncLocalStorage } from 'node:async_hooks';
+import express, { type Request, type Response, type NextFunction } from 'express';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { engineRequest, businessRequest, engineBaseUrl } from './engine/client.js';
+import { toCamundaVariables, type JsonSchema } from './engine/variables.js';
+import { decodeBearerUsername } from './auth/identity.js';
+import { verifyBearer } from './auth/verify.js';
+import { adminRequest } from './keycloak/admin.js';
 import {
   findServiceByFormKey,
   getManifest,
@@ -37,15 +34,13 @@ import {
   loadManifests,
   validateTaskVariables,
   validateVariables,
-} from './services/manifest.js'
+} from './services/manifest.js';
 
-const PORT = Number(process.env.PORT ?? 8090)
-const RESOURCE_URL = process.env.MCP_RESOURCE_URL ?? 'http://localhost:3000/mcp'
-const KEYCLOAK_ISSUER =
-  process.env.KEYCLOAK_ISSUER_URL ?? 'http://localhost:8180/realms/cib7-poc'
-const APPLICANT_PORTAL_URL =
-  process.env.MCP_APPLICANT_PORTAL_URL ?? 'http://localhost:3000'
-const MAILPIT_URL = process.env.MCP_MAILPIT_URL ?? 'http://localhost:8025'
+const PORT = Number(process.env.PORT ?? 8090);
+const RESOURCE_URL = process.env.MCP_RESOURCE_URL ?? 'http://localhost:3000/mcp';
+const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER_URL ?? 'http://localhost:8180/realms/cib7-poc';
+const APPLICANT_PORTAL_URL = process.env.MCP_APPLICANT_PORTAL_URL ?? 'http://localhost:3000';
+const MAILPIT_URL = process.env.MCP_MAILPIT_URL ?? 'http://localhost:8025';
 
 // Pre-built deep-link to Keycloak's hosted registration form for the
 // cib7-frontend client. We use the SPA's client because registration must
@@ -58,7 +53,7 @@ const REGISTRATION_URL =
   `?client_id=cib7-frontend` +
   `&response_type=code` +
   `&scope=openid` +
-  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`
+  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`;
 
 // Password-reset uses the same hosted-page deep-link pattern via the
 // kc_action=reset_credentials parameter on the standard auth endpoint.
@@ -68,7 +63,7 @@ const PASSWORD_RESET_URL =
   `&response_type=code` +
   `&scope=openid` +
   `&kc_action=reset_credentials` +
-  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`
+  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`;
 
 const SERVER_INSTRUCTIONS = [
   'This MCP server drives Estonian e-government processes (business registration,',
@@ -103,19 +98,19 @@ const SERVER_INSTRUCTIONS = [
   '',
   'WHEN THE USER ASKS WHAT THEY CAN DO HERE: start with `list_services`.',
   'WHEN STARTING ANY UNFAMILIAR SERVICE: call `describe_service` first.',
-].join('\n')
+].join('\n');
 
 interface RequestContext {
-  bearer: string
+  bearer: string;
 }
-const requestStorage = new AsyncLocalStorage<RequestContext>()
+const requestStorage = new AsyncLocalStorage<RequestContext>();
 
 function currentBearer(): string {
-  return requestStorage.getStore()?.bearer ?? ''
+  return requestStorage.getStore()?.bearer ?? '';
 }
 
 function currentUsername(): string {
-  return decodeBearerUsername(currentBearer())
+  return decodeBearerUsername(currentBearer());
 }
 
 // -------------------------------------------------------------------------
@@ -123,50 +118,50 @@ function currentUsername(): string {
 // -------------------------------------------------------------------------
 
 interface ProcessDefinition {
-  id: string
-  key: string
-  name?: string
-  version: number
-  description?: string
+  id: string;
+  key: string;
+  name?: string;
+  version: number;
+  description?: string;
 }
 
 interface StartProcessResponse {
-  id: string
-  definitionId: string
-  businessKey: string | null
-  caseInstanceId: string | null
-  ended: boolean
-  suspended: boolean
+  id: string;
+  definitionId: string;
+  businessKey: string | null;
+  caseInstanceId: string | null;
+  ended: boolean;
+  suspended: boolean;
 }
 
 interface EngineTask {
-  id: string
-  name?: string
-  assignee?: string | null
-  created: string
-  processInstanceId: string
-  processDefinitionId: string
-  formKey?: string
-  taskDefinitionKey?: string
+  id: string;
+  name?: string;
+  assignee?: string | null;
+  created: string;
+  processInstanceId: string;
+  processDefinitionId: string;
+  formKey?: string;
+  taskDefinitionKey?: string;
 }
 
 interface HistoricProcessInstance {
-  id: string
-  processDefinitionKey: string
-  processDefinitionName?: string
-  startTime: string
-  endTime?: string | null
-  state: string
-  startUserId?: string
+  id: string;
+  processDefinitionKey: string;
+  processDefinitionName?: string;
+  startTime: string;
+  endTime?: string | null;
+  state: string;
+  startUserId?: string;
 }
 
 interface HistoricVariableInstance {
-  id: string
-  name: string
-  value: unknown
-  type: string
-  processInstanceId: string
-  createTime?: string
+  id: string;
+  name: string;
+  value: unknown;
+  type: string;
+  processInstanceId: string;
+  createTime?: string;
 }
 
 // -------------------------------------------------------------------------
@@ -175,23 +170,23 @@ interface HistoricVariableInstance {
 
 interface ToolResult {
   // Index signature keeps this assignable to the MCP SDK's ServerResult union.
-  [key: string]: unknown
-  content: { type: 'text'; text: string }[]
-  isError?: boolean
+  [key: string]: unknown;
+  content: { type: 'text'; text: string }[];
+  isError?: boolean;
 }
 
 function textResult(payload: unknown, isError = false): ToolResult {
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
     ...(isError ? { isError: true } : {}),
-  }
+  };
 }
 
 function engineErrorResult(result: {
-  status: number
-  code?: string
-  message?: string
-  retryable?: boolean
+  status: number;
+  code?: string;
+  message?: string;
+  retryable?: boolean;
 }): ToolResult {
   return textResult(
     {
@@ -202,12 +197,12 @@ function engineErrorResult(result: {
       retryable: result.retryable,
     },
     true,
-  )
+  );
 }
 
 function stripFormKeyPrefix(formKey?: string): string | undefined {
-  if (!formKey) return undefined
-  return formKey.replace(/^react:/, '')
+  if (!formKey) return undefined;
+  return formKey.replace(/^react:/, '');
 }
 
 // -------------------------------------------------------------------------
@@ -215,14 +210,14 @@ function stripFormKeyPrefix(formKey?: string): string | undefined {
 // -------------------------------------------------------------------------
 
 async function handleListServices(): Promise<ToolResult> {
-  const result = await engineRequest<ProcessDefinition[]>(
-    '/engine-rest/process-definition',
-    { bearer: currentBearer(), query: { latestVersion: 'true' } },
-  )
-  if (!result.ok) return engineErrorResult(result)
+  const result = await engineRequest<ProcessDefinition[]>('/engine-rest/process-definition', {
+    bearer: currentBearer(),
+    query: { latestVersion: 'true' },
+  });
+  if (!result.ok) return engineErrorResult(result);
 
   const services = (result.data ?? []).map((d) => {
-    const manifest = getManifest(d.key)?.manifest
+    const manifest = getManifest(d.key)?.manifest;
     return {
       key: d.key,
       engineName: d.name ?? d.key,
@@ -230,23 +225,23 @@ async function handleListServices(): Promise<ToolResult> {
       description: manifest?.description ?? d.description,
       audience: manifest?.audience,
       mcpCallable: Boolean(manifest),
-    }
-  })
+    };
+  });
 
-  return textResult({ ok: true, services })
+  return textResult({ ok: true, services });
 }
 
 async function handleDescribeService(args: unknown): Promise<ToolResult> {
-  const key = (args as { key?: string })?.key
+  const key = (args as { key?: string })?.key;
   if (typeof key !== 'string' || !key) {
     return textResult(
       { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "key" is required.' },
       true,
-    )
+    );
   }
-  const entry = getManifest(key)
+  const entry = getManifest(key);
   if (!entry) {
-    const available = listManifests().map((e) => e.manifest.key)
+    const available = listManifests().map((e) => e.manifest.key);
     return textResult(
       {
         ok: false,
@@ -254,22 +249,22 @@ async function handleDescribeService(args: unknown): Promise<ToolResult> {
         message: `No manifest found for service "${key}". MCP-callable services: ${available.join(', ') || '(none)'}.`,
       },
       true,
-    )
+    );
   }
   return textResult({
     ok: true,
     manifest: entry.manifest,
     training: entry.trainingMd,
-  })
+  });
 }
 
 async function handleStartProcess(args: unknown): Promise<ToolResult> {
-  const a = (args ?? {}) as { key?: string; variables?: Record<string, unknown> }
+  const a = (args ?? {}) as { key?: string; variables?: Record<string, unknown> };
   if (typeof a.key !== 'string' || !a.key) {
     return textResult(
       { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "key" is required.' },
       true,
-    )
+    );
   }
   if (a.variables === undefined || a.variables === null || typeof a.variables !== 'object') {
     return textResult(
@@ -279,10 +274,10 @@ async function handleStartProcess(args: unknown): Promise<ToolResult> {
         message: 'Tool argument "variables" is required and must be an object.',
       },
       true,
-    )
+    );
   }
 
-  const validated = validateVariables(a.key, a.variables)
+  const validated = validateVariables(a.key, a.variables);
   if (!validated.ok) {
     return textResult(
       {
@@ -292,11 +287,11 @@ async function handleStartProcess(args: unknown): Promise<ToolResult> {
         issues: validated.issues,
       },
       true,
-    )
+    );
   }
 
-  const entry = getManifest(a.key)!
-  const camundaVars = toCamundaVariables(validated.data, entry.manifest.variables as JsonSchema)
+  const entry = getManifest(a.key)!;
+  const camundaVars = toCamundaVariables(validated.data, entry.manifest.variables as JsonSchema);
 
   const result = await engineRequest<StartProcessResponse>(
     `/engine-rest/process-definition/key/${encodeURIComponent(a.key)}/start`,
@@ -305,9 +300,9 @@ async function handleStartProcess(args: unknown): Promise<ToolResult> {
       method: 'POST',
       body: { variables: camundaVars },
     },
-  )
+  );
 
-  if (!result.ok) return engineErrorResult(result)
+  if (!result.ok) return engineErrorResult(result);
 
   return textResult({
     ok: true,
@@ -318,16 +313,20 @@ async function handleStartProcess(args: unknown): Promise<ToolResult> {
     nextStep:
       entry.manifest.initialTask?.name ??
       'Check status with list_my_processes; the first user task will appear shortly.',
-  })
+  });
 }
 
 async function handleListMyTasks(): Promise<ToolResult> {
-  const me = currentUsername()
+  const me = currentUsername();
   if (!me) {
     return textResult(
-      { ok: false, code: 'INVALID_TOKEN', message: 'Could not decode preferred_username from the Bearer token.' },
+      {
+        ok: false,
+        code: 'INVALID_TOKEN',
+        message: 'Could not decode preferred_username from the Bearer token.',
+      },
       true,
-    )
+    );
   }
 
   // Two queries because /engine-rest/task doesn't combine cleanly with OR:
@@ -345,22 +344,20 @@ async function handleListMyTasks(): Promise<ToolResult> {
       bearer: currentBearer(),
       query: { candidateUser: me, unassigned: 'true' },
     }),
-  ])
-  if (!assigned.ok) return engineErrorResult(assigned)
-  if (!candidate.ok) return engineErrorResult(candidate)
+  ]);
+  if (!assigned.ok) return engineErrorResult(assigned);
+  if (!candidate.ok) return engineErrorResult(candidate);
 
-  const seen = new Set<string>()
-  const merged = [...(assigned.data ?? []), ...(candidate.data ?? [])].filter(
-    (t) => {
-      if (seen.has(t.id)) return false
-      seen.add(t.id)
-      return true
-    },
-  )
+  const seen = new Set<string>();
+  const merged = [...(assigned.data ?? []), ...(candidate.data ?? [])].filter((t) => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
 
   const tasks = merged.map((t) => {
-    const formKey = stripFormKeyPrefix(t.formKey)
-    const hit = formKey ? findServiceByFormKey(formKey) : undefined
+    const formKey = stripFormKeyPrefix(t.formKey);
+    const hit = formKey ? findServiceByFormKey(formKey) : undefined;
     return {
       id: t.id,
       name: t.name,
@@ -372,28 +369,28 @@ async function handleListMyTasks(): Promise<ToolResult> {
       service: hit?.serviceKey,
       audience: hit?.task.descriptor.audience,
       action: t.assignee === me ? 'complete' : 'claim_then_complete',
-    }
-  })
+    };
+  });
 
-  return textResult({ ok: true, count: tasks.length, tasks })
+  return textResult({ ok: true, count: tasks.length, tasks });
 }
 
 async function handleGetFormSchema(args: unknown): Promise<ToolResult> {
-  const taskId = (args as { taskId?: string })?.taskId
+  const taskId = (args as { taskId?: string })?.taskId;
   if (typeof taskId !== 'string' || !taskId) {
     return textResult(
       { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "taskId" is required.' },
       true,
-    )
+    );
   }
 
   const taskResult = await engineRequest<EngineTask>(
     `/engine-rest/task/${encodeURIComponent(taskId)}`,
     { bearer: currentBearer() },
-  )
-  if (!taskResult.ok) return engineErrorResult(taskResult)
+  );
+  if (!taskResult.ok) return engineErrorResult(taskResult);
 
-  const formKey = stripFormKeyPrefix(taskResult.data?.formKey)
+  const formKey = stripFormKeyPrefix(taskResult.data?.formKey);
   if (!formKey) {
     return textResult(
       {
@@ -402,10 +399,10 @@ async function handleGetFormSchema(args: unknown): Promise<ToolResult> {
         message: 'Task has no formKey — it may be a system task or a free-form task.',
       },
       true,
-    )
+    );
   }
 
-  const hit = findServiceByFormKey(formKey)
+  const hit = findServiceByFormKey(formKey);
   if (!hit) {
     return textResult(
       {
@@ -414,7 +411,7 @@ async function handleGetFormSchema(args: unknown): Promise<ToolResult> {
         message: `Task formKey "${formKey}" has no manifest entry. The service is either not MCP-callable yet or the user task is missing a userTasks entry.`,
       },
       true,
-    )
+    );
   }
 
   return textResult({
@@ -427,19 +424,19 @@ async function handleGetFormSchema(args: unknown): Promise<ToolResult> {
     description: hit.task.descriptor.description,
     schema: hit.task.descriptor.schema,
     requiredDocuments: hit.task.descriptor.requiredDocuments ?? [],
-  })
+  });
 }
 
 async function handleUploadDocument(args: unknown): Promise<ToolResult> {
   const a = (args ?? {}) as {
-    category?: string
-    filename?: string
-    contentType?: string
-    base64?: string
-  }
+    category?: string;
+    filename?: string;
+    contentType?: string;
+    base64?: string;
+  };
   const missing = (['category', 'filename', 'contentType', 'base64'] as const).filter(
     (k) => !a[k] || typeof a[k] !== 'string' || !(a[k] as string).trim(),
-  )
+  );
   if (missing.length > 0) {
     return textResult(
       {
@@ -448,14 +445,14 @@ async function handleUploadDocument(args: unknown): Promise<ToolResult> {
         message: `Missing required fields: ${missing.join(', ')}.`,
       },
       true,
-    )
+    );
   }
 
   // /api/documents moved from the engine into the backend business service.
   const result = await businessRequest<{
-    pendingKey: string
-    filename: string
-    contentType: string
+    pendingKey: string;
+    filename: string;
+    contentType: string;
   }>('/api/documents/stage', {
     bearer: currentBearer(),
     method: 'POST',
@@ -465,8 +462,8 @@ async function handleUploadDocument(args: unknown): Promise<ToolResult> {
       contentType: a.contentType,
       base64: a.base64,
     },
-  })
-  if (!result.ok) return engineErrorResult(result)
+  });
+  if (!result.ok) return engineErrorResult(result);
 
   return textResult({
     ok: true,
@@ -474,17 +471,17 @@ async function handleUploadDocument(args: unknown): Promise<ToolResult> {
     filename: result.data?.filename,
     contentType: result.data?.contentType,
     nextStep:
-      'Pass this whole object verbatim as `pendingIdDocument` (or whatever `writeTo` field the task\'s requiredDocuments entry names) when you call complete_task.',
-  })
+      "Pass this whole object verbatim as `pendingIdDocument` (or whatever `writeTo` field the task's requiredDocuments entry names) when you call complete_task.",
+  });
 }
 
 async function handleCompleteTask(args: unknown): Promise<ToolResult> {
-  const a = (args ?? {}) as { taskId?: string; variables?: Record<string, unknown> }
+  const a = (args ?? {}) as { taskId?: string; variables?: Record<string, unknown> };
   if (typeof a.taskId !== 'string' || !a.taskId) {
     return textResult(
       { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "taskId" is required.' },
       true,
-    )
+    );
   }
   if (a.variables === undefined || a.variables === null || typeof a.variables !== 'object') {
     return textResult(
@@ -494,16 +491,16 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
         message: 'Tool argument "variables" is required and must be an object.',
       },
       true,
-    )
+    );
   }
 
   const taskResult = await engineRequest<EngineTask>(
     `/engine-rest/task/${encodeURIComponent(a.taskId)}`,
     { bearer: currentBearer() },
-  )
-  if (!taskResult.ok) return engineErrorResult(taskResult)
+  );
+  if (!taskResult.ok) return engineErrorResult(taskResult);
 
-  const formKey = stripFormKeyPrefix(taskResult.data?.formKey)
+  const formKey = stripFormKeyPrefix(taskResult.data?.formKey);
   if (!formKey) {
     return textResult(
       {
@@ -512,7 +509,7 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
         message: 'Task has no formKey — cannot validate variables against a schema.',
       },
       true,
-    )
+    );
   }
 
   // Backfill BPMN-required reset variables that the React form always writes
@@ -523,12 +520,12 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
   //   `additionalOwners == null || additionalOwners.elements().isEmpty()`,
   //   which throws PropertyNotFoundException if the variable is missing
   //   entirely. Default to [] so the empty-owners branch is taken.
-  const withDefaults = { ...a.variables } as Record<string, unknown>
+  const withDefaults = { ...a.variables } as Record<string, unknown>;
   if (formKey === 'personal-details' && withDefaults['additionalOwners'] === undefined) {
-    withDefaults['additionalOwners'] = []
+    withDefaults['additionalOwners'] = [];
   }
 
-  const validated = validateTaskVariables(formKey, withDefaults)
+  const validated = validateTaskVariables(formKey, withDefaults);
   if (!validated.ok) {
     return textResult(
       {
@@ -538,20 +535,20 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
         issues: validated.issues,
       },
       true,
-    )
+    );
   }
 
   // Cross-check required documents against the variables, ahead of any
   // engine call. The schema may already require the `writeTo` field, but
   // returning a document-shaped error here gives the LLM an explicit
   // pointer at upload_document instead of a generic schema failure.
-  const docs = validated.task.descriptor.requiredDocuments ?? []
+  const docs = validated.task.descriptor.requiredDocuments ?? [];
   const missingDocs = docs.filter((d) => {
-    const v = (validated.data as Record<string, unknown>)[d.writeTo]
-    if (!v || typeof v !== 'object') return true
-    const pendingKey = (v as { pendingKey?: unknown }).pendingKey
-    return typeof pendingKey !== 'string' || !pendingKey
-  })
+    const v = (validated.data as Record<string, unknown>)[d.writeTo];
+    if (!v || typeof v !== 'object') return true;
+    const pendingKey = (v as { pendingKey?: unknown }).pendingKey;
+    return typeof pendingKey !== 'string' || !pendingKey;
+  });
   if (missingDocs.length > 0) {
     return textResult(
       {
@@ -563,21 +560,21 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
         missingDocuments: missingDocs,
       },
       true,
-    )
+    );
   }
 
   const camundaVars = toCamundaVariables(
     validated.data,
     validated.task.descriptor.schema as JsonSchema,
-  )
+  );
 
   // Auto-claim unassigned candidate-group tasks. The engine refuses
   // `complete` on a task without an assignee even if the caller is in a
   // candidate group; the canonical flow is claim-then-complete. We hide
   // that two-step from the LLM so it can call complete_task uniformly.
-  const me = currentUsername()
-  const currentAssignee = taskResult.data?.assignee ?? null
-  let claimed = false
+  const me = currentUsername();
+  const currentAssignee = taskResult.data?.assignee ?? null;
+  let claimed = false;
   if (!currentAssignee && me) {
     const claim = await engineRequest<unknown>(
       `/engine-rest/task/${encodeURIComponent(a.taskId)}/claim`,
@@ -586,9 +583,9 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
         method: 'POST',
         body: { userId: me },
       },
-    )
-    if (!claim.ok) return engineErrorResult(claim)
-    claimed = true
+    );
+    if (!claim.ok) return engineErrorResult(claim);
+    claimed = true;
   }
 
   const completeResult = await engineRequest<unknown>(
@@ -598,8 +595,8 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
       method: 'POST',
       body: { variables: camundaVars },
     },
-  )
-  if (!completeResult.ok) return engineErrorResult(completeResult)
+  );
+  if (!completeResult.ok) return engineErrorResult(completeResult);
 
   return textResult({
     ok: true,
@@ -607,31 +604,35 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
     service: validated.serviceKey,
     formKey,
     claimed,
-  })
+  });
 }
 
 async function handleListMyProcesses(args: unknown): Promise<ToolResult> {
-  const a = (args ?? {}) as { processInstanceId?: string }
-  const me = currentUsername()
+  const a = (args ?? {}) as { processInstanceId?: string };
+  const me = currentUsername();
   if (!me) {
     return textResult(
-      { ok: false, code: 'INVALID_TOKEN', message: 'Could not decode preferred_username from the Bearer token.' },
+      {
+        ok: false,
+        code: 'INVALID_TOKEN',
+        message: 'Could not decode preferred_username from the Bearer token.',
+      },
       true,
-    )
+    );
   }
 
   const query: Record<string, string> = {
     startedBy: me,
     sortBy: 'startTime',
     sortOrder: 'desc',
-  }
-  if (a.processInstanceId) query.processInstanceId = a.processInstanceId
+  };
+  if (a.processInstanceId) query.processInstanceId = a.processInstanceId;
 
   const result = await engineRequest<HistoricProcessInstance[]>(
     '/engine-rest/history/process-instance',
     { bearer: currentBearer(), query },
-  )
-  if (!result.ok) return engineErrorResult(result)
+  );
+  if (!result.ok) return engineErrorResult(result);
 
   const processes = (result.data ?? []).map((p) => ({
     id: p.id,
@@ -640,13 +641,13 @@ async function handleListMyProcesses(args: unknown): Promise<ToolResult> {
     startTime: p.startTime,
     endTime: p.endTime,
     state: p.state,
-  }))
+  }));
 
-  return textResult({ ok: true, count: processes.length, processes })
+  return textResult({ ok: true, count: processes.length, processes });
 }
 
 async function handleQueryUserHistory(args: unknown): Promise<ToolResult> {
-  const variableName = (args as { variableName?: string })?.variableName
+  const variableName = (args as { variableName?: string })?.variableName;
   if (typeof variableName !== 'string' || !variableName) {
     return textResult(
       {
@@ -655,14 +656,18 @@ async function handleQueryUserHistory(args: unknown): Promise<ToolResult> {
         message: 'Tool argument "variableName" is required.',
       },
       true,
-    )
+    );
   }
-  const me = currentUsername()
+  const me = currentUsername();
   if (!me) {
     return textResult(
-      { ok: false, code: 'INVALID_TOKEN', message: 'Could not decode preferred_username from the Bearer token.' },
+      {
+        ok: false,
+        code: 'INVALID_TOKEN',
+        message: 'Could not decode preferred_username from the Bearer token.',
+      },
       true,
-    )
+    );
   }
 
   const instances = await engineRequest<HistoricProcessInstance[]>(
@@ -671,12 +676,12 @@ async function handleQueryUserHistory(args: unknown): Promise<ToolResult> {
       bearer: currentBearer(),
       query: { startedBy: me, sortBy: 'startTime', sortOrder: 'desc' },
     },
-  )
-  if (!instances.ok) return engineErrorResult(instances)
+  );
+  if (!instances.ok) return engineErrorResult(instances);
 
-  const ids = (instances.data ?? []).map((i) => i.id)
+  const ids = (instances.data ?? []).map((i) => i.id);
   if (ids.length === 0) {
-    return textResult({ ok: true, variableName, found: false })
+    return textResult({ ok: true, variableName, found: false });
   }
 
   const vars = await engineRequest<HistoricVariableInstance[]>(
@@ -688,24 +693,24 @@ async function handleQueryUserHistory(args: unknown): Promise<ToolResult> {
         variableName,
       },
     },
-  )
-  if (!vars.ok) return engineErrorResult(vars)
+  );
+  if (!vars.ok) return engineErrorResult(vars);
 
   // The engine doesn't sort variable-instance results by createTime by
   // default; pick the most recent by joining against the instance order
   // we already have.
-  const instanceOrder = new Map<string, number>()
-  ;(instances.data ?? []).forEach((i, idx) => instanceOrder.set(i.id, idx))
+  const instanceOrder = new Map<string, number>();
+  (instances.data ?? []).forEach((i, idx) => instanceOrder.set(i.id, idx));
 
   const sorted = (vars.data ?? []).slice().sort((a, b) => {
-    const ai = instanceOrder.get(a.processInstanceId) ?? Number.MAX_SAFE_INTEGER
-    const bi = instanceOrder.get(b.processInstanceId) ?? Number.MAX_SAFE_INTEGER
-    return ai - bi
-  })
+    const ai = instanceOrder.get(a.processInstanceId) ?? Number.MAX_SAFE_INTEGER;
+    const bi = instanceOrder.get(b.processInstanceId) ?? Number.MAX_SAFE_INTEGER;
+    return ai - bi;
+  });
 
-  const mostRecent = sorted[0]
+  const mostRecent = sorted[0];
   if (!mostRecent) {
-    return textResult({ ok: true, variableName, found: false })
+    return textResult({ ok: true, variableName, found: false });
   }
 
   return textResult({
@@ -715,7 +720,7 @@ async function handleQueryUserHistory(args: unknown): Promise<ToolResult> {
     value: mostRecent.value,
     type: mostRecent.type,
     sourceProcessInstanceId: mostRecent.processInstanceId,
-  })
+  });
 }
 
 function handleGetSignupUrl(): ToolResult {
@@ -730,20 +735,20 @@ function handleGetSignupUrl(): ToolResult {
       'Click the verification link in that email — you are now signed in to the applicant portal.',
       'Return to this chat and let me know; the next tool call will pick up your new session automatically.',
     ],
-    note: 'This server did not create an account. The URL points the user at Keycloak\'s hosted sign-up page where the user fills the form themselves.',
-  })
+    note: "This server did not create an account. The URL points the user at Keycloak's hosted sign-up page where the user fills the form themselves.",
+  });
 }
 
 async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
   const a = (args ?? {}) as {
-    username?: string
-    email?: string
-    firstName?: string
-    lastName?: string
-  }
+    username?: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+  };
   const missing = (['username', 'email', 'firstName', 'lastName'] as const).filter(
     (k) => !a[k] || typeof a[k] !== 'string' || !(a[k] as string).trim(),
-  )
+  );
   if (missing.length > 0) {
     return textResult(
       {
@@ -752,12 +757,12 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
         message: `Missing required fields: ${missing.join(', ')}. Ask the user for these; never ask for a password.`,
       },
       true,
-    )
+    );
   }
-  const username = (a.username as string).trim()
-  const email = (a.email as string).trim()
-  const firstName = (a.firstName as string).trim()
-  const lastName = (a.lastName as string).trim()
+  const username = (a.username as string).trim();
+  const email = (a.email as string).trim();
+  const firstName = (a.firstName as string).trim();
+  const lastName = (a.lastName as string).trim();
 
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return textResult(
@@ -767,7 +772,7 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
         message: `email "${email}" does not look like a valid email address. Ask the user to confirm it.`,
       },
       true,
-    )
+    );
   }
   if (/[\s/\\@]/.test(username)) {
     return textResult(
@@ -777,7 +782,7 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
         message: `username "${username}" contains spaces or invalid characters. Ask the user for a simple login id like "lisa" or "jdoe".`,
       },
       true,
-    )
+    );
   }
 
   // Step 1: create the user. requiredActions force the magic-link flow on
@@ -794,7 +799,7 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
       emailVerified: false,
       requiredActions: ['UPDATE_PASSWORD', 'VERIFY_EMAIL'],
     },
-  })
+  });
   if (!create.ok) {
     if (create.status === 409) {
       return textResult(
@@ -804,7 +809,7 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
           message: `A user with the same username or email already exists. Tell the invitee to use the existing account or pick a different username/email.`,
         },
         true,
-      )
+      );
     }
     return textResult(
       {
@@ -813,19 +818,18 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
         message: `Keycloak rejected the user creation: ${create.message ?? create.status}.`,
       },
       true,
-    )
+    );
   }
-  const userId = create.locationId
+  const userId = create.locationId;
   if (!userId) {
     return textResult(
       {
         ok: false,
         code: 'KEYCLOAK_ERROR',
-        message:
-          'Keycloak created the user but did not return a user id in the Location header.',
+        message: 'Keycloak created the user but did not return a user id in the Location header.',
       },
       true,
-    )
+    );
   }
 
   // Step 2: send the magic-link email that walks the user through password
@@ -838,7 +842,7 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
       redirect_uri: APPLICANT_PORTAL_URL + '/',
     },
     body: ['UPDATE_PASSWORD', 'VERIFY_EMAIL'],
-  })
+  });
   if (!send.ok) {
     return textResult(
       {
@@ -848,7 +852,7 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
         userId,
       },
       true,
-    )
+    );
   }
 
   return textResult({
@@ -865,8 +869,8 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
       'Email is automatically marked verified once you complete this flow.',
       'You land on the applicant portal, already signed in.',
     ],
-    note: 'This server never accepts or stores passwords. The invitee sets their own password in Keycloak\'s hosted form.',
-  })
+    note: "This server never accepts or stores passwords. The invitee sets their own password in Keycloak's hosted form.",
+  });
 }
 
 function handleGetPasswordResetUrl(): ToolResult {
@@ -881,15 +885,15 @@ function handleGetPasswordResetUrl(): ToolResult {
       'Set a new password (twice), submit — you are signed in with the new password.',
       'Return to this chat; the next tool call will pick up the fresh session.',
     ],
-    note: 'This server did not change any password. The URL points the user at Keycloak\'s hosted reset page where the user resets the password themselves.',
-  })
+    note: "This server did not change any password. The URL points the user at Keycloak's hosted reset page where the user resets the password themselves.",
+  });
 }
 
 // -------------------------------------------------------------------------
 // MCP server wiring
 // -------------------------------------------------------------------------
 
-loadManifests()
+loadManifests();
 
 // Stateless mode: build a fresh Server + Transport per HTTP request.
 // Sharing a single Server across requests breaks the MCP lifecycle — the
@@ -900,216 +904,220 @@ function createMcpServer(): Server {
   const mcp = new Server(
     { name: 'cib7-mcp', version: '0.1.0' },
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
-  )
+  );
 
   mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [
-    {
-      name: 'list_services',
-      description:
-        'List the CIB seven process definitions deployed on this instance, latest version of each, decorated with which entries are MCP-callable. Use this first when the user asks "what can I do here?".',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    },
-    {
-      name: 'describe_service',
-      description:
-        'Get the full per-service manifest and LLM training markdown for one service key. Returns the JSON Schema for start-time variables plus prose guidance you should read before asking the user clarifying questions. Call this before start_process for any unfamiliar service.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          key: { type: 'string', description: 'Service key, e.g. "vehicleRegistration".' },
-        },
-        required: ['key'],
-        additionalProperties: false,
+    tools: [
+      {
+        name: 'list_services',
+        description:
+          'List the CIB seven process definitions deployed on this instance, latest version of each, decorated with which entries are MCP-callable. Use this first when the user asks "what can I do here?".',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       },
-    },
-    {
-      name: 'start_process',
-      description:
-        'Start a new instance of a process definition with the given start-time variables. Variables are validated against the service manifest schema before forwarding. On success returns the new process instance id. The engine sets the `initiator` variable from the authenticated user automatically; do NOT include it in `variables`.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          key: { type: 'string', description: 'Service key, e.g. "vehicleRegistration".' },
-          variables: {
-            type: 'object',
-            description: 'Start-time variables. Shape is per-service — call describe_service first if you do not already know it.',
-            additionalProperties: true,
+      {
+        name: 'describe_service',
+        description:
+          'Get the full per-service manifest and LLM training markdown for one service key. Returns the JSON Schema for start-time variables plus prose guidance you should read before asking the user clarifying questions. Call this before start_process for any unfamiliar service.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', description: 'Service key, e.g. "vehicleRegistration".' },
           },
+          required: ['key'],
+          additionalProperties: false,
         },
-        required: ['key', 'variables'],
-        additionalProperties: false,
       },
-    },
-    {
-      name: 'list_my_tasks',
-      description:
-        'List user tasks the authenticated user can act on right now — both tasks already assigned to them AND unassigned tasks they are a candidate for (via direct grant or candidate-group membership). Each entry includes an `action` hint: `complete` (just call complete_task) or `claim_then_complete` (complete_task auto-claims first). Use to see what is waiting before calling complete_task.',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    },
-    {
-      name: 'get_form_schema',
-      description:
-        'Look up the variable schema and prose description for the form attached to a specific task. Always call this before complete_task on an unfamiliar task so you know what variables the task expects and what the audience is supposed to do.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          taskId: { type: 'string', description: 'Engine task id (from list_my_tasks).' },
+      {
+        name: 'start_process',
+        description:
+          'Start a new instance of a process definition with the given start-time variables. Variables are validated against the service manifest schema before forwarding. On success returns the new process instance id. The engine sets the `initiator` variable from the authenticated user automatically; do NOT include it in `variables`.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            key: { type: 'string', description: 'Service key, e.g. "vehicleRegistration".' },
+            variables: {
+              type: 'object',
+              description:
+                'Start-time variables. Shape is per-service — call describe_service first if you do not already know it.',
+              additionalProperties: true,
+            },
+          },
+          required: ['key', 'variables'],
+          additionalProperties: false,
         },
-        required: ['taskId'],
-        additionalProperties: false,
       },
-    },
-    {
-      name: 'complete_task',
-      description:
-        'Complete a user task with the given variables. The MCP service looks up the task to find its formKey, validates variables against the per-task schema, and forwards to /engine-rest. If the task is unassigned and the caller is a candidate (e.g., civil-servant tasks for Homer), the service auto-claims first so the LLM does not need to call a separate claim tool. On schema mismatch returns INVALID_VARIABLES with issues. After completion the process advances per its BPMN.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          taskId: { type: 'string', description: 'Engine task id (from list_my_tasks).' },
-          variables: {
-            type: 'object',
-            description: 'Form variables. Shape comes from get_form_schema for this task.',
-            additionalProperties: true,
+      {
+        name: 'list_my_tasks',
+        description:
+          'List user tasks the authenticated user can act on right now — both tasks already assigned to them AND unassigned tasks they are a candidate for (via direct grant or candidate-group membership). Each entry includes an `action` hint: `complete` (just call complete_task) or `claim_then_complete` (complete_task auto-claims first). Use to see what is waiting before calling complete_task.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+      {
+        name: 'get_form_schema',
+        description:
+          'Look up the variable schema and prose description for the form attached to a specific task. Always call this before complete_task on an unfamiliar task so you know what variables the task expects and what the audience is supposed to do.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Engine task id (from list_my_tasks).' },
           },
+          required: ['taskId'],
+          additionalProperties: false,
         },
-        required: ['taskId', 'variables'],
-        additionalProperties: false,
       },
-    },
-    {
-      name: 'upload_document',
-      description:
-        'Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine\'s pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task\'s requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for vehicleRegistration\'s personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          category: {
-            type: 'string',
-            description:
-              'Document category. Must match the requiredDocuments entry, e.g. "applicant-id-document".',
+      {
+        name: 'complete_task',
+        description:
+          'Complete a user task with the given variables. The MCP service looks up the task to find its formKey, validates variables against the per-task schema, and forwards to /engine-rest. If the task is unassigned and the caller is a candidate (e.g., civil-servant tasks for Homer), the service auto-claims first so the LLM does not need to call a separate claim tool. On schema mismatch returns INVALID_VARIABLES with issues. After completion the process advances per its BPMN.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Engine task id (from list_my_tasks).' },
+            variables: {
+              type: 'object',
+              description: 'Form variables. Shape comes from get_form_schema for this task.',
+              additionalProperties: true,
+            },
           },
-          filename: {
-            type: 'string',
-            description: 'Original filename including extension, e.g. "id-card.pdf".',
-          },
-          contentType: {
-            type: 'string',
-            description: 'MIME type. One of application/pdf, image/jpeg, image/png.',
-          },
-          base64: {
-            type: 'string',
-            description:
-              'Base64-encoded file contents (no data: prefix, no line breaks). Claude can extract this from a PDF / image the user has attached in chat.',
-          },
+          required: ['taskId', 'variables'],
+          additionalProperties: false,
         },
-        required: ['category', 'filename', 'contentType', 'base64'],
-        additionalProperties: false,
       },
-    },
-    {
-      name: 'list_my_processes',
-      description:
-        'List process instances started by the authenticated user, newest first. Each entry includes its key, name, start/end timestamps, and state (ACTIVE, COMPLETED, INTERNALLY_TERMINATED, etc.). Use to report status when the user asks "where is my registration?". Pass an optional processInstanceId to retrieve a single instance.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          processInstanceId: {
-            type: 'string',
-            description: 'Optional: filter to one specific instance.',
+      {
+        name: 'upload_document',
+        description:
+          "Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine's pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task's requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for vehicleRegistration's personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.",
+        inputSchema: {
+          type: 'object',
+          properties: {
+            category: {
+              type: 'string',
+              description:
+                'Document category. Must match the requiredDocuments entry, e.g. "applicant-id-document".',
+            },
+            filename: {
+              type: 'string',
+              description: 'Original filename including extension, e.g. "id-card.pdf".',
+            },
+            contentType: {
+              type: 'string',
+              description: 'MIME type. One of application/pdf, image/jpeg, image/png.',
+            },
+            base64: {
+              type: 'string',
+              description:
+                'Base64-encoded file contents (no data: prefix, no line breaks). Claude can extract this from a PDF / image the user has attached in chat.',
+            },
           },
+          required: ['category', 'filename', 'contentType', 'base64'],
+          additionalProperties: false,
         },
-        additionalProperties: false,
       },
-    },
-    {
-      name: 'query_user_history',
-      description:
-        'Find the most recent value of a process variable that the authenticated user has ever entered (across all process instances they have started). Use for autofill: if a user is starting a new businessRegistration and the schema asks for firstName, call query_user_history("firstName") first; if found, pre-fill and only ask the user to confirm. Returns { found: true, value, sourceProcessInstanceId } or { found: false }.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          variableName: {
-            type: 'string',
-            description: 'The variable name to look up, e.g. "firstName".',
+      {
+        name: 'list_my_processes',
+        description:
+          'List process instances started by the authenticated user, newest first. Each entry includes its key, name, start/end timestamps, and state (ACTIVE, COMPLETED, INTERNALLY_TERMINATED, etc.). Use to report status when the user asks "where is my registration?". Pass an optional processInstanceId to retrieve a single instance.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            processInstanceId: {
+              type: 'string',
+              description: 'Optional: filter to one specific instance.',
+            },
           },
+          additionalProperties: false,
         },
-        required: ['variableName'],
-        additionalProperties: false,
       },
-    },
-    {
-      name: 'get_signup_url',
-      description:
-        'Look up and return the public URL of the hosted Keycloak sign-up page, plus the steps the user follows there. This tool performs NO account creation, NO form submission, NO credential handling — it only retrieves a URL string and instructions. It is equivalent to telling the user "the sign-up page is at <URL>" except the URL is constructed against the live Keycloak deployment so you do not have to guess it. Use when the user asks where to register, says they are new, says they do not have an account, or asks how to sign up. The user does the actual sign-up themselves at the returned URL.',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    },
-    {
-      name: 'get_password_reset_url',
-      description:
-        'Look up and return the public URL of the Keycloak password-reset page, plus the steps. Like `get_signup_url`, this tool performs NO action — it only retrieves a URL and instructions. The user resets the password themselves at the returned URL. Use when the user says they forgot their password, cannot sign in, or want to change their password.',
-      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    },
-    {
-      name: 'send_account_invitation',
-      description:
-        'Send an account invitation to a new user. Creates an invite-pending user record in Keycloak with NO password (the tool does not accept or return one) and emails them a magic link. The invitee clicks the link, chooses their own password in Keycloak\'s hosted form, and verifies their email — at which point they are signed in. Use when the user asks to register a new applicant or to add a new user. NEVER ask the user for a password — only username, email, first name, and last name. The username is the login identifier (e.g. "lisa"); the email is where the invitation lands.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          username: { type: 'string', description: 'Login id (no spaces), e.g. "lisa".' },
-          email: { type: 'string', description: 'Email address that receives the invitation link.' },
-          firstName: { type: 'string', description: 'Given name.' },
-          lastName: { type: 'string', description: 'Family name.' },
+      {
+        name: 'query_user_history',
+        description:
+          'Find the most recent value of a process variable that the authenticated user has ever entered (across all process instances they have started). Use for autofill: if a user is starting a new businessRegistration and the schema asks for firstName, call query_user_history("firstName") first; if found, pre-fill and only ask the user to confirm. Returns { found: true, value, sourceProcessInstanceId } or { found: false }.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            variableName: {
+              type: 'string',
+              description: 'The variable name to look up, e.g. "firstName".',
+            },
+          },
+          required: ['variableName'],
+          additionalProperties: false,
         },
-        required: ['username', 'email', 'firstName', 'lastName'],
-        additionalProperties: false,
       },
-    },
-  ],
-}))
+      {
+        name: 'get_signup_url',
+        description:
+          'Look up and return the public URL of the hosted Keycloak sign-up page, plus the steps the user follows there. This tool performs NO account creation, NO form submission, NO credential handling — it only retrieves a URL string and instructions. It is equivalent to telling the user "the sign-up page is at <URL>" except the URL is constructed against the live Keycloak deployment so you do not have to guess it. Use when the user asks where to register, says they are new, says they do not have an account, or asks how to sign up. The user does the actual sign-up themselves at the returned URL.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+      {
+        name: 'get_password_reset_url',
+        description:
+          'Look up and return the public URL of the Keycloak password-reset page, plus the steps. Like `get_signup_url`, this tool performs NO action — it only retrieves a URL and instructions. The user resets the password themselves at the returned URL. Use when the user says they forgot their password, cannot sign in, or want to change their password.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+      {
+        name: 'send_account_invitation',
+        description:
+          'Send an account invitation to a new user. Creates an invite-pending user record in Keycloak with NO password (the tool does not accept or return one) and emails them a magic link. The invitee clicks the link, chooses their own password in Keycloak\'s hosted form, and verifies their email — at which point they are signed in. Use when the user asks to register a new applicant or to add a new user. NEVER ask the user for a password — only username, email, first name, and last name. The username is the login identifier (e.g. "lisa"); the email is where the invitation lands.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            username: { type: 'string', description: 'Login id (no spaces), e.g. "lisa".' },
+            email: {
+              type: 'string',
+              description: 'Email address that receives the invitation link.',
+            },
+            firstName: { type: 'string', description: 'Given name.' },
+            lastName: { type: 'string', description: 'Family name.' },
+          },
+          required: ['username', 'email', 'firstName', 'lastName'],
+          additionalProperties: false,
+        },
+      },
+    ],
+  }));
 
-mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
-  switch (req.params.name) {
-    case 'list_services':
-      return handleListServices()
-    case 'describe_service':
-      return handleDescribeService(req.params.arguments)
-    case 'start_process':
-      return handleStartProcess(req.params.arguments)
-    case 'list_my_tasks':
-      return handleListMyTasks()
-    case 'get_form_schema':
-      return handleGetFormSchema(req.params.arguments)
-    case 'complete_task':
-      return handleCompleteTask(req.params.arguments)
-    case 'upload_document':
-      return handleUploadDocument(req.params.arguments)
-    case 'list_my_processes':
-      return handleListMyProcesses(req.params.arguments)
-    case 'query_user_history':
-      return handleQueryUserHistory(req.params.arguments)
-    case 'get_signup_url':
-      return handleGetSignupUrl()
-    case 'get_password_reset_url':
-      return handleGetPasswordResetUrl()
-    case 'send_account_invitation':
-      return handleSendAccountInvitation(req.params.arguments)
-    default:
-      throw new Error(`Unknown tool: ${req.params.name}`)
-  }
-})
+  mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
+    switch (req.params.name) {
+      case 'list_services':
+        return handleListServices();
+      case 'describe_service':
+        return handleDescribeService(req.params.arguments);
+      case 'start_process':
+        return handleStartProcess(req.params.arguments);
+      case 'list_my_tasks':
+        return handleListMyTasks();
+      case 'get_form_schema':
+        return handleGetFormSchema(req.params.arguments);
+      case 'complete_task':
+        return handleCompleteTask(req.params.arguments);
+      case 'upload_document':
+        return handleUploadDocument(req.params.arguments);
+      case 'list_my_processes':
+        return handleListMyProcesses(req.params.arguments);
+      case 'query_user_history':
+        return handleQueryUserHistory(req.params.arguments);
+      case 'get_signup_url':
+        return handleGetSignupUrl();
+      case 'get_password_reset_url':
+        return handleGetPasswordResetUrl();
+      case 'send_account_invitation':
+        return handleSendAccountInvitation(req.params.arguments);
+      default:
+        throw new Error(`Unknown tool: ${req.params.name}`);
+    }
+  });
 
-  return mcp
+  return mcp;
 }
 
 // -------------------------------------------------------------------------
 // Express wiring
 // -------------------------------------------------------------------------
 
-const app = express()
-app.use(express.json())
+const app = express();
+app.use(express.json());
 
 app.get('/.well-known/oauth-protected-resource', (_req, res) => {
   res.json({
@@ -1125,8 +1133,8 @@ app.get('/.well-known/oauth-protected-resource', (_req, res) => {
     // and Keycloak would reject the auth with invalid_scope — those built-in
     // scopes do not exist in this realm (we replaced them with cib7-claims).
     scopes_supported: ['openid'],
-  })
-})
+  });
+});
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -1134,20 +1142,13 @@ app.get('/health', (_req, res) => {
     service: 'cib7-mcp',
     version: '0.1.0',
     manifests: listManifests().map((e) => e.manifest.key),
-  })
-})
+  });
+});
 
-const metadataUrl = RESOURCE_URL.replace(
-  '/mcp',
-  '/.well-known/oauth-protected-resource',
-)
+const metadataUrl = RESOURCE_URL.replace('/mcp', '/.well-known/oauth-protected-resource');
 
-async function requireBearer(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
-  const auth = req.header('authorization')
+async function requireBearer(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const auth = req.header('authorization');
   // Two stages here: (1) check the Authorization header is present and looks
   // like a Bearer; (2) verify the JWT against Keycloak's JWKS so a stale or
   // signature-mismatched token (typical after a realm rebuild on a dev box)
@@ -1155,52 +1156,54 @@ async function requireBearer(
   // that as "session expired, re-run OAuth" and the user is silently bounced
   // back to the Keycloak login page. Without this, the engine's 401 leaks
   // into a tool result and Claude has no way to ask for a fresh token.
-  const result = await verifyBearer(auth)
+  const result = await verifyBearer(auth);
   if (!result.ok) {
     res
       .status(401)
-      .set('WWW-Authenticate', `Bearer resource_metadata="${metadataUrl}", error="invalid_token", error_description="${result.reason}"`)
+      .set(
+        'WWW-Authenticate',
+        `Bearer resource_metadata="${metadataUrl}", error="invalid_token", error_description="${result.reason}"`,
+      )
       .json({
         error: 'unauthorized',
         reason: result.reason,
         resource_metadata: metadataUrl,
-      })
-    return
+      });
+    return;
   }
-  next()
+  next();
 }
 
 app.all('/mcp', requireBearer, async (req, res) => {
-  const bearer = req.header('authorization') ?? ''
-  const mcp = createMcpServer()
+  const bearer = req.header('authorization') ?? '';
+  const mcp = createMcpServer();
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
-  })
+  });
   res.on('close', () => {
-    void transport.close()
-    void mcp.close()
-  })
+    void transport.close();
+    void mcp.close();
+  });
   try {
-    await mcp.connect(transport)
+    await mcp.connect(transport);
     await requestStorage.run({ bearer }, async () => {
-      await transport.handleRequest(req, res, req.body)
-    })
+      await transport.handleRequest(req, res, req.body);
+    });
   } catch (err) {
-     
-    console.error('[/mcp] handler error:', err)
+    console.error('[/mcp] handler error:', err);
     if (!res.headersSent) {
       res.status(500).json({
         error: 'internal_error',
         message: err instanceof Error ? err.message : String(err),
-      })
+      });
     }
   }
-})
+});
 
 app.listen(PORT, () => {
-  const loaded = listManifests().map((e) => e.manifest.key)
-   
+  const loaded = listManifests().map((e) => e.manifest.key);
+
   console.log(
     `cib7-mcp listening on :${PORT}\n  resource:        ${RESOURCE_URL}\n  auth server:     ${KEYCLOAK_ISSUER}\n  engine:          ${engineBaseUrl()}\n  metadata:        /.well-known/oauth-protected-resource\n  mcp endpoint:    /mcp\n  manifests:       ${loaded.length > 0 ? loaded.join(', ') : '(none — start_process / complete_task will fail)'}`,
-  )
-})
+  );
+});

@@ -14,20 +14,13 @@
 // cib7-mcp in the realm export and tell mcp-remote to use that client_id.
 
 const MCP_URL = 'http://localhost:3000/mcp';
-const PROXY_ENTRY =
-  'file:///C:/nvm4w/nodejs/node_modules/mcp-remote/dist/proxy.js';
+const PROXY_ENTRY = 'file:///C:/nvm4w/nodejs/node_modules/mcp-remote/dist/proxy.js';
 
 const clientInfo = JSON.stringify({
   client_id: 'cib7-mcp',
   token_endpoint_auth_method: 'none',
 });
 
-process.argv = [
-  process.argv[0],
-  PROXY_ENTRY,
-  MCP_URL,
-  '--static-oauth-client-info',
-  clientInfo,
-];
+process.argv = [process.argv[0], PROXY_ENTRY, MCP_URL, '--static-oauth-client-info', clientInfo];
 
 await import(PROXY_ENTRY);

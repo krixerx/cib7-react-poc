@@ -14,157 +14,150 @@
 // We compile every schema once with Ajv at startup so start_process and
 // complete_task can validate inputs without per-call recompilation.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
-import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js'
-import addFormats from 'ajv-formats'
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import Ajv2020, { type ValidateFunction } from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
 
-const SERVICES_SPEC_DIR =
-  process.env.SERVICES_SPEC_DIR ?? '/app/services-spec'
+const SERVICES_SPEC_DIR = process.env.SERVICES_SPEC_DIR ?? '/app/services-spec';
 
 export interface RequiredDocumentDescriptor {
   /** Document category — must match an ALLOWED_CATEGORIES entry on the engine side. */
-  category: string
+  category: string;
   /** The task-variable name where the LLM passes the upload_document response. */
-  writeTo: string
+  writeTo: string;
   /** Whitelisted MIME types. */
-  accept?: string[]
+  accept?: string[];
   /** Max decoded byte size. */
-  maxBytes?: number
+  maxBytes?: number;
   /** Human-readable explanation surfaced to the LLM via get_form_schema. */
-  description?: string
+  description?: string;
 }
 
 export interface UserTaskDescriptor {
-  formKey: string
-  name?: string
-  audience?: string
-  description?: string
-  schema: Record<string, unknown>
+  formKey: string;
+  name?: string;
+  audience?: string;
+  description?: string;
+  schema: Record<string, unknown>;
   /** Documents that must be uploaded (via upload_document) before complete_task. */
-  requiredDocuments?: RequiredDocumentDescriptor[]
+  requiredDocuments?: RequiredDocumentDescriptor[];
 }
 
 export interface ServiceManifest {
-  key: string
-  name: string
-  description: string
-  audience?: string
-  candidateGroups?: string[]
+  key: string;
+  name: string;
+  description: string;
+  audience?: string;
+  candidateGroups?: string[];
   initialTask?: {
-    formKey?: string
-    audience?: string
-    name?: string
-  }
-  variables: Record<string, unknown>
-  userTasks?: UserTaskDescriptor[]
+    formKey?: string;
+    audience?: string;
+    name?: string;
+  };
+  variables: Record<string, unknown>;
+  userTasks?: UserTaskDescriptor[];
 }
 
 export interface CompiledUserTask {
-  descriptor: UserTaskDescriptor
-  validate: ValidateFunction
+  descriptor: UserTaskDescriptor;
+  validate: ValidateFunction;
 }
 
 export interface CompiledManifest {
-  manifest: ServiceManifest
-  validate: ValidateFunction
-  trainingMd: string
-  userTasks: Map<string, CompiledUserTask>
+  manifest: ServiceManifest;
+  validate: ValidateFunction;
+  trainingMd: string;
+  userTasks: Map<string, CompiledUserTask>;
 }
 
-const ajv = new Ajv2020({ allErrors: true, strict: false })
-addFormats(ajv)
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+addFormats(ajv);
 
-const registry = new Map<string, CompiledManifest>()
-const formKeyIndex = new Map<string, { serviceKey: string; task: CompiledUserTask }>()
-let initialized = false
+const registry = new Map<string, CompiledManifest>();
+const formKeyIndex = new Map<string, { serviceKey: string; task: CompiledUserTask }>();
+let initialized = false;
 
 function loadOne(serviceDir: string): CompiledManifest | null {
-  const buildDir = join(serviceDir, 'build')
-  let manifestRaw: string
-  let trainingMd: string
+  const buildDir = join(serviceDir, 'build');
+  let manifestRaw: string;
+  let trainingMd: string;
   try {
-    manifestRaw = readFileSync(join(buildDir, 'mcp-service.json'), 'utf8')
+    manifestRaw = readFileSync(join(buildDir, 'mcp-service.json'), 'utf8');
   } catch {
-    return null
+    return null;
   }
   try {
-    trainingMd = readFileSync(join(buildDir, 'mcp-training.md'), 'utf8')
+    trainingMd = readFileSync(join(buildDir, 'mcp-training.md'), 'utf8');
   } catch {
-    trainingMd = '(no training markdown found for this service)'
+    trainingMd = '(no training markdown found for this service)';
   }
 
-  const manifest = JSON.parse(manifestRaw) as ServiceManifest
+  const manifest = JSON.parse(manifestRaw) as ServiceManifest;
   if (!manifest.key) {
-    throw new Error(
-      `${buildDir}/mcp-service.json: missing required "key" field`,
-    )
+    throw new Error(`${buildDir}/mcp-service.json: missing required "key" field`);
   }
   if (!manifest.variables) {
-    throw new Error(
-      `${buildDir}/mcp-service.json: missing required "variables" JSON Schema`,
-    )
+    throw new Error(`${buildDir}/mcp-service.json: missing required "variables" JSON Schema`);
   }
 
-  const validate = ajv.compile(manifest.variables)
+  const validate = ajv.compile(manifest.variables);
 
-  const userTasks = new Map<string, CompiledUserTask>()
+  const userTasks = new Map<string, CompiledUserTask>();
   for (const task of manifest.userTasks ?? []) {
-    if (!task.formKey || !task.schema) continue
+    if (!task.formKey || !task.schema) continue;
     userTasks.set(task.formKey, {
       descriptor: task,
       validate: ajv.compile(task.schema),
-    })
+    });
   }
 
-  return { manifest, validate, trainingMd, userTasks }
+  return { manifest, validate, trainingMd, userTasks };
 }
 
 export function loadManifests(): Map<string, CompiledManifest> {
-  registry.clear()
-  formKeyIndex.clear()
+  registry.clear();
+  formKeyIndex.clear();
 
-  let entries: string[]
+  let entries: string[];
   try {
-    entries = readdirSync(SERVICES_SPEC_DIR)
+    entries = readdirSync(SERVICES_SPEC_DIR);
   } catch (e) {
-     
     console.warn(
       `manifest loader: SERVICES_SPEC_DIR (${SERVICES_SPEC_DIR}) not readable; starting with empty registry (${(e as Error).message})`,
-    )
-    initialized = true
-    return registry
+    );
+    initialized = true;
+    return registry;
   }
 
   for (const entry of entries) {
-    const path = join(SERVICES_SPEC_DIR, entry)
-    if (!statSync(path).isDirectory()) continue
+    const path = join(SERVICES_SPEC_DIR, entry);
+    if (!statSync(path).isDirectory()) continue;
     try {
-      const compiled = loadOne(path)
+      const compiled = loadOne(path);
       if (compiled) {
-        registry.set(compiled.manifest.key, compiled)
+        registry.set(compiled.manifest.key, compiled);
         for (const [formKey, task] of compiled.userTasks) {
-          formKeyIndex.set(formKey, { serviceKey: compiled.manifest.key, task })
+          formKeyIndex.set(formKey, { serviceKey: compiled.manifest.key, task });
         }
       }
     } catch (e) {
-       
-      console.error(`manifest loader: failed to load ${path}: ${(e as Error).message}`)
+      console.error(`manifest loader: failed to load ${path}: ${(e as Error).message}`);
     }
   }
 
-  initialized = true
-  return registry
+  initialized = true;
+  return registry;
 }
 
 export function getManifest(key: string): CompiledManifest | undefined {
-  if (!initialized) loadManifests()
-  return registry.get(key)
+  if (!initialized) loadManifests();
+  return registry.get(key);
 }
 
 export function listManifests(): CompiledManifest[] {
-  if (!initialized) loadManifests()
-  return Array.from(registry.values())
+  if (!initialized) loadManifests();
+  return Array.from(registry.values());
 }
 
 /**
@@ -175,31 +168,33 @@ export function listManifests(): CompiledManifest[] {
 export function findServiceByFormKey(
   formKey: string,
 ): { serviceKey: string; task: CompiledUserTask } | undefined {
-  if (!initialized) loadManifests()
-  return formKeyIndex.get(formKey)
+  if (!initialized) loadManifests();
+  return formKeyIndex.get(formKey);
 }
 
 export interface ValidationFailure {
-  path: string
-  message: string
-  keyword?: string
-  params?: Record<string, unknown>
+  path: string;
+  message: string;
+  keyword?: string;
+  params?: Record<string, unknown>;
 }
 
-function toIssues(errors: { instancePath?: string; message?: string; keyword?: string; params?: object }[]): ValidationFailure[] {
+function toIssues(
+  errors: { instancePath?: string; message?: string; keyword?: string; params?: object }[],
+): ValidationFailure[] {
   return errors.map((err) => ({
     path: err.instancePath ?? '',
     message: err.message ?? 'validation failed',
     keyword: err.keyword,
     params: err.params as Record<string, unknown>,
-  }))
+  }));
 }
 
 export function validateVariables(
   key: string,
   variables: unknown,
 ): { ok: true; data: Record<string, unknown> } | { ok: false; issues: ValidationFailure[] } {
-  const entry = getManifest(key)
+  const entry = getManifest(key);
   if (!entry) {
     return {
       ok: false,
@@ -209,19 +204,20 @@ export function validateVariables(
           message: `Unknown service key "${key}". Use list_services to see what's available.`,
         },
       ],
-    }
+    };
   }
-  const valid = entry.validate(variables)
-  if (!valid) return { ok: false, issues: toIssues(entry.validate.errors ?? []) }
-  return { ok: true, data: variables as Record<string, unknown> }
+  const valid = entry.validate(variables);
+  if (!valid) return { ok: false, issues: toIssues(entry.validate.errors ?? []) };
+  return { ok: true, data: variables as Record<string, unknown> };
 }
 
 export function validateTaskVariables(
   formKey: string,
   variables: unknown,
-): { ok: true; data: Record<string, unknown>; serviceKey: string; task: CompiledUserTask }
+):
+  | { ok: true; data: Record<string, unknown>; serviceKey: string; task: CompiledUserTask }
   | { ok: false; issues: ValidationFailure[] } {
-  const hit = findServiceByFormKey(formKey)
+  const hit = findServiceByFormKey(formKey);
   if (!hit) {
     return {
       ok: false,
@@ -231,14 +227,14 @@ export function validateTaskVariables(
           message: `No manifest entry found for formKey "${formKey}". Either the form is not MCP-callable yet or the user task lacks a manifest entry under userTasks.`,
         },
       ],
-    }
+    };
   }
-  const valid = hit.task.validate(variables)
-  if (!valid) return { ok: false, issues: toIssues(hit.task.validate.errors ?? []) }
+  const valid = hit.task.validate(variables);
+  if (!valid) return { ok: false, issues: toIssues(hit.task.validate.errors ?? []) };
   return {
     ok: true,
     data: variables as Record<string, unknown>,
     serviceKey: hit.serviceKey,
     task: hit.task,
-  }
+  };
 }

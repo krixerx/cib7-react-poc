@@ -98,7 +98,12 @@ export default function FileUpload({
 
   async function doUpload(file: File) {
     setError(null);
-    if (!accept.split(',').map((s) => s.trim()).includes(file.type)) {
+    if (
+      !accept
+        .split(',')
+        .map((s) => s.trim())
+        .includes(file.type)
+    ) {
       setError(`Unsupported file type "${file.type}". Allowed: ${accept}.`);
       return;
     }
@@ -215,7 +220,8 @@ export default function FileUpload({
               {label ?? 'Drop a file here, or click to choose'}
             </div>
             <div className="file-upload-hint">
-              {accept.replace(/application\//g, '').replace(/image\//g, '')} &middot; up to {formatBytes(maxBytes)}
+              {accept.replace(/application\//g, '').replace(/image\//g, '')} &middot; up to{' '}
+              {formatBytes(maxBytes)}
             </div>
           </>
         ) : (

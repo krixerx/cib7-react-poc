@@ -27,9 +27,7 @@ export function parseUserTasks(bpmnXml: string): UserTaskDef[] {
       id: el.getAttribute('id') ?? '',
       name: el.getAttribute('name') || el.getAttribute('id') || '(unnamed task)',
       formKey:
-        el.getAttributeNS(CAMUNDA_NS, 'formKey') ||
-        el.getAttribute('camunda:formKey') ||
-        null,
+        el.getAttributeNS(CAMUNDA_NS, 'formKey') || el.getAttribute('camunda:formKey') || null,
     }));
 }
 

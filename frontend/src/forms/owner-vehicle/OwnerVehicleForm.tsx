@@ -18,12 +18,7 @@ import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
  * shown to the owner as a banner. Resubmission regenerates ALL tokens so
  * old confirmation links can't be reused against the new round.
  */
-export default function OwnerVehicleForm({
-  data,
-  onComplete,
-  submitting,
-  readOnly,
-}: FormProps) {
+export default function OwnerVehicleForm({ data, onComplete, submitting, readOnly }: FormProps) {
   const [firstName, setFirstName] = useState((data.firstName as string) ?? '');
   const [lastName, setLastName] = useState((data.lastName as string) ?? '');
   const [age, setAge] = useState(data.age != null ? String(data.age) : '');
@@ -78,9 +73,7 @@ export default function OwnerVehicleForm({
   }
 
   function updateOwner(index: number, field: 'name' | 'email', value: string) {
-    setAdditionalOwners((prev) =>
-      prev.map((o, i) => (i === index ? { ...o, [field]: value } : o)),
-    );
+    setAdditionalOwners((prev) => prev.map((o, i) => (i === index ? { ...o, [field]: value } : o)));
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -117,9 +110,7 @@ export default function OwnerVehicleForm({
 
     if (cleanedOwners.length > 0) {
       if (!trimmedEmail) {
-        setError(
-          'Your own email is required when adding co-owners — we send you a tracking link.',
-        );
+        setError('Your own email is required when adding co-owners — we send you a tracking link.');
         return;
       }
       for (const o of cleanedOwners) {
@@ -261,8 +252,8 @@ export default function OwnerVehicleForm({
       <div className="field">
         <span className="field-label">Owner ID document (required)</span>
         <p className="field-hint">
-          ID card, passport, or driving licence. PDF, JPEG, or PNG up to 10 MB.
-          The Transport Authority reviewer will be able to download this file.
+          ID card, passport, or driving licence. PDF, JPEG, or PNG up to 10 MB. The Transport
+          Authority reviewer will be able to download this file.
         </p>
         <FileUpload
           accept="application/pdf,image/jpeg,image/png"
@@ -297,14 +288,11 @@ export default function OwnerVehicleForm({
       )}
 
       <fieldset className="field-group">
-        <legend className="field-label">
-          Vehicle co-owners ({additionalOwners.length})
-        </legend>
+        <legend className="field-label">Vehicle co-owners ({additionalOwners.length})</legend>
         <p className="field-hint">
-          Each co-owner gets an email with a link to approve or reject the
-          vehicle registration. Once all co-owners sign, any owner can click
-          "Send to Transport Authority" to forward the case for review. Leave
-          empty if you are the sole owner.
+          Each co-owner gets an email with a link to approve or reject the vehicle registration.
+          Once all co-owners sign, any owner can click "Send to Transport Authority" to forward the
+          case for review. Leave empty if you are the sole owner.
         </p>
         {additionalOwners.map((owner, i) => (
           <div key={i} className="owner-row">

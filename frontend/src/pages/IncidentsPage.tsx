@@ -80,16 +80,14 @@ export default function IncidentsPage() {
         </button>
       </div>
       <p className="muted">
-        Open incidents across all running processes. Use <strong>Retry</strong>{' '}
-        to give a failed service-task job another attempt.
+        Open incidents across all running processes. Use <strong>Retry</strong> to give a failed
+        service-task job another attempt.
       </p>
 
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="form-error">{error}</p>}
 
-      {!loading && !error && incidents.length === 0 && (
-        <p className="empty">No open incidents.</p>
-      )}
+      {!loading && !error && incidents.length === 0 && <p className="empty">No open incidents.</p>}
 
       {!loading && !error && incidents.length > 0 && (
         <ul className="row-list">
@@ -97,7 +95,7 @@ export default function IncidentsPage() {
             const info = defs.get(inc.processDefinitionId);
             const serviceName = info?.def.name ?? info?.def.key ?? inc.processDefinitionId;
             const activityName = inc.activityId
-              ? info?.activityNames.get(inc.activityId) ?? inc.activityId
+              ? (info?.activityNames.get(inc.activityId) ?? inc.activityId)
               : '(process scope)';
             const canRetry = inc.incidentType === 'failedJob' && inc.configuration;
 
@@ -108,14 +106,12 @@ export default function IncidentsPage() {
                     {serviceName} <span className="muted">·</span> {activityName}
                   </span>
                   <span className="row-sub">
-                    {inc.incidentType} <span className="muted">·</span>{' '}
-                    Process {shortId(inc.processInstanceId)} <span className="muted">·</span>{' '}
+                    {inc.incidentType} <span className="muted">·</span> Process{' '}
+                    {shortId(inc.processInstanceId)} <span className="muted">·</span>{' '}
                     {new Date(inc.incidentTimestamp).toLocaleString()}
                   </span>
                 </div>
-                {inc.incidentMessage && (
-                  <p className="incident-message">{inc.incidentMessage}</p>
-                )}
+                {inc.incidentMessage && <p className="incident-message">{inc.incidentMessage}</p>}
                 <div className="incident-actions">
                   {canRetry ? (
                     <button

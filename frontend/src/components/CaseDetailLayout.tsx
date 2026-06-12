@@ -50,12 +50,7 @@ export default function CaseDetailLayout({
   return (
     <div className="case-detail">
       <header className={`case-detail-head${category ? ` cat-${category}` : ''}`}>
-        <button
-          type="button"
-          className="case-detail-back"
-          onClick={onBack}
-          aria-label="Back"
-        >
+        <button type="button" className="case-detail-back" onClick={onBack} aria-label="Back">
           <svg
             width="18"
             height="18"
@@ -84,9 +79,7 @@ export default function CaseDetailLayout({
           <h1 className="case-detail-title">{title}</h1>
         </div>
         {outcome && (
-          <span
-            className={`case-detail-status${isInFlight ? ' in-flight' : ' ended'}`}
-          >
+          <span className={`case-detail-status${isInFlight ? ' in-flight' : ' ended'}`}>
             {outcome}
           </span>
         )}
@@ -95,9 +88,7 @@ export default function CaseDetailLayout({
       <div className="case-detail-grid">
         <main className="case-detail-main">{children}</main>
         <aside className="case-detail-sidebar">
-          {processInstanceId && (
-            <DocumentsCard processInstanceId={processInstanceId} />
-          )}
+          {processInstanceId && <DocumentsCard processInstanceId={processInstanceId} />}
         </aside>
       </div>
     </div>

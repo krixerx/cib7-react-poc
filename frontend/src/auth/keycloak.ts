@@ -30,8 +30,8 @@ function envOr(name: string, fallback: string): string {
 }
 
 export const keycloak = new Keycloak({
-  url:      envOr('VITE_KEYCLOAK_URL',       'http://localhost:8180'),
-  realm:    envOr('VITE_KEYCLOAK_REALM',     'cib7-poc'),
+  url: envOr('VITE_KEYCLOAK_URL', 'http://localhost:8180'),
+  realm: envOr('VITE_KEYCLOAK_REALM', 'cib7-poc'),
   clientId: envOr('VITE_KEYCLOAK_CLIENT_ID', 'cib7-frontend'),
 });
 

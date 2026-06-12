@@ -2,8 +2,9 @@
 
 Standalone Node sidecar that exposes the CIB seven engine as a Model
 Context Protocol (MCP) server. Mirrors the `pdf-renderer/` shape — Node 20
-+ Express + a TypeScript entry — and runs as its own docker-compose
-service behind nginx at `http://localhost:3000/mcp`.
+
+- Express + a TypeScript entry — and runs as its own docker-compose
+  service behind nginx at `http://localhost:3000/mcp`.
 
 **See [`docs/mcp.md`](../docs/mcp.md) for the full module reference**
 (architecture decisions, file layout, the eleven tools, the OAuth flow,
@@ -28,11 +29,11 @@ The full per-tool table with engine endpoints and behavior lives in
 
 ## Endpoints
 
-| Path | Purpose |
-|---|---|
-| `GET /.well-known/oauth-protected-resource` | RFC 9728 / MCP auth-spec resource metadata. Tells the MCP client which authorization server to use (Keycloak). |
-| `POST /mcp` | MCP Streamable HTTP transport. JWT-verified at the door against Keycloak JWKS — stale tokens return 401 + `WWW-Authenticate: Bearer error="invalid_token"`, which mcp-remote treats as "re-run OAuth." |
-| `GET /health` | Liveness probe for docker-compose. |
+| Path                                        | Purpose                                                                                                                                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /.well-known/oauth-protected-resource` | RFC 9728 / MCP auth-spec resource metadata. Tells the MCP client which authorization server to use (Keycloak).                                                                                         |
+| `POST /mcp`                                 | MCP Streamable HTTP transport. JWT-verified at the door against Keycloak JWKS — stale tokens return 401 + `WWW-Authenticate: Bearer error="invalid_token"`, which mcp-remote treats as "re-run OAuth." |
+| `GET /health`                               | Liveness probe for docker-compose.                                                                                                                                                                     |
 
 ## Build & run
 
@@ -70,9 +71,7 @@ edit the `PROXY_ENTRY` constant in `mcp/cib7-bridge.mjs`.
   "mcpServers": {
     "cib7": {
       "command": "node",
-      "args": [
-        "C:\\Users\\<you>\\git\\cib7-react-poc\\mcp\\cib7-bridge.mjs"
-      ]
+      "args": ["C:\\Users\\<you>\\git\\cib7-react-poc\\mcp\\cib7-bridge.mjs"]
     }
   }
 }
@@ -158,21 +157,21 @@ automatically. If the connector looks wedged in Claude Desktop:
 
 ## Troubleshooting
 
-| Symptom | Likely cause |
-|---|---|
-| Claude Desktop says "not valid MCP server configuration" and skips cib7 | Old Claude Desktop release rejects the `{"url":...}` form. Use the `cib7-bridge.mjs` stdio bridge (see above). |
+| Symptom                                                                                                             | Likely cause                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Desktop says "not valid MCP server configuration" and skips cib7                                             | Old Claude Desktop release rejects the `{"url":...}` form. Use the `cib7-bridge.mjs` stdio bridge (see above).                                                                                                                                                                                        |
 | mcp-remote bridge: `InsufficientScopeError: Policy 'Trusted Hosts' rejected request to client-registration service` | The bridge tried Dynamic Client Registration against Keycloak, which refuses anonymous DCR by default. The bridge already passes `--static-oauth-client-info '{"client_id":"cib7-mcp"}'` to skip DCR — if you see this error, your `mcp-remote` install is stale; `npm install -g mcp-remote@latest`. |
-| mcp-remote bridge: `SyntaxError: Expected property name or '}' in JSON` | Windows shell stripped quotes from the inline JSON. Make sure Claude Desktop is invoking `cib7-bridge.mjs` via `node`, not piping through `cmd /c npx ...`. |
-| OAuth callback says `invalid_scope: Invalid scopes: openid profile email` | mcp-remote requested scopes the realm doesn't define. The MCP service advertises only `openid` — rebuild it (`docker compose up -d --build mcp`) and clear `~/.mcp-auth/` so the bridge re-reads discovery. |
-| `Authorization successful` in browser but the bridge errors with "Error POSTing to endpoint" | Stale state from before the per-request transport refactor. Restart the MCP container (`docker compose restart mcp`) and retry. |
-| `list_services` returns `code: 'engine_unauthorized'` | The Bearer doesn't carry `aud=cib7-rest-api`. The audience mapper lives on the `cib7-rest-api-audience` client scope; confirm it's a default scope on `cib7-mcp` (admin UI → Clients → cib7-mcp → Client scopes → Default). |
-| `start_process` returns `code: 'forbidden'` | The user's group doesn't grant CREATE_INSTANCE on the definition. `AuthorizationBootstrap.java` grants `ProcessDefinition:*` to the `applicant` group; self-registered users land in `/applicant` via `defaultGroups`. |
-| `describe_service` returns `code: 'unknown_service'` | The manifest didn't make it into the container. `docker exec cib7-poc-mcp ls /app/services-spec/<service>/build/` should show `mcp-service.json` + `mcp-training.md`. If empty, the build context or `.dockerignore` is misconfigured — see `Dockerfile`. |
-| `list_my_tasks` returns empty even though Cockpit shows tasks | The user is neither assigned nor a candidate for the open tasks. Check the BPMN's `camunda:assignee` / `candidateGroups` and the user's Keycloak group membership. |
-| `complete_task` returns `INVALID_VARIABLES` with `"must NOT have additional properties"` | Claude included a field the per-task schema doesn't accept. Pass only the fields `get_form_schema` listed. |
-| `send_account_invitation` returns `KEYCLOAK_ERROR: HTTP 401 Unauthorized` | cib7-backend's service-account token is stale, typically right after a realm re-import. Restart the MCP container to clear the in-process token cache. |
-| Invitation email arrives but the link points at `http://keycloak:8080/...` | Realm `frontendUrl` attribute isn't set or the keycloak container wasn't rebuilt after editing the realm export. The export now ships `attributes.frontendUrl: "http://localhost:8180"`; re-import via `docker compose rm -sf keycloak && docker compose up -d keycloak`. |
-| `query_user_history` returns `found: false` despite history existing | Prior process instances were wiped by an engine restart (in-memory H2). Complete at least one registration flow as that user to repopulate history. Permanent fix is in TODOS.md T1 (H2 → Postgres). |
+| mcp-remote bridge: `SyntaxError: Expected property name or '}' in JSON`                                             | Windows shell stripped quotes from the inline JSON. Make sure Claude Desktop is invoking `cib7-bridge.mjs` via `node`, not piping through `cmd /c npx ...`.                                                                                                                                           |
+| OAuth callback says `invalid_scope: Invalid scopes: openid profile email`                                           | mcp-remote requested scopes the realm doesn't define. The MCP service advertises only `openid` — rebuild it (`docker compose up -d --build mcp`) and clear `~/.mcp-auth/` so the bridge re-reads discovery.                                                                                           |
+| `Authorization successful` in browser but the bridge errors with "Error POSTing to endpoint"                        | Stale state from before the per-request transport refactor. Restart the MCP container (`docker compose restart mcp`) and retry.                                                                                                                                                                       |
+| `list_services` returns `code: 'engine_unauthorized'`                                                               | The Bearer doesn't carry `aud=cib7-rest-api`. The audience mapper lives on the `cib7-rest-api-audience` client scope; confirm it's a default scope on `cib7-mcp` (admin UI → Clients → cib7-mcp → Client scopes → Default).                                                                           |
+| `start_process` returns `code: 'forbidden'`                                                                         | The user's group doesn't grant CREATE_INSTANCE on the definition. `AuthorizationBootstrap.java` grants `ProcessDefinition:*` to the `applicant` group; self-registered users land in `/applicant` via `defaultGroups`.                                                                                |
+| `describe_service` returns `code: 'unknown_service'`                                                                | The manifest didn't make it into the container. `docker exec cib7-poc-mcp ls /app/services-spec/<service>/build/` should show `mcp-service.json` + `mcp-training.md`. If empty, the build context or `.dockerignore` is misconfigured — see `Dockerfile`.                                             |
+| `list_my_tasks` returns empty even though Cockpit shows tasks                                                       | The user is neither assigned nor a candidate for the open tasks. Check the BPMN's `camunda:assignee` / `candidateGroups` and the user's Keycloak group membership.                                                                                                                                    |
+| `complete_task` returns `INVALID_VARIABLES` with `"must NOT have additional properties"`                            | Claude included a field the per-task schema doesn't accept. Pass only the fields `get_form_schema` listed.                                                                                                                                                                                            |
+| `send_account_invitation` returns `KEYCLOAK_ERROR: HTTP 401 Unauthorized`                                           | cib7-backend's service-account token is stale, typically right after a realm re-import. Restart the MCP container to clear the in-process token cache.                                                                                                                                                |
+| Invitation email arrives but the link points at `http://keycloak:8080/...`                                          | Realm `frontendUrl` attribute isn't set or the keycloak container wasn't rebuilt after editing the realm export. The export now ships `attributes.frontendUrl: "http://localhost:8180"`; re-import via `docker compose rm -sf keycloak && docker compose up -d keycloak`.                             |
+| `query_user_history` returns `found: false` despite history existing                                                | Prior process instances were wiped by an engine restart (in-memory H2). Complete at least one registration flow as that user to repopulate history. Permanent fix is in TODOS.md T1 (H2 → Postgres).                                                                                                  |
 
 ## Files
 

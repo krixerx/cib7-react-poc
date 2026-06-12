@@ -69,10 +69,7 @@ export default function TaskDetailView({
     setData({});
     setServiceName(null);
     try {
-      const [t, vars] = await Promise.all([
-        getTask(taskId),
-        getTaskVariables(taskId),
-      ]);
+      const [t, vars] = await Promise.all([getTask(taskId), getTaskVariables(taskId)]);
       setTask(t);
       setData(unwrap(vars));
       // BPMN fetch is only needed for the parent's chrome (eyebrow). The
@@ -158,12 +155,7 @@ export default function TaskDetailView({
         {error && <p className="form-error">{error}</p>}
 
         {Form ? (
-          <Form
-            task={task}
-            data={data}
-            onComplete={handleComplete}
-            submitting={submitting}
-          />
+          <Form task={task} data={data} onComplete={handleComplete} submitting={submitting} />
         ) : (
           <p className="form-error">
             No React form is registered for formKey <code>{task.formKey ?? '(none)'}</code>.
@@ -177,9 +169,7 @@ export default function TaskDetailView({
 
 /** Unwraps CIB seven `{value,type}` variables into plain values for forms. */
 function unwrap(variables: CamundaVariables): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(variables).map(([k, v]) => [k, v.value]),
-  );
+  return Object.fromEntries(Object.entries(variables).map(([k, v]) => [k, v.value]));
 }
 
 /** A processDefinitionId is "<key>:<version>:<id>" — split out the key. */

@@ -8,21 +8,19 @@
 // engine, simplicity lives here.
 
 interface JwtPayload {
-  preferred_username?: string
-  sub?: string
+  preferred_username?: string;
+  sub?: string;
 }
 
 export function decodeBearerUsername(bearer: string): string {
-  if (!bearer) return ''
-  const token = bearer.replace(/^Bearer\s+/i, '')
-  const parts = token.split('.')
-  if (parts.length < 2) return ''
+  if (!bearer) return '';
+  const token = bearer.replace(/^Bearer\s+/i, '');
+  const parts = token.split('.');
+  if (parts.length < 2) return '';
   try {
-    const payload = JSON.parse(
-      Buffer.from(parts[1], 'base64url').toString('utf8'),
-    ) as JwtPayload
-    return payload.preferred_username ?? payload.sub ?? ''
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as JwtPayload;
+    return payload.preferred_username ?? payload.sub ?? '';
   } catch {
-    return ''
+    return '';
   }
 }

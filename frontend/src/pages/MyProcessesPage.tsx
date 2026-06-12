@@ -39,9 +39,9 @@ const BUCKET_OF: Record<RowStatus, Bucket> = {
   'payment-needed': 'attention',
   'waiting-signatures': 'progress',
   'under-review': 'progress',
-  'processing': 'progress',
-  'approved': 'done',
-  'ended': 'done',
+  processing: 'progress',
+  approved: 'done',
+  ended: 'done',
 };
 
 interface ProcessRow {
@@ -63,9 +63,9 @@ const STATUS_LABELS: Record<RowStatus, string> = {
   'payment-needed': 'Payment required',
   'waiting-signatures': 'Waiting for signatures',
   'under-review': 'Under review',
-  'processing': 'Processing',
-  'approved': 'Approved',
-  'ended': 'Ended',
+  processing: 'Processing',
+  approved: 'Approved',
+  ended: 'Ended',
 };
 
 const STATUS_PILL_CLASS: Record<RowStatus, string> = {
@@ -74,9 +74,9 @@ const STATUS_PILL_CLASS: Record<RowStatus, string> = {
   'payment-needed': 'status-pill status-warn',
   'waiting-signatures': 'status-pill status-info',
   'under-review': 'status-pill status-info',
-  'processing': 'status-pill status-info',
-  'approved': 'status-pill status-done',
-  'ended': 'status-pill status-done',
+  processing: 'status-pill status-info',
+  approved: 'status-pill status-done',
+  ended: 'status-pill status-done',
 };
 
 /** The payment wait state in both shipped BPMNs. */
@@ -97,10 +97,16 @@ async function buildRow(
   username: string,
   waitingOn: { activityId: string; name: string } | null,
 ): Promise<ProcessRow> {
-  const base = { pi, serviceName, category, sendBackReason: null, openTaskId: null, waitingOn: null };
+  const base = {
+    pi,
+    serviceName,
+    category,
+    sendBackReason: null,
+    openTaskId: null,
+    waitingOn: null,
+  };
   if (pi.endTime) {
-    const status: RowStatus =
-      pi.endActivityId === 'EndEvent_Approved' ? 'approved' : 'ended';
+    const status: RowStatus = pi.endActivityId === 'EndEvent_Approved' ? 'approved' : 'ended';
     return { ...base, status };
   }
 
@@ -114,12 +120,8 @@ async function buildRow(
   // assigned to me" generalises across services (Task_SubmitDetails,
   // Task_SubmitBusinessDetails, …) without hardcoding ids; any other open
   // task belongs to the back office.
-  const applicantTask: CamundaTask | undefined = tasks.find(
-    (t) => t.assignee === username,
-  );
-  const backOfficeTask: CamundaTask | undefined = tasks.find(
-    (t) => t.assignee !== username,
-  );
+  const applicantTask: CamundaTask | undefined = tasks.find((t) => t.assignee === username);
+  const backOfficeTask: CamundaTask | undefined = tasks.find((t) => t.assignee !== username);
 
   if (applicantTask) {
     const reason = sendBackVar?.value ? String(sendBackVar.value) : '';
@@ -157,9 +159,7 @@ export default function MyProcessesPage() {
         listHistoricProcessInstancesByStarter(username),
         listUnfinishedReceiveTasks(),
       ]);
-      const defById = new Map<string, ProcessDefinition>(
-        defs.map((d) => [d.id, d]),
-      );
+      const defById = new Map<string, ProcessDefinition>(defs.map((d) => [d.id, d]));
       // First open receive task per case — one batched call for the page.
       const waitByPI = new Map<string, { activityId: string; name: string }>();
       for (const w of openWaits) {
@@ -220,9 +220,7 @@ export default function MyProcessesPage() {
           <h1 className="mp-title">My processes</h1>
           {showContent && rows.length > 0 && (
             <p className="mp-kpi">
-              <span
-                className={`mp-kpi-strong${buckets.attention.length > 0 ? ' alert' : ''}`}
-              >
+              <span className={`mp-kpi-strong${buckets.attention.length > 0 ? ' alert' : ''}`}>
                 {buckets.attention.length} waiting on you
               </span>
               {' · '}
@@ -242,8 +240,7 @@ export default function MyProcessesPage() {
 
       {isEmpty && (
         <p className="empty">
-          You haven't started any processes yet. Pick one on the{' '}
-          <Link to="/">Services</Link> page.
+          You haven't started any processes yet. Pick one on the <Link to="/">Services</Link> page.
         </p>
       )}
 
@@ -270,7 +267,10 @@ export default function MyProcessesPage() {
       )}
 
       {showContent && buckets.done.length > 0 && (
-        <details className="mp-completed" open={buckets.attention.length === 0 && buckets.progress.length === 0}>
+        <details
+          className="mp-completed"
+          open={buckets.attention.length === 0 && buckets.progress.length === 0}
+        >
           <summary>
             Completed <span className="muted">· {buckets.done.length}</span>
           </summary>
@@ -312,9 +312,7 @@ function ActionCard({ row }: { row: ProcessRow }) {
               ? '⚠ Sent back for corrections'
               : '◆ Awaiting your submission'}
         </span>
-        {row.sendBackReason && (
-          <span className="mp-action-reason">“{row.sendBackReason}”</span>
-        )}
+        {row.sendBackReason && <span className="mp-action-reason">“{row.sendBackReason}”</span>}
         <span className="mp-action-meta">Started {formatDate(row.pi.startTime)}</span>
       </span>
       <span className="mp-action-cta">{isPayment ? 'Pay →' : 'Open →'}</span>

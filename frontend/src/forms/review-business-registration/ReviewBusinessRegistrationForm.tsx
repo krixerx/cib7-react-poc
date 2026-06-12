@@ -104,8 +104,7 @@ export default function ReviewBusinessRegistrationForm({
         <div className="summary-row">
           <dt>Founder</dt>
           <dd>
-            {(data.applicantFirstName as string) ?? '—'}{' '}
-            {(data.applicantLastName as string) ?? ''}
+            {(data.applicantFirstName as string) ?? '—'} {(data.applicantLastName as string) ?? ''}
             {data.applicantAge != null && ` (age ${String(data.applicantAge)})`}
           </dd>
         </div>
@@ -147,8 +146,7 @@ export default function ReviewBusinessRegistrationForm({
 
       {!readOnly && priorReason && (
         <p className="muted">
-          Previous send-back reason (now resubmitted by the founder):{' '}
-          <em>{priorReason}</em>
+          Previous send-back reason (now resubmitted by the founder): <em>{priorReason}</em>
         </p>
       )}
 
@@ -184,11 +182,7 @@ export default function ReviewBusinessRegistrationForm({
             </button>
           ) : (
             <>
-              <button
-                className="btn btn-danger"
-                disabled={submitting}
-                onClick={sendBack}
-              >
+              <button className="btn btn-danger" disabled={submitting} onClick={sendBack}>
                 {submitting ? 'Working…' : 'Confirm send back'}
               </button>
               <button

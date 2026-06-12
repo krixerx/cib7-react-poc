@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  listWorklist,
-  setJobRetries,
-  type Incident,
-  type WorklistRow,
-} from '../api/camundaClient';
+import { listWorklist, setJobRetries, type Incident, type WorklistRow } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
 import TaskDetailView from './TaskDetailView';
 import ProcessHistoryView from './ProcessHistoryView';
@@ -160,8 +155,7 @@ export default function TasksPage() {
   const filteredRows = useMemo(() => {
     const q = applicantQuery.trim().toLowerCase();
     return rows.filter((r) => {
-      if (serviceFilter.size > 0 && !serviceFilter.has(r.processDefinitionKey))
-        return false;
+      if (serviceFilter.size > 0 && !serviceFilter.has(r.processDefinitionKey)) return false;
       if (taskFilter.size > 0) {
         if (!r.currentTask) return false;
         if (!taskFilter.has(r.currentTask.taskDefinitionKey)) return false;
@@ -171,15 +165,7 @@ export default function TasksPage() {
       if (q && !r.applicantName.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [
-    rows,
-    serviceFilter,
-    taskFilter,
-    statusFilter,
-    applicantQuery,
-    myCasesOnly,
-    username,
-  ]);
+  }, [rows, serviceFilter, taskFilter, statusFilter, applicantQuery, myCasesOnly, username]);
 
   const resetFilters = () => {
     setServiceFilter(new Set());
@@ -209,7 +195,7 @@ export default function TasksPage() {
   }
 
   const selected = selectedCaseId
-    ? rows.find((r) => r.processInstanceId === selectedCaseId) ?? null
+    ? (rows.find((r) => r.processInstanceId === selectedCaseId) ?? null)
     : null;
 
   async function retryIncident(inc: Incident) {
@@ -231,10 +217,7 @@ export default function TasksPage() {
       <aside className="worklist-list">
         <div className="worklist-list-head">
           <span className="worklist-list-title">Process list</span>
-          <span
-            className={`worklist-list-count${loading ? ' refreshing' : ''}`}
-            aria-live="polite"
-          >
+          <span className={`worklist-list-count${loading ? ' refreshing' : ''}`} aria-live="polite">
             {loading
               ? rows.length > 0
                 ? 'Refreshing…'
@@ -251,7 +234,17 @@ export default function TasksPage() {
             title="Refresh list"
             aria-label="Refresh list"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M21 12a9 9 0 1 1-3-6.7" />
               <path d="M21 3v6h-6" />
             </svg>
@@ -283,9 +276,7 @@ export default function TasksPage() {
                 (k) => services.find((s) => s.key === k)?.name ?? k,
               )}
               open={openMenu === 'service'}
-              onToggle={() =>
-                setOpenMenu(openMenu === 'service' ? null : 'service')
-              }
+              onToggle={() => setOpenMenu(openMenu === 'service' ? null : 'service')}
             >
               {services.length === 0 ? (
                 <div className="dd-empty">No services in view yet.</div>
@@ -304,9 +295,7 @@ export default function TasksPage() {
 
             <FilterPill
               label="Task"
-              values={Array.from(taskFilter).map(
-                (k) => tasks.find((t) => t.key === k)?.name ?? k,
-              )}
+              values={Array.from(taskFilter).map((k) => tasks.find((t) => t.key === k)?.name ?? k)}
               open={openMenu === 'task'}
               onToggle={() => setOpenMenu(openMenu === 'task' ? null : 'task')}
             >
@@ -374,9 +363,7 @@ export default function TasksPage() {
         <ul className="worklist-rows">
           {!loading && filteredRows.length === 0 && (
             <li className="empty worklist-empty">
-              {rows.length === 0
-                ? 'No processes yet.'
-                : 'No cases match the current filters.'}
+              {rows.length === 0 ? 'No processes yet.' : 'No cases match the current filters.'}
             </li>
           )}
           {filteredRows.map((r) => (
@@ -436,9 +423,9 @@ export default function TasksPage() {
           <div className="card worklist-empty-state">
             <h1 className="card-title">Pick a case from the left</h1>
             <p className="muted">
-              {filteredRows.length} {filteredRows.length === 1 ? 'case' : 'cases'}{' '}
-              in view. Filter by service, task or status, or search by applicant name.
-              Pick one to open its form here.
+              {filteredRows.length} {filteredRows.length === 1 ? 'case' : 'cases'} in view. Filter
+              by service, task or status, or search by applicant name. Pick one to open its form
+              here.
             </p>
           </div>
         )}
@@ -486,11 +473,7 @@ export default function TasksPage() {
 }
 
 /** Toggle a value in a Set state, immutably. */
-function toggleSet<T>(
-  current: Set<T>,
-  value: T,
-  setter: (next: Set<T>) => void,
-) {
+function toggleSet<T>(current: Set<T>, value: T, setter: (next: Set<T>) => void) {
   const next = new Set(current);
   if (next.has(value)) next.delete(value);
   else next.add(value);
@@ -527,7 +510,11 @@ function FilterPill({ label, values, open, onToggle, children }: FilterPillProps
         {active && <span className="filter-pill-badge">{values.length}</span>}
         <ChevronIcon />
       </button>
-      {open && <div className="filter-dropdown" role="listbox">{children}</div>}
+      {open && (
+        <div className="filter-dropdown" role="listbox">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -549,7 +536,14 @@ function DropdownItem({ checked, onToggle, children }: DropdownItemProps) {
     >
       <span className={`dd-checkbox${checked ? ' on' : ''}`} aria-hidden="true">
         {checked && (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth={3}
+          >
             <path d="M5 12l5 5L20 7" />
           </svg>
         )}
@@ -561,7 +555,15 @@ function DropdownItem({ checked, onToggle, children }: DropdownItemProps) {
 
 function ChevronIcon() {
   return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      aria-hidden="true"
+    >
       <path d="m6 9 6 6 6-6" />
     </svg>
   );
@@ -569,7 +571,15 @@ function ChevronIcon() {
 
 function SearchIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden="true"
+    >
       <circle cx="11" cy="11" r="7" />
       <path d="m21 21-4.3-4.3" />
     </svg>
@@ -618,9 +628,7 @@ function IncidentBlock({
         {serviceName} · CASE-{caseShortId} ·{' '}
         <span className="status-tag status-incident">
           <span className="status-dot" aria-hidden="true" />
-          {incidents.length === 1
-            ? '1 open incident'
-            : `${incidents.length} open incidents`}
+          {incidents.length === 1 ? '1 open incident' : `${incidents.length} open incidents`}
         </span>
       </p>
 
@@ -633,27 +641,18 @@ function IncidentBlock({
               <div className="incident-head">
                 <span className="row-title">{inc.activityId ?? '(process scope)'}</span>
                 <span className="row-sub">
-                  {inc.incidentType}{' '}
-                  <span className="muted">·</span>{' '}
+                  {inc.incidentType} <span className="muted">·</span>{' '}
                   {new Date(inc.incidentTimestamp).toLocaleString()}
                 </span>
               </div>
-              {inc.incidentMessage && (
-                <p className="incident-message">{inc.incidentMessage}</p>
-              )}
+              {inc.incidentMessage && <p className="incident-message">{inc.incidentMessage}</p>}
               <div className="incident-actions">
                 {canRetry ? (
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => onRetry(inc)}
-                    disabled={busy}
-                  >
+                  <button className="btn btn-primary" onClick={() => onRetry(inc)} disabled={busy}>
                     {busy ? 'Retrying…' : 'Retry'}
                   </button>
                 ) : (
-                  <span className="muted">
-                    No retry available for this incident type.
-                  </span>
+                  <span className="muted">No retry available for this incident type.</span>
                 )}
               </div>
             </li>

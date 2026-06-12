@@ -164,10 +164,10 @@ export default function SignFounderPage() {
         </div>
 
         <p className="form-intro">
-          <strong>{status.applicantName || 'The applicant'}</strong> has submitted a
-          registration for <strong>{status.companyName || 'an Estonian OÜ'}</strong> that
-          requires every co-founder's signature on the Articles of Association before
-          it can be sent to the Business Register.
+          <strong>{status.applicantName || 'The applicant'}</strong> has submitted a registration
+          for <strong>{status.companyName || 'an Estonian OÜ'}</strong> that requires every
+          co-founder's signature on the Articles of Association before it can be sent to the
+          Business Register.
         </p>
 
         {current && (
@@ -180,12 +180,10 @@ export default function SignFounderPage() {
         {status.state === 'rejected' && (
           <div className="form-banner form-banner-warn">
             <strong>Rejected by {status.rejectedBy ?? 'a co-founder'}.</strong>
-            {status.rejectionReason && (
-              <p className="form-banner-body">{status.rejectionReason}</p>
-            )}
+            {status.rejectionReason && <p className="form-banner-body">{status.rejectionReason}</p>}
             <p className="form-banner-body">
-              The case has been sent back to the applicant. New signing
-              links will be issued once they resubmit.
+              The case has been sent back to the applicant. New signing links will be issued once
+              they resubmit.
             </p>
           </div>
         )}
@@ -226,73 +224,74 @@ export default function SignFounderPage() {
         {error && <p className="form-error">{error.message}</p>}
 
         {/* Action area depends on state */}
-        {status.state === 'pending' && current && current.status === 'pending' && !current.isApplicant && (
-          <>
-            {!showRejectForm ? (
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleApprove}
-                  disabled={submitting}
-                >
-                  {submitting ? 'Signing…' : 'Approve and sign'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => setShowRejectForm(true)}
-                  disabled={submitting}
-                >
-                  Reject
-                </button>
-              </div>
-            ) : (
-              <div className="field-group">
-                <label className="field">
-                  <span className="field-label">Reason for rejection</span>
-                  <textarea
-                    className="field-input"
-                    rows={3}
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Explain what needs to change before you'd sign."
-                  />
-                </label>
+        {status.state === 'pending' &&
+          current &&
+          current.status === 'pending' &&
+          !current.isApplicant && (
+            <>
+              {!showRejectForm ? (
                 <div className="form-actions">
                   <button
                     type="button"
-                    className="btn btn-danger"
-                    onClick={handleReject}
+                    className="btn btn-primary"
+                    onClick={handleApprove}
                     disabled={submitting}
                   >
-                    {submitting ? 'Sending…' : 'Send rejection'}
+                    {submitting ? 'Signing…' : 'Approve and sign'}
                   </button>
                   <button
                     type="button"
-                    className="btn"
-                    onClick={() => {
-                      setShowRejectForm(false);
-                      setRejectReason('');
-                      setError(null);
-                    }}
+                    className="btn btn-danger"
+                    onClick={() => setShowRejectForm(true)}
                     disabled={submitting}
                   >
-                    Cancel
+                    Reject
                   </button>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              ) : (
+                <div className="field-group">
+                  <label className="field">
+                    <span className="field-label">Reason for rejection</span>
+                    <textarea
+                      className="field-input"
+                      rows={3}
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Explain what needs to change before you'd sign."
+                    />
+                  </label>
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={handleReject}
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Sending…' : 'Send rejection'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setShowRejectForm(false);
+                        setRejectReason('');
+                        setError(null);
+                      }}
+                      disabled={submitting}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
         {(status.state === 'pending' || status.state === 'ready_to_send') &&
           current &&
           current.status === 'approved' &&
           status.state !== 'ready_to_send' && (
-            <p className="muted">
-              Your signature is on file. Waiting for the other co-founders.
-            </p>
+            <p className="muted">Your signature is on file. Waiting for the other co-founders.</p>
           )}
 
         {status.state === 'ready_to_send' && (

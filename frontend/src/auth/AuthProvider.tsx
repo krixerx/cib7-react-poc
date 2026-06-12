@@ -84,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     | { preferred_username?: string; sub?: string; realm_access?: { roles?: string[] } }
     | undefined;
 
-  const username = authenticated ? token?.preferred_username ?? token?.sub ?? 'unknown' : '';
-  const realmRoles = authenticated ? token?.realm_access?.roles ?? [] : [];
+  const username = authenticated ? (token?.preferred_username ?? token?.sub ?? 'unknown') : '';
+  const realmRoles = authenticated ? (token?.realm_access?.roles ?? []) : [];
   const isCivilServant = realmRoles.includes('civil-servant');
   // A user is treated as a pure applicant only when they're not also a
   // civil servant — admins (Homer) carry both roles in dev seeds.

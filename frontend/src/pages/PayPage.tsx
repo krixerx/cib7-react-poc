@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import {
-  confirm,
-  getStatus,
-  PaymentError,
-  type PaymentStatus,
-} from '../api/paymentsApi';
+import { confirm, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
 
 /**
  * Public, unauthenticated page reached from the approval email's pay link
@@ -28,10 +23,10 @@ import {
 
 const ESTONIAN_BANKS = [
   { value: 'swedbank', label: 'Swedbank' },
-  { value: 'seb',      label: 'SEB' },
-  { value: 'lhv',      label: 'LHV Pank' },
-  { value: 'coop',     label: 'Coop Pank' },
-  { value: 'luminor',  label: 'Luminor' },
+  { value: 'seb', label: 'SEB' },
+  { value: 'lhv', label: 'LHV Pank' },
+  { value: 'coop', label: 'Coop Pank' },
+  { value: 'luminor', label: 'Luminor' },
 ];
 
 function formatAmount(amount: number, currency: string): string {
@@ -115,24 +110,31 @@ export default function PayPage() {
 
   const isVehicle = status.processDefinitionKey === 'vehicleRegistration';
   const issuer = isVehicle ? 'Transpordiamet POC' : 'Äriregister POC';
-  const issuerSub = isVehicle
-    ? 'Estonian Transport Authority'
-    : 'Estonian Business Register';
+  const issuerSub = isVehicle ? 'Estonian Transport Authority' : 'Estonian Business Register';
 
   if (status.status === 'paid') {
     return (
       <div className="pay-page">
         <div className="card pay-success">
           <div className="pay-success-icon" aria-hidden="true">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="36"
+              height="36"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </div>
           <h1 className="card-title">Payment received</h1>
           <p className="muted">
-            Thank you. Your state fee of <strong>{formatAmount(status.amount, status.currency)}</strong> has
-            been credited to {issuer}. The case will continue to the next step
-            automatically.
+            Thank you. Your state fee of{' '}
+            <strong>{formatAmount(status.amount, status.currency)}</strong> has been credited to{' '}
+            {issuer}. The case will continue to the next step automatically.
           </p>
           <dl className="pay-summary">
             <div className="summary-row">
@@ -152,10 +154,14 @@ export default function PayPage() {
   return (
     <div className="pay-page">
       <div className="card pay-card">
-        <header className={`pay-header ${isVehicle ? 'pay-header-vehicle' : 'pay-header-business'}`}>
+        <header
+          className={`pay-header ${isVehicle ? 'pay-header-vehicle' : 'pay-header-business'}`}
+        >
           <div>
             <h1 className="pay-title">Pay state fee</h1>
-            <p className="pay-subtitle">{issuer} · {issuerSub}</p>
+            <p className="pay-subtitle">
+              {issuer} · {issuerSub}
+            </p>
           </div>
           <span className="pay-status">Awaiting payment</span>
         </header>
@@ -204,14 +210,16 @@ export default function PayPage() {
                 disabled={submitting}
               >
                 {ESTONIAN_BANKS.map((b) => (
-                  <option key={b.value} value={b.value}>{b.label}</option>
+                  <option key={b.value} value={b.value}>
+                    {b.label}
+                  </option>
                 ))}
               </select>
             </label>
             <p className="field-hint">
-              POC demo — the Confirm button below simulates a successful SEPA
-              transfer without involving a real bank. Production would
-              redirect to the chosen bank's online banking screen.
+              POC demo — the Confirm button below simulates a successful SEPA transfer without
+              involving a real bank. Production would redirect to the chosen bank's online banking
+              screen.
             </p>
 
             {error && <p className="form-error">{error.message}</p>}

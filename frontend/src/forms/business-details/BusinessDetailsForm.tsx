@@ -40,9 +40,21 @@ interface AdditionalFounder {
 type Residency = 'citizen' | 'e-resident' | 'foreign';
 
 const RESIDENCY_OPTIONS: Array<{ value: Residency; label: string; hint: string }> = [
-  { value: 'citizen',    label: 'Estonian citizen',     hint: 'Lives and works in Estonia under Estonian citizenship.' },
-  { value: 'e-resident', label: 'E-resident',           hint: 'Holds an Estonian e-Residency digital ID; lives abroad.' },
-  { value: 'foreign',    label: 'Foreign founder',      hint: 'Neither Estonian citizen nor e-resident — always requires Business Register review.' },
+  {
+    value: 'citizen',
+    label: 'Estonian citizen',
+    hint: 'Lives and works in Estonia under Estonian citizenship.',
+  },
+  {
+    value: 'e-resident',
+    label: 'E-resident',
+    hint: 'Holds an Estonian e-Residency digital ID; lives abroad.',
+  },
+  {
+    value: 'foreign',
+    label: 'Foreign founder',
+    hint: 'Neither Estonian citizen nor e-resident — always requires Business Register review.',
+  },
 ];
 
 function normaliseResidency(raw: unknown): Residency {
@@ -57,7 +69,8 @@ function normaliseResidency(raw: unknown): Residency {
 function parseBoardMembers(raw: unknown): BoardMember[] {
   if (Array.isArray(raw)) {
     return raw.map((m) => ({
-      firstName: typeof (m as BoardMember).firstName === 'string' ? (m as BoardMember).firstName : '',
+      firstName:
+        typeof (m as BoardMember).firstName === 'string' ? (m as BoardMember).firstName : '',
       lastName: typeof (m as BoardMember).lastName === 'string' ? (m as BoardMember).lastName : '',
       personalCode:
         typeof (m as BoardMember).personalCode === 'string' ? (m as BoardMember).personalCode : '',
@@ -107,12 +120,7 @@ function ensureCompanySuffix(name: string): string {
 
 const EMPTY_MEMBER: BoardMember = { firstName: '', lastName: '', personalCode: '' };
 
-export default function BusinessDetailsForm({
-  data,
-  onComplete,
-  submitting,
-  readOnly,
-}: FormProps) {
+export default function BusinessDetailsForm({ data, onComplete, submitting, readOnly }: FormProps) {
   const [companyName, setCompanyName] = useState((data.companyName as string) ?? '');
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>(() => {
     const parsed = parseBoardMembers(data.boardMembers);
@@ -130,14 +138,12 @@ export default function BusinessDetailsForm({
   const [applicantAge, setApplicantAge] = useState(
     data.applicantAge != null ? String(data.applicantAge) : '',
   );
-  const [applicantResidency, setApplicantResidency] = useState<Residency>(
-    () => normaliseResidency(data.applicantResidency),
+  const [applicantResidency, setApplicantResidency] = useState<Residency>(() =>
+    normaliseResidency(data.applicantResidency),
   );
-  const [applicantEmail, setApplicantEmail] = useState(
-    (data.applicantEmail as string) ?? '',
-  );
-  const [additionalFounders, setAdditionalFounders] = useState<AdditionalFounder[]>(
-    () => parseAdditionalFounders(data.additionalFounders),
+  const [applicantEmail, setApplicantEmail] = useState((data.applicantEmail as string) ?? '');
+  const [additionalFounders, setAdditionalFounders] = useState<AdditionalFounder[]>(() =>
+    parseAdditionalFounders(data.additionalFounders),
   );
 
   // Articles of Association state. On the first submit this is always a fresh
@@ -176,9 +182,7 @@ export default function BusinessDetailsForm({
   }
 
   function updateMember(index: number, field: keyof BoardMember, value: string) {
-    setBoardMembers((prev) =>
-      prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)),
-    );
+    setBoardMembers((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
   }
 
   function addFounder() {
@@ -357,8 +361,8 @@ export default function BusinessDetailsForm({
         {readOnly
           ? 'A read-only view of the submitted OÜ founding details.'
           : isResubmission
-          ? 'Update the founding details below and resubmit to the Business Register. New signing links will be sent to every co-founder.'
-          : 'Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, your own details, and list any co-founders that must sign the Articles of Association before the case goes to the Business Register.'}
+            ? 'Update the founding details below and resubmit to the Business Register. New signing links will be sent to every co-founder.'
+            : 'Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, your own details, and list any co-founders that must sign the Articles of Association before the case goes to the Business Register.'}
       </p>
 
       <label className="field">
@@ -422,9 +426,8 @@ export default function BusinessDetailsForm({
       <div className="field">
         <span className="field-label">Articles of Association (required)</span>
         <p className="field-hint">
-          PDF, JPEG, or PNG up to 10 MB. The Business Register reviewer and
-          every co-founder reviewing the registration will be able to download
-          this file.
+          PDF, JPEG, or PNG up to 10 MB. The Business Register reviewer and every co-founder
+          reviewing the registration will be able to download this file.
         </p>
         <FileUpload
           accept="application/pdf,image/jpeg,image/png"
@@ -491,9 +494,9 @@ export default function BusinessDetailsForm({
       <fieldset className="field-group">
         <legend className="field-label">Your residency status</legend>
         <p className="field-hint">
-          Drives the Business Register's auto-approval policy: foreign
-          founders always go to a reviewer; Estonian citizens and
-          e-residents with the minimum share capital can auto-approve.
+          Drives the Business Register's auto-approval policy: foreign founders always go to a
+          reviewer; Estonian citizens and e-residents with the minimum share capital can
+          auto-approve.
         </p>
         {RESIDENCY_OPTIONS.map((opt) => (
           <label key={opt.value} className="radio-row">
@@ -526,14 +529,11 @@ export default function BusinessDetailsForm({
       </label>
 
       <fieldset className="field-group">
-        <legend className="field-label">
-          Co-founders ({additionalFounders.length})
-        </legend>
+        <legend className="field-label">Co-founders ({additionalFounders.length})</legend>
         <p className="field-hint">
-          Each co-founder gets an email with a link to sign the Articles of
-          Association or reject. Once all co-founders sign, any founder can
-          click "Submit to register" to forward the case to the Business
-          Register. Leave empty if you are the sole founder.
+          Each co-founder gets an email with a link to sign the Articles of Association or reject.
+          Once all co-founders sign, any founder can click "Submit to register" to forward the case
+          to the Business Register. Leave empty if you are the sole founder.
         </p>
         {additionalFounders.map((founder, i) => (
           <div key={i} className="owner-row">

@@ -34,7 +34,12 @@ export interface ProcessHistoryViewProps {
   /** When true, skip the form card's own header — parent owns the page title. */
   hideOwnHeader?: boolean;
   /** Fires once the historic data has loaded so the parent can surface service name / outcome. */
-  onLoaded?: (info: { serviceName: string; outcome: string; isInFlight: boolean; processDefinitionKey: string }) => void;
+  onLoaded?: (info: {
+    serviceName: string;
+    outcome: string;
+    isInFlight: boolean;
+    processDefinitionKey: string;
+  }) => void;
 }
 
 interface LoadedState {
@@ -97,13 +102,12 @@ export default function ProcessHistoryView({
       }
       const lastTask = completedTasks[0]; // sorted desc by endTime
       const userTasks = parseUserTasks(xml.bpmn20Xml);
-      const formKey =
-        userTasks.find((ut) => ut.id === lastTask.taskDefinitionKey)?.formKey ?? null;
+      const formKey = userTasks.find((ut) => ut.id === lastTask.taskDefinitionKey)?.formKey ?? null;
       const activityNames = parseActivityNames(xml.bpmn20Xml);
       const activeTask = tasks.find((t) => !t.endTime);
       const outcome = pi.endTime
         ? pi.endActivityId
-          ? activityNames.get(pi.endActivityId) ?? pi.endActivityId
+          ? (activityNames.get(pi.endActivityId) ?? pi.endActivityId)
           : pi.state
         : activeTask
           ? `Currently with ${activeTask.name}`
@@ -154,9 +158,7 @@ export default function ProcessHistoryView({
   const formId = parseFormId(state.formKey);
   const Form = formId ? formRegistry[formId] : undefined;
   const stubTask = synthesizeTask(state.lastTask, state.formKey);
-  const stampDate = isInFlight
-    ? state.lastTask.endTime ?? state.pi.startTime
-    : state.pi.endTime!;
+  const stampDate = isInFlight ? (state.lastTask.endTime ?? state.pi.startTime) : state.pi.endTime!;
 
   return (
     <>
@@ -172,8 +174,7 @@ export default function ProcessHistoryView({
               {topSlot}
             </div>
             <p className="muted">
-              {isInFlight ? 'Submitted' : 'Completed'}{' '}
-              {new Date(stampDate).toLocaleString()} ·{' '}
+              {isInFlight ? 'Submitted' : 'Completed'} {new Date(stampDate).toLocaleString()} ·{' '}
               <strong>{state.outcome}</strong>
             </p>
           </>
@@ -189,8 +190,7 @@ export default function ProcessHistoryView({
           />
         ) : (
           <p className="form-error">
-            No React form is registered for formKey{' '}
-            <code>{state.formKey ?? '(none)'}</code>.
+            No React form is registered for formKey <code>{state.formKey ?? '(none)'}</code>.
           </p>
         )}
       </div>
