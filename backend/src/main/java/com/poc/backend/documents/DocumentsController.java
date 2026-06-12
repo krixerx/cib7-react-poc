@@ -370,8 +370,10 @@ public class DocumentsController {
     } catch (IllegalArgumentException e) {
       return badRequest("base64 was not decodable.");
     }
-    if (bytes.length == 0) {
-      return badRequest("base64 decoded to zero bytes.");
+    // Same cap as /stage: the caller is the trusted engine, but a runaway
+    // FreeMarker payload must not buffer unbounded bytes in memory.
+    if (bytes.length == 0 || bytes.length > props.getMaxBytes()) {
+      return badRequest("decoded size must be between 1 and " + props.getMaxBytes() + " bytes.");
     }
 
     String key =
