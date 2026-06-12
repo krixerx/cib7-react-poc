@@ -30,6 +30,14 @@
 - ${(m.prop("firstName").stringValue())!""} ${(m.prop("lastName").stringValue())!""} (isikukood ${(m.prop("personalCode").stringValue())!""})
 </#list>
 </#assign>
+<#-- shareCapital can surface as a locale-formatted String ("2,500") on some
+     engine→FreeMarker paths — same defensive coercion as bcard-pdf. -->
+<#assign rawCapital = (shareCapital!0)>
+<#if rawCapital?is_number>
+  <#assign capitalNumber = rawCapital>
+<#else>
+  <#assign capitalNumber = rawCapital?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
+</#if>
 <#assign residencyRaw = (applicantResidency!"citizen")>
 <#if residencyRaw == "e-resident">
   <#assign residencyLabel = "e-resident">
@@ -46,7 +54,7 @@ extract will be issued.
 
 Business Register code:  ${regCode}
 Company:                 ${(companyName!"")}
-Share capital:           ${(shareCapital!0.0)?string("0.00")} EUR
+Share capital:           ${capitalNumber?string("0.00")} EUR
 Founder residency:       ${residencyLabel}
 Board members:
 ${members}

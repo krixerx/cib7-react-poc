@@ -23,6 +23,15 @@
 <#assign reference = execution.processInstanceId>
 <#assign regCode = "1" + reference?replace("-", "")?substring(0, 7)>
 <#assign fee = 265>
+<#-- shareCapital can surface as a locale-formatted String ("2,500") on some
+     engine→FreeMarker paths — same defensive coercion as bcard-pdf, which
+     ?string("0.00") on the raw variable would crash on. -->
+<#assign rawCapital = (shareCapital!0)>
+<#if rawCapital?is_number>
+  <#assign capitalNumber = rawCapital>
+<#else>
+  <#assign capitalNumber = rawCapital?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
+</#if>
 <#assign html>
 <!doctype html>
 <html lang="en">
@@ -68,7 +77,7 @@
   <table>
     <tr><th>Company name</th><td>${(companyName!"")?html}</td></tr>
     <tr><th>Registration code</th><td>${regCode}</td></tr>
-    <tr><th>Share capital</th><td>&euro;${(shareCapital!0.0)?string("0.00")}</td></tr>
+    <tr><th>Share capital</th><td>&euro;${capitalNumber?string("0.00")}</td></tr>
   </table>
 
   <h2>Payment details</h2>

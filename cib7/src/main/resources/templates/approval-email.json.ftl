@@ -23,6 +23,14 @@
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 <#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
+<#-- price can surface as a locale-formatted String ("38,000") on some
+     engine→FreeMarker paths — same defensive coercion as approval-pdf. -->
+<#assign rawPrice = (price!0)>
+<#if rawPrice?is_number>
+  <#assign vehicleValue = rawPrice>
+<#else>
+  <#assign vehicleValue = rawPrice?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
+</#if>
 <#assign body>Hi ${firstName!""},
 
 Your vehicle registration with Transpordiamet has been approved. The
@@ -32,7 +40,7 @@ Certificate (tehniline pass) will be issued.
 
 Owner: ${fullName}
 Vehicle code: ${objectId!""}
-Vehicle value: €${(price!0)?string("0.00")}
+Vehicle value: €${vehicleValue?string("0.00")}
 
 Pay the state fee here:
 ${payUrl}
