@@ -32,6 +32,7 @@
       Underage founder                 → review (no corporate-signing capacity)
       Foreign founder                  → review (always — KYB depth varies)
       Citizen / e-resident adult       → approve (capital ≥ €2500)
+      Everything else                  → review (default — safe side)
 
     historyTimeToLive is required by CIB seven 2.1 (enforceTTL on by default).
     P30D mirrors the BPMN's process-level TTL so history rows expire together.
@@ -89,6 +90,17 @@
         <inputEntry id="Rule_CitizenOrEResidentAdult_Capital"><text>&gt;= 2500</text></inputEntry>
         <inputEntry id="Rule_CitizenOrEResidentAdult_Residency"><text>"citizen", "e-resident"</text></inputEntry>
         <outputEntry id="Rule_CitizenOrEResidentAdult_Out"><text>"approve"</text></outputEntry>
+      </rule>
+
+      <!-- Default safe-side: anything else (unexpected or missing residency
+           value, etc.) gets reviewed. Without this catch-all, hit policy
+           FIRST yields an EMPTY result for unmatched inputs instead of a
+           decision. -->
+      <rule id="Rule_DefaultReview">
+        <inputEntry id="Rule_DefaultReview_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DefaultReview_Capital"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DefaultReview_Residency"><text>-</text></inputEntry>
+        <outputEntry id="Rule_DefaultReview_Out"><text>"review"</text></outputEntry>
       </rule>
     </decisionTable>
   </decision>
