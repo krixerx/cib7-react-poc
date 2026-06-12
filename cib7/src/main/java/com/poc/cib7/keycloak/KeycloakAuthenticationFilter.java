@@ -55,12 +55,12 @@ public class KeycloakAuthenticationFilter implements Filter {
 
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     String userId;
-    if (authentication instanceof JwtAuthenticationToken) {
-      userId =
-          ((JwtAuthenticationToken) authentication)
-              .getTokenAttributes()
-              .get(userNameAttribute)
-              .toString();
+    if (authentication instanceof JwtAuthenticationToken jwtAuthentication) {
+      // The claim can be absent (e.g. a client-credentials token without
+      // preferred_username) — fall through to the AccessDeniedException
+      // below instead of NPE-ing into a 500.
+      Object attribute = jwtAuthentication.getTokenAttributes().get(userNameAttribute);
+      userId = attribute == null ? null : attribute.toString();
     } else {
       throw new AccessDeniedException("Invalid authentication request token");
     }
