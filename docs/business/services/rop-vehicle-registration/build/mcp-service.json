@@ -1,0 +1,191 @@
+{
+  "key": "ropVehicleRegistration",
+  "name": "ROP Vehicle Registration (Oman)",
+  "description": "Register a new vehicle with the General Traffic Department of the Royal Oman Police (ITS Demo Scenario 1). The fee for the chosen vehicle category (10–180 OMR) is known before submitting. The system checks technical inspection, insurance, and outstanding restrictions, validates the Omani registration conditions by DMN, then routes to a traffic officer who approves, rejects, or returns the application. After approval and fee payment, a plate number is allocated and the registration certificate is emailed.",
+  "audience": "applicant",
+  "candidateGroups": ["applicant", "civil-servant"],
+  "initialTask": {
+    "formKey": "rop-vehicle-application",
+    "audience": "applicant",
+    "name": "Submit vehicle registration application"
+  },
+  "variables": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "ropVehicleRegistration start-time variables",
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "properties": {
+      "applicantName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "description": "Owner's full name as on the civil ID."
+      },
+      "applicantEmail": {
+        "type": "string",
+        "minLength": 3,
+        "pattern": "@",
+        "description": "Email address — payment request, rejection notice, certificate, and evaluation emails go here."
+      },
+      "civilId": {
+        "type": "string",
+        "pattern": "^[0-9]{8}$",
+        "description": "Omani civil number, exactly 8 digits (shape check only in POC)."
+      },
+      "residencyStatus": {
+        "type": "string",
+        "enum": ["citizen", "resident", "diplomat", "visitor"],
+        "description": "Visitor applications are always rejected (residence card required); residents cannot register commercial vehicles."
+      },
+      "registrationType": {
+        "type": "string",
+        "enum": ["private", "commercial", "public-utility", "diplomatic"],
+        "description": "Diplomatic registration is reserved for diplomatic missions."
+      },
+      "vehicleCategory": {
+        "type": "string",
+        "enum": [
+          "motorcycle",
+          "private-lt1500",
+          "private-1500-3000",
+          "private-3000-4500",
+          "private-gt4500",
+          "electric-lt75kw",
+          "electric-75-150kw",
+          "electric-150-224kw",
+          "electric-gt224kw",
+          "tractor",
+          "truck-3-5t",
+          "truck-gte5t"
+        ],
+        "description": "Fee schedule (OMR): motorcycle 10; private by engine size 15/20/30/50; electric by motor power 15/20/30/50; tractor 40; truck 3–5 t 120; truck 5 t+ 180. Quote the fee to the user BEFORE starting the case."
+      },
+      "vin": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9]{11,17}$",
+        "description": "Chassis number. Demo VINs that deliberately fail: ROPDEMOFAILINSP01 (inspection), ROPDEMONOINSURE02 (insurance), ROPDEMOFINESDUE03 (restrictions); anything else is all-clear."
+      },
+      "plateOption": {
+        "type": "string",
+        "enum": ["random", "reserved"],
+        "description": "New random plate or a previously reserved plate number."
+      },
+      "reservedPlateNumber": {
+        "type": "string",
+        "description": "Required (non-empty) when plateOption = reserved; pass an empty string for random plates."
+      }
+    },
+    "required": [
+      "applicantName",
+      "applicantEmail",
+      "civilId",
+      "residencyStatus",
+      "registrationType",
+      "vehicleCategory",
+      "vin",
+      "plateOption",
+      "reservedPlateNumber"
+    ],
+    "additionalProperties": false
+  },
+  "userTasks": [
+    {
+      "formKey": "rop-vehicle-application",
+      "name": "Submit vehicle registration application",
+      "audience": "applicant",
+      "description": "The applicant confirms (or corrects) the registration application. Same field set as start_process input. On a return-for-corrections resubmit the applicant sees the officer's notes as a banner; the form clears sendBackReason on submit.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "applicantName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "applicantEmail": { "type": "string", "minLength": 3, "pattern": "@" },
+          "civilId": { "type": "string", "pattern": "^[0-9]{8}$" },
+          "residencyStatus": {
+            "type": "string",
+            "enum": ["citizen", "resident", "diplomat", "visitor"]
+          },
+          "registrationType": {
+            "type": "string",
+            "enum": ["private", "commercial", "public-utility", "diplomatic"]
+          },
+          "vehicleCategory": {
+            "type": "string",
+            "enum": [
+              "motorcycle",
+              "private-lt1500",
+              "private-1500-3000",
+              "private-3000-4500",
+              "private-gt4500",
+              "electric-lt75kw",
+              "electric-75-150kw",
+              "electric-150-224kw",
+              "electric-gt224kw",
+              "tractor",
+              "truck-3-5t",
+              "truck-gte5t"
+            ]
+          },
+          "vin": { "type": "string", "pattern": "^[A-Za-z0-9]{11,17}$" },
+          "plateOption": { "type": "string", "enum": ["random", "reserved"] },
+          "reservedPlateNumber": { "type": "string" },
+          "sendBackReason": {
+            "type": "string",
+            "description": "Always empty on submit — the form clears the officer's previous notes so a future cycle starts clean."
+          }
+        },
+        "required": [
+          "applicantName",
+          "applicantEmail",
+          "civilId",
+          "residencyStatus",
+          "registrationType",
+          "vehicleCategory",
+          "vin",
+          "plateOption",
+          "reservedPlateNumber"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "formKey": "rop-vehicle-officer-review",
+      "name": "Traffic officer review",
+      "audience": "civil-servant",
+      "description": "The traffic officer approves the application (advances to fee payment), rejects it with a reason (ends the case), or returns it for corrections (loops to the applicant with notes). The unused reason variable is completed as an empty string.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": ["approve", "reject", "sendback"],
+            "description": "approve = request the fee payment. reject = rejection email + end. sendback = return to the applicant with notes."
+          },
+          "rejectionReason": {
+            "type": "string",
+            "description": "Required (non-empty) when decision = reject; empty string otherwise."
+          },
+          "sendBackReason": {
+            "type": "string",
+            "description": "Required (non-empty) when decision = sendback; empty string otherwise."
+          }
+        },
+        "required": ["decision", "rejectionReason", "sendBackReason"],
+        "if": {
+          "properties": { "decision": { "const": "reject" } },
+          "required": ["decision"]
+        },
+        "then": { "properties": { "rejectionReason": { "minLength": 1 } } },
+        "else": {
+          "if": {
+            "properties": { "decision": { "const": "sendback" } },
+            "required": ["decision"]
+          },
+          "then": { "properties": { "sendBackReason": { "minLength": 1 } } }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

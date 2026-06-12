@@ -1,0 +1,155 @@
+{
+  "key": "ropLearningPermit",
+  "name": "ROP Driving Learning Permit (Oman)",
+  "description": "Apply for a driving learning license from the General Traffic Department of the Royal Oman Police (ITS Demo Scenario 2). Flat 6 OMR service fee. The system fetches the eye-test result from the approved-opticians registry by civil number and checks the terms of service by DMN (age 18+, 21+ for heavy/mechanical, no existing valid license, GCC citizens need a resident card, special-needs category limits). Weak vision routes to a Police Hospital medical assessment. After approval and payment, the electronic learning license with the payment receipt is issued and emailed.",
+  "audience": "applicant",
+  "candidateGroups": ["applicant", "civil-servant"],
+  "initialTask": {
+    "formKey": "rop-permit-application",
+    "audience": "applicant",
+    "name": "Apply for a learning permit"
+  },
+  "variables": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "title": "ropLearningPermit start-time variables",
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "properties": {
+      "applicantName": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+        "description": "Applicant's full name as on the civil ID."
+      },
+      "applicantEmail": {
+        "type": "string",
+        "minLength": 3,
+        "pattern": "@",
+        "description": "Email address — all notifications go here."
+      },
+      "civilId": {
+        "type": "string",
+        "pattern": "^[0-9]{8}$",
+        "description": "Omani civil number, exactly 8 digits. Drives the eye-test lookup. Demo IDs: 90000001 weak vision (hospital branch), 90000002 failed eye test, 90000003 no eye test on file, 90000004 already holds a valid license, 90000005 outstanding restrictions; anything else is all-clear."
+      },
+      "age": {
+        "type": "integer",
+        "minimum": 15,
+        "maximum": 100,
+        "description": "Age in years. Under 18 is always rejected; under 21 cannot apply for heavy-vehicle or mechanical-equipment."
+      },
+      "residencyStatus": {
+        "type": "string",
+        "enum": ["citizen", "gcc-citizen", "resident"],
+        "description": "GCC-country citizens must hold a resident card."
+      },
+      "hasResidentCard": {
+        "type": "boolean",
+        "description": "Whether the applicant holds a valid resident card (required for GCC citizens)."
+      },
+      "licenseCategory": {
+        "type": "string",
+        "enum": ["light-vehicle", "motorcycle", "heavy-vehicle", "mechanical-equipment"],
+        "description": "Requested license category."
+      },
+      "specialNeeds": {
+        "type": "boolean",
+        "description": "Special-needs applicants are not eligible for heavy-vehicle, mechanical-equipment, or motorcycle categories."
+      },
+      "profession": {
+        "type": "string",
+        "description": "Optional. For residents, the license category must match the profession registered with the Ministry of Labor (informational in the POC). Pass an empty string when unknown."
+      }
+    },
+    "required": [
+      "applicantName",
+      "applicantEmail",
+      "civilId",
+      "age",
+      "residencyStatus",
+      "hasResidentCard",
+      "licenseCategory",
+      "specialNeeds",
+      "profession"
+    ],
+    "additionalProperties": false
+  },
+  "userTasks": [
+    {
+      "formKey": "rop-permit-application",
+      "name": "Apply for a learning permit",
+      "audience": "applicant",
+      "description": "The applicant confirms the learning permit application. Same field set as start_process input. There is no send-back loop in this service.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "applicantName": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "applicantEmail": { "type": "string", "minLength": 3, "pattern": "@" },
+          "civilId": { "type": "string", "pattern": "^[0-9]{8}$" },
+          "age": { "type": "integer", "minimum": 15, "maximum": 100 },
+          "residencyStatus": {
+            "type": "string",
+            "enum": ["citizen", "gcc-citizen", "resident"]
+          },
+          "hasResidentCard": { "type": "boolean" },
+          "licenseCategory": {
+            "type": "string",
+            "enum": ["light-vehicle", "motorcycle", "heavy-vehicle", "mechanical-equipment"]
+          },
+          "specialNeeds": { "type": "boolean" },
+          "profession": { "type": "string" }
+        },
+        "required": [
+          "applicantName",
+          "applicantEmail",
+          "civilId",
+          "age",
+          "residencyStatus",
+          "hasResidentCard",
+          "licenseCategory",
+          "specialNeeds",
+          "profession"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "formKey": "rop-hospital-assessment",
+      "name": "Police Hospital medical assessment",
+      "audience": "civil-servant",
+      "description": "The hospital medical board (played by the civil-servant group) records whether the weak-vision applicant is fit to drive. Negative results compose rejectionReason from the notes; positive results pass an empty rejectionReason.",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "medicalResult": {
+            "type": "string",
+            "enum": ["positive", "negative"],
+            "description": "positive = fit to drive, proceed to fee payment. negative = reject the application."
+          },
+          "medicalNotes": {
+            "type": "string",
+            "description": "Required (non-empty) when negative — sent to the applicant as the reason."
+          },
+          "rejectionReason": {
+            "type": "string",
+            "description": "Computed: 'Police Hospital medical assessment: <notes>' when negative, empty string when positive."
+          }
+        },
+        "required": ["medicalResult", "medicalNotes", "rejectionReason"],
+        "if": {
+          "properties": { "medicalResult": { "const": "negative" } },
+          "required": ["medicalResult"]
+        },
+        "then": {
+          "properties": {
+            "medicalNotes": { "minLength": 1 },
+            "rejectionReason": { "minLength": 1 }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

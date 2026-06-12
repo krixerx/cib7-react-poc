@@ -87,6 +87,7 @@ class FreemarkerTemplateRenderTest {
     m.put("feeInvoicePdfBytes", "fake-invoice-pdf".getBytes(StandardCharsets.UTF_8));
     m.put("bcardPdfBytes", "fake-bcard-pdf".getBytes(StandardCharsets.UTF_8));
     m.put("certificatePdfBytes", "fake-certificate-pdf".getBytes(StandardCharsets.UTF_8));
+    m.put("permitPdfBytes", "fake-permit-pdf".getBytes(StandardCharsets.UTF_8));
     return m;
   }
 
