@@ -36,9 +36,63 @@ class Cib7ContextSmokeTest {
   @Test
   void contextLoadsAndDeploysProcesses() {
     assertNotNull(processEngine);
-    // Auto-deployment ran: both DMN decisions are on the engine.
+    // ServiceDeployments ran: the DMN decisions are on the engine.
     assertEquals(1, countDecision("vehicle-auto-approval"));
     assertEquals(1, countDecision("business-auto-approval"));
+    assertEquals(1, countDecision("rop-vehicle-eligibility"));
+    assertEquals(1, countDecision("rop-permit-eligibility"));
+  }
+
+  @Test
+  void eachServiceGetsItsOwnDeployment() {
+    // One named deployment per processes/<service>/ folder — NOT one
+    // shared SpringAutoDeployment bundling everything.
+    for (String service :
+        new String[] {
+          "vehicle-registration",
+          "business-registration",
+          "rop-vehicle-registration",
+          "rop-learning-permit"
+        }) {
+      assertEquals(
+          1,
+          processEngine
+              .getRepositoryService()
+              .createDeploymentQuery()
+              .deploymentName(service)
+              .count(),
+          "expected exactly one deployment named " + service);
+    }
+    assertEquals(
+        0,
+        processEngine
+            .getRepositoryService()
+            .createDeploymentQuery()
+            .deploymentName("SpringAutoDeployment")
+            .count(),
+        "the starter's single-bundle auto-deploy must be off");
+  }
+
+  @Test
+  void processAndItsDecisionsShareADeployment() {
+    // decisionRefBinding="deployment" only resolves when the DMN ships in
+    // the SAME deployment as the BPMN — assert the grouping holds.
+    String deploymentId =
+        processEngine
+            .getRepositoryService()
+            .createProcessDefinitionQuery()
+            .processDefinitionKey("ropVehicleRegistration")
+            .latestVersion()
+            .singleResult()
+            .getDeploymentId();
+    assertEquals(
+        2,
+        processEngine
+            .getRepositoryService()
+            .createDecisionDefinitionQuery()
+            .deploymentId(deploymentId)
+            .count(),
+        "rop-vehicle-eligibility + rop-vehicle-fee must ship with the process");
   }
 
   private long countDecision(String decisionDefinitionKey) {

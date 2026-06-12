@@ -36,7 +36,7 @@ http-connector like any other external REST service.
 | Database | H2, in-memory (no `spring.datasource` configured) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
 | Template engine | `cibseven-template-engines-freemarker` — renders connector payloads from `templates/*.ftl` |
-| DMN | Bundled with the engine; `vehicle-auto-approval.dmn` + `business-auto-approval.dmn` auto-deployed alongside BPMN |
+| DMN | Bundled with the engine; each service's `.dmn` files deploy in the same per-service deployment as its BPMN (`decisionRefBinding="deployment"`) |
 | PDF generation | Out-of-process: [Gotenberg](https://gotenberg.dev/) (headless Chromium) fronted by a tiny [`pdf-renderer/`](../pdf-renderer/) Node sidecar that does JSON-in / JSON-out so the http-connector can call it like any other REST endpoint |
 | Webapp SSO | `spring-boot-starter-oauth2-client` + `ContainerBasedAuthenticationFilter` (cibseven-keycloak plugin recipe) |
 | Build | Maven, `spring-boot-maven-plugin` |
@@ -60,10 +60,12 @@ cib7/
     │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
     │       └── webapp/                    — OAuth2 login + ContainerBasedAuthenticationProvider for Cockpit/Tasklist/Admin
     └── resources/
-        ├── application.yaml               — engine + auto-deploy + OAuth2 client config
-        ├── processes/                     — auto-deployed on startup
-        │   ├── vehicle-registration.bpmn,  business-registration.bpmn
-        │   └── vehicle-auto-approval.dmn,  business-auto-approval.dmn
+        ├── application.yaml               — engine + OAuth2 client config
+        ├── processes/<service>/           — one engine deployment per folder (ServiceDeployments.java)
+        │   ├── vehicle-registration/      — vehicle-registration.bpmn + vehicle-auto-approval.dmn
+        │   ├── business-registration/     — business-registration.bpmn + business-auto-approval.dmn
+        │   ├── rop-vehicle-registration/  — BPMN + eligibility/fee DMNs
+        │   └── rop-learning-permit/       — BPMN + eligibility DMN
         └── templates/                     — FreeMarker payloads for the http-connector
             └── *.json.ftl                 — Mailpit emails, pdf-renderer renders,
                                              backend /api/documents calls
@@ -169,9 +171,7 @@ server:
   port: 8080
 
 camunda.bpm:
-  deployment-resource-pattern:
-    - classpath*:**/*.bpmn
-    - classpath*:**/*.dmn
+  auto-deployment-enabled: false
   database:
     schema-update: true
 ```
@@ -179,20 +179,41 @@ camunda.bpm:
 | Key | Why |
 |---|---|
 | `server.port: 8080` | Hard-coded so the SPA proxy targets are stable in both dev and Docker |
-| `camunda.bpm.deployment-resource-pattern` | List of glob patterns. Auto-deploys every `*.bpmn` **and** `*.dmn` on the classpath at startup — no Java code needed |
+| `camunda.bpm.auto-deployment-enabled: false` | The starter's auto-deploy would bundle every BPMN/DMN into one `SpringAutoDeployment` — a single versioning/rollback unit for ALL services. `ServiceDeployments.java` replaces it (see below) |
 | `camunda.bpm.database.schema-update: true` | Lets the engine create its tables on first start (required for the in-memory H2 lifecycle) |
 | *(no `spring.datasource`)* | Triggers Spring Boot's H2 auto-config — in-memory DB, state wiped on restart |
 
+## Per-service deployments (`ServiceDeployments.java`)
+
+`com.poc.cib7.ServiceDeployments` scans `classpath*:processes/*/` at
+startup and creates **one named engine deployment per service folder**
+(deployment name = folder name = the spec folder name under
+`docs/business/services/`), with `enableDuplicateFiltering(true)` so a
+re-deploy of an unchanged service is a no-op and an edit re-versions only
+that service. Benefits over the single-bundle starter deploy:
+
+- independent versioning per service (no cross-service version bumps),
+- independent rollback/delete in Cockpit (deployment delete cascades per
+  service, not across the whole catalog),
+- `camunda:decisionRefBinding="deployment"` on business rule tasks now
+  resolves each process's DMNs from the same service deployment — an
+  in-flight process version never silently picks up a newer decision
+  table.
+
+It runs in `@PostConstruct`, before the HTTP port opens, so
+`/engine-rest` never serves a window with missing definitions.
+
 ## BPMN files
 
-**Location.** `cib7/src/main/resources/processes/`. Anything matching
-`classpath*:**/*.bpmn` is auto-deployed on startup, but keep BPMN under
-`processes/` for sanity.
+**Location.** `cib7/src/main/resources/processes/<service>/` — one folder
+per service; the folder name becomes the engine deployment name. A
+service's DMN files live in the same folder (required by the
+`deployment` decision binding).
 
 **Repo convention: one file per process** (one top-level `<bpmn:process>`).
-The engine does not enforce this — the auto-deploy pattern just scans every
-`*.bpmn` and a single file can technically hold multiple processes — but we
-keep it one-to-one so the file name matches the process and diffs stay small.
+The engine does not enforce this — a single file can technically hold
+multiple processes — but we keep it one-to-one so the file name matches
+the process and diffs stay small.
 
 **Editing.** Use the Camunda Modeler (it understands the `camunda:` namespace
 and DI). Hand-editing the XML is fine for small changes; keep the

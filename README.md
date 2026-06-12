@@ -208,8 +208,10 @@ run the builder, how to test — see
   vehicle registry, and document storage (presigned RustFS uploads, JPA
   `Document` metadata). It talks to the engine only via `/engine-rest`,
   authenticated as the `cib7-business` Keycloak service account.
-- The BPMN/DMN files live in the engine module and are **auto-deployed on
-  startup**.
+- The BPMN/DMN files live in the engine module under
+  `processes/<service>/` and are deployed on startup as **one named engine
+  deployment per service** (`ServiceDeployments.java`), so each service
+  versions and rolls back independently.
 - The **Look up vehicle in registry** service task calls the backend's
   registry server-side via the official `http-connector`. The email service
   tasks reuse the same connector against Mailpit's `/api/v1/send` JSON
@@ -349,7 +351,7 @@ cib7-react-poc/
 │       │   └── keycloak/                     Spring Security + Keycloak identity wiring
 │       └── resources/
 │           ├── application.yaml
-│           ├── processes/                    BPMN + DMN (auto-deployed)
+│           ├── processes/<service>/          BPMN + DMN — one engine deployment per folder
 │           └── templates/                    FreeMarker payloads for connectors
 ├── backend/                        Business microservice (Spring Boot 4)
 │   │                               Owns every /api/** surface; talks to the
@@ -555,9 +557,10 @@ no extra wiring is needed.
 docker compose up --build
 ```
 
-The engine redeploys the BPMN / DMN on startup (auto-deploy picks up
-`classpath*:**/*.bpmn` and `classpath*:**/*.dmn`; see
-[`application.yaml`](cib7/src/main/resources/application.yaml)). Walk the
+The engine redeploys the BPMN / DMN on startup —
+[`ServiceDeployments.java`](cib7/src/main/java/com/poc/cib7/ServiceDeployments.java)
+creates one named deployment per `processes/<service>/` folder, with
+duplicate filtering so unchanged services don't re-version. Walk the
 happy path and at least one edge case through the SPA:
 
 1. **PartA — start the service as `bart`**, fill each user form, watch
@@ -660,30 +663,32 @@ button).
 
 ## DMN decision table
 
-[`cib7/src/main/resources/processes/auto-approval.dmn`](cib7/src/main/resources/processes/auto-approval.dmn)
+[`cib7/src/main/resources/processes/vehicle-registration/vehicle-auto-approval.dmn`](cib7/src/main/resources/processes/vehicle-registration/vehicle-auto-approval.dmn)
 is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
 `price` (Double) — and a single string output `autoDecision`. Hit policy is
 `FIRST`: minors always go to review, adults with cheap picks auto-approve,
 everything else goes to review.
 
-The Business Rule Task references it inline:
+The Business Rule Task references it inline, bound to the decision version
+that shipped in the same service deployment:
 
 ```xml
 <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto approval?"
-                       camunda:decisionRef="auto-approval"
+                       camunda:decisionRef="vehicle-auto-approval"
+                       camunda:decisionRefBinding="deployment"
                        camunda:mapDecisionResult="singleEntry"
                        camunda:resultVariable="autoDecision" />
 ```
 
-Auto-deploy picks up `*.dmn` automatically thanks to the list pattern in
-[`application.yaml`](cib7/src/main/resources/application.yaml):
-
-```yaml
-camunda.bpm:
-  deployment-resource-pattern:
-    - classpath*:**/*.bpmn
-    - classpath*:**/*.dmn
-```
+Each service's BPMN + DMN files live under
+`cib7/src/main/resources/processes/<service>/` and are deployed as **one
+named engine deployment per service** by
+[`ServiceDeployments.java`](cib7/src/main/java/com/poc/cib7/ServiceDeployments.java)
+(the starter's single-bundle auto-deploy is off — `camunda.bpm.auto-deployment-enabled: false`
+in [`application.yaml`](cib7/src/main/resources/application.yaml)). Editing
+one service re-versions only that service; the others are duplicate-filtered
+no-ops, and each service can be rolled back or deleted in Cockpit
+independently.
 
 ## Timer boundary event + Mailpit
 

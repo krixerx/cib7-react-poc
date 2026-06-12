@@ -407,6 +407,7 @@
 
     <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto-approval policy"
                            camunda:decisionRef="business-auto-approval"
+                           camunda:decisionRefBinding="deployment"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="autoDecision">
       <bpmn:incoming>Flow_NeedsSignatures_AutoDecide</bpmn:incoming>

@@ -108,6 +108,7 @@
 
     <bpmn:businessRuleTask id="Task_RopVehicleEligibility" name="Validate registration conditions"
                            camunda:decisionRef="rop-vehicle-eligibility"
+                           camunda:decisionRefBinding="deployment"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="eligibilityDecision">
       <bpmn:incoming>Flow_Clearance_Eligibility</bpmn:incoming>
@@ -134,6 +135,7 @@
 
     <bpmn:businessRuleTask id="Task_RopVehicleFee" name="Determine registration fee"
                            camunda:decisionRef="rop-vehicle-fee"
+                           camunda:decisionRefBinding="deployment"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="registrationFee">
       <bpmn:incoming>Flow_ConditionsMet_Fee</bpmn:incoming>

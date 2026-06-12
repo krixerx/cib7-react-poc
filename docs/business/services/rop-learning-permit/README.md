@@ -2,8 +2,8 @@
 
 **Status:** active (POC demo — ROP ITS Demo Scenario 2)
 **Process key:** `ropLearningPermit`
-**BPMN:** [`cib7/src/main/resources/processes/rop-learning-permit.bpmn`](../../../../cib7/src/main/resources/processes/rop-learning-permit.bpmn)
-**DMN:** [`cib7/src/main/resources/processes/rop-permit-eligibility.dmn`](../../../../cib7/src/main/resources/processes/rop-permit-eligibility.dmn)
+**BPMN:** [`cib7/src/main/resources/processes/rop-learning-permit/rop-learning-permit.bpmn`](../../../../cib7/src/main/resources/processes/rop-learning-permit/rop-learning-permit.bpmn)
+**DMN:** [`cib7/src/main/resources/processes/rop-learning-permit/rop-permit-eligibility.dmn`](../../../../cib7/src/main/resources/processes/rop-learning-permit/rop-permit-eligibility.dmn)
 
 **When to read this:** before changing the ropLearningPermit flow, its
 forms, or its integrations. The service implements **Demo Scenario 2:
@@ -200,7 +200,7 @@ Do not edit between the markers — run the script to refresh:
 ```sh
 cd scripts
 node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/rop-learning-permit.bpmn \
+  ../cib7/src/main/resources/processes/rop-learning-permit/rop-learning-permit.bpmn \
   --out ../docs/business/services/rop-learning-permit/README.md
 ```
 

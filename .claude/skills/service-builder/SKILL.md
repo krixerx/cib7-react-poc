@@ -42,8 +42,8 @@ Per-service files (paths under `cib7-react-poc/`):
 | | person-registration | business-registration |
 |---|---|---|
 | Spec | [`docs/business/services/person-registration/README.md`](../../../docs/business/services/person-registration/README.md) | [`docs/business/services/business-registration/README.md`](../../../docs/business/services/business-registration/README.md) |
-| BPMN | [`cib7/src/main/resources/processes/person-registration.bpmn`](../../../cib7/src/main/resources/processes/person-registration.bpmn) | [`cib7/src/main/resources/processes/business-registration.bpmn`](../../../cib7/src/main/resources/processes/business-registration.bpmn) |
-| DMN | [`cib7/.../auto-approval.dmn`](../../../cib7/src/main/resources/processes/auto-approval.dmn) | [`cib7/.../business-auto-approval.dmn`](../../../cib7/src/main/resources/processes/business-auto-approval.dmn) |
+| BPMN | [`cib7/src/main/resources/processes/person-registration.bpmn`](../../../cib7/src/main/resources/processes/person-registration.bpmn) | [`cib7/src/main/resources/processes/business-registration/business-registration.bpmn`](../../../cib7/src/main/resources/processes/business-registration/business-registration.bpmn) |
+| DMN | [`cib7/.../auto-approval.dmn`](../../../cib7/src/main/resources/processes/auto-approval.dmn) | [`cib7/.../business-auto-approval.dmn`](../../../cib7/src/main/resources/processes/business-registration/business-auto-approval.dmn) |
 | Forms | [`personal-details/PersonalDetailsForm.tsx`](../../../frontend/src/forms/personal-details/PersonalDetailsForm.tsx), [`review-application/ReviewApplicationForm.tsx`](../../../frontend/src/forms/review-application/ReviewApplicationForm.tsx) | [`business-details/BusinessDetailsForm.tsx`](../../../frontend/src/forms/business-details/BusinessDetailsForm.tsx), [`review-business-registration/ReviewBusinessRegistrationForm.tsx`](../../../frontend/src/forms/review-business-registration/ReviewBusinessRegistrationForm.tsx) |
 | MCP manifest | [`build/mcp-service.json`](../../../docs/business/services/person-registration/build/mcp-service.json) | [`build/mcp-service.json`](../../../docs/business/services/business-registration/build/mcp-service.json) |
 | MCP training | [`build/mcp-training.md`](../../../docs/business/services/person-registration/build/mcp-training.md) | [`build/mcp-training.md`](../../../docs/business/services/business-registration/build/mcp-training.md) |
@@ -85,8 +85,8 @@ and ask** rather than guessing.
 
 | Source file | Generated file(s) |
 |---|---|
-| `<service>/README.md` (flow section) | `cib7/src/main/resources/processes/<service>.bpmn` |
-| `<service>/decisions/<id>.md` | `cib7/src/main/resources/processes/<id>.dmn` |
+| `<service>/README.md` (flow section) | `cib7/src/main/resources/processes/<service>/<service>.bpmn` |
+| `<service>/decisions/<id>.md` | `cib7/src/main/resources/processes/<service>/<id>.dmn` |
 | `<service>/service-tasks/<id>.md` with payload-template body | `cib7/src/main/resources/templates/<id>.json.ftl` |
 | `<service>/forms/<id>.md` | `frontend/src/forms/<id>/<PascalCase>Form.tsx` |
 | Every form across every service | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
@@ -100,6 +100,14 @@ sidecar — its `Dockerfile` COPYs `docs/business/services/` into the image
 and the loader walks every `<service>/build/mcp-service.json + mcp-training.md`
 pair. See [`mcp/src/services/manifest.ts`](../../../mcp/src/services/manifest.ts)
 for the consumer side.
+
+**Deployment convention:** each service's BPMN + DMN files go into their own
+`cib7/src/main/resources/processes/<service>/` folder (folder name = spec
+folder name). `ServiceDeployments.java` turns every folder into ONE named
+engine deployment at startup — that's what makes per-service versioning,
+per-service rollback, and `decisionRefBinding="deployment"` work. Never emit
+resources into the flat `processes/` root, and never put one service's DMN
+into another service's folder.
 
 Everything outside this list is hand-written platform code — don't touch it.
 In particular: **do not edit** anything under `cib7/src/main/java/`,
@@ -124,13 +132,13 @@ generated files get rewritten in place; idempotent runs are a no-op.
    templates.
 3. **Validate** against [§ 4](#4-validation-rules). On failure, list every
    violation in one message and stop — don't generate partial output.
-4. **Emit BPMN** at `cib7/src/main/resources/processes/<service>.bpmn` using
+4. **Emit BPMN** at `cib7/src/main/resources/processes/<service>/<service>.bpmn` using
    the patterns in [§ 5](#5-bpmn-authoring-patterns). Include BPMNDI layout
    bounds so Cockpit can render the diagram; pack them on a horizontal
    waterline (y=160, x advances by 140 per task) and let the modeller adjust
    later if needed. Don't try to be clever — readable lanes beat dense lanes.
 5. **Emit DMN** for each `decisions/<id>.md` at
-   `cib7/src/main/resources/processes/<id>.dmn` using the pattern in
+   `cib7/src/main/resources/processes/<service>/<id>.dmn` using the pattern in
    [§ 6](#6-dmn-authoring-patterns). Every DMN **must** carry
    `camunda:historyTimeToLive` matching the BPMN's TTL.
 6. **Emit FreeMarker payloads** for each `service-tasks/<id>.md` that
@@ -168,7 +176,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
 12. **Regenerate the mermaid diagram.** Run:
     ```sh
     cd scripts && node bpmn-to-mermaid.mjs \
-      ../cib7/src/main/resources/processes/<service>.bpmn \
+      ../cib7/src/main/resources/processes/<service>/<service>.bpmn \
       --out ../docs/business/services/<service>/README.md
     ```
     The script replaces the block between `<!-- bpmn-diagram:start -->` and
@@ -200,7 +208,7 @@ short-circuit on the first one.
 | BPMN TTL | The `<bpmn:process>` element carries `camunda:historyTimeToLive`. Match the value in the README; default `P30D` if unspecified. |
 | Form id ↔ formKey | Each user task in the README flow has a matching `forms/<id>.md` and the BPMN emits `camunda:formKey="react:<id>"`. |
 | Service task ↔ spec file | Each service task in the README flow has a matching `service-tasks/<id>.md`. |
-| Decision ↔ spec file | Each business rule task in the README flow has a matching `decisions/<id>.md` and the BPMN emits `camunda:decisionRef="<id>"`. |
+| Decision ↔ spec file | Each business rule task in the README flow has a matching `decisions/<id>.md` and the BPMN emits `camunda:decisionRef="<id>"` with `camunda:decisionRefBinding="deployment"` (the DMN ships in the same per-service deployment). |
 | Initiator pattern | User tasks owned by the initiator carry `camunda:assignee="${initiator}"`, not `candidateGroups`. The start event carries `camunda:initiator="initiator"`. |
 | FreeMarker JSON safety | Generated `.json.ftl` files escape string values with `?json_string`. |
 | MCP manifest variable consistency | Every variable name + type in `mcp-service.json`'s start `variables` schema and each `userTasks[].schema` matches the README's process-variables table. Drift here means start_process or complete_task will reject the LLM's input while the React form succeeds (or vice versa) — silent contract break. |
@@ -287,6 +295,7 @@ DMN business rule task:
 ```xml
 <bpmn:businessRuleTask id="Task_<Name>" name="<Display name>"
                        camunda:decisionRef="<decision-id>"
+                       camunda:decisionRefBinding="deployment"
                        camunda:mapDecisionResult="singleEntry"
                        camunda:resultVariable="<outputVar>" />
 ```
@@ -501,7 +510,7 @@ After writing the BPMN, regenerate the diagram block in the service README:
 
 ```sh
 cd scripts && node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/<service>.bpmn \
+  ../cib7/src/main/resources/processes/<service>/<service>.bpmn \
   --out ../docs/business/services/<service>/README.md
 ```
 

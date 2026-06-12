@@ -2,9 +2,9 @@
 
 **Status:** active (POC demo — ROP ITS Demo Scenario 1)
 **Process key:** `ropVehicleRegistration`
-**BPMN:** [`cib7/src/main/resources/processes/rop-vehicle-registration.bpmn`](../../../../cib7/src/main/resources/processes/rop-vehicle-registration.bpmn)
-**DMN:** [`cib7/src/main/resources/processes/rop-vehicle-eligibility.dmn`](../../../../cib7/src/main/resources/processes/rop-vehicle-eligibility.dmn),
-[`cib7/src/main/resources/processes/rop-vehicle-fee.dmn`](../../../../cib7/src/main/resources/processes/rop-vehicle-fee.dmn)
+**BPMN:** [`cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-registration.bpmn`](../../../../cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-registration.bpmn)
+**DMN:** [`cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-eligibility.dmn`](../../../../cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-eligibility.dmn),
+[`cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-fee.dmn`](../../../../cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-fee.dmn)
 
 **When to read this:** before changing the ropVehicleRegistration flow, its
 forms, or its integrations. The service implements **Demo Scenario 1: New
@@ -218,7 +218,7 @@ Do not edit between the markers — run the script to refresh:
 ```sh
 cd scripts
 node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/rop-vehicle-registration.bpmn \
+  ../cib7/src/main/resources/processes/rop-vehicle-registration/rop-vehicle-registration.bpmn \
   --out ../docs/business/services/rop-vehicle-registration/README.md
 ```
 

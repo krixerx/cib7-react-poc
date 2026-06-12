@@ -106,6 +106,7 @@
 
     <bpmn:businessRuleTask id="Task_RopPermitEligibility" name="Check terms of service"
                            camunda:decisionRef="rop-permit-eligibility"
+                           camunda:decisionRefBinding="deployment"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="permitDecision">
       <bpmn:incoming>Flow_Clearance_Eligibility</bpmn:incoming>

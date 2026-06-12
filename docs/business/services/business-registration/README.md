@@ -2,8 +2,8 @@
 
 **Status:** active (POC)
 **Process key:** `businessRegistration`
-**BPMN:** [`cib7/src/main/resources/processes/business-registration.bpmn`](../../../../cib7/src/main/resources/processes/business-registration.bpmn)
-**DMN:** [`cib7/src/main/resources/processes/business-auto-approval.dmn`](../../../../cib7/src/main/resources/processes/business-auto-approval.dmn)
+**BPMN:** [`cib7/src/main/resources/processes/business-registration/business-registration.bpmn`](../../../../cib7/src/main/resources/processes/business-registration/business-registration.bpmn)
+**DMN:** [`cib7/src/main/resources/processes/business-registration/business-auto-approval.dmn`](../../../../cib7/src/main/resources/processes/business-registration/business-auto-approval.dmn)
 
 **When to read this:** before changing the businessRegistration flow, its
 forms, or its integrations. Cross-cutting topics live in
@@ -150,7 +150,7 @@ Do not edit between the markers — run the script to refresh:
 ```sh
 cd scripts
 node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/business-registration.bpmn \
+  ../cib7/src/main/resources/processes/business-registration/business-registration.bpmn \
   --out ../docs/business/services/business-registration/README.md
 ```
 

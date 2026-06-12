@@ -81,11 +81,14 @@ app:
   # (BACKEND_API_URL + INTERNAL_TASK_TOKEN env vars, read directly there).
 
 camunda.bpm:
-  # Auto-deploy every BPMN and DMN file found on the classpath on startup.
-  # DMN decision tables live next to BPMN under classpath:/processes/.
-  deployment-resource-pattern:
-    - classpath*:**/*.bpmn
-    - classpath*:**/*.dmn
+  # The starter's auto-deploy would bundle every BPMN/DMN on the classpath
+  # into ONE "SpringAutoDeployment" — a single versioning/rollback unit
+  # shared by all services. ServiceDeployments.java replaces it: one named
+  # engine deployment per classpath:/processes/<service>/ folder, so each
+  # service versions, deploys, and rolls back independently (and the
+  # decisionRefBinding="deployment" on business rule tasks resolves each
+  # process's DMNs from its own service deployment).
+  auto-deployment-enabled: false
   database:
     schema-update: true
   # Engine authorization must be on for candidateGroups on userTasks to
