@@ -63,6 +63,9 @@ services:
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
       # SPA origin allowed in the bucket CORS policy.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
+      # Refuse to start if any committed dev-default secret is still in
+      # effect (DefaultSecretsGuard) — prod must run on real values.
+      APP_REQUIRE_REAL_SECRETS: "true"
     labels:
       traefik.http.routers.backend-api.entrypoints: "websecure"
       traefik.http.routers.backend-api.tls: "true"

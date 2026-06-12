@@ -14,7 +14,20 @@
 const KEYCLOAK_INTERNAL_URL = process.env.KEYCLOAK_INTERNAL_URL ?? 'http://keycloak:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM ?? 'cib7-poc';
 const CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID ?? 'cib7-backend';
-const CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET ?? 'cib7-backend-secret';
+// Deliberately no code-side fallback: a baked-in privileged credential would
+// silently mask a missing env var in a real deployment. docker-compose
+// supplies the dev value; a bare `npm run dev` must export it explicitly.
+// Resolved lazily so the other (engine-proxied) tools work without it.
+const CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET;
+
+function requireClientSecret(): string {
+  if (!CLIENT_SECRET) {
+    throw new Error(
+      'KEYCLOAK_ADMIN_CLIENT_SECRET is not set — required for the Keycloak admin API (send_account_invitation).',
+    );
+  }
+  return CLIENT_SECRET;
+}
 
 const TOKEN_URL = `${KEYCLOAK_INTERNAL_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`;
 export const ADMIN_BASE = `${KEYCLOAK_INTERNAL_URL}/admin/realms/${KEYCLOAK_REALM}`;
@@ -29,7 +42,7 @@ async function fetchServiceToken(): Promise<CachedToken> {
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
     client_id: CLIENT_ID,
-    client_secret: CLIENT_SECRET,
+    client_secret: requireClientSecret(),
   });
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
