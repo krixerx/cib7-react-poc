@@ -98,6 +98,27 @@ public class EngineClient {
     }
   }
 
+  /**
+   * {@code startUserId} of the (possibly already ended) process instance from history, or {@code
+   * null} when the instance is unknown or was started without an authenticated user. Drives the
+   * documents API's per-case access rule.
+   */
+  public String getHistoricStartUserId(String processInstanceId) {
+    try {
+      JsonNode pi =
+          rest.get()
+              .uri("/history/process-instance/{id}", processInstanceId)
+              .retrieve()
+              .body(JsonNode.class);
+      if (pi == null || pi.path("startUserId").isNull()) {
+        return null;
+      }
+      return pi.path("startUserId").asText();
+    } catch (HttpClientErrorException.NotFound e) {
+      return null;
+    }
+  }
+
   private List<String> queryInstanceIds(Map<String, Object> queryBody) {
     JsonNode result =
         rest.post().uri("/process-instance").body(queryBody).retrieve().body(JsonNode.class);

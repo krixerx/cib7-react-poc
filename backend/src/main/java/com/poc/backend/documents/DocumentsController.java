@@ -1,5 +1,6 @@
 package com.poc.backend.documents;
 
+import com.poc.backend.security.CaseAccessService;
 import com.poc.backend.storage.S3Properties;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
@@ -48,11 +49,10 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  *       tasks via the cibseven http-connector. Auth is by shared {@code X-Internal-Token} header.
  * </ul>
  *
- * <p>POC simplification vs the in-engine version: the engine used to run a per-user permission
- * check on the process instance before listing or downloading. Here any authenticated user can read
- * documents for a case whose process instance id they know. A production version would forward the
- * caller's Bearer to {@code /engine-rest} and require READ_INSTANCE on the case before serving
- * metadata.
+ * <p>Per-case authorization: every process-scoped read and write runs through {@link
+ * CaseAccessService} — reviewers ({@code civil-servant}/{@code cib7-admin}) see every case,
+ * applicants only the cases the engine says they started. Failures surface as 404 so probing for
+ * case or attachment ids leaks nothing.
  *
  * <p>Object key layout:
  *
@@ -84,13 +84,19 @@ public class DocumentsController {
   private final S3Presigner presigner;
   private final S3Properties props;
   private final DocumentRepository documents;
+  private final CaseAccessService caseAccess;
 
   public DocumentsController(
-      S3Client s3, S3Presigner presigner, S3Properties props, DocumentRepository documents) {
+      S3Client s3,
+      S3Presigner presigner,
+      S3Properties props,
+      DocumentRepository documents,
+      CaseAccessService caseAccess) {
     this.s3 = s3;
     this.presigner = presigner;
     this.props = props;
     this.documents = documents;
+    this.caseAccess = caseAccess;
   }
 
   // ----------------- JWT-authenticated endpoints (SPA) -----------------
@@ -118,6 +124,9 @@ public class DocumentsController {
     if ("process".equals(scope)) {
       if (req.scopeId() == null || req.scopeId().isBlank()) {
         return badRequest("scopeId (process instance id) is required for scope=process.");
+      }
+      if (!caseAccess.canAccessCase(req.scopeId())) {
+        return caseNotFound();
       }
       key =
           "process/" + req.scopeId() + "/" + UUID.randomUUID() + "/" + safeFilename(req.filename());
@@ -222,6 +231,9 @@ public class DocumentsController {
     if (!ALLOWED_CATEGORIES.contains(req.category())) {
       return badRequest("category must be one of " + ALLOWED_CATEGORIES);
     }
+    if (!caseAccess.canAccessCase(processInstanceId)) {
+      return caseNotFound();
+    }
     if (!objectExists(req.key())) {
       return badRequest("Object not found in storage. Did the upload complete?");
     }
@@ -239,6 +251,9 @@ public class DocumentsController {
 
   @GetMapping("/{processInstanceId}")
   public ResponseEntity<?> listAttachments(@PathVariable String processInstanceId) {
+    if (!caseAccess.canAccessCase(processInstanceId)) {
+      return caseNotFound();
+    }
     List<DocumentEntry> out =
         documents.findByProcessInstanceIdOrderByCreatedAtAsc(processInstanceId).stream()
             .map(
@@ -258,7 +273,8 @@ public class DocumentsController {
   @GetMapping("/attachments/{attachmentId}/download-url")
   public ResponseEntity<?> mintDownloadUrl(@PathVariable String attachmentId) {
     Document doc = documents.findById(attachmentId).orElse(null);
-    if (doc == null) {
+    // Same 404 for "unknown id" and "not your case" — no existence probing.
+    if (doc == null || !caseAccess.canAccessCase(doc.getProcessInstanceId())) {
       return ResponseEntity.status(HttpStatus.NOT_FOUND)
           .body(new ErrorResponse("not_found", "No such attachment."));
     }
@@ -425,6 +441,12 @@ public class DocumentsController {
 
   private static ResponseEntity<?> badRequest(String message) {
     return ResponseEntity.badRequest().body(new ErrorResponse("bad_request", message));
+  }
+
+  /** 404 for cases the caller may not access — indistinguishable from a missing case. */
+  private static ResponseEntity<?> caseNotFound() {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(new ErrorResponse("not_found", "No such case."));
   }
 
   // ----------------- DTOs -----------------
