@@ -90,6 +90,23 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- Boot 4 split the test slices out of spring-boot-test-autoconfigure:
+         @WebMvcTest / @AutoConfigureMockMvc now live in the
+         org.springframework.boot.webmvc.test.autoconfigure package here. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-webmvc-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Wires Spring Security's autoconfiguration (HttpSecurity et al.) into
+         the test slices — without it @WebMvcTest pulls the oauth2 client /
+         resource-server autoconfigs but not the core security one, and the
+         context dies on a missing HttpSecurity bean. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
     <!-- jwt() request post-processors + SecurityContext test helpers. -->
     <dependency>
       <groupId>org.springframework.security</groupId>
