@@ -57,7 +57,8 @@ const RESIDENCY_OPTIONS: Array<{ value: Residency; label: string; hint: string }
   },
 ];
 
-function normaliseResidency(raw: unknown): Residency {
+/** Exported for tests (parsers.test.ts), like the other parse helpers below. */
+export function normaliseResidency(raw: unknown): Residency {
   if (typeof raw !== 'string') return 'citizen';
   const lower = raw.toLowerCase();
   if (lower === 'citizen' || lower === 'e-resident' || lower === 'foreign') {
@@ -66,7 +67,7 @@ function normaliseResidency(raw: unknown): Residency {
   return 'citizen';
 }
 
-function parseBoardMembers(raw: unknown): BoardMember[] {
+export function parseBoardMembers(raw: unknown): BoardMember[] {
   if (Array.isArray(raw)) {
     return raw.map((m) => ({
       firstName:
@@ -92,7 +93,7 @@ function parseBoardMembers(raw: unknown): BoardMember[] {
  * CIB seven returns Spin Json variables as either JS arrays or JSON
  * strings depending on the storage path; handle both.
  */
-function parseAdditionalFounders(raw: unknown): AdditionalFounder[] {
+export function parseAdditionalFounders(raw: unknown): AdditionalFounder[] {
   if (!raw) return [];
   let parsed: unknown = raw;
   if (typeof raw === 'string') {
@@ -111,10 +112,13 @@ function parseAdditionalFounders(raw: unknown): AdditionalFounder[] {
     }));
 }
 
-function ensureCompanySuffix(name: string): string {
+export function ensureCompanySuffix(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return trimmed;
-  if (/\bOÜ\b/i.test(trimmed)) return trimmed;
+  // Not \bOÜ\b: Ü is outside the regex \w class, so \b after it never
+  // matches at a space or end-of-string — every resubmission round would
+  // append another " OÜ". Delimit by whitespace/string edges instead.
+  if (/(^|\s)OÜ($|\s)/i.test(trimmed)) return trimmed;
   return `${trimmed} OÜ`;
 }
 

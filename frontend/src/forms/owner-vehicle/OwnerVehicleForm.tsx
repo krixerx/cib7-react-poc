@@ -351,7 +351,7 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
  * array (Object type → Jackson-deserialised) or as a JSON string (Json type
  * → SpinJsonNode → toString). Normalise to a plain array of {name, email}.
  */
-function parseAdditionalOwners(value: unknown): Array<{ name: string; email: string }> {
+export function parseAdditionalOwners(value: unknown): Array<{ name: string; email: string }> {
   if (!value) return [];
   let parsed: unknown = value;
   if (typeof value === 'string') {
