@@ -84,7 +84,7 @@
 
     <h2>Company</h2>
     <table>
-      <tr><th>Name</th><td>${companyName!""}</td></tr>
+      <tr><th>Name</th><td>${(companyName!"")?html}</td></tr>
       <tr><th>Form</th><td>Osaühing (OÜ)</td></tr>
       <tr><th>Share capital</th><td>&euro;${capitalNumber?string("0.00")}</td></tr>
     </table>
@@ -92,18 +92,18 @@
     <h2>Management board</h2>
     <ul class="party-list">
       <#list boardMembers.elements() as m>
-        <li>${(m.prop("firstName").stringValue())!""} ${(m.prop("lastName").stringValue())!""}
-            <span style="color: #666">(isikukood ${(m.prop("personalCode").stringValue())!""})</span></li>
+        <li>${((m.prop("firstName").stringValue())!"")?html} ${((m.prop("lastName").stringValue())!"")?html}
+            <span style="color: #666">(isikukood ${((m.prop("personalCode").stringValue())!"")?html})</span></li>
       </#list>
     </ul>
 
     <h2>Founder<#if hasFounders>s</#if></h2>
     <ul class="party-list">
-      <li>${fullName}
+      <li>${fullName?html}
           <span style="color: #666">&middot; applicant &middot; ${residencyLabel}</span></li>
       <#if hasFounders>
         <#list additionalFounders.elements() as f>
-          <li>${f.prop("name").stringValue()}</li>
+          <li>${f.prop("name").stringValue()?html}</li>
         </#list>
       </#if>
     </ul>

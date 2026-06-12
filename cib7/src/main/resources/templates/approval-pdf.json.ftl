@@ -20,6 +20,11 @@
   escaped into a single valid JSON string. The HTML uses inline CSS
   so Gotenberg's Chromium renders it consistently without needing
   external stylesheets.
+
+  Every user-sourced string inside the html block is ?html-escaped:
+  Chromium executes this markup, so an applicant-typed name like
+  <img src=//evil/x> would otherwise inject content (and outbound
+  fetches) into the official PDF.
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 <#-- `price` is written by Task_GetPrice via a JUEL output mapping. It
@@ -84,17 +89,17 @@
 
   <h2>Registered owner</h2>
   <table>
-    <tr><th>Full name</th><td>${fullName}</td></tr>
+    <tr><th>Full name</th><td>${fullName?html}</td></tr>
     <tr><th>Age</th><td>${(age!0)}</td></tr>
-    <tr><th>Email</th><td>${applicantEmail!"&mdash;"}</td></tr>
+    <tr><th>Email</th><td><#if applicantEmail?has_content>${applicantEmail?html}<#else>&mdash;</#if></td></tr>
   </table>
 
   <h2>Vehicle</h2>
   <table>
-    <tr><th>Make &amp; model</th><td>${vehicleMake!""} ${vehicleModel!""}</td></tr>
+    <tr><th>Make &amp; model</th><td>${(vehicleMake!"")?html} ${(vehicleModel!"")?html}</td></tr>
     <tr><th>Year</th><td>${(vehicleYear!0)} <#if (vehicleAgeYears!0) gt 0>(${vehicleAgeYears} years old)</#if></td></tr>
-    <tr><th>Fuel type</th><td>${vehicleFuelType!"&mdash;"}</td></tr>
-    <tr><th>VIN</th><td>${objectId!""}</td></tr>
+    <tr><th>Fuel type</th><td><#if vehicleFuelType?has_content>${vehicleFuelType?html}<#else>&mdash;</#if></td></tr>
+    <tr><th>VIN</th><td>${(objectId!"")?html}</td></tr>
     <tr><th>Declared value</th><td>&euro;${vehicleValue?string("0.00")}</td></tr>
   </table>
 

@@ -60,13 +60,13 @@
 
   <h2>Founder</h2>
   <table>
-    <tr><th>Full name</th><td>${fullName}</td></tr>
-    <tr><th>Email</th><td>${applicantEmail!"&mdash;"}</td></tr>
+    <tr><th>Full name</th><td>${fullName?html}</td></tr>
+    <tr><th>Email</th><td><#if applicantEmail?has_content>${applicantEmail?html}<#else>&mdash;</#if></td></tr>
   </table>
 
   <h2>Company</h2>
   <table>
-    <tr><th>Company name</th><td>${companyName!""}</td></tr>
+    <tr><th>Company name</th><td>${(companyName!"")?html}</td></tr>
     <tr><th>Registration code</th><td>${regCode}</td></tr>
     <tr><th>Share capital</th><td>&euro;${(shareCapital!0.0)?string("0.00")}</td></tr>
   </table>

@@ -71,16 +71,16 @@
 
     <h2>Vehicle</h2>
     <table>
-      <tr><th>Make &amp; model</th><td>${vehicleMake!""} ${vehicleModel!""}</td></tr>
+      <tr><th>Make &amp; model</th><td>${(vehicleMake!"")?html} ${(vehicleModel!"")?html}</td></tr>
       <tr><th>Year of make</th><td>${(vehicleYear!0)}</td></tr>
-      <tr><th>Fuel type</th><td>${vehicleFuelType!"&mdash;"}</td></tr>
-      <tr><th>VIN</th><td>${objectId!""}</td></tr>
+      <tr><th>Fuel type</th><td><#if vehicleFuelType?has_content>${vehicleFuelType?html}<#else>&mdash;</#if></td></tr>
+      <tr><th>VIN</th><td>${(objectId!"")?html}</td></tr>
       <tr><th>Declared value</th><td>&euro;${vehicleValue?string("0.00")}</td></tr>
     </table>
 
     <h2>Registered owner</h2>
     <table>
-      <tr><th>Full name</th><td>${fullName}</td></tr>
+      <tr><th>Full name</th><td>${fullName?html}</td></tr>
       <tr><th>Age</th><td>${(age!0)}</td></tr>
     </table>
 
@@ -88,13 +88,13 @@
     <h2>Co-owners</h2>
     <ul class="coowners">
       <#list additionalOwners.elements() as owner>
-        <li>${owner.prop("name").stringValue()}</li>
+        <li>${owner.prop("name").stringValue()?html}</li>
       </#list>
     </ul>
     </#if>
 
     <div class="stamp">
-      <div>Initiator: <span class="ref">${initiator!"unknown"}</span></div>
+      <div>Initiator: <span class="ref">${(initiator!"unknown")?html}</span></div>
       <div>Process instance: <span class="ref">${execution.processInstanceId}</span></div>
     </div>
   </div>
