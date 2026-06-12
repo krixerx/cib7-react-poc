@@ -1,0 +1,44 @@
+# Traefik dynamic TLS configuration (used by the `tls` compose profile).
+#
+#   cp tls.yml.example tls.yml
+#
+# then drop your certificate + private key into ../certs/ and update the
+# filenames below. Traefik's file provider hot-reloads this directory —
+# rotating a cert is just replacing the files, no container restart.
+#
+# File permissions on the host:
+#   traefik/certs/*.crt   0644
+#   traefik/certs/*.key   0600  (private — readable only by root, the uid
+#                                the container runs as)
+#
+# Multiple host certs: add another entry to certificates:. Traefik picks
+# by SNI; if the client's ServerName matches any SAN on a loaded cert,
+# that cert is served. No router-level cert binding needed.
+
+tls:
+  certificates:
+    - certFile: /certs/app.example.com.crt
+      keyFile: /certs/app.example.com.key
+    # Example second cert (uncomment + edit):
+    # - certFile: /certs/kc.example.com.crt
+    #   keyFile: /certs/kc.example.com.key
+
+  options:
+    # Applied to every TLS connection that does not name a specific
+    # options block: TLS 1.2 floor, modern cipher list, strict SNI.
+    default:
+      minVersion: VersionTLS12
+      sniStrict: true
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+        - TLS_AES_128_GCM_SHA256
+        - TLS_AES_256_GCM_SHA384
+        - TLS_CHACHA20_POLY1305_SHA256
+      curvePreferences:
+        - CurveP521
+        - CurveP384

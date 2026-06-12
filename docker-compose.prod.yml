@@ -69,14 +69,13 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        # Baked into the SPA at build time — must match the realm-export
-        # client and the Keycloak hostname.
-        VITE_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
-        VITE_KEYCLOAK_REALM: cib7-poc
-        VITE_KEYCLOAK_CLIENT_ID: cib7-frontend
+    environment:
+      # Injected at container start via /env.js (see
+      # frontend/docker/40-runtime-env.sh) — must match the realm-export
+      # client and the Keycloak hostname. No image rebuild needed.
+      KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_CLIENT_ID: cib7-frontend
     labels:
       traefik.http.routers.frontend.entrypoints: "websecure"
       traefik.http.routers.frontend.tls: "true"
@@ -88,7 +87,10 @@ services:
       # from the public internet. Defaults to ${PUBLIC_FRONTEND_URL}/mcp;
       # override MCP_RESOURCE_URL in .env if you split hosts.
       MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-${PUBLIC_FRONTEND_URL}/mcp}
-      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}
+      # Unlike the engine/backend (which take the bare Keycloak base URL),
+      # the MCP sidecar compares `iss` against the FULL issuer including
+      # the realm path — see mcp/src/auth/verify.ts.
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}/realms/cib7-poc
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
     labels:
       traefik.http.routers.mcp.entrypoints: "websecure"

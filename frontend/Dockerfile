@@ -22,4 +22,10 @@ RUN npm run build
 FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+# Runtime config injection: regenerates /env.js from KEYCLOAK_URL /
+# KEYCLOAK_REALM / KEYCLOAK_CLIENT_ID env vars at container start, so the
+# image published to Docker Hub works on any hostname without a rebuild.
+# nginx's stock entrypoint runs every executable in /docker-entrypoint.d/.
+COPY docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
+RUN chmod +x /docker-entrypoint.d/40-runtime-env.sh
 EXPOSE 80

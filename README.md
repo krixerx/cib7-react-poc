@@ -398,6 +398,11 @@ cib7-react-poc/
 
 ## Run with Docker (recommended)
 
+> **Just deploying, not developing?** You don't need this repository or a
+> build at all — pre-built images are on Docker Hub. See
+> [`deploy/README.md`](deploy/README.md) for the pull-only administrator
+> guide (single-machine and TLS setups).
+
 Requires Docker with Compose.
 
 ```bash

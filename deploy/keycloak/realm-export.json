@@ -1,0 +1,283 @@
+{
+  "realm": "cib7-poc",
+  "enabled": true,
+  "displayName": "CIB seven POC",
+  "sslRequired": "none",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": false,
+  "rememberMe": true,
+  "verifyEmail": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+
+  "defaultDefaultClientScopes": ["cib7-claims"],
+
+  "defaultGroups": ["/applicant"],
+
+  "smtpServer": {
+    "host": "mailpit",
+    "port": "1025",
+    "from": "noreply@cib7-poc.local",
+    "fromDisplayName": "CIB seven POC",
+    "replyTo": "",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
+
+  "attributes": {
+    "frontendUrl": "http://localhost:8180"
+  },
+
+  "roles": {
+    "realm": [
+      { "name": "applicant",      "description": "End user who starts processes and fills applicant forms (PartA)" },
+      { "name": "civil-servant",  "description": "Back-office reviewer who completes civil-servant tasks (PartB)" },
+      { "name": "cib7-admin",     "description": "Engine administrators (mapped to CIB seven admin authorizations)" }
+    ]
+  },
+
+  "groups": [
+    { "name": "applicant",     "path": "/applicant",     "realmRoles": ["applicant"] },
+    { "name": "civil-servant", "path": "/civil-servant", "realmRoles": ["civil-servant"] },
+    { "name": "cib7-admin",    "path": "/cib7-admin",    "realmRoles": ["cib7-admin"] }
+  ],
+
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Camunda",
+      "lastName": "Admin",
+      "email": "admin@example.com",
+      "credentials": [
+        { "type": "password", "value": "admin", "temporary": false }
+      ],
+      "groups": ["/cib7-admin"],
+      "realmRoles": ["cib7-admin"]
+    },
+    {
+      "username": "homer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Homer",
+      "lastName": "Simpson",
+      "email": "homer@example.com",
+      "credentials": [
+        { "type": "password", "value": "homer", "temporary": false }
+      ],
+      "groups": ["/civil-servant"],
+      "realmRoles": ["civil-servant"]
+    },
+    {
+      "username": "bart",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bart",
+      "lastName": "Simpson",
+      "email": "bart@example.com",
+      "credentials": [
+        { "type": "password", "value": "bart", "temporary": false }
+      ],
+      "groups": ["/applicant"],
+      "realmRoles": ["applicant"]
+    },
+    {
+      "username": "service-account-cib7-backend",
+      "enabled": true,
+      "serviceAccountClientId": "cib7-backend",
+      "clientRoles": {
+        "realm-management": [
+          "query-users",
+          "view-users",
+          "query-groups",
+          "query-clients",
+          "view-clients",
+          "manage-users"
+        ]
+      }
+    },
+    {
+      "username": "service-account-cib7-business",
+      "enabled": true,
+      "serviceAccountClientId": "cib7-business",
+      "groups": ["/cib7-admin"],
+      "realmRoles": ["cib7-admin"]
+    }
+  ],
+
+  "clientScopes": [
+    {
+      "name": "cib7-claims",
+      "description": "preferred_username + realm_access.roles. Replaces the built-in profile/roles scopes which Keycloak does NOT auto-create on realm import — anything not listed here does not exist.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "preferred-username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "cib7-rest-api-audience",
+      "description": "Adds cib7-rest-api to the access-token aud claim. Assign as a default scope on any client that needs to call /engine-rest. Reusable across cib7-mcp and any future admin/ops clients so the audience mapper lives in exactly one place.",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience-cib7-rest-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "cib7-rest-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+
+  "clients": [
+    {
+      "clientId": "cib7-frontend",
+      "name": "CIB seven React SPA",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
+      },
+      "defaultClientScopes": ["cib7-claims"],
+      "protocolMappers": [
+        {
+          "name": "audience-cib7-rest-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "cib7-rest-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "cib7-backend",
+      "name": "CIB seven Backend (Identity Provider Plugin)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-backend-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "use.refresh.tokens": "false"
+      }
+    },
+    {
+      "clientId": "cib7-business",
+      "name": "Business microservice (backend module) — engine REST service account",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-business-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "attributes": {
+        "use.refresh.tokens": "false"
+      },
+      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
+    },
+    {
+      "clientId": "cib7-webapps",
+      "name": "CIB seven Webapps (Cockpit / Tasklist / Admin) SSO",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "cib7-webapps-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/login/oauth2/code/keycloak",
+        "http://localhost:3000/camunda/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "defaultClientScopes": ["cib7-claims"]
+    },
+    {
+      "clientId": "cib7-mcp",
+      "name": "CIB seven MCP (Claude Desktop / agent host)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1/*##http://localhost/*"
+      },
+      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
+    }
+  ]
+}

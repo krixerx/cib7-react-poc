@@ -1,0 +1,343 @@
+# ============================================================================
+# cib7-react-poc — pull-only deployment (no source checkout, no build).
+#
+# All five application images are published to Docker Hub by CI on every
+# push to main:
+#
+#   docker.io/krixerx/cib7-poc-frontend       React SPA (nginx)
+#   docker.io/krixerx/cib7-poc-cib7           CIB seven 2.1 process engine
+#   docker.io/krixerx/cib7-poc-backend        business microservice (/api)
+#   docker.io/krixerx/cib7-poc-mcp            MCP sidecar (AI front door)
+#   docker.io/krixerx/cib7-poc-pdf-renderer   Gotenberg facade
+#
+# Quick start (single machine, browsers on the same host):
+#
+#   docker compose up -d
+#   open http://localhost:3000        log in with bart/bart or homer/homer
+#
+# Every value an administrator might change is read from .env (see
+# .env.example). With no .env at all, every default targets localhost —
+# correct for a single-machine evaluation, never for a public host.
+#
+# Real hostnames + TLS: set the PUBLIC_* vars + secrets in .env, edit
+# keycloak/realm-export.json, drop certs into ./traefik/certs/, then run
+#   docker compose --profile tls up -d
+# See README.md in this folder for the full walkthrough.
+# ============================================================================
+
+services:
+  # --- supporting services (stock images) ----------------------------------
+
+  mailpit:
+    # SMTP sink + HTTP API. The BPMN email service tasks POST to Mailpit's
+    # /api/v1/send — all process mail (approvals, send-backs, owner
+    # confirmations) lands here, nothing leaves the machine. Web UI is
+    # opt-in via the `mail` profile (see mailpit-ui below).
+    image: axllent/mailpit:latest
+    container_name: cib7-poc-mailpit
+    restart: unless-stopped
+    expose:
+      - "8025" # Web UI + HTTP API (network-internal)
+      - "1025" # SMTP
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
+  mailpit-ui:
+    # Publishes Mailpit's web UI on host port 8025, but only when the `mail`
+    # profile is active:  docker compose --profile mail up -d mailpit-ui
+    # Off by default so the stack never exposes an unauthenticated inbox.
+    image: alpine/socat:latest
+    container_name: cib7-poc-mailpit-ui
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+    command: ["TCP-LISTEN:8025,fork,reuseaddr", "TCP:mailpit:8025"]
+    depends_on:
+      - mailpit
+
+  gotenberg:
+    # Headless Chromium REST API — renders the approval-email HTML to PDF.
+    # Only pdf-renderer talks to it.
+    image: gotenberg/gotenberg:8
+    container_name: cib7-poc-gotenberg
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  rustfs:
+    # S3-compatible object storage for applicant uploads and generated PDFs.
+    # Port 9000 is published directly (not proxied): browsers PUT/GET with
+    # presigned URLs, and S3 signature v4 hashes the host header — a proxy
+    # that rewrites it breaks the signature. For TLS deployments, front it
+    # with your own TLS terminator on its own hostname (PUBLIC_S3_URL).
+    image: rustfs/rustfs:latest
+    container_name: cib7-poc-rustfs
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
+      RUSTFS_REGION: us-east-1
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+    volumes:
+      # Named volume — survives container recreation, no host path to manage.
+      - rustfs-data:/data
+    healthcheck:
+      # TCP probe: RustFS's health endpoint answers 403 to unsigned requests
+      # even when healthy, so "is the listener up" is the cleanest signal.
+      test: ["CMD", "nc", "-z", "127.0.0.1", "9000"]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+      start_period: 10s
+
+  keycloak:
+    # Identity provider. The realm (clients, roles, demo users) is imported
+    # from ./keycloak/realm-export.json on FIRST start only — edit that file
+    # BEFORE the first `up`. To re-import after an edit:
+    #   docker compose rm -sf keycloak && docker compose up -d keycloak
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: cib7-poc-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # The single canonical issuer URL stamped into every JWT (`iss`).
+      # Must be exactly what browsers see in the address bar during login.
+      KC_HOSTNAME_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      # Trust X-Forwarded-* when an admin-supplied TLS terminator fronts
+      # Keycloak (the recommended setup for real hostnames).
+      KC_PROXY_HEADERS: xforwarded
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      # Management port 9000 listening == server init + realm import started.
+      # The engine waits on this; without it the engine races Keycloak on
+      # cold start and dies with "Connection refused".
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && exit 0 || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 60
+      start_period: 20s
+
+  # --- application services (published images) -----------------------------
+
+  pdf-renderer:
+    # JSON-in/JSON-out facade in front of Gotenberg, so the BPMN can stay
+    # pure http-connector + FreeMarker.
+    image: docker.io/krixerx/cib7-poc-pdf-renderer:${IMAGE_TAG:-latest}
+    container_name: cib7-poc-pdf-renderer
+    restart: unless-stopped
+    environment:
+      GOTENBERG_URL: http://gotenberg:3000
+    expose:
+      - "8088"
+    depends_on:
+      - gotenberg
+
+  cib7:
+    # CIB seven 2.1 process engine + Cockpit/Tasklist/Admin webapps.
+    # Reachable through the frontend nginx (and Traefik in TLS mode) on
+    # /engine-rest, /camunda, /oauth2, /login, /logout.
+    image: docker.io/krixerx/cib7-poc-cib7:${IMAGE_TAG:-latest}
+    container_name: cib7-poc-cib7
+    restart: unless-stopped
+    expose:
+      - "8080"
+    labels:
+      # Read only when the `tls` profile's Traefik is running; inert otherwise.
+      traefik.enable: "true"
+      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/engine-rest`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
+      traefik.http.routers.cib7-engine.entrypoints: "websecure"
+      traefik.http.routers.cib7-engine.tls: "true"
+      traefik.http.services.cib7-engine.loadbalancer.server.port: "8080"
+    environment:
+      # Internal URL for server-to-server calls (Admin REST + JWKS fetch).
+      KEYCLOAK_URL: http://keycloak:8080
+      # Public URL — validated against the JWT `iss` claim by string
+      # comparison. Must equal KC_HOSTNAME_URL above.
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_BACKEND_CLIENT_ID: cib7-backend
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
+      KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:-cib7-webapps-secret}
+      KEYCLOAK_REST_AUDIENCE: cib7-rest-api
+      MAIL_API_URL: http://mailpit:8025
+      PDF_API_URL: http://pdf-renderer:8088
+      BACKEND_API_URL: http://backend:8085
+      # Browser-visible SPA URL — embedded in owner-confirmation email links.
+      FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      pdf-renderer:
+        condition: service_started
+
+  backend:
+    # Business microservice — owns every /api/** surface (public payment /
+    # confirmation endpoints, vehicle registry, document storage).
+    image: docker.io/krixerx/cib7-poc-backend:${IMAGE_TAG:-latest}
+    container_name: cib7-poc-backend
+    restart: unless-stopped
+    expose:
+      - "8085"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.backend-api.rule: 'PathPrefix(`/api`)'
+      traefik.http.routers.backend-api.entrypoints: "websecure"
+      traefik.http.routers.backend-api.tls: "true"
+      traefik.http.services.backend-api.loadbalancer.server.port: "8085"
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_REST_AUDIENCE: cib7-rest-api
+      KEYCLOAK_BUSINESS_CLIENT_ID: cib7-business
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET:-cib7-business-secret}
+      ENGINE_URL: http://cib7:8080
+      # Internal endpoint for the backend's own S3 client; public endpoint
+      # is what gets baked into presigned URLs the browser uses directly.
+      S3_ENDPOINT: http://rustfs:9000
+      S3_PUBLIC_ENDPOINT: ${PUBLIC_S3_URL:-http://localhost:9000}
+      S3_BUCKET: cib7-documents
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
+      S3_REGION: us-east-1
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # SPA origin allowed in the bucket's CORS policy.
+      FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      cib7:
+        condition: service_started
+
+  mcp:
+    # MCP sidecar — lets AI clients (Claude Desktop, Cursor, …) drive the
+    # applicant flows over OAuth2-protected MCP tools.
+    image: docker.io/krixerx/cib7-poc-mcp:${IMAGE_TAG:-latest}
+    container_name: cib7-poc-mcp
+    restart: unless-stopped
+    environment:
+      # Where MCP clients reach the sidecar from outside.
+      MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-http://localhost:3000/mcp}
+      # Full issuer INCLUDING the realm path — the sidecar string-compares
+      # the JWT `iss` claim against this exact value.
+      KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}/realms/cib7-poc
+      ENGINE_URL: http://cib7:8080
+      BUSINESS_URL: http://backend:8085
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_ADMIN_CLIENT_ID: cib7-backend
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
+    expose:
+      - "8090"
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mcp.rule: 'PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`)'
+      traefik.http.routers.mcp.entrypoints: "websecure"
+      traefik.http.routers.mcp.tls: "true"
+      traefik.http.services.mcp.loadbalancer.server.port: "8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      cib7:
+        condition: service_started
+      backend:
+        condition: service_started
+
+  frontend:
+    # React SPA behind nginx. The nginx config inside the image also proxies
+    # /engine-rest, /api, /camunda, /oauth2, /login, /logout, /mcp and
+    # /.well-known/oauth-protected-resource to the right containers, so in
+    # single-machine mode port 3000 is the only front door you need.
+    # Keycloak URL/realm/client are injected at CONTAINER START via /env.js
+    # — no image rebuild for different hostnames.
+    image: docker.io/krixerx/cib7-poc-frontend:${IMAGE_TAG:-latest}
+    container_name: cib7-poc-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_HTTP_PORT:-3000}:80"
+    expose:
+      - "80"
+    environment:
+      KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-}
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_CLIENT_ID: cib7-frontend
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.frontend.rule: "PathPrefix(`/`)"
+      traefik.http.routers.frontend.entrypoints: "websecure"
+      traefik.http.routers.frontend.tls: "true"
+      traefik.http.routers.frontend.priority: "1"
+      traefik.http.services.frontend.loadbalancer.server.port: "80"
+    depends_on:
+      - cib7
+      - backend
+      - mcp
+
+  # --- TLS ingress (opt-in: docker compose --profile tls up -d) ------------
+
+  traefik:
+    # TLS-terminating ingress for real-hostname deployments. Binds :80
+    # (permanent redirect to https) and :443 (static, admin-supplied certs —
+    # no ACME). Certs and routing config live in ./traefik/ next to this
+    # file; cert rotation is hot-reload, no restart needed.
+    # Not used in single-machine mode — the frontend nginx covers everything.
+    image: traefik:v3.4
+    container_name: cib7-poc-traefik
+    profiles: ["tls"]
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.web.http.redirections.entryPoint.permanent=true
+      - --entrypoints.websecure.address=:443
+      - --accesslog=true
+      - --accesslog.filepath=/logs/access.log
+      - --log.filepath=/logs/traefik.log
+      - --api.dashboard=false
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./traefik/certs:/certs:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/logs:/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - cib7
+      - backend
+      - mcp
+      - frontend
+
+volumes:
+  rustfs-data:

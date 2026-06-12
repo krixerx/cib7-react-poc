@@ -1,0 +1,4 @@
+# Shell scripts run inside Linux containers — a CRLF working-tree copy
+# breaks the shebang (`/bin/sh\r: not found`). Force LF everywhere,
+# regardless of core.autocrlf on the contributor's machine.
+*.sh text eol=lf

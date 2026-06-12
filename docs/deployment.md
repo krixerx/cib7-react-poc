@@ -1,4 +1,10 @@
-# Deployment
+# Deployment (from source)
+
+> **Most administrators should use [`deploy/README.md`](../deploy/README.md)
+> instead** — a pull-only setup using the pre-built images CI publishes to
+> Docker Hub (`krixerx/cib7-poc-*`): no clone, no build, just a compose
+> file + `.env`. This document covers deploying **from source**, which you
+> only need when running unpushed changes.
 
 **When to read this:** when deploying the POC to a server other than your
 laptop — anywhere browsers reach the SPA on something other than
@@ -53,9 +59,10 @@ below are POSIX; Windows hosts need a different mount path):
     presigned PUT/GET URLs minted by the backend, so it needs its own
     public hostname (`PUBLIC_S3_URL` in `.env`); set `RUSTFS_DOMAIN`
     inside the rustfs container to match so virtual-host signing passes.
-- **A clone of this repo on the server.** The build runs from source —
-  no published images yet (the GitHub Actions workflow publishes images,
-  but compose still builds locally by default).
+- **A clone of this repo on the server.** This document's path builds
+  from source (`--build`). If you don't need unpushed changes, skip the
+  clone entirely and use the pull-only setup in
+  [`deploy/README.md`](../deploy/README.md) instead.
 - **Ports 80 and 443 free** on the host — Traefik binds both. :80
   exists only to issue a 308 redirect to :443.
 
@@ -64,7 +71,7 @@ below are POSIX; Windows hosts need a different mount path):
 | File | Purpose |
 |---|---|
 | `.env` | Per-deploy hostnames + secrets. Copy from `.env.example`. |
-| `keycloak/realm-export.json` | Redirect URIs, web origins, and client secrets. Edit **before first boot** — Keycloak's `--import-realm` runs once (see project memory: realm import is one-shot). |
+| `keycloak/realm-export.json` | Redirect URIs, web origins, and client secrets. Edit **before first boot** — Keycloak's `--import-realm` runs once (see project memory: realm import is one-shot). ⚠ Developers: `deploy/keycloak/realm-export.json` is a copy for the pull-only bundle — keep the two in sync when changing clients/roles/users. |
 | `/opt/volumes/traefik/certs/*.{crt,key}` | TLS certificate + private key. Read by Traefik via the file provider. |
 | `/opt/volumes/traefik/dynamic/tls.yml` | Tells Traefik which cert files to load. Copied from `traefik/dynamic/tls.yml.example`. Hot-reloaded (no restart on cert rotation). |
 | `docker-compose.prod.yml` | Overlay that reads `.env`. Don't normally edit. |
