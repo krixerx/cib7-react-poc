@@ -19,6 +19,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import express, { type Request, type Response, type NextFunction } from 'express';
+import type { JWTPayload } from 'jose';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -102,6 +103,8 @@ const SERVER_INSTRUCTIONS = [
 
 interface RequestContext {
   bearer: string;
+  /** Claims verified by requireBearer — for tools that authorize locally. */
+  claims?: JWTPayload;
 }
 const requestStorage = new AsyncLocalStorage<RequestContext>();
 
@@ -111,6 +114,10 @@ function currentBearer(): string {
 
 function currentUsername(): string {
   return decodeBearerUsername(currentBearer());
+}
+
+function currentClaims(): JWTPayload | undefined {
+  return requestStorage.getStore()?.claims;
 }
 
 // -------------------------------------------------------------------------
@@ -739,7 +746,46 @@ function handleGetSignupUrl(): ToolResult {
   });
 }
 
+/** Realm roles allowed to invite new users. */
+const INVITER_ROLES = ['applicant', 'civil-servant', 'cib7-admin'];
+
+/**
+ * Authorization gate for the one tool that is NOT engine-proxied. Every other
+ * tool forwards the caller's Bearer to /engine-rest, where the engine
+ * re-validates it; this one runs against the Keycloak admin API with the
+ * cib7-backend service account, so nothing downstream checks the caller.
+ * Require both the cib7-rest-api audience (only this POC's user-facing
+ * clients add it via the cib7-rest-api-audience scope) and a known realm
+ * role — a bare client-credentials token from some other realm client has
+ * neither.
+ */
+function requireInviterRole(): ToolResult | null {
+  const claims = currentClaims();
+  const aud = claims?.aud;
+  const audiences = Array.isArray(aud) ? aud : aud ? [aud] : [];
+  const realmAccess = claims?.realm_access as { roles?: string[] } | undefined;
+  const roles = realmAccess?.roles ?? [];
+  if (audiences.includes('cib7-rest-api') && roles.some((r) => INVITER_ROLES.includes(r))) {
+    return null;
+  }
+  console.warn(
+    `[send_account_invitation] denied: sub=${claims?.sub ?? '(none)'} aud=[${audiences.join(',')}] roles=[${roles.join(',')}]`,
+  );
+  return textResult(
+    {
+      ok: false,
+      code: 'FORBIDDEN',
+      message:
+        'Your account is not allowed to send invitations. Only signed-in portal users (applicant, civil-servant or cib7-admin role) can invite others.',
+    },
+    true,
+  );
+}
+
 async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
+  const denied = requireInviterRole();
+  if (denied) return denied;
+
   const a = (args ?? {}) as {
     username?: string;
     email?: string;
@@ -854,6 +900,10 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
       true,
     );
   }
+
+  console.log(
+    `[send_account_invitation] ${currentUsername() || '(unknown)'} invited ${username} <${email}>`,
+  );
 
   return textResult({
     ok: true,
@@ -1171,6 +1221,7 @@ async function requireBearer(req: Request, res: Response, next: NextFunction): P
       });
     return;
   }
+  res.locals.claims = result.payload;
   next();
 }
 
@@ -1186,7 +1237,8 @@ app.all('/mcp', requireBearer, async (req, res) => {
   });
   try {
     await mcp.connect(transport);
-    await requestStorage.run({ bearer }, async () => {
+    const claims = res.locals.claims as JWTPayload | undefined;
+    await requestStorage.run({ bearer, claims }, async () => {
       await transport.handleRequest(req, res, req.body);
     });
   } catch (err) {

@@ -12,7 +12,7 @@
 // audience here — the engine does that, and adding it would double the
 // failure modes the user sees at the same boundary.
 
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
 const KEYCLOAK_INTERNAL_URL = process.env.KEYCLOAK_INTERNAL_URL ?? 'http://keycloak:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM ?? 'cib7-poc';
@@ -28,6 +28,9 @@ const jwks = createRemoteJWKSet(
 
 export async function verifyBearer(authHeader: string | undefined): Promise<{
   ok: boolean;
+  /** Verified claims — only present when ok. Lets non-engine-proxied tools
+   *  (send_account_invitation) make their own authorization decisions. */
+  payload?: JWTPayload;
   reason?: 'missing' | 'malformed' | 'invalid_signature' | 'expired' | 'wrong_issuer' | 'other';
 }> {
   if (!authHeader) return { ok: false, reason: 'missing' };
@@ -35,8 +38,8 @@ export async function verifyBearer(authHeader: string | undefined): Promise<{
   if (!match) return { ok: false, reason: 'malformed' };
   const token = match[1];
   try {
-    await jwtVerify(token, jwks, { issuer: KEYCLOAK_ISSUER_URL });
-    return { ok: true };
+    const { payload } = await jwtVerify(token, jwks, { issuer: KEYCLOAK_ISSUER_URL });
+    return { ok: true, payload };
   } catch (err) {
     const code = (err as { code?: string })?.code;
     if (code === 'ERR_JWT_EXPIRED') return { ok: false, reason: 'expired' };
