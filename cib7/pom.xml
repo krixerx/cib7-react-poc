@@ -143,6 +143,16 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-client</artifactId>
     </dependency>
+
+    <!-- JUnit 5 + AssertJ + Mockito + Spring Test. The DMN tests run the
+         standalone DMN engine (cibseven-engine-dmn, already on the classpath
+         transitively via the webapp starter); the smoke test boots the full
+         Spring context with the Keycloak identity plugin mocked out. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <repositories>

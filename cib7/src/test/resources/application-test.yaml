@@ -1,0 +1,11 @@
+# Test profile for Cib7ContextSmokeTest.
+#
+# The smoke test inherits everything from src/main/resources/application.yaml
+# (in-memory H2, BPMN/DMN auto-deployment, security chains). The Keycloak
+# identity-provider plugin — the only bean that contacts Keycloak at startup —
+# is mocked out in the test itself via @MockitoBean, so no endpoint overrides
+# are needed here. This file just trims log noise during the context boot.
+logging:
+  level:
+    org.cibseven: WARN
+    org.springframework.security: WARN

@@ -509,8 +509,14 @@ export interface WorklistRow {
  * `Reject`-named end event protects against that race and stays
  * forward-compatible: a future BPMN that adds an EndEvent_Rejected (or
  * similar) gets correctly tagged without any code change.
+ *
+ * Exported for tests (worklist.test.ts); production code should keep going
+ * through `listWorklist`.
  */
-function statusFor(pi: HistoricProcessInstance, hasIncidents: boolean): WorklistRow['status'] {
+export function statusFor(
+  pi: HistoricProcessInstance,
+  hasIncidents: boolean,
+): WorklistRow['status'] {
   if (pi.endTime === null) return hasIncidents ? 'incident' : 'pending';
   if (pi.endActivityId && /reject/i.test(pi.endActivityId)) return 'rejected';
   return 'confirmed';

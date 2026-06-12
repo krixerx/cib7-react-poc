@@ -82,6 +82,20 @@
       <artifactId>s3</artifactId>
       <version>${awssdk.version}</version>
     </dependency>
+
+    <!-- Test stack: JUnit 5 + Mockito + MockMvc slices (@WebMvcTest /
+         @SpringBootTest with @MockitoBean). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- jwt() request post-processors + SecurityContext test helpers. -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>

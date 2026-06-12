@@ -153,8 +153,10 @@ public class PaymentController {
    * Coerces a process variable that should be numeric into a double. Some engine→JUEL paths surface
    * what should be a Double as a locale- formatted String like "38,000" — same defensive pattern as
    * the FreeMarker numeric-vars memory entry.
+   *
+   * <p>Package-private (not private) so {@code PaymentLogicTest} can characterize it directly.
    */
-  private static double parseAmount(Object raw) {
+  static double parseAmount(Object raw) {
     if (raw instanceof Number n) return n.doubleValue();
     if (raw instanceof String s) {
       String stripped =
