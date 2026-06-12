@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   listIncidents,
   listProcessDefinitions,
@@ -8,6 +9,8 @@ import {
   type ProcessDefinition,
 } from '../api/camundaClient';
 import { parseActivityNames } from '../api/bpmn';
+import { formatDateTime } from '../i18n/format';
+import { translateBackendName } from '../i18n/backendNames';
 
 interface DefinitionInfo {
   def: ProcessDefinition;
@@ -25,6 +28,7 @@ function shortId(id: string): string {
  * the engine picks the job up again.
  */
 export default function IncidentsPage() {
+  const { t } = useTranslation('incidents');
   const [defs, setDefs] = useState<Map<string, DefinitionInfo>>(new Map());
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,29 +78,31 @@ export default function IncidentsPage() {
   return (
     <div className="card card-wide">
       <div className="card-head">
-        <h1 className="card-title">Incidents</h1>
+        <h1 className="card-title">{t('title')}</h1>
         <button className="btn" onClick={load} disabled={loading}>
-          Refresh
+          {t('common:actions.refresh')}
         </button>
       </div>
       <p className="muted">
-        Open incidents across all running processes. Use <strong>Retry</strong> to give a failed
-        service-task job another attempt.
+        <Trans t={t} i18nKey="intro" components={{ strong: <strong /> }} />
       </p>
 
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <p className="muted">{t('common:feedback.loading')}</p>}
       {error && <p className="form-error">{error}</p>}
 
-      {!loading && !error && incidents.length === 0 && <p className="empty">No open incidents.</p>}
+      {!loading && !error && incidents.length === 0 && <p className="empty">{t('empty')}</p>}
 
       {!loading && !error && incidents.length > 0 && (
         <ul className="row-list">
           {incidents.map((inc) => {
             const info = defs.get(inc.processDefinitionId);
-            const serviceName = info?.def.name ?? info?.def.key ?? inc.processDefinitionId;
+            const serviceName = translateBackendName(
+              t,
+              info?.def.name ?? info?.def.key ?? inc.processDefinitionId,
+            );
             const activityName = inc.activityId
-              ? (info?.activityNames.get(inc.activityId) ?? inc.activityId)
-              : '(process scope)';
+              ? translateBackendName(t, info?.activityNames.get(inc.activityId) ?? inc.activityId)
+              : t('incident.processScope');
             const canRetry = inc.incidentType === 'failedJob' && inc.configuration;
 
             return (
@@ -106,9 +112,10 @@ export default function IncidentsPage() {
                     {serviceName} <span className="muted">·</span> {activityName}
                   </span>
                   <span className="row-sub">
-                    {inc.incidentType} <span className="muted">·</span> Process{' '}
-                    {shortId(inc.processInstanceId)} <span className="muted">·</span>{' '}
-                    {new Date(inc.incidentTimestamp).toLocaleString()}
+                    {t(`types.${inc.incidentType}`, { defaultValue: inc.incidentType })}{' '}
+                    <span className="muted">·</span>{' '}
+                    {t('incident.processLabel', { id: shortId(inc.processInstanceId) })}{' '}
+                    <span className="muted">·</span> {formatDateTime(inc.incidentTimestamp)}
                   </span>
                 </div>
                 {inc.incidentMessage && <p className="incident-message">{inc.incidentMessage}</p>}
@@ -119,10 +126,10 @@ export default function IncidentsPage() {
                       onClick={() => retry(inc)}
                       disabled={busyId === inc.id}
                     >
-                      {busyId === inc.id ? 'Retrying…' : 'Retry'}
+                      {busyId === inc.id ? t('incident.retrying') : t('common:actions.retry')}
                     </button>
                   ) : (
-                    <span className="muted">No retry available for this incident type.</span>
+                    <span className="muted">{t('incident.noRetry')}</span>
                   )}
                 </div>
               </li>

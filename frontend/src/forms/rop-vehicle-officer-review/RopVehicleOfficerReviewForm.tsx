@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { formatCurrency } from '../../i18n/format';
 import type { FormProps } from '../types';
 
 /**
@@ -12,9 +15,9 @@ import type { FormProps } from '../types';
  * docs/business/services/rop-vehicle-registration/forms/rop-vehicle-officer-review.md
  */
 
-function check(v: unknown): string {
-  if (v === true || v === 'true') return '✓ yes';
-  if (v === false || v === 'false') return '✗ no';
+function check(t: TFunction, v: unknown): string {
+  if (v === true || v === 'true') return `✓ ${t('summary.yes')}`;
+  if (v === false || v === 'false') return `✗ ${t('summary.no')}`;
   return '—';
 }
 
@@ -24,6 +27,7 @@ export default function RopVehicleOfficerReviewForm({
   submitting,
   readOnly,
 }: FormProps) {
+  const { t } = useTranslation('rop-vehicle-officer-review');
   const [mode, setMode] = useState<'none' | 'sendback' | 'reject'>('none');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,7 @@ export default function RopVehicleOfficerReviewForm({
     setError(null);
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError('Please give the applicant notes on what to correct.');
+      setError(t('errors.sendBackReasonRequired'));
       return;
     }
     return onComplete({
@@ -55,7 +59,7 @@ export default function RopVehicleOfficerReviewForm({
     setError(null);
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError('Please give the applicant the reason for the rejection.');
+      setError(t('errors.rejectionReasonRequired'));
       return;
     }
     return onComplete({
@@ -67,86 +71,84 @@ export default function RopVehicleOfficerReviewForm({
 
   const fee =
     data.registrationFee != null && data.registrationFee !== ''
-      ? `${Number(String(data.registrationFee).replace(/[^0-9.]/g, '')).toFixed(3)} OMR`
+      ? formatCurrency(Number(String(data.registrationFee).replace(/[^0-9.]/g, '')), 'OMR')
       : '—';
   const decision = (data.decision as string) ?? null;
 
   return (
     <div className="form">
       <p className="form-intro">
-        {readOnly
-          ? 'A read-only view of the application and the traffic officer’s decision.'
-          : 'Traffic officer review. The system has verified the technical inspection, insurance, and restrictions. Approve to request the fee payment, return for corrections, or reject with a reason.'}
+        {readOnly ? t('intro.readOnly') : t('intro.edit')}
       </p>
 
       <dl className="summary">
         <div className="summary-row">
-          <dt>Owner</dt>
+          <dt>{t('summary.owner')}</dt>
           <dd>{(data.applicantName as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Email</dt>
+          <dt>{t('summary.email')}</dt>
           <dd>{(data.applicantEmail as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Civil number</dt>
+          <dt>{t('summary.civilNumber')}</dt>
           <dd>{(data.civilId as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Residency status</dt>
+          <dt>{t('summary.residencyStatus')}</dt>
           <dd>{(data.residencyStatus as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Registration type</dt>
+          <dt>{t('summary.registrationType')}</dt>
           <dd>{(data.registrationType as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Vehicle category</dt>
+          <dt>{t('summary.vehicleCategory')}</dt>
           <dd>{(data.vehicleCategory as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Chassis number (VIN)</dt>
+          <dt>{t('summary.chassisNumber')}</dt>
           <dd>{(data.vin as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Plate request</dt>
+          <dt>{t('summary.plateRequest')}</dt>
           <dd>
             {(data.plateOption as string) === 'reserved'
-              ? `Reserved plate ${(data.reservedPlateNumber as string) || '—'}`
-              : 'New random plate'}
+              ? t('summary.reservedPlate', { number: (data.reservedPlateNumber as string) || '—' })
+              : t('summary.newRandomPlate')}
           </dd>
         </div>
         <div className="summary-row">
-          <dt>Technical inspection</dt>
-          <dd>{check(data.inspectionPassed)}</dd>
+          <dt>{t('summary.technicalInspection')}</dt>
+          <dd>{check(t, data.inspectionPassed)}</dd>
         </div>
         <div className="summary-row">
-          <dt>Insurance</dt>
-          <dd>{check(data.insured)}</dd>
+          <dt>{t('summary.insurance')}</dt>
+          <dd>{check(t, data.insured)}</dd>
         </div>
         <div className="summary-row">
-          <dt>Restrictions cleared</dt>
-          <dd>{check(data.restrictionsCleared)}</dd>
+          <dt>{t('summary.restrictionsCleared')}</dt>
+          <dd>{check(t, data.restrictionsCleared)}</dd>
         </div>
         <div className="summary-row">
-          <dt>Registration fee</dt>
+          <dt>{t('summary.registrationFee')}</dt>
           <dd>{fee}</dd>
         </div>
         {readOnly && decision && (
           <div className="summary-row">
-            <dt>Decision</dt>
+            <dt>{t('summary.decision')}</dt>
             <dd className={decision === 'approve' ? 'decision-approve' : 'decision-reject'}>
               {decision === 'approve'
-                ? 'Approved'
+                ? t('common:status.approved')
                 : decision === 'reject'
-                  ? 'Rejected'
-                  : 'Returned for corrections'}
+                  ? t('common:status.rejected')
+                  : t('decision.returnedForCorrections')}
             </dd>
           </div>
         )}
         {readOnly && Boolean((data.rejectionReason as string) || (data.sendBackReason as string)) && (
           <div className="summary-row">
-            <dt>Reason</dt>
+            <dt>{t('summary.reason')}</dt>
             <dd>{(data.rejectionReason as string) || (data.sendBackReason as string)}</dd>
           </div>
         )}
@@ -155,7 +157,7 @@ export default function RopVehicleOfficerReviewForm({
       {!readOnly && mode !== 'none' && (
         <label className="field">
           <span className="field-label">
-            {mode === 'sendback' ? 'Notes to the applicant' : 'Rejection reason'}
+            {mode === 'sendback' ? t('fields.reason.labelSendBack') : t('fields.reason.labelReject')}
           </span>
           <textarea
             className="field-input"
@@ -164,8 +166,8 @@ export default function RopVehicleOfficerReviewForm({
             onChange={(e) => setReason(e.target.value)}
             placeholder={
               mode === 'sendback'
-                ? 'Tell the applicant what to correct (e.g. missing sale letter).'
-                : 'Tell the applicant why the application is rejected.'
+                ? t('fields.reason.placeholderSendBack')
+                : t('fields.reason.placeholderReject')
             }
             autoFocus
           />
@@ -179,7 +181,7 @@ export default function RopVehicleOfficerReviewForm({
           {mode === 'none' && (
             <>
               <button className="btn btn-primary" disabled={submitting} onClick={approve}>
-                {submitting ? 'Working…' : 'Approve'}
+                {submitting ? t('common:feedback.submitting') : t('common:actions.approve')}
               </button>
               <button
                 type="button"
@@ -190,7 +192,7 @@ export default function RopVehicleOfficerReviewForm({
                   setError(null);
                 }}
               >
-                Return for corrections…
+                {t('actions.returnForCorrections')}
               </button>
               <button
                 type="button"
@@ -201,7 +203,7 @@ export default function RopVehicleOfficerReviewForm({
                   setError(null);
                 }}
               >
-                Reject…
+                {t('actions.reject')}
               </button>
             </>
           )}
@@ -213,10 +215,10 @@ export default function RopVehicleOfficerReviewForm({
                 onClick={mode === 'reject' ? confirmReject : confirmSendBack}
               >
                 {submitting
-                  ? 'Working…'
+                  ? t('common:feedback.submitting')
                   : mode === 'reject'
-                    ? 'Confirm rejection'
-                    : 'Confirm return'}
+                    ? t('actions.confirmRejection')
+                    : t('actions.confirmReturn')}
               </button>
               <button
                 type="button"
@@ -227,7 +229,7 @@ export default function RopVehicleOfficerReviewForm({
                   setError(null);
                 }}
               >
-                Cancel
+                {t('common:actions.cancel')}
               </button>
             </>
           )}

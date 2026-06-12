@@ -1,0 +1,14 @@
+{
+  "header": {
+    "actionRequired": "Action required"
+  },
+  "feedback": {
+    "loadingTask": "Loading task…"
+  },
+  "errors": {
+    "noTaskId": "No task id.",
+    "taskNotFound": "Task not found.",
+    "noFormRegistered": "No React form is registered for formKey <code>{{formKey}}</code>.",
+    "formKeyNone": "(none)"
+  }
+}

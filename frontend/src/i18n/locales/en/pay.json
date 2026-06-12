@@ -1,0 +1,45 @@
+{
+  "loading": "Loading payment details…",
+  "linkCard": {
+    "title": "Payment link",
+    "unknown": "This payment link is unknown or has expired."
+  },
+  "issuer": {
+    "vehicle": {
+      "name": "Transpordiamet POC",
+      "sub": "Estonian Transport Authority"
+    },
+    "business": {
+      "name": "Äriregister POC",
+      "sub": "Estonian Business Register"
+    }
+  },
+  "header": {
+    "title": "Pay state fee",
+    "awaitingPayment": "Awaiting payment"
+  },
+  "paid": {
+    "title": "Payment received",
+    "body": "Thank you. Your state fee of <strong>{{amount}}</strong> has been credited to {{issuer}}. The case will continue to the next step automatically."
+  },
+  "summary": {
+    "payer": "Payer",
+    "for": "For",
+    "recipient": "Recipient",
+    "iban": "IBAN",
+    "reference": "Reference"
+  },
+  "invoice": {
+    "title": "Invoice",
+    "amountDue": "Amount due"
+  },
+  "bank": {
+    "title": "Pay from",
+    "senderBank": "Sender bank",
+    "demoHint": "POC demo — the Confirm button below simulates a successful SEPA transfer without involving a real bank. Production would redirect to the chosen bank's online banking screen."
+  },
+  "actions": {
+    "confirming": "Confirming…",
+    "confirmPayment": "Confirm payment of {{amount}}"
+  }
+}

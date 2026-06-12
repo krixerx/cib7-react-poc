@@ -1,0 +1,42 @@
+{
+  "title": "Co-founder signature",
+  "states": {
+    "awaitingSignatures": "Awaiting signatures",
+    "readyToSubmit": "Ready to submit",
+    "submitted": "Submitted",
+    "waitingOthers_one": "Your signature is on file. Waiting for {{count}} more co-founder.",
+    "waitingOthers_other": "Your signature is on file. Waiting for {{count}} more co-founders."
+  },
+  "summary": {
+    "intro": "<strong>{{applicant}}</strong> has submitted a registration for <strong>{{company}}</strong> that requires every co-founder's signature on the Articles of Association before it can be sent to the Business Register.",
+    "applicantFallback": "The applicant",
+    "companyFallback": "an Estonian OÜ",
+    "signingAs": "You are signing as <strong>{{name}}</strong>.",
+    "signingAsApplicant": "You are signing as <strong>{{name}}</strong> (the applicant).",
+    "coFounders": "Co-founders",
+    "applicantTag": "· applicant",
+    "reason": "Reason: {{reason}}",
+    "signed": "Signed"
+  },
+  "banners": {
+    "rejectedBy": "Rejected by {{name}}.",
+    "coFounderFallback": "a co-founder",
+    "rejectedBody": "The case has been sent back to the applicant. New signing links will be issued once they resubmit.",
+    "sentTitle": "Submitted to the Business Register.",
+    "sentBody": "All co-founders signed and the case has been forwarded for review."
+  },
+  "actions": {
+    "approveAndSign": "Approve and sign",
+    "signing": "Signing…",
+    "sendRejection": "Send rejection",
+    "sending": "Sending…",
+    "submitToRegister": "Submit to register",
+    "reasonLabel": "Reason for rejection",
+    "reasonPlaceholder": "Explain what needs to change before you'd sign."
+  },
+  "errors": {
+    "linkTitle": "Signing link",
+    "unknownLink": "This signing link is unknown or has expired.",
+    "missingReason": "Please describe why you are rejecting."
+  }
+}

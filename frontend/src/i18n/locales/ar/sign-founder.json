@@ -1,0 +1,46 @@
+{
+  "title": "توقيع الشريك المؤسس",
+  "states": {
+    "awaitingSignatures": "في انتظار التوقيعات",
+    "readyToSubmit": "جاهز للإرسال",
+    "submitted": "تم الإرسال",
+    "waitingOthers_zero": "تم تسجيل توقيعك، ولا توجد توقيعات متبقية.",
+    "waitingOthers_one": "تم تسجيل توقيعك. في انتظار توقيع شريك مؤسس واحد.",
+    "waitingOthers_two": "تم تسجيل توقيعك. في انتظار توقيع شريكين مؤسسين.",
+    "waitingOthers_few": "تم تسجيل توقيعك. في انتظار توقيع {{count}} شركاء مؤسسين.",
+    "waitingOthers_many": "تم تسجيل توقيعك. في انتظار توقيع {{count}} شريكًا مؤسسًا.",
+    "waitingOthers_other": "تم تسجيل توقيعك. في انتظار توقيع {{count}} شريك مؤسس."
+  },
+  "summary": {
+    "intro": "قدّم <strong>{{applicant}}</strong> طلبًا لتسجيل <strong>{{company}}</strong>، ويستلزم هذا الطلب توقيع جميع الشركاء المؤسسين على عقد التأسيس قبل إرساله إلى السجل التجاري.",
+    "applicantFallback": "مقدم الطلب",
+    "companyFallback": "شركة OÜ إستونية",
+    "signingAs": "أنت توقّع بصفتك <strong>{{name}}</strong>.",
+    "signingAsApplicant": "أنت توقّع بصفتك <strong>{{name}}</strong> (مقدم الطلب).",
+    "coFounders": "الشركاء المؤسسون",
+    "applicantTag": "· مقدم الطلب",
+    "reason": "السبب: {{reason}}",
+    "signed": "تم التوقيع"
+  },
+  "banners": {
+    "rejectedBy": "تم الرفض من قبل {{name}}.",
+    "coFounderFallback": "أحد الشركاء المؤسسين",
+    "rejectedBody": "أُعيد الطلب إلى مقدم الطلب، وستصدر روابط توقيع جديدة عند إعادة تقديمه.",
+    "sentTitle": "تم الإرسال إلى السجل التجاري.",
+    "sentBody": "وقّع جميع الشركاء المؤسسين، وأُحيل الطلب للمراجعة."
+  },
+  "actions": {
+    "approveAndSign": "الموافقة والتوقيع",
+    "signing": "جارٍ التوقيع…",
+    "sendRejection": "إرسال الرفض",
+    "sending": "جارٍ الإرسال…",
+    "submitToRegister": "الإرسال إلى السجل التجاري",
+    "reasonLabel": "سبب الرفض",
+    "reasonPlaceholder": "يرجى توضيح ما يلزم تعديله قبل أن توقّع."
+  },
+  "errors": {
+    "linkTitle": "رابط التوقيع",
+    "unknownLink": "رابط التوقيع غير معروف أو انتهت صلاحيته.",
+    "missingReason": "يرجى توضيح سبب الرفض."
+  }
+}

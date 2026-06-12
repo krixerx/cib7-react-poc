@@ -9,6 +9,8 @@
  * catalog at any moment.
  */
 
+import { formatNumber } from '../i18n/format';
+
 const VEHICLES_URL = '/api/public/vehicle-registry/vehicles';
 
 /** Dropdown row — only what the form renders. */
@@ -29,7 +31,7 @@ interface VehicleResponse {
 
 /** Formats "VW Golf 1.4 TSI 2018 · €8,400" for the dropdown row. */
 function formatLabel(v: VehicleResponse): string {
-  const price = v.value.toLocaleString('et-EE', {
+  const price = formatNumber(v.value, {
     style: 'currency',
     currency: 'EUR',
     maximumFractionDigits: 0,

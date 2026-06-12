@@ -1,0 +1,32 @@
+{
+  "intro": {
+    "readOnly": "A read-only view of the owner details, the vehicle value from the registry, and the reviewer’s decision.",
+    "edit": "Transport Authority review. Check the owner details and the vehicle value from the registry. Accept the registration, or send it back to the owner with a reason."
+  },
+  "summary": {
+    "firstName": "First name",
+    "lastName": "Last name",
+    "age": "Age",
+    "decision": "Decision",
+    "sendBackReason": "Send-back reason"
+  },
+  "fields": {
+    "vehicleValue": {
+      "label": "Vehicle value (from registry)"
+    },
+    "sendBackReason": {
+      "label": "Reason to send back",
+      "placeholder": "Tell the owner what to fix (e.g. ID document is unreadable)."
+    }
+  },
+  "previousReason": "Previous send-back reason (now resubmitted by the owner):",
+  "errors": {
+    "reasonRequired": "Please give the owner a reason for sending the registration back."
+  },
+  "actions": {
+    "accept": "Accept",
+    "sendBackEllipsis": "Send back…",
+    "confirmSendBack": "Confirm send back",
+    "working": "Working…"
+  }
+}

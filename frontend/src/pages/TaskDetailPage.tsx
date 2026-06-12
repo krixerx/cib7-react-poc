@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthProvider';
+import { translateBackendName } from '../i18n/backendNames';
 import TaskDetailView, { type TaskLoadedInfo } from './TaskDetailView';
 import CaseDetailLayout from '../components/CaseDetailLayout';
 import { categoryOf } from '../services/categories';
@@ -19,6 +21,7 @@ import { categoryOf } from '../services/categories';
  * and the civil servant goes back to the worklist root.
  */
 export default function TaskDetailPage() {
+  const { t } = useTranslation('task-detail');
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const { isCivilServant } = useAuth();
@@ -31,7 +34,7 @@ export default function TaskDetailPage() {
   if (!taskId) {
     return (
       <div className="card">
-        <p className="form-error">No task id.</p>
+        <p className="form-error">{t('errors.noTaskId')}</p>
       </div>
     );
   }
@@ -39,9 +42,9 @@ export default function TaskDetailPage() {
   return (
     <CaseDetailLayout
       category={info ? categoryOf(info.processDefinitionKey) : null}
-      serviceName={info?.serviceName ?? null}
-      title="Action required"
-      outcome={info?.outcome ?? null}
+      serviceName={info?.serviceName ? translateBackendName(t, info.serviceName) : null}
+      title={t('header.actionRequired')}
+      outcome={info?.outcome ? translateBackendName(t, info.outcome) : null}
       isInFlight
       onBack={() => navigate(listPath)}
       processInstanceId={info?.processInstanceId ?? null}

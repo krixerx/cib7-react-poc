@@ -1,0 +1,69 @@
+{
+  "intro": {
+    "readOnly": "Read-only view of the registration you submitted. Edits are not possible while Transport Authority has the case.",
+    "resubmission": "Update the details below and resubmit the registration. New signing links will be sent to every co-owner.",
+    "default": "Owner form — fill in your details, choose the vehicle you are registering, and list any co-owners that must sign before the case goes to Transport Authority."
+  },
+  "banner": {
+    "sentBackTitle": "Sent back for corrections."
+  },
+  "fields": {
+    "firstName": {
+      "label": "First name"
+    },
+    "lastName": {
+      "label": "Last name"
+    },
+    "age": {
+      "label": "Age"
+    },
+    "email": {
+      "label": "Email (required if you list co-owners)",
+      "placeholder": "you@example.com"
+    },
+    "idDocument": {
+      "label": "Owner ID document (required)",
+      "hint": "ID card, passport, or driving licence. PDF, JPEG, or PNG up to 10 MB. The Transport Authority reviewer will be able to download this file.",
+      "dropLabel": "Drop your ID document here, or click to choose",
+      "existingFilename": "ID document"
+    },
+    "vehicle": {
+      "label": "Vehicle (from registry)",
+      "placeholder": "— choose a vehicle —"
+    },
+    "coOwnerName": {
+      "placeholder": "Name"
+    },
+    "coOwnerEmail": {
+      "placeholder": "owner@example.com"
+    }
+  },
+  "sections": {
+    "coOwners": {
+      "legend_one": "Vehicle co-owners ({{count}})",
+      "legend_other": "Vehicle co-owners ({{count}})",
+      "hint": "Each co-owner gets an email with a link to approve or reject the vehicle registration. Once all co-owners sign, any owner can click \"Send to Transport Authority\" to forward the case for review. Leave empty if you are the sole owner."
+    }
+  },
+  "actions": {
+    "addCoOwner": "+ Add co-owner",
+    "removeCoOwnerAria": "Remove co-owner {{index}}",
+    "confirm": "Confirm",
+    "confirming": "Confirming…",
+    "resubmit": "Resubmit"
+  },
+  "errors": {
+    "namesRequired": "First name and last name are required.",
+    "ageRange": "Age must be a whole number between 1 and 130.",
+    "vehicleRequired": "Please choose a vehicle from the registry.",
+    "idDocumentRequired": "Please upload a copy of your ID card or passport.",
+    "invalidEmail": "Please enter a valid email address, or leave the field blank.",
+    "applicantEmailRequiredWithCoOwners": "Your own email is required when adding co-owners — we send you a tracking link.",
+    "coOwnerNameRequired": "Every co-owner needs a name.",
+    "coOwnerEmailInvalid": "Co-owner \"{{name}}\" needs a valid email address.",
+    "coOwnerUnnamed": "(unnamed)",
+    "duplicateCoOwnerEmail": "Two co-owners share the email \"{{email}}\". Each owner needs a unique address.",
+    "applicantEmailInCoOwners": "Your own email cannot also appear in the co-owner list — the applicant is already counted as an owner.",
+    "registryLoadFailed": "Could not load the vehicle registry: {{message}}"
+  }
+}

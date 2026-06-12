@@ -1,0 +1,47 @@
+{
+  "head": {
+    "title": "My processes",
+    "kpi": {
+      "waiting_one": "{{count}} waiting on you",
+      "waiting_other": "{{count}} waiting on you",
+      "inProgress_one": "{{count}} in progress",
+      "inProgress_other": "{{count}} in progress",
+      "completed_one": "{{count}} completed",
+      "completed_other": "{{count}} completed"
+    }
+  },
+  "sections": {
+    "attention": "Needs your attention",
+    "progress": "In progress · with the back office",
+    "completed": "Completed"
+  },
+  "statuses": {
+    "awaitingSubmission": "Awaiting submission",
+    "sentBack": "Sent back for corrections",
+    "waitingSignatures": "Waiting for signatures",
+    "processing": "Processing",
+    "ended": "Ended"
+  },
+  "card": {
+    "paymentNeeded": "💳 State fee payment required",
+    "sentBack": "⚠ Sent back for corrections",
+    "awaitingSubmission": "◆ Awaiting your submission",
+    "reason": "“{{reason}}”",
+    "ctaPay": "Pay →",
+    "ctaOpen": "Open →"
+  },
+  "meta": {
+    "started": "Started {{date}}",
+    "ended": "Ended {{date}}"
+  },
+  "row": {
+    "view": "View →",
+    "viewSubmission": "View submission →"
+  },
+  "empty": {
+    "noProcesses": "You haven't started any processes yet. Pick one on the <servicesLink>Services</servicesLink> page."
+  },
+  "errors": {
+    "loadFailed": "Could not load your processes: {{message}}"
+  }
+}

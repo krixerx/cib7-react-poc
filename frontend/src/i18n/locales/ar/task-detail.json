@@ -1,0 +1,14 @@
+{
+  "header": {
+    "actionRequired": "إجراء مطلوب"
+  },
+  "feedback": {
+    "loadingTask": "جارٍ تحميل المهمة…"
+  },
+  "errors": {
+    "noTaskId": "لا يوجد معرّف للمهمة.",
+    "taskNotFound": "المهمة غير موجودة.",
+    "noFormRegistered": "لا يوجد نموذج React مسجّل لمفتاح النموذج <code>{{formKey}}</code>.",
+    "formKeyNone": "(بدون)"
+  }
+}

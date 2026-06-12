@@ -1,0 +1,48 @@
+{
+  "hero": {
+    "eyebrow": "Digital government services",
+    "titleLine1": "Government services",
+    "titleAccent": "made simple.",
+    "sub": "Start a service, sign documents, and follow every step of your case in one secure portal. Fast, transparent, accessible to everyone.",
+    "signIn": "Sign in to your account →",
+    "join": "Join the digital state",
+    "trust": "Secure single sign-on · every step of your case tracked transparently"
+  },
+  "stats": {
+    "alwaysOpen": {
+      "value": "24/7",
+      "label": "Always open"
+    },
+    "averageApplication": {
+      "value": "< 5 min",
+      "label": "Average application"
+    },
+    "digital": {
+      "value": "100%",
+      "label": "Digital, zero paper"
+    },
+    "liveServices": {
+      "label": "Services live today"
+    }
+  },
+  "catalog": {
+    "loading": "Loading services…",
+    "heading": "What can we help you with today?",
+    "sub": "Pick a topic to see all services in that area.",
+    "tile": {
+      "comingSoon": "Coming soon",
+      "starting": "Starting…",
+      "start": "Start →",
+      "signInToStart": "Sign in to start →",
+      "serviceCount_one": "{{count}} service",
+      "serviceCount_other": "{{count}} services",
+      "servicesBelow_one": "↓ {{count}} service below",
+      "servicesBelow_other": "↓ {{count}} services below"
+    },
+    "panel": {
+      "accountNotice": "Starting a service requires an account — register or sign in from the top right.",
+      "empty": "No services in this category yet.",
+      "rowMeta": "key: {{key}} · version {{version}}"
+    }
+  }
+}

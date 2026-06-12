@@ -1,0 +1,22 @@
+{
+  "header": {
+    "title": "Your submission"
+  },
+  "feedback": {
+    "loadingProcess": "Loading process…"
+  },
+  "stamp": {
+    "submitted": "Submitted",
+    "completed": "Completed"
+  },
+  "outcome": {
+    "currentlyWith": "Currently with {{step}}"
+  },
+  "errors": {
+    "noProcessId": "No process id.",
+    "processNotFound": "Process not found.",
+    "noCompletedTask": "No user task has been completed on this case yet.",
+    "noFormRegistered": "No React form is registered for formKey <code>{{formKey}}</code>.",
+    "formKeyNone": "(none)"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "intro": {
+    "readOnly": "A read-only view of the application and the traffic officer’s decision.",
+    "edit": "Traffic officer review. The system has verified the technical inspection, insurance, and restrictions. Approve to request the fee payment, return for corrections, or reject with a reason."
+  },
+  "summary": {
+    "owner": "Owner",
+    "email": "Email",
+    "civilNumber": "Civil number",
+    "residencyStatus": "Residency status",
+    "registrationType": "Registration type",
+    "vehicleCategory": "Vehicle category",
+    "chassisNumber": "Chassis number (VIN)",
+    "plateRequest": "Plate request",
+    "reservedPlate": "Reserved plate {{number}}",
+    "newRandomPlate": "New random plate",
+    "technicalInspection": "Technical inspection",
+    "insurance": "Insurance",
+    "restrictionsCleared": "Restrictions cleared",
+    "registrationFee": "Registration fee",
+    "decision": "Decision",
+    "reason": "Reason",
+    "yes": "yes",
+    "no": "no"
+  },
+  "decision": {
+    "returnedForCorrections": "Returned for corrections"
+  },
+  "fields": {
+    "reason": {
+      "labelSendBack": "Notes to the applicant",
+      "labelReject": "Rejection reason",
+      "placeholderSendBack": "Tell the applicant what to correct (e.g. missing sale letter).",
+      "placeholderReject": "Tell the applicant why the application is rejected."
+    }
+  },
+  "errors": {
+    "sendBackReasonRequired": "Please give the applicant notes on what to correct.",
+    "rejectionReasonRequired": "Please give the applicant the reason for the rejection."
+  },
+  "actions": {
+    "returnForCorrections": "Return for corrections…",
+    "reject": "Reject…",
+    "confirmRejection": "Confirm rejection",
+    "confirmReturn": "Confirm return"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FormProps } from '../types';
 import { listVehicles, type Vehicle } from '../../api/vehicleRegistryApi';
 import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
@@ -19,6 +20,7 @@ import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
  * old confirmation links can't be reused against the new round.
  */
 export default function OwnerVehicleForm({ data, onComplete, submitting, readOnly }: FormProps) {
+  const { t } = useTranslation('owner-vehicle');
   const [firstName, setFirstName] = useState((data.firstName as string) ?? '');
   const [lastName, setLastName] = useState((data.lastName as string) ?? '');
   const [age, setAge] = useState(data.age != null ? String(data.age) : '');
@@ -43,7 +45,7 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
     if (typeof attachmentId === 'string' && attachmentId.length > 0) {
       return {
         attachmentId,
-        filename: 'ID document',
+        filename: t('fields.idDocument.existingFilename'),
         contentType: 'application/octet-stream',
         size: 0,
       };
@@ -82,25 +84,25 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
 
     const ageNum = Number(age);
     if (!firstName.trim() || !lastName.trim()) {
-      setError('First name and last name are required.');
+      setError(t('errors.namesRequired'));
       return;
     }
     if (!Number.isInteger(ageNum) || ageNum < 1 || ageNum > 130) {
-      setError('Age must be a whole number between 1 and 130.');
+      setError(t('errors.ageRange'));
       return;
     }
     if (!objectId) {
-      setError('Please choose a vehicle from the registry.');
+      setError(t('errors.vehicleRequired'));
       return;
     }
     if (!idDocument || (!idDocument.pendingKey && !idDocument.attachmentId)) {
-      setError('Please upload a copy of your ID card or passport.');
+      setError(t('errors.idDocumentRequired'));
       return;
     }
     const trimmedEmail = applicantEmail.trim();
     const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     if (trimmedEmail && !validEmail(trimmedEmail)) {
-      setError('Please enter a valid email address, or leave the field blank.');
+      setError(t('errors.invalidEmail'));
       return;
     }
 
@@ -110,29 +112,27 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
 
     if (cleanedOwners.length > 0) {
       if (!trimmedEmail) {
-        setError('Your own email is required when adding co-owners — we send you a tracking link.');
+        setError(t('errors.applicantEmailRequiredWithCoOwners'));
         return;
       }
       for (const o of cleanedOwners) {
         if (!o.name) {
-          setError('Every co-owner needs a name.');
+          setError(t('errors.coOwnerNameRequired'));
           return;
         }
         if (!o.email || !validEmail(o.email)) {
-          setError(`Co-owner "${o.name || '(unnamed)'}" needs a valid email address.`);
+          setError(t('errors.coOwnerEmailInvalid', { name: o.name || t('errors.coOwnerUnnamed') }));
           return;
         }
       }
       const emails = cleanedOwners.map((o) => o.email.toLowerCase());
       const dupe = emails.find((e, i) => emails.indexOf(e) !== i);
       if (dupe) {
-        setError(`Two co-owners share the email "${dupe}". Each owner needs a unique address.`);
+        setError(t('errors.duplicateCoOwnerEmail', { email: dupe }));
         return;
       }
       if (emails.includes(trimmedEmail.toLowerCase())) {
-        setError(
-          'Your own email cannot also appear in the co-owner list — the applicant is already counted as an owner.',
-        );
+        setError(t('errors.applicantEmailInCoOwners'));
         return;
       }
     }
@@ -190,21 +190,21 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
     <form className="form" onSubmit={handleSubmit}>
       {isResubmission && (
         <div className="form-banner form-banner-warn">
-          <strong>Sent back for corrections.</strong>
+          <strong>{t('banner.sentBackTitle')}</strong>
           <p className="form-banner-body">{sendBackReason}</p>
         </div>
       )}
 
       <p className="form-intro">
         {readOnly
-          ? 'Read-only view of the registration you submitted. Edits are not possible while Transport Authority has the case.'
+          ? t('intro.readOnly')
           : isResubmission
-            ? 'Update the details below and resubmit the registration. New signing links will be sent to every co-owner.'
-            : 'Owner form — fill in your details, choose the vehicle you are registering, and list any co-owners that must sign before the case goes to Transport Authority.'}
+            ? t('intro.resubmission')
+            : t('intro.default')}
       </p>
 
       <label className="field">
-        <span className="field-label">First name</span>
+        <span className="field-label">{t('fields.firstName.label')}</span>
         <input
           className="field-input"
           value={firstName}
@@ -215,7 +215,7 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       </label>
 
       <label className="field">
-        <span className="field-label">Last name</span>
+        <span className="field-label">{t('fields.lastName.label')}</span>
         <input
           className="field-input"
           value={lastName}
@@ -225,7 +225,7 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       </label>
 
       <label className="field">
-        <span className="field-label">Age</span>
+        <span className="field-label">{t('fields.age.label')}</span>
         <input
           className="field-input"
           type="number"
@@ -238,11 +238,11 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       </label>
 
       <label className="field">
-        <span className="field-label">Email (required if you list co-owners)</span>
+        <span className="field-label">{t('fields.email.label')}</span>
         <input
           className="field-input"
           type="email"
-          placeholder="you@example.com"
+          placeholder={t('fields.email.placeholder')}
           value={applicantEmail}
           onChange={(e) => setApplicantEmail(e.target.value)}
           disabled={readOnly}
@@ -250,11 +250,8 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       </label>
 
       <div className="field">
-        <span className="field-label">Owner ID document (required)</span>
-        <p className="field-hint">
-          ID card, passport, or driving licence. PDF, JPEG, or PNG up to 10 MB. The Transport
-          Authority reviewer will be able to download this file.
-        </p>
+        <span className="field-label">{t('fields.idDocument.label')}</span>
+        <p className="field-hint">{t('fields.idDocument.hint')}</p>
         <FileUpload
           accept="application/pdf,image/jpeg,image/png"
           maxBytes={10 * 1024 * 1024}
@@ -263,19 +260,19 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
           value={idDocument}
           onChange={setIdDocument}
           disabled={readOnly}
-          label="Drop your ID document here, or click to choose"
+          label={t('fields.idDocument.dropLabel')}
         />
       </div>
 
       <label className="field">
-        <span className="field-label">Vehicle (from registry)</span>
+        <span className="field-label">{t('fields.vehicle.label')}</span>
         <select
           className="field-input"
           value={objectId}
           onChange={(e) => setObjectId(e.target.value)}
           disabled={readOnly}
         >
-          <option value="">— choose a vehicle —</option>
+          <option value="">{t('fields.vehicle.placeholder')}</option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -284,21 +281,19 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
         </select>
       </label>
       {productsError && !readOnly && (
-        <p className="form-error">Could not load the vehicle registry: {productsError}</p>
+        <p className="form-error">{t('errors.registryLoadFailed', { message: productsError })}</p>
       )}
 
       <fieldset className="field-group">
-        <legend className="field-label">Vehicle co-owners ({additionalOwners.length})</legend>
-        <p className="field-hint">
-          Each co-owner gets an email with a link to approve or reject the vehicle registration.
-          Once all co-owners sign, any owner can click "Send to Transport Authority" to forward the
-          case for review. Leave empty if you are the sole owner.
-        </p>
+        <legend className="field-label">
+          {t('sections.coOwners.legend', { count: additionalOwners.length })}
+        </legend>
+        <p className="field-hint">{t('sections.coOwners.hint')}</p>
         {additionalOwners.map((owner, i) => (
           <div key={i} className="owner-row">
             <input
               className="field-input owner-row-name"
-              placeholder="Name"
+              placeholder={t('fields.coOwnerName.placeholder')}
               value={owner.name}
               onChange={(e) => updateOwner(i, 'name', e.target.value)}
               disabled={readOnly}
@@ -306,7 +301,7 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
             <input
               className="field-input owner-row-email"
               type="email"
-              placeholder="owner@example.com"
+              placeholder={t('fields.coOwnerEmail.placeholder')}
               value={owner.email}
               onChange={(e) => updateOwner(i, 'email', e.target.value)}
               disabled={readOnly}
@@ -316,9 +311,9 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
                 type="button"
                 className="btn btn-link"
                 onClick={() => removeOwner(i)}
-                aria-label={`Remove co-owner ${i + 1}`}
+                aria-label={t('actions.removeCoOwnerAria', { index: i + 1 })}
               >
-                Remove
+                {t('common:actions.remove')}
               </button>
             )}
           </div>
@@ -326,7 +321,7 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
         {!readOnly && (
           <div className="form-actions">
             <button type="button" className="btn" onClick={addOwner}>
-              + Add co-owner
+              {t('actions.addCoOwner')}
             </button>
           </div>
         )}
@@ -337,7 +332,11 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       {!readOnly && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Confirming…' : isResubmission ? 'Resubmit' : 'Confirm'}
+            {submitting
+              ? t('actions.confirming')
+              : isResubmission
+                ? t('actions.resubmit')
+                : t('actions.confirm')}
           </button>
         </div>
       )}

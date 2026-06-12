@@ -1,0 +1,35 @@
+{
+  "intro": {
+    "review": "Business Register review. Approve to enter the OÜ in the äriregister; send back with a reason to ask the founder for corrections.",
+    "readOnly": "A read-only view of the submitted OÜ founding details and the reviewer’s decision."
+  },
+  "summary": {
+    "companyName": "Company name",
+    "shareCapital": "Share capital",
+    "founder": "Founder",
+    "founderAge": "(age {{age}})",
+    "residency": "Residency",
+    "boardMembers": "Board members",
+    "decision": "Decision",
+    "sendBackReason": "Send-back reason"
+  },
+  "residency": {
+    "citizen": "Estonian citizen",
+    "eResident": "E-resident",
+    "foreign": "Foreign founder"
+  },
+  "previousReason": "Previous send-back reason (now resubmitted by the founder):",
+  "fields": {
+    "sendBackReason": {
+      "label": "Reason to send back",
+      "placeholder": "Tell the founder what to fix (e.g. share capital below €2500)."
+    }
+  },
+  "errors": {
+    "reasonRequired": "Please give the founder a reason for sending the registration back."
+  },
+  "actions": {
+    "openSendBack": "Send back…",
+    "confirmSendBack": "Confirm send back"
+  }
+}

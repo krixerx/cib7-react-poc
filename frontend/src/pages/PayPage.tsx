@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { confirm, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
+import { translateBackendName } from '../i18n/backendNames';
+import { formatCurrency } from '../i18n/format';
 
 /**
  * Public, unauthenticated page reached from the approval email's pay link
@@ -29,15 +32,8 @@ const ESTONIAN_BANKS = [
   { value: 'luminor', label: 'Luminor' },
 ];
 
-function formatAmount(amount: number, currency: string): string {
-  return amount.toLocaleString('et-EE', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  });
-}
-
 export default function PayPage() {
+  const { t } = useTranslation('pay');
   const { processInstanceId } = useParams<{ processInstanceId: string }>();
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +85,7 @@ export default function PayPage() {
     return (
       <div className="pay-page">
         <div className="card">
-          <p className="muted">Loading payment details…</p>
+          <p className="muted">{t('loading')}</p>
         </div>
       </div>
     );
@@ -99,18 +95,16 @@ export default function PayPage() {
     return (
       <div className="pay-page">
         <div className="card">
-          <h1 className="card-title">Payment link</h1>
-          <p className="form-error">
-            {error?.message ?? 'This payment link is unknown or has expired.'}
-          </p>
+          <h1 className="card-title">{t('linkCard.title')}</h1>
+          <p className="form-error">{error?.message ?? t('linkCard.unknown')}</p>
         </div>
       </div>
     );
   }
 
   const isVehicle = status.processDefinitionKey === 'vehicleRegistration';
-  const issuer = isVehicle ? 'Transpordiamet POC' : 'Äriregister POC';
-  const issuerSub = isVehicle ? 'Estonian Transport Authority' : 'Estonian Business Register';
+  const issuer = isVehicle ? t('issuer.vehicle.name') : t('issuer.business.name');
+  const issuerSub = isVehicle ? t('issuer.vehicle.sub') : t('issuer.business.sub');
 
   if (status.status === 'paid') {
     return (
@@ -130,20 +124,23 @@ export default function PayPage() {
               <path d="M20 6L9 17l-5-5" />
             </svg>
           </div>
-          <h1 className="card-title">Payment received</h1>
+          <h1 className="card-title">{t('paid.title')}</h1>
           <p className="muted">
-            Thank you. Your state fee of{' '}
-            <strong>{formatAmount(status.amount, status.currency)}</strong> has been credited to{' '}
-            {issuer}. The case will continue to the next step automatically.
+            <Trans
+              t={t}
+              i18nKey="paid.body"
+              values={{ amount: formatCurrency(status.amount, status.currency), issuer }}
+              components={{ strong: <strong /> }}
+            />
           </p>
           <dl className="pay-summary">
             <div className="summary-row">
-              <dt>Reference</dt>
+              <dt>{t('summary.reference')}</dt>
               <dd className="pay-mono">{status.reference}</dd>
             </div>
             <div className="summary-row">
-              <dt>Recipient</dt>
-              <dd>{status.recipient}</dd>
+              <dt>{t('summary.recipient')}</dt>
+              <dd>{translateBackendName(t, status.recipient)}</dd>
             </div>
           </dl>
         </div>
@@ -158,51 +155,51 @@ export default function PayPage() {
           className={`pay-header ${isVehicle ? 'pay-header-vehicle' : 'pay-header-business'}`}
         >
           <div>
-            <h1 className="pay-title">Pay state fee</h1>
+            <h1 className="pay-title">{t('header.title')}</h1>
             <p className="pay-subtitle">
               {issuer} · {issuerSub}
             </p>
           </div>
-          <span className="pay-status">Awaiting payment</span>
+          <span className="pay-status">{t('header.awaitingPayment')}</span>
         </header>
 
         <div className="pay-grid">
           <section className="pay-summary-block">
-            <h2 className="pay-section-title">Invoice</h2>
+            <h2 className="pay-section-title">{t('invoice.title')}</h2>
             <dl className="pay-summary">
               <div className="summary-row">
-                <dt>Payer</dt>
+                <dt>{t('summary.payer')}</dt>
                 <dd>{status.payerName || '—'}</dd>
               </div>
               <div className="summary-row">
-                <dt>For</dt>
+                <dt>{t('summary.for')}</dt>
                 <dd>{status.item}</dd>
               </div>
               <div className="summary-row">
-                <dt>Recipient</dt>
-                <dd>{status.recipient}</dd>
+                <dt>{t('summary.recipient')}</dt>
+                <dd>{translateBackendName(t, status.recipient)}</dd>
               </div>
               <div className="summary-row">
-                <dt>IBAN</dt>
+                <dt>{t('summary.iban')}</dt>
                 <dd className="pay-mono">{status.iban}</dd>
               </div>
               <div className="summary-row">
-                <dt>Reference</dt>
+                <dt>{t('summary.reference')}</dt>
                 <dd className="pay-mono">{status.reference}</dd>
               </div>
             </dl>
             <div className="pay-amount">
-              <span className="pay-amount-label">Amount due</span>
+              <span className="pay-amount-label">{t('invoice.amountDue')}</span>
               <span className="pay-amount-value">
-                {formatAmount(status.amount, status.currency)}
+                {formatCurrency(status.amount, status.currency)}
               </span>
             </div>
           </section>
 
           <section className="pay-bank-block">
-            <h2 className="pay-section-title">Pay from</h2>
+            <h2 className="pay-section-title">{t('bank.title')}</h2>
             <label className="field">
-              <span className="field-label">Sender bank</span>
+              <span className="field-label">{t('bank.senderBank')}</span>
               <select
                 className="field-input"
                 value={bank}
@@ -216,11 +213,7 @@ export default function PayPage() {
                 ))}
               </select>
             </label>
-            <p className="field-hint">
-              POC demo — the Confirm button below simulates a successful SEPA transfer without
-              involving a real bank. Production would redirect to the chosen bank's online banking
-              screen.
-            </p>
+            <p className="field-hint">{t('bank.demoHint')}</p>
 
             {error && <p className="form-error">{error.message}</p>}
 
@@ -232,8 +225,10 @@ export default function PayPage() {
                 disabled={submitting}
               >
                 {submitting
-                  ? 'Confirming…'
-                  : `Confirm payment of ${formatAmount(status.amount, status.currency)}`}
+                  ? t('actions.confirming')
+                  : t('actions.confirmPayment', {
+                      amount: formatCurrency(status.amount, status.currency),
+                    })}
               </button>
             </div>
           </section>

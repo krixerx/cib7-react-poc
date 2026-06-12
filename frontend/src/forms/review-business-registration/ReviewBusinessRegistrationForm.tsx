@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatCurrency } from '../../i18n/format';
 import type { FormProps } from '../types';
 
 /**
@@ -22,16 +24,16 @@ interface BoardMember {
   personalCode?: string;
 }
 
-function residencyLabel(raw: string | undefined): string {
+function residencyKey(raw: string | undefined): string | null {
   switch (raw) {
     case 'citizen':
-      return 'Estonian citizen';
+      return 'residency.citizen';
     case 'e-resident':
-      return 'E-resident';
+      return 'residency.eResident';
     case 'foreign':
-      return 'Foreign founder';
+      return 'residency.foreign';
     default:
-      return '—';
+      return null;
   }
 }
 
@@ -54,9 +56,10 @@ export default function ReviewBusinessRegistrationForm({
   submitting,
   readOnly,
 }: FormProps) {
+  const { t } = useTranslation('review-business-registration');
   const [showSendBack, setShowSendBack] = useState(false);
   const [reason, setReason] = useState((data.sendBackReason as string) ?? '');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // holds an i18n key
 
   function accept() {
     setError(null);
@@ -67,7 +70,7 @@ export default function ReviewBusinessRegistrationForm({
     setError(null);
     const trimmed = reason.trim();
     if (!trimmed) {
-      setError('Please give the founder a reason for sending the registration back.');
+      setError('errors.reasonRequired');
       return;
     }
     return onComplete({
@@ -79,41 +82,38 @@ export default function ReviewBusinessRegistrationForm({
   const boardMembers = parseBoardMembers(data.boardMembers);
   const shareCapital =
     data.shareCapital != null && data.shareCapital !== ''
-      ? `${Number(data.shareCapital).toFixed(2)} EUR`
+      ? formatCurrency(Number(data.shareCapital))
       : '—';
   const decision = (data.decision as string) ?? null;
   const priorReason = (data.sendBackReason as string) ?? '';
+  const residency = residencyKey(data.applicantResidency as string | undefined);
 
   return (
     <div className="form">
-      <p className="form-intro">
-        {readOnly
-          ? 'A read-only view of the submitted OÜ founding details and the reviewer’s decision.'
-          : 'Business Register review. Approve to enter the OÜ in the äriregister; send back with a reason to ask the founder for corrections.'}
-      </p>
+      <p className="form-intro">{readOnly ? t('intro.readOnly') : t('intro.review')}</p>
 
       <dl className="summary">
         <div className="summary-row">
-          <dt>Company name</dt>
+          <dt>{t('summary.companyName')}</dt>
           <dd>{(data.companyName as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Share capital</dt>
+          <dt>{t('summary.shareCapital')}</dt>
           <dd>{shareCapital}</dd>
         </div>
         <div className="summary-row">
-          <dt>Founder</dt>
+          <dt>{t('summary.founder')}</dt>
           <dd>
             {(data.applicantFirstName as string) ?? '—'} {(data.applicantLastName as string) ?? ''}
-            {data.applicantAge != null && ` (age ${String(data.applicantAge)})`}
+            {data.applicantAge != null && ` ${t('summary.founderAge', { age: String(data.applicantAge) })}`}
           </dd>
         </div>
         <div className="summary-row">
-          <dt>Residency</dt>
-          <dd>{residencyLabel(data.applicantResidency as string | undefined)}</dd>
+          <dt>{t('summary.residency')}</dt>
+          <dd>{residency ? t(residency) : '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Board members</dt>
+          <dt>{t('summary.boardMembers')}</dt>
           <dd>
             {boardMembers.length === 0 ? (
               '—'
@@ -130,15 +130,15 @@ export default function ReviewBusinessRegistrationForm({
         </div>
         {readOnly && decision && (
           <div className="summary-row">
-            <dt>Decision</dt>
+            <dt>{t('summary.decision')}</dt>
             <dd className={decision === 'approve' ? 'decision-approve' : 'decision-reject'}>
-              {decision === 'approve' ? 'Approved' : 'Sent back'}
+              {decision === 'approve' ? t('common:status.approved') : t('common:status.sentBack')}
             </dd>
           </div>
         )}
         {readOnly && priorReason && (
           <div className="summary-row">
-            <dt>Send-back reason</dt>
+            <dt>{t('summary.sendBackReason')}</dt>
             <dd>{priorReason}</dd>
           </div>
         )}
@@ -146,30 +146,30 @@ export default function ReviewBusinessRegistrationForm({
 
       {!readOnly && priorReason && (
         <p className="muted">
-          Previous send-back reason (now resubmitted by the founder): <em>{priorReason}</em>
+          {t('previousReason')} <em>{priorReason}</em>
         </p>
       )}
 
       {!readOnly && showSendBack && (
         <label className="field">
-          <span className="field-label">Reason to send back</span>
+          <span className="field-label">{t('fields.sendBackReason.label')}</span>
           <textarea
             className="field-input"
             rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Tell the founder what to fix (e.g. share capital below €2500)."
+            placeholder={t('fields.sendBackReason.placeholder')}
             autoFocus
           />
         </label>
       )}
 
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{t(error)}</p>}
 
       {!readOnly && (
         <div className="form-actions">
           <button className="btn btn-primary" disabled={submitting} onClick={accept}>
-            {submitting ? 'Working…' : 'Approve'}
+            {submitting ? t('common:feedback.submitting') : t('common:actions.approve')}
           </button>
           {!showSendBack ? (
             <button
@@ -178,12 +178,12 @@ export default function ReviewBusinessRegistrationForm({
               disabled={submitting}
               onClick={() => setShowSendBack(true)}
             >
-              Send back…
+              {t('actions.openSendBack')}
             </button>
           ) : (
             <>
               <button className="btn btn-danger" disabled={submitting} onClick={sendBack}>
-                {submitting ? 'Working…' : 'Confirm send back'}
+                {submitting ? t('common:feedback.submitting') : t('actions.confirmSendBack')}
               </button>
               <button
                 type="button"
@@ -194,7 +194,7 @@ export default function ReviewBusinessRegistrationForm({
                   setError(null);
                 }}
               >
-                Cancel
+                {t('common:actions.cancel')}
               </button>
             </>
           )}

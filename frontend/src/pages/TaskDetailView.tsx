@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   getProcessDefinitionXml,
   getTask,
@@ -9,6 +10,7 @@ import {
 } from '../api/camundaClient';
 import { parseProcessName } from '../api/bpmn';
 import { formRegistry, parseFormId } from '../forms/registry';
+import { translateBackendName } from '../i18n/backendNames';
 import DocumentsCard from '../components/DocumentsCard';
 import ProcessTimeline from '../components/ProcessTimeline';
 
@@ -55,6 +57,7 @@ export default function TaskDetailView({
   hideOwnHeader = false,
   onLoaded,
 }: TaskDetailViewProps) {
+  const { t } = useTranslation('task-detail');
   const [task, setTask] = useState<CamundaTask | null>(null);
   const [data, setData] = useState<Record<string, unknown>>({});
   const [serviceName, setServiceName] = useState<string | null>(null);
@@ -121,7 +124,7 @@ export default function TaskDetailView({
     return (
       <div className="card">
         {topSlot && !hideOwnHeader && <div className="card-head">{topSlot}</div>}
-        <p className="muted">Loading task…</p>
+        <p className="muted">{t('feedback.loadingTask')}</p>
       </div>
     );
   }
@@ -130,7 +133,7 @@ export default function TaskDetailView({
     return (
       <div className="card">
         {topSlot && !hideOwnHeader && <div className="card-head">{topSlot}</div>}
-        <p className="form-error">{error ?? 'Task not found.'}</p>
+        <p className="form-error">{error ?? t('errors.taskNotFound')}</p>
       </div>
     );
   }
@@ -147,7 +150,7 @@ export default function TaskDetailView({
       <div className="card">
         {!hideOwnHeader && (
           <div className="card-head">
-            <h1 className="card-title">{task.name}</h1>
+            <h1 className="card-title">{translateBackendName(t, task.name)}</h1>
             {topSlot}
           </div>
         )}
@@ -158,7 +161,12 @@ export default function TaskDetailView({
           <Form task={task} data={data} onComplete={handleComplete} submitting={submitting} />
         ) : (
           <p className="form-error">
-            No React form is registered for formKey <code>{task.formKey ?? '(none)'}</code>.
+            <Trans
+              t={t}
+              i18nKey="errors.noFormRegistered"
+              values={{ formKey: task.formKey ?? t('errors.formKeyNone') }}
+              components={{ code: <code /> }}
+            />
           </p>
         )}
       </div>

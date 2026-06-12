@@ -1,0 +1,42 @@
+{
+  "intro": {
+    "readOnly": "A read-only view of the Police Hospital medical assessment.",
+    "edit": "The approved optician reported weak vision for this applicant. Record the Police Hospital’s medical assessment of their eligibility for a driving license."
+  },
+  "summary": {
+    "applicant": "Applicant",
+    "civilNumber": "Civil number",
+    "age": "Age",
+    "licenseCategory": "License category",
+    "specialNeeds": "Special needs",
+    "eyeTestResult": "Eye test result",
+    "assessment": "Assessment",
+    "notes": "Notes",
+    "yes": "yes",
+    "no": "no",
+    "weakVision": "weak vision"
+  },
+  "fields": {
+    "medicalResult": {
+      "label": "Assessment result",
+      "positive": "Fit to drive — proceed to fee payment",
+      "negative": "Not fit to drive — reject the application"
+    },
+    "medicalNotes": {
+      "label": "Assessment notes",
+      "placeholderNegative": "Required — sent to the applicant as the rejection reason.",
+      "placeholderPositive": "Optional for a positive result."
+    }
+  },
+  "values": {
+    "fitToDrive": "Fit to drive",
+    "notFitToDrive": "Not fit to drive"
+  },
+  "errors": {
+    "selectResult": "Please select an assessment result.",
+    "notesRequired": "Please add assessment notes — they are sent to the applicant as the reason."
+  },
+  "actions": {
+    "submitAssessment": "Submit assessment"
+  }
+}

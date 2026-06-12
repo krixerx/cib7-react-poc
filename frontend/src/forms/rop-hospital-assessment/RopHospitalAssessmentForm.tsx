@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FormProps } from '../types';
+import { formatNumber } from '../../i18n/format';
 
 /**
  * Police Hospital medical assessment form for ropLearningPermit (PartB) —
@@ -18,6 +20,7 @@ export default function RopHospitalAssessmentForm({
   submitting,
   readOnly,
 }: FormProps) {
+  const { t } = useTranslation('rop-hospital-assessment');
   const [medicalResult, setMedicalResult] = useState<string>('');
   const [medicalNotes, setMedicalNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -25,12 +28,12 @@ export default function RopHospitalAssessmentForm({
   function submitAssessment() {
     setError(null);
     if (medicalResult !== 'positive' && medicalResult !== 'negative') {
-      setError('Please select an assessment result.');
+      setError('errors.selectResult');
       return;
     }
     const trimmedNotes = medicalNotes.trim();
     if (medicalResult === 'negative' && !trimmedNotes) {
-      setError('Please add assessment notes — they are sent to the applicant as the reason.');
+      setError('errors.notesRequired');
       return;
     }
     return onComplete({
@@ -51,47 +54,49 @@ export default function RopHospitalAssessmentForm({
   return (
     <div className="form">
       <p className="form-intro">
-        {readOnly
-          ? 'A read-only view of the Police Hospital medical assessment.'
-          : 'The approved optician reported weak vision for this applicant. Record the Police Hospital’s medical assessment of their eligibility for a driving license.'}
+        {readOnly ? t('intro.readOnly') : t('intro.edit')}
       </p>
 
       <dl className="summary">
         <div className="summary-row">
-          <dt>Applicant</dt>
+          <dt>{t('summary.applicant')}</dt>
           <dd>{(data.applicantName as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Civil number</dt>
+          <dt>{t('summary.civilNumber')}</dt>
           <dd>{(data.civilId as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Age</dt>
-          <dd>{data.age != null ? String(data.age) : '—'}</dd>
+          <dt>{t('summary.age')}</dt>
+          <dd>{data.age != null ? formatNumber(Number(data.age)) : '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>License category</dt>
+          <dt>{t('summary.licenseCategory')}</dt>
           <dd>{(data.licenseCategory as string) ?? '—'}</dd>
         </div>
         <div className="summary-row">
-          <dt>Special needs</dt>
-          <dd>{data.specialNeeds === true || data.specialNeeds === 'true' ? 'yes' : 'no'}</dd>
+          <dt>{t('summary.specialNeeds')}</dt>
+          <dd>
+            {data.specialNeeds === true || data.specialNeeds === 'true'
+              ? t('summary.yes')
+              : t('summary.no')}
+          </dd>
         </div>
         <div className="summary-row">
-          <dt>Eye test result</dt>
-          <dd className="decision-reject">weak vision</dd>
+          <dt>{t('summary.eyeTestResult')}</dt>
+          <dd className="decision-reject">{t('summary.weakVision')}</dd>
         </div>
         {readOnly && recordedResult && (
           <div className="summary-row">
-            <dt>Assessment</dt>
+            <dt>{t('summary.assessment')}</dt>
             <dd className={recordedResult === 'positive' ? 'decision-approve' : 'decision-reject'}>
-              {recordedResult === 'positive' ? 'Fit to drive' : 'Not fit to drive'}
+              {recordedResult === 'positive' ? t('values.fitToDrive') : t('values.notFitToDrive')}
             </dd>
           </div>
         )}
         {readOnly && Boolean(data.medicalNotes as string) && (
           <div className="summary-row">
-            <dt>Notes</dt>
+            <dt>{t('summary.notes')}</dt>
             <dd>{data.medicalNotes as string}</dd>
           </div>
         )}
@@ -100,7 +105,7 @@ export default function RopHospitalAssessmentForm({
       {!readOnly && (
         <>
           <div className="field">
-            <span className="field-label">Assessment result</span>
+            <span className="field-label">{t('fields.medicalResult.label')}</span>
             <label className="field-checkbox">
               <input
                 type="radio"
@@ -109,7 +114,7 @@ export default function RopHospitalAssessmentForm({
                 checked={medicalResult === 'positive'}
                 onChange={() => setMedicalResult('positive')}
               />
-              <span>Fit to drive — proceed to fee payment</span>
+              <span>{t('fields.medicalResult.positive')}</span>
             </label>
             <label className="field-checkbox">
               <input
@@ -119,12 +124,12 @@ export default function RopHospitalAssessmentForm({
                 checked={medicalResult === 'negative'}
                 onChange={() => setMedicalResult('negative')}
               />
-              <span>Not fit to drive — reject the application</span>
+              <span>{t('fields.medicalResult.negative')}</span>
             </label>
           </div>
 
           <label className="field">
-            <span className="field-label">Assessment notes</span>
+            <span className="field-label">{t('fields.medicalNotes.label')}</span>
             <textarea
               className="field-input"
               rows={3}
@@ -132,20 +137,20 @@ export default function RopHospitalAssessmentForm({
               onChange={(e) => setMedicalNotes(e.target.value)}
               placeholder={
                 medicalResult === 'negative'
-                  ? 'Required — sent to the applicant as the rejection reason.'
-                  : 'Optional for a positive result.'
+                  ? t('fields.medicalNotes.placeholderNegative')
+                  : t('fields.medicalNotes.placeholderPositive')
               }
             />
           </label>
         </>
       )}
 
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{t(error)}</p>}
 
       {!readOnly && (
         <div className="form-actions">
           <button className="btn btn-primary" disabled={submitting} onClick={submitAssessment}>
-            {submitting ? 'Working…' : 'Submit assessment'}
+            {submitting ? t('common:feedback.submitting') : t('actions.submitAssessment')}
           </button>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import {
   approve,
@@ -31,6 +32,7 @@ import {
 const POLL_INTERVAL_MS = 3000;
 
 export default function SignFounderPage() {
+  const { t } = useTranslation('sign-founder');
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<FounderStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +89,9 @@ export default function SignFounderPage() {
   async function handleReject() {
     if (!token) return;
     if (!rejectReason.trim()) {
-      setError({ code: 'missing_reason', message: 'Please describe why you are rejecting.' });
+      // Message resolved from the code at render time so it follows the
+      // active language; see errorText().
+      setError({ code: 'missing_reason', message: '' });
       return;
     }
     setSubmitting(true);
@@ -128,11 +132,20 @@ export default function SignFounderPage() {
     }
   }
 
+  /**
+   * Locally raised errors carry a code and are translated here at render
+   * time; backend-provided messages are shown verbatim.
+   */
+  function errorText(err: { code: string; message: string }): string {
+    if (err.code === 'missing_reason') return t('errors.missingReason');
+    return err.message;
+  }
+
   if (loading) {
     return (
       <div className="confirm-page">
         <div className="card">
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('common:feedback.loading')}</p>
         </div>
       </div>
     );
@@ -142,10 +155,8 @@ export default function SignFounderPage() {
     return (
       <div className="confirm-page">
         <div className="card">
-          <h1 className="card-title">Signing link</h1>
-          <p className="form-error">
-            {error?.message ?? 'This signing link is unknown or has expired.'}
-          </p>
+          <h1 className="card-title">{t('errors.linkTitle')}</h1>
+          <p className="form-error">{error ? errorText(error) : t('errors.unknownLink')}</p>
         </div>
       </div>
     );
@@ -153,51 +164,61 @@ export default function SignFounderPage() {
 
   const current = status.currentFounder;
   const allFounders = status.founders;
-  const stateLabel = STATE_LABELS[status.state] ?? status.state;
+  const stateLabelKey = STATE_LABEL_KEYS[status.state];
+  const stateLabel = stateLabelKey ? t(stateLabelKey) : status.state;
+  const pendingCount = allFounders.filter((f) => f.status === 'pending').length;
 
   return (
     <div className="confirm-page">
       <div className="card">
         <div className="card-head">
-          <h1 className="card-title">Co-founder signature</h1>
+          <h1 className="card-title">{t('title')}</h1>
           <span className="confirm-state">{stateLabel}</span>
         </div>
 
         <p className="form-intro">
-          <strong>{status.applicantName || 'The applicant'}</strong> has submitted a registration
-          for <strong>{status.companyName || 'an Estonian OÜ'}</strong> that requires every
-          co-founder's signature on the Articles of Association before it can be sent to the
-          Business Register.
+          <Trans
+            t={t}
+            i18nKey="summary.intro"
+            values={{
+              applicant: status.applicantName || t('summary.applicantFallback'),
+              company: status.companyName || t('summary.companyFallback'),
+            }}
+            components={{ strong: <strong /> }}
+          />
         </p>
 
         {current && (
           <p className="muted">
-            You are signing as <strong>{current.name}</strong>
-            {current.isApplicant && ' (the applicant)'}.
+            <Trans
+              t={t}
+              i18nKey={current.isApplicant ? 'summary.signingAsApplicant' : 'summary.signingAs'}
+              values={{ name: current.name }}
+              components={{ strong: <strong /> }}
+            />
           </p>
         )}
 
         {status.state === 'rejected' && (
           <div className="form-banner form-banner-warn">
-            <strong>Rejected by {status.rejectedBy ?? 'a co-founder'}.</strong>
+            <strong>
+              {t('banners.rejectedBy', {
+                name: status.rejectedBy ?? t('banners.coFounderFallback'),
+              })}
+            </strong>
             {status.rejectionReason && <p className="form-banner-body">{status.rejectionReason}</p>}
-            <p className="form-banner-body">
-              The case has been sent back to the applicant. New signing links will be issued once
-              they resubmit.
-            </p>
+            <p className="form-banner-body">{t('banners.rejectedBody')}</p>
           </div>
         )}
 
         {status.state === 'sent' && (
           <div className="form-banner">
-            <strong>Submitted to the Business Register.</strong>
-            <p className="form-banner-body">
-              All co-founders signed and the case has been forwarded for review.
-            </p>
+            <strong>{t('banners.sentTitle')}</strong>
+            <p className="form-banner-body">{t('banners.sentBody')}</p>
           </div>
         )}
 
-        <h2 className="card-subtitle">Co-founders</h2>
+        <h2 className="card-subtitle">{t('summary.coFounders')}</h2>
         <ul className="owner-list">
           {allFounders.map((f) => (
             <li key={f.token}>
@@ -207,21 +228,23 @@ export default function SignFounderPage() {
                   {f.isApplicant && (
                     <>
                       {' '}
-                      <span className="muted">· applicant</span>
+                      <span className="muted">{t('summary.applicantTag')}</span>
                     </>
                   )}
                 </span>
                 <span className="owner-email">{f.email}</span>
                 {f.status === 'rejected' && f.reason && (
-                  <span className="owner-email">Reason: {f.reason}</span>
+                  <span className="owner-email">{t('summary.reason', { reason: f.reason })}</span>
                 )}
               </span>
-              <span className={pillClass(f.status)}>{founderStatusLabel(f.status)}</span>
+              <span className={pillClass(f.status)}>
+                {t(FOUNDER_STATUS_KEYS[f.status] ?? 'common:status.pending')}
+              </span>
             </li>
           ))}
         </ul>
 
-        {error && <p className="form-error">{error.message}</p>}
+        {error && <p className="form-error">{errorText(error)}</p>}
 
         {/* Action area depends on state */}
         {status.state === 'pending' &&
@@ -237,7 +260,7 @@ export default function SignFounderPage() {
                     onClick={handleApprove}
                     disabled={submitting}
                   >
-                    {submitting ? 'Signing…' : 'Approve and sign'}
+                    {submitting ? t('actions.signing') : t('actions.approveAndSign')}
                   </button>
                   <button
                     type="button"
@@ -245,19 +268,19 @@ export default function SignFounderPage() {
                     onClick={() => setShowRejectForm(true)}
                     disabled={submitting}
                   >
-                    Reject
+                    {t('common:actions.reject')}
                   </button>
                 </div>
               ) : (
                 <div className="field-group">
                   <label className="field">
-                    <span className="field-label">Reason for rejection</span>
+                    <span className="field-label">{t('actions.reasonLabel')}</span>
                     <textarea
                       className="field-input"
                       rows={3}
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Explain what needs to change before you'd sign."
+                      placeholder={t('actions.reasonPlaceholder')}
                     />
                   </label>
                   <div className="form-actions">
@@ -267,7 +290,7 @@ export default function SignFounderPage() {
                       onClick={handleReject}
                       disabled={submitting}
                     >
-                      {submitting ? 'Sending…' : 'Send rejection'}
+                      {submitting ? t('actions.sending') : t('actions.sendRejection')}
                     </button>
                     <button
                       type="button"
@@ -279,7 +302,7 @@ export default function SignFounderPage() {
                       }}
                       disabled={submitting}
                     >
-                      Cancel
+                      {t('common:actions.cancel')}
                     </button>
                   </div>
                 </div>
@@ -291,7 +314,7 @@ export default function SignFounderPage() {
           current &&
           current.status === 'approved' &&
           status.state !== 'ready_to_send' && (
-            <p className="muted">Your signature is on file. Waiting for the other co-founders.</p>
+            <p className="muted">{t('states.waitingOthers', { count: pendingCount })}</p>
           )}
 
         {status.state === 'ready_to_send' && (
@@ -302,7 +325,7 @@ export default function SignFounderPage() {
               onClick={handleSubmitToRegister}
               disabled={submitting}
             >
-              {submitting ? 'Submitting…' : 'Submit to register'}
+              {submitting ? t('common:feedback.submitting') : t('actions.submitToRegister')}
             </button>
           </div>
         )}
@@ -311,12 +334,16 @@ export default function SignFounderPage() {
   );
 }
 
-const STATE_LABELS: Record<string, string> = {
-  pending: 'Awaiting signatures',
-  confirmed_waiting: 'Awaiting signatures',
-  ready_to_send: 'Ready to submit',
-  sent: 'Submitted',
-  rejected: 'Rejected',
+/**
+ * Backend state → translation key. The raw state strings stay untranslated;
+ * they are API values the polling logic compares against.
+ */
+const STATE_LABEL_KEYS: Record<string, string> = {
+  pending: 'states.awaitingSignatures',
+  confirmed_waiting: 'states.awaitingSignatures',
+  ready_to_send: 'states.readyToSubmit',
+  sent: 'states.submitted',
+  rejected: 'common:status.rejected',
 };
 
 function pillClass(status: string): string {
@@ -330,13 +357,8 @@ function pillClass(status: string): string {
   }
 }
 
-function founderStatusLabel(status: string): string {
-  switch (status) {
-    case 'approved':
-      return 'Signed';
-    case 'rejected':
-      return 'Rejected';
-    default:
-      return 'Pending';
-  }
-}
+/** Per-founder pill label: backend status → translation key. */
+const FOUNDER_STATUS_KEYS: Record<string, string> = {
+  approved: 'summary.signed',
+  rejected: 'common:status.rejected',
+};

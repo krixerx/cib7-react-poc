@@ -1,0 +1,15 @@
+{
+  "title": "Incidents",
+  "intro": "Open incidents across all running processes. Use <strong>Retry</strong> to give a failed service-task job another attempt.",
+  "empty": "No open incidents.",
+  "incident": {
+    "processScope": "(process scope)",
+    "processLabel": "Process {{id}}",
+    "retrying": "Retrying…",
+    "noRetry": "No retry available for this incident type."
+  },
+  "types": {
+    "failedJob": "Failed job",
+    "failedExternalTask": "Failed external task"
+  }
+}

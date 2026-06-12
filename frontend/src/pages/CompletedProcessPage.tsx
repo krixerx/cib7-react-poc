@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthProvider';
 import ProcessHistoryView from './ProcessHistoryView';
 import CaseDetailLayout from '../components/CaseDetailLayout';
@@ -18,6 +19,7 @@ import { categoryOf } from '../services/categories';
  * worklist root; applicants land on My processes.
  */
 export default function CompletedProcessPage() {
+  const { t } = useTranslation('process-detail');
   const { processInstanceId } = useParams<{ processInstanceId: string }>();
   const navigate = useNavigate();
   const { isCivilServant } = useAuth();
@@ -43,7 +45,7 @@ export default function CompletedProcessPage() {
   if (!processInstanceId) {
     return (
       <div className="card">
-        <p className="form-error">No process id.</p>
+        <p className="form-error">{t('errors.noProcessId')}</p>
       </div>
     );
   }
@@ -52,7 +54,7 @@ export default function CompletedProcessPage() {
     <CaseDetailLayout
       category={info ? categoryOf(info.processDefinitionKey) : null}
       serviceName={info?.serviceName ?? null}
-      title="Your submission"
+      title={t('header.title')}
       outcome={info?.outcome ?? null}
       isInFlight={info?.isInFlight ?? false}
       onBack={() => navigate(backPath)}

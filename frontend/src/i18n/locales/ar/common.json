@@ -1,0 +1,142 @@
+{
+  "app": {
+    "brandName": "CIB seven",
+    "brandSub": "الحكومة الرقمية · نموذج React التجريبي",
+    "partBadge": "الجزء {{part}}",
+    "roleApplicant": "مقدم الطلب",
+    "roleBackOffice": "المكتب الخلفي",
+    "nav": {
+      "services": "الخدمات",
+      "tasks": "المهام",
+      "incidents": "الأعطال",
+      "myProcesses": "معاملاتي"
+    },
+    "auth": {
+      "logIn": "تسجيل الدخول",
+      "logOut": "تسجيل الخروج",
+      "register": "إنشاء حساب"
+    }
+  },
+  "language": {
+    "label": "اللغة",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "actions": {
+    "submit": "إرسال",
+    "cancel": "إلغاء",
+    "back": "رجوع",
+    "continue": "متابعة",
+    "save": "حفظ",
+    "close": "إغلاق",
+    "download": "تنزيل",
+    "remove": "إزالة",
+    "retry": "إعادة المحاولة",
+    "refresh": "تحديث",
+    "add": "إضافة",
+    "approve": "موافقة",
+    "reject": "رفض",
+    "sendBack": "إعادة للتصحيح"
+  },
+  "status": {
+    "pending": "قيد الانتظار",
+    "underReview": "قيد المراجعة",
+    "confirmed": "مؤكد",
+    "approved": "تمت الموافقة",
+    "rejected": "مرفوض",
+    "completed": "مكتمل",
+    "inProgress": "قيد التنفيذ",
+    "active": "نشط",
+    "done": "منجز",
+    "incident": "عطل",
+    "paymentRequired": "السداد مطلوب",
+    "sentBack": "أُعيد للتصحيح"
+  },
+  "feedback": {
+    "loading": "جارٍ التحميل…",
+    "saving": "جارٍ الحفظ…",
+    "submitting": "جارٍ الإرسال…",
+    "error": "حدث خطأ ما",
+    "notFound": "غير موجود"
+  },
+  "categories": {
+    "business": {
+      "name": "الأعمال والتجارة",
+      "blurb": "تسجيل الأعمال التجارية، ونقل الملكية، وتقديم الإقرارات."
+    },
+    "family": {
+      "name": "الأسرة والأحوال المدنية",
+      "blurb": "الولادة والزواج وتغيير الأسماء والشهادات الأسرية."
+    },
+    "property": {
+      "name": "العقارات والأراضي",
+      "blurb": "سندات الملكية والنقل وتراخيص البناء."
+    },
+    "travel": {
+      "name": "السفر والهوية",
+      "blurb": "جوازات السفر وبطاقات الهوية وتسجيل المركبات وتصاريح الإقامة."
+    },
+    "social": {
+      "name": "الشؤون الاجتماعية والصحة",
+      "blurb": "المنافع والاستحقاقات الصحية وطلبات الدعم."
+    },
+    "other": {
+      "name": "خدمات أخرى",
+      "blurb": "كل ما لا يندرج ضمن الفئات أعلاه."
+    }
+  },
+  "backend": {
+    "estonianOuRegistration": "تسجيل شركة OÜ الإستونية",
+    "vehicleRegistration": "تسجيل المركبات",
+    "ropLearningPermit": "تصريح تعلم القيادة – شرطة عُمان السلطانية",
+    "ropVehicleRegistration": "تسجيل المركبات – شرطة عُمان السلطانية",
+    "submitOuFoundingDetails": "تقديم بيانات تأسيس الشركة",
+    "submitOwnerVehicleDetails": "تقديم بيانات المالك والمركبة",
+    "transportAuthorityReview": "مراجعة هيئة النقل",
+    "applyForLearningPermit": "التقدم بطلب تصريح تعلم القيادة",
+    "policeHospitalAssessment": "الفحص الطبي في مستشفى الشرطة",
+    "submitVehicleRegistrationApplication": "تقديم طلب تسجيل المركبة",
+    "trafficOfficerReview": "مراجعة ضابط المرور",
+    "attachArticlesOfAssociation": "إرفاق عقد التأسيس",
+    "waitForSubmitToRegister": "في انتظار الإرسال إلى السجل",
+    "generateStateFeeInvoice": "إصدار فاتورة الرسوم الحكومية",
+    "storeFeeInvoice": "حفظ فاتورة الرسوم",
+    "sendApprovalEmail": "إرسال بريد الموافقة",
+    "waitForStateFeePayment": "في انتظار سداد الرسوم الحكومية",
+    "generateBcardExtract": "إصدار مستخرج البطاقة B",
+    "storeBcardExtract": "حفظ مستخرج البطاقة B",
+    "sendSentBackEmail": "إرسال بريد الإعادة للتصحيح",
+    "ouEnteredInBusinessRegister": "قُيّدت الشركة في السجل التجاري",
+    "attachOwnerIdDocument": "إرفاق وثيقة هوية المالك",
+    "sendOwnerTrackingEmail": "إرسال بريد المتابعة للمالك",
+    "sendCoOwnerSigningEmail": "إرسال بريد التوقيع للمالك الشريك",
+    "waitForCoOwnerSignature": "في انتظار توقيع المالك الشريك",
+    "waitForOwnerToSubmit": "في انتظار إرسال المالك للطلب",
+    "lookUpVehicleInRegistry": "الاستعلام عن المركبة في السجل",
+    "sendReviewerReminderEmail": "إرسال تذكير إلى المراجع",
+    "reminderSent": "تم إرسال التذكير",
+    "generateVehicleRegistrationCertificate": "إصدار شهادة تسجيل المركبة",
+    "storeRegistrationCertificate": "حفظ شهادة التسجيل",
+    "sendStateFeeInvoiceEmail": "إرسال فاتورة الرسوم بالبريد الإلكتروني",
+    "vehicleRegistered": "تم تسجيل المركبة",
+    "fetchEyeTestLicenseRestrictions": "جلب حالة فحص النظر والرخصة والقيود",
+    "emailVisitPoliceHospital": "بريد إلكتروني: مراجعة مستشفى الشرطة",
+    "emailApplicationRejected": "بريد إلكتروني: رفض الطلب",
+    "applicationRejected": "رُفض الطلب",
+    "emailPayServiceFee": "بريد إلكتروني: سداد رسوم الخدمة",
+    "waitForFeePayment": "في انتظار سداد الرسوم",
+    "issueLearningPermit": "إصدار تصريح التعلم",
+    "generateLearningLicensePdf": "إصدار رخصة التعلم الإلكترونية (PDF)",
+    "storeLearningLicense": "حفظ رخصة التعلم",
+    "emailLicenseAndReceipt": "بريد إلكتروني: الرخصة الإلكترونية والإيصال",
+    "emailServiceEvaluation": "بريد إلكتروني: طلب تقييم الخدمة",
+    "learningPermitIssued": "صدر تصريح تعلم القيادة",
+    "checkInspectionInsuranceRestrictions": "التحقق من الفحص الفني والتأمين والقيود",
+    "emailReturnedForCorrections": "بريد إلكتروني: أُعيد الطلب للتصحيح",
+    "emailPayRegistrationFee": "بريد إلكتروني: سداد رسوم التسجيل",
+    "allocatePlateNumber": "تخصيص رقم اللوحة",
+    "generateRegistrationCertificatePdf": "إصدار شهادة التسجيل (PDF)",
+    "storeCertificate": "حفظ الشهادة",
+    "emailCertificatePlateCollection": "بريد إلكتروني: استلام الشهادة واللوحة"
+  }
+}

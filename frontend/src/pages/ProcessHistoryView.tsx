@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   getHistoricProcessInstance,
   getProcessDefinitionXml,
@@ -13,6 +14,8 @@ import { parseActivityNames, parseProcessName, parseUserTasks } from '../api/bpm
 import { formRegistry, parseFormId } from '../forms/registry';
 import DocumentsCard from '../components/DocumentsCard';
 import ProcessTimeline from '../components/ProcessTimeline';
+import { translateBackendName } from '../i18n/backendNames';
+import { formatDateTime } from '../i18n/format';
 
 /**
  * Read-only view of a process instance. Loads the historic variables and
@@ -81,6 +84,7 @@ export default function ProcessHistoryView({
   hideOwnHeader = false,
   onLoaded,
 }: ProcessHistoryViewProps) {
+  const { t } = useTranslation('process-detail');
   const [state, setState] = useState<LoadedState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +102,7 @@ export default function ProcessHistoryView({
       ]);
       const completedTasks = tasks.filter((t) => t.endTime);
       if (completedTasks.length === 0) {
-        throw new Error('No user task has been completed on this case yet.');
+        throw new Error(t('errors.noCompletedTask'));
       }
       const lastTask = completedTasks[0]; // sorted desc by endTime
       const userTasks = parseUserTasks(xml.bpmn20Xml);
@@ -107,19 +111,22 @@ export default function ProcessHistoryView({
       const activeTask = tasks.find((t) => !t.endTime);
       const outcome = pi.endTime
         ? pi.endActivityId
-          ? (activityNames.get(pi.endActivityId) ?? pi.endActivityId)
+          ? translateBackendName(t, activityNames.get(pi.endActivityId) ?? pi.endActivityId)
           : pi.state
         : activeTask
-          ? `Currently with ${activeTask.name}`
-          : 'In progress';
-      const serviceName = parseProcessName(xml.bpmn20Xml) ?? pi.processDefinitionKey;
+          ? t('outcome.currentlyWith', { step: translateBackendName(t, activeTask.name) })
+          : t('common:status.inProgress');
+      const serviceName = translateBackendName(
+        t,
+        parseProcessName(xml.bpmn20Xml) ?? pi.processDefinitionKey,
+      );
       setState({ pi, lastTask, data: unwrap(vars), formKey, outcome, serviceName });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [processInstanceId]);
+  }, [processInstanceId, t]);
 
   useEffect(() => {
     load();
@@ -140,7 +147,7 @@ export default function ProcessHistoryView({
     return (
       <div className="card">
         {topSlot && <div className="card-head">{topSlot}</div>}
-        <p className="muted">Loading process…</p>
+        <p className="muted">{t('feedback.loadingProcess')}</p>
       </div>
     );
   }
@@ -149,7 +156,7 @@ export default function ProcessHistoryView({
     return (
       <div className="card">
         {topSlot && <div className="card-head">{topSlot}</div>}
-        <p className="form-error">{error ?? 'Process not found.'}</p>
+        <p className="form-error">{error ?? t('errors.processNotFound')}</p>
       </div>
     );
   }
@@ -170,12 +177,12 @@ export default function ProcessHistoryView({
         {!hideOwnHeader && (
           <>
             <div className="card-head">
-              <h1 className="card-title">{state.lastTask.name}</h1>
+              <h1 className="card-title">{translateBackendName(t, state.lastTask.name)}</h1>
               {topSlot}
             </div>
             <p className="muted">
-              {isInFlight ? 'Submitted' : 'Completed'} {new Date(stampDate).toLocaleString()} ·{' '}
-              <strong>{state.outcome}</strong>
+              {isInFlight ? t('stamp.submitted') : t('stamp.completed')} {formatDateTime(stampDate)}{' '}
+              · <strong>{state.outcome}</strong>
             </p>
           </>
         )}
@@ -190,7 +197,12 @@ export default function ProcessHistoryView({
           />
         ) : (
           <p className="form-error">
-            No React form is registered for formKey <code>{state.formKey ?? '(none)'}</code>.
+            <Trans
+              t={t}
+              i18nKey="errors.noFormRegistered"
+              values={{ formKey: state.formKey ?? t('errors.formKeyNone') }}
+              components={{ code: <code /> }}
+            />
           </p>
         )}
       </div>

@@ -1,0 +1,22 @@
+{
+  "header": {
+    "title": "طلبك المقدَّم"
+  },
+  "feedback": {
+    "loadingProcess": "جارٍ تحميل المعاملة…"
+  },
+  "stamp": {
+    "submitted": "تم التقديم في",
+    "completed": "تم الإنجاز في"
+  },
+  "outcome": {
+    "currentlyWith": "حاليًا في مرحلة {{step}}"
+  },
+  "errors": {
+    "noProcessId": "لا يوجد معرّف للمعاملة.",
+    "processNotFound": "المعاملة غير موجودة.",
+    "noCompletedTask": "لم تُنجز أي مهمة في هذه المعاملة حتى الآن.",
+    "noFormRegistered": "لا يوجد نموذج React مسجّل لمفتاح النموذج <code>{{formKey}}</code>.",
+    "formKeyNone": "(بدون)"
+  }
+}

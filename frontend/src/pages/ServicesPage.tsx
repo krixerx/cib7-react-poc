@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   listProcessDefinitions,
   startProcess,
@@ -9,6 +10,8 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import { CATEGORIES, categoryOf, type CategoryId } from '../services/categories';
 import { CategoryIcon } from '../services/CategoryIcon';
+import { translateBackendName } from '../i18n/backendNames';
+import { formatNumber } from '../i18n/format';
 
 /**
  * PartA landing — life-event catalog. Six category tiles let citizens pick a
@@ -17,6 +20,7 @@ import { CategoryIcon } from '../services/CategoryIcon';
  * land. Anonymous browsing is allowed; starting still routes through Keycloak.
  */
 export default function ServicesPage() {
+  const { t } = useTranslation('services');
   const navigate = useNavigate();
   const { authenticated, login, register } = useAuth();
 
@@ -89,23 +93,20 @@ export default function ServicesPage() {
       <section className="catalog-hero">
         <div className="catalog-hero-inner">
           <div className="hero-copy">
-            <span className="hero-eyebrow">Digital government services</span>
+            <span className="hero-eyebrow">{t('hero.eyebrow')}</span>
             <h1 className="catalog-hero-title">
-              Government services
+              {t('hero.titleLine1')}
               <br />
-              <span className="hero-accent">made simple.</span>
+              <span className="hero-accent">{t('hero.titleAccent')}</span>
             </h1>
-            <p className="catalog-hero-sub">
-              Start a service, sign documents, and follow every step of your case in one secure
-              portal. Fast, transparent, accessible to everyone.
-            </p>
+            <p className="catalog-hero-sub">{t('hero.sub')}</p>
             {!authenticated && (
               <div className="hero-cta">
                 <button type="button" className="hero-btn-primary" onClick={login}>
-                  Sign in to your account →
+                  {t('hero.signIn')}
                 </button>
                 <button type="button" className="hero-btn-ghost" onClick={register}>
-                  Join the digital state
+                  {t('hero.join')}
                 </button>
               </div>
             )}
@@ -124,7 +125,7 @@ export default function ServicesPage() {
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              Secure single sign-on · every step of your case tracked transparently
+              {t('hero.trust')}
             </p>
           </div>
           <div className="hero-art" aria-hidden="true">
@@ -135,31 +136,31 @@ export default function ServicesPage() {
 
       <div className="hero-stats">
         <div className="hero-stat">
-          <span className="hero-stat-value">24/7</span>
-          <span className="hero-stat-label">Always open</span>
+          <span className="hero-stat-value">{t('stats.alwaysOpen.value')}</span>
+          <span className="hero-stat-label">{t('stats.alwaysOpen.label')}</span>
         </div>
         <div className="hero-stat">
-          <span className="hero-stat-value">&lt; 5 min</span>
-          <span className="hero-stat-label">Average application</span>
+          <span className="hero-stat-value">{t('stats.averageApplication.value')}</span>
+          <span className="hero-stat-label">{t('stats.averageApplication.label')}</span>
         </div>
         <div className="hero-stat">
-          <span className="hero-stat-value">100%</span>
-          <span className="hero-stat-label">Digital, zero paper</span>
+          <span className="hero-stat-value">{t('stats.digital.value')}</span>
+          <span className="hero-stat-label">{t('stats.digital.label')}</span>
         </div>
         <div className="hero-stat">
-          <span className="hero-stat-value">{loading ? '…' : services.length}</span>
-          <span className="hero-stat-label">Services live today</span>
+          <span className="hero-stat-value">{loading ? '…' : formatNumber(services.length)}</span>
+          <span className="hero-stat-label">{t('stats.liveServices.label')}</span>
         </div>
       </div>
 
       {error && <p className="form-error catalog-error">{error}</p>}
-      {loading && !error && <p className="muted catalog-status">Loading services…</p>}
+      {loading && !error && <p className="muted catalog-status">{t('catalog.loading')}</p>}
 
       {!loading && !error && (
         <>
           <section className="catalog-section-head">
-            <h2>What can we help you with today?</h2>
-            <p>Pick a topic to see all services in that area.</p>
+            <h2>{t('catalog.heading')}</h2>
+            <p>{t('catalog.sub')}</p>
           </section>
           <div className="catalog-grid">
             {CATEGORIES.map((cat) => {
@@ -192,21 +193,21 @@ export default function ServicesPage() {
                     <CategoryIcon id={cat.id} />
                   </span>
                   <span className="cat-body">
-                    <span className="cat-name">{cat.name}</span>
-                    <span className="cat-blurb">{cat.blurb}</span>
+                    <span className="cat-name">{t(`common:categories.${cat.id}.name`)}</span>
+                    <span className="cat-blurb">{t(`common:categories.${cat.id}.blurb`)}</span>
                   </span>
                   <span className="cat-count">
                     {empty
-                      ? 'Coming soon'
+                      ? t('catalog.tile.comingSoon')
                       : isBusy
-                        ? 'Starting…'
+                        ? t('catalog.tile.starting')
                         : single
                           ? authenticated
-                            ? 'Start →'
-                            : 'Sign in to start →'
+                            ? t('catalog.tile.start')
+                            : t('catalog.tile.signInToStart')
                           : isPicked
-                            ? `↓ ${count} services below`
-                            : `${count} services`}
+                            ? t('catalog.tile.servicesBelow', { count })
+                            : t('catalog.tile.serviceCount', { count })}
                   </span>
                 </button>
               );
@@ -216,18 +217,14 @@ export default function ServicesPage() {
           {pickedCategory && (
             <section ref={servicesPanelRef} className="cat-services">
               <div className="cat-services-head">
-                <h2>{pickedCategory.name}</h2>
+                <h2>{t(`common:categories.${pickedCategory.id}.name`)}</h2>
                 <button className="btn btn-link" onClick={() => setPicked(null)}>
-                  Close
+                  {t('common:actions.close')}
                 </button>
               </div>
-              {!authenticated && (
-                <p className="muted">
-                  Starting a service requires an account — register or sign in from the top right.
-                </p>
-              )}
+              {!authenticated && <p className="muted">{t('catalog.panel.accountNotice')}</p>}
               {pickedServices.length === 0 ? (
-                <p className="empty">No services in this category yet.</p>
+                <p className="empty">{t('catalog.panel.empty')}</p>
               ) : (
                 <ul className="row-list">
                   {pickedServices.map((s) => (
@@ -238,17 +235,19 @@ export default function ServicesPage() {
                         disabled={startingKey !== null}
                       >
                         <span className="row-main">
-                          <span className="row-title">{s.name ?? s.key}</span>
+                          <span className="row-title">
+                            {s.name ? translateBackendName(t, s.name) : s.key}
+                          </span>
                           <span className="row-sub">
-                            key: {s.key} · version {s.version}
+                            {t('catalog.panel.rowMeta', { key: s.key, version: s.version })}
                           </span>
                         </span>
                         <span className="row-action">
                           {startingKey === s.key
-                            ? 'Starting…'
+                            ? t('catalog.tile.starting')
                             : authenticated
-                              ? 'Start →'
-                              : 'Sign in to start →'}
+                              ? t('catalog.tile.start')
+                              : t('catalog.tile.signInToStart')}
                         </span>
                       </button>
                     </li>

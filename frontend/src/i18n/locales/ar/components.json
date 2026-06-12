@@ -1,0 +1,56 @@
+{
+  "fileUpload": {
+    "dropTitle": "اسحب الملف وأفلته هنا، أو انقر للاختيار",
+    "hint": "{{types}} · بحد أقصى {{max}}",
+    "uploading": "جارٍ الرفع… {{percent}}%",
+    "replace": "استبدال",
+    "errors": {
+      "unsupportedType": "نوع الملف \"{{type}}\" غير مدعوم. الأنواع المسموح بها: {{allowed}}.",
+      "tooLarge": "حجم الملف كبير جدًا ({{size}})، والحد الأقصى المسموح به {{max}}."
+    },
+    "size": {
+      "bytes": "{{value}} B",
+      "kilobytes": "{{value}} kB",
+      "megabytes": "{{value}} MB"
+    }
+  },
+  "timeline": {
+    "title": "سير المعاملة",
+    "loading": "جارٍ تحميل سير المعاملة…",
+    "paymentRequiredTitle": "يلزم سداد الرسوم الحكومية.",
+    "paymentRequiredBody": "تبقى المعاملة متوقفة حتى يتم سداد الرسوم.",
+    "openPaymentPage": "فتح صفحة الدفع",
+    "fullHistory": "السجل الكامل",
+    "expectedNextSteps": "الخطوات التالية المتوقعة",
+    "onePossiblePath": "· مسار محتمل واحد",
+    "since": "منذ {{time}}",
+    "waitingSince": "في الانتظار منذ {{time}}",
+    "completed": "أُنجزت",
+    "completedBy": "أنجزها {{assignee}}",
+    "skipped": "تم تجاوزها",
+    "upcoming": "قادمة",
+    "repeat_zero": "×{{count}}",
+    "repeat_one": "×{{count}}",
+    "repeat_two": "×{{count}}",
+    "repeat_few": "×{{count}}",
+    "repeat_many": "×{{count}}",
+    "repeat_other": "×{{count}}"
+  },
+  "documents": {
+    "title": "المستندات",
+    "submittedByApplicant": "المقدمة من مقدم الطلب",
+    "generatedBySystem": "الصادرة عن النظام",
+    "empty": "لا توجد مستندات بعد.",
+    "categories": {
+      "applicant-id-document": "وثيقة الهوية",
+      "founder-articles-of-association": "عقد التأسيس",
+      "generated-approval-pdf": "مستند الموافقة (PDF)",
+      "generated-certificate": "شهادة الموافقة",
+      "generated-business-fee-invoice": "فاتورة الرسوم الحكومية",
+      "generated-bcard": "مستخرج البطاقة B"
+    }
+  },
+  "auth": {
+    "loginFailed": "فشل تسجيل الدخول"
+  }
+}

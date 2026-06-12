@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
+import LanguageSwitcher from './components/LanguageSwitcher';
 import ServicesPage from './pages/ServicesPage';
 import TasksPage from './pages/TasksPage';
 import TaskDetailPage from './pages/TaskDetailPage';
@@ -16,9 +18,10 @@ import { countHistoricProcessInstancesByStarter } from './api/camundaClient';
  * both roles open the same form pages, just for tasks they're allowed to touch.
  */
 export default function App() {
+  const { t } = useTranslation();
   const { authenticated, username, isCivilServant, login, register, logout } = useAuth();
   const part = isCivilServant ? 'B' : 'A';
-  const partLabel = isCivilServant ? 'Back office' : 'Applicant';
+  const partLabel = isCivilServant ? t('app.roleBackOffice') : t('app.roleApplicant');
   const location = useLocation();
 
   // "My processes" count badge. Refetched whenever the path changes so the
@@ -70,12 +73,14 @@ export default function App() {
             </svg>
           </span>
           <span className="app-brand-text">
-            <span className="app-brand-name">CIB seven</span>
-            <span className="app-brand-sub">Digital government · React POC</span>
+            <span className="app-brand-name">{t('app.brandName')}</span>
+            <span className="app-brand-sub">{t('app.brandSub')}</span>
           </span>
           {authenticated && (
             <>
-              <span className={`part-badge part-${part.toLowerCase()}`}>Part {part}</span>{' '}
+              <span className={`part-badge part-${part.toLowerCase()}`}>
+                {t('app.partBadge', { part })}
+              </span>{' '}
               <span className="muted">{partLabel}</span>
             </>
           )}
@@ -83,41 +88,42 @@ export default function App() {
         <nav className="app-nav">
           {!authenticated ? (
             <NavLink to="/" end>
-              Services
+              {t('app.nav.services')}
             </NavLink>
           ) : isCivilServant ? (
             <>
               <NavLink to="/" end>
-                Tasks
+                {t('app.nav.tasks')}
               </NavLink>
-              <NavLink to="/incidents">Incidents</NavLink>
+              <NavLink to="/incidents">{t('app.nav.incidents')}</NavLink>
             </>
           ) : (
             <>
               <NavLink to="/" end>
-                Services
+                {t('app.nav.services')}
               </NavLink>
               <NavLink to="/my-processes">
-                My processes
+                {t('app.nav.myProcesses')}
                 {myProcessCount !== null && <span className="nav-badge">{myProcessCount}</span>}
               </NavLink>
             </>
           )}
+          <LanguageSwitcher />
           <span className="app-user">
             {authenticated ? (
               <>
                 <span className="muted">{username}</span>
                 <button className="btn btn-link" onClick={logout}>
-                  Log out
+                  {t('app.auth.logOut')}
                 </button>
               </>
             ) : (
               <>
                 <button className="btn btn-link" onClick={register}>
-                  Register
+                  {t('app.auth.register')}
                 </button>
                 <button className="btn btn-link" onClick={login}>
-                  Log in
+                  {t('app.auth.logIn')}
                 </button>
               </>
             )}

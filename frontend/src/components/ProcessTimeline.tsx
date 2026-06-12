@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatDateTime } from '../i18n/format';
+import { translateBackendName } from '../i18n/backendNames';
 import {
   getHistoricProcessInstance,
   getProcessDefinitionXml,
@@ -126,7 +129,7 @@ function buildRows(
 }
 
 function stepTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return formatDateTime(iso, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -135,6 +138,7 @@ function stepTime(iso: string): string {
 }
 
 export default function ProcessTimeline({ processInstanceId }: ProcessTimelineProps) {
+  const { t } = useTranslation('components');
   const [state, setState] = useState<LoadedState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,7 +184,7 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
   if (error) {
     return (
       <div className="card timeline-card">
-        <h2 className="card-title">Case progress</h2>
+        <h2 className="card-title">{t('timeline.title')}</h2>
         <p className="form-error">{error}</p>
       </div>
     );
@@ -189,10 +193,10 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
   return (
     <div className="card timeline-card">
       <div className="card-head">
-        <h2 className="card-title">Case progress</h2>
+        <h2 className="card-title">{t('timeline.title')}</h2>
       </div>
 
-      {!state && <p className="muted">Loading progress…</p>}
+      {!state && <p className="muted">{t('timeline.loading')}</p>}
 
       {state && state.paymentDue && (
         <div className="pay-alert">
@@ -200,8 +204,7 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
             💳
           </span>
           <span className="pay-alert-body">
-            <strong>State fee payment required.</strong> The case stays parked until the fee is
-            paid.
+            <strong>{t('timeline.paymentRequiredTitle')}</strong> {t('timeline.paymentRequiredBody')}
           </span>
           <a
             className="btn btn-primary pay-alert-btn"
@@ -209,7 +212,7 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
             target="_blank"
             rel="noopener noreferrer"
           >
-            Open payment page →
+            {t('timeline.openPaymentPage')}
           </a>
         </div>
       )}
@@ -218,21 +221,22 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
 
       {state && (
         <details className="tl-details">
-          <summary>Full history</summary>
+          <summary>{t('timeline.fullHistory')}</summary>
           <ol className="timeline">
             {state.rows.map((row) => (
               <TimelineItem key={row.key} row={row} />
             ))}
             {state.upcoming.length > 0 && (
               <li className="tl-upcoming-head" aria-hidden="true">
-                Expected next steps <span className="muted">· one possible path</span>
+                {t('timeline.expectedNextSteps')}{' '}
+                <span className="muted">{t('timeline.onePossiblePath')}</span>
               </li>
             )}
             {state.upcoming.map((step) => (
               <li key={`up-${step.id}`} className="tl-item upcoming">
                 <span className="tl-dot" aria-hidden="true" />
                 <span className="tl-body">
-                  <span className="tl-name">{step.name}</span>
+                  <span className="tl-name">{translateBackendName(t, step.name)}</span>
                 </span>
               </li>
             ))}
@@ -272,6 +276,7 @@ const MILESTONE_MODEL_TYPES = new Set([
  * "Full history" disclosure below it.
  */
 function Stepper({ state }: { state: LoadedState }) {
+  const { t } = useTranslation('components');
   const past = state.rows.filter((r) => MILESTONE_TYPES.has(r.type) && !r.canceled);
   const future = state.upcoming.filter(
     (s) => MILESTONE_MODEL_TYPES.has(s.type) && !past.some((p) => p.activityId === s.id),
@@ -281,7 +286,7 @@ function Stepper({ state }: { state: LoadedState }) {
     <ol className="stepper">
       {past.map((row) => {
         const meta = row.open
-          ? `since ${stepTime(row.startTime)}`
+          ? t('timeline.since', { time: stepTime(row.startTime) })
           : row.type === 'userTask' && row.assignee
             ? `${row.assignee} · ${stepTime(row.endTime ?? row.startTime)}`
             : stepTime(row.endTime ?? row.startTime);
@@ -291,12 +296,18 @@ function Stepper({ state }: { state: LoadedState }) {
               {!row.open && <CheckIcon />}
             </span>
             <span className="step-label">
-              {row.name}
-              {row.count > 1 && <span className="tl-count"> ×{row.count}</span>}
+              {translateBackendName(t, row.name)}
+              {row.count > 1 && (
+                <span className="tl-count"> {t('timeline.repeat', { count: row.count })}</span>
+              )}
             </span>
-            {row.decision === 'approve' && <span className="tl-chip approved">Approved</span>}
-            {row.decision === 'sendback' && <span className="tl-chip sentback">Sent back</span>}
-            {row.open && <span className="tl-chip waiting">In progress</span>}
+            {row.decision === 'approve' && (
+              <span className="tl-chip approved">{t('common:status.approved')}</span>
+            )}
+            {row.decision === 'sendback' && (
+              <span className="tl-chip sentback">{t('common:status.sentBack')}</span>
+            )}
+            {row.open && <span className="tl-chip waiting">{t('common:status.inProgress')}</span>}
             <span className="step-meta">{meta}</span>
           </li>
         );
@@ -306,8 +317,8 @@ function Stepper({ state }: { state: LoadedState }) {
           <span className="step-dot" aria-hidden="true">
             <span className="step-num">{past.length + i + 1}</span>
           </span>
-          <span className="step-label">{step.name}</span>
-          <span className="step-meta">upcoming</span>
+          <span className="step-label">{translateBackendName(t, step.name)}</span>
+          <span className="step-meta">{t('timeline.upcoming')}</span>
         </li>
       ))}
     </ol>
@@ -333,18 +344,21 @@ function CheckIcon() {
 }
 
 function TimelineItem({ row }: { row: TimelineRow }) {
+  const { t } = useTranslation('components');
   const stateClass = row.open ? 'active' : row.canceled ? 'canceled' : 'done';
   const isEnd = row.type.endsWith('EndEvent');
 
   let meta: string;
   if (row.open) {
-    meta = `Waiting since ${stepTime(row.startTime)}`;
+    meta = t('timeline.waitingSince', { time: stepTime(row.startTime) });
   } else if (row.type === 'userTask') {
-    meta = `Completed${row.assignee ? ` by ${row.assignee}` : ''}${
-      row.endTime ? ` · ${stepTime(row.endTime)}` : ''
-    }`;
+    meta = `${
+      row.assignee
+        ? t('timeline.completedBy', { assignee: row.assignee })
+        : t('timeline.completed')
+    }${row.endTime ? ` · ${stepTime(row.endTime)}` : ''}`;
   } else if (row.canceled) {
-    meta = 'Skipped';
+    meta = t('timeline.skipped');
   } else {
     meta = row.endTime ? stepTime(row.endTime) : stepTime(row.startTime);
   }
@@ -354,11 +368,17 @@ function TimelineItem({ row }: { row: TimelineRow }) {
       <span className="tl-dot" aria-hidden="true" />
       <span className="tl-body">
         <span className="tl-name">
-          {row.name}
-          {row.count > 1 && <span className="tl-count"> ×{row.count}</span>}
-          {row.decision === 'approve' && <span className="tl-chip approved">Approved</span>}
-          {row.decision === 'sendback' && <span className="tl-chip sentback">Sent back</span>}
-          {row.open && <span className="tl-chip waiting">In progress</span>}
+          {translateBackendName(t, row.name)}
+          {row.count > 1 && (
+            <span className="tl-count"> {t('timeline.repeat', { count: row.count })}</span>
+          )}
+          {row.decision === 'approve' && (
+            <span className="tl-chip approved">{t('common:status.approved')}</span>
+          )}
+          {row.decision === 'sendback' && (
+            <span className="tl-chip sentback">{t('common:status.sentBack')}</span>
+          )}
+          {row.open && <span className="tl-chip waiting">{t('common:status.inProgress')}</span>}
         </span>
         <span className="tl-meta">{meta}</span>
       </span>

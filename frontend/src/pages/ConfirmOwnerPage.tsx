@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Trans, useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   approve,
   getStatus,
@@ -29,6 +31,7 @@ import {
 const POLL_INTERVAL_MS = 3000;
 
 export default function ConfirmOwnerPage() {
+  const { t } = useTranslation('confirm-owner');
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<OwnerStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,11 +129,19 @@ export default function ConfirmOwnerPage() {
     }
   }
 
+  // Maps locally- and backend-generated error codes to translated copy at
+  // render time; unknown codes fall back to the raw backend message.
+  function errorText(err: { code: string; message: string }): string {
+    if (err.code === 'network') return t('errors.network', { message: err.message });
+    const key = ERROR_KEYS[err.code];
+    return key ? t(key) : err.message;
+  }
+
   if (loading) {
     return (
       <div className="confirm-page">
         <div className="card">
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('common:feedback.loading')}</p>
         </div>
       </div>
     );
@@ -140,10 +151,8 @@ export default function ConfirmOwnerPage() {
     return (
       <div className="confirm-page">
         <div className="card">
-          <h1 className="card-title">Confirmation link</h1>
-          <p className="form-error">
-            {error?.message ?? 'This confirmation link is unknown or has expired.'}
-          </p>
+          <h1 className="card-title">{t('linkCard.title')}</h1>
+          <p className="form-error">{error ? errorText(error) : t('errors.unknownToken')}</p>
         </div>
       </div>
     );
@@ -151,49 +160,57 @@ export default function ConfirmOwnerPage() {
 
   const current = status.currentOwner;
   const allOwners = status.owners;
-  const stateLabel = STATE_LABELS[status.state] ?? status.state;
+  const stateKey = STATE_KEYS[status.state];
+  const stateLabel = stateKey ? t(stateKey) : status.state;
 
   return (
     <div className="confirm-page">
       <div className="card">
         <div className="card-head">
-          <h1 className="card-title">Co-owner confirmation</h1>
+          <h1 className="card-title">{t('title')}</h1>
           <span className="confirm-state">{stateLabel}</span>
         </div>
 
         <p className="form-intro">
-          <strong>{status.applicantName || 'The applicant'}</strong> has submitted a registration
-          that requires every co-owner's signature before it can be sent to the back office.
+          <Trans
+            t={t}
+            i18nKey="intro.submitted"
+            values={{ name: status.applicantName || t('intro.applicantFallback') }}
+            components={{ strong: <strong /> }}
+          />
         </p>
 
         {current && (
           <p className="muted">
-            You are signing as <strong>{current.name}</strong>
-            {current.isApplicant && ' (the applicant)'}.
+            <Trans
+              t={t}
+              i18nKey={current.isApplicant ? 'intro.signingAsApplicant' : 'intro.signingAs'}
+              values={{ name: current.name }}
+              components={{ strong: <strong /> }}
+            />
           </p>
         )}
 
         {status.state === 'rejected' && (
           <div className="form-banner form-banner-warn">
-            <strong>Rejected by {status.rejectedBy ?? 'an owner'}.</strong>
+            <strong>
+              {status.rejectedBy
+                ? t('banners.rejectedBy', { name: status.rejectedBy })
+                : t('banners.rejectedByUnknown')}
+            </strong>
             {status.rejectionReason && <p className="form-banner-body">{status.rejectionReason}</p>}
-            <p className="form-banner-body">
-              The case has been sent back to the applicant. New confirmation links will be issued
-              once they resubmit.
-            </p>
+            <p className="form-banner-body">{t('banners.rejectedBody')}</p>
           </div>
         )}
 
         {status.state === 'sent' && (
           <div className="form-banner">
-            <strong>Sent to the back office.</strong>
-            <p className="form-banner-body">
-              All co-owners signed and the case has been forwarded for review.
-            </p>
+            <strong>{t('banners.sentTitle')}</strong>
+            <p className="form-banner-body">{t('banners.sentBody')}</p>
           </div>
         )}
 
-        <h2 className="card-subtitle">Owners</h2>
+        <h2 className="card-subtitle">{t('summary.ownersHeading')}</h2>
         <ul className="owner-list">
           {allOwners.map((o) => (
             <li key={o.token}>
@@ -203,21 +220,21 @@ export default function ConfirmOwnerPage() {
                   {o.isApplicant && (
                     <>
                       {' '}
-                      <span className="muted">· applicant</span>
+                      <span className="muted">{t('summary.applicantTag')}</span>
                     </>
                   )}
                 </span>
                 <span className="owner-email">{o.email}</span>
                 {o.status === 'rejected' && o.reason && (
-                  <span className="owner-email">Reason: {o.reason}</span>
+                  <span className="owner-email">{t('summary.reason', { reason: o.reason })}</span>
                 )}
               </span>
-              <span className={pillClass(o.status)}>{ownerStatusLabel(o.status)}</span>
+              <span className={pillClass(o.status)}>{ownerStatusLabel(t, o.status)}</span>
             </li>
           ))}
         </ul>
 
-        {error && <p className="form-error">{error.message}</p>}
+        {error && <p className="form-error">{errorText(error)}</p>}
 
         {/* Action area depends on state */}
         {status.state === 'pending' &&
@@ -233,7 +250,7 @@ export default function ConfirmOwnerPage() {
                     onClick={handleApprove}
                     disabled={submitting}
                   >
-                    {submitting ? 'Signing…' : 'Approve and sign'}
+                    {submitting ? t('actions.signing') : t('actions.approveAndSign')}
                   </button>
                   <button
                     type="button"
@@ -241,19 +258,19 @@ export default function ConfirmOwnerPage() {
                     onClick={() => setShowRejectForm(true)}
                     disabled={submitting}
                   >
-                    Reject
+                    {t('common:actions.reject')}
                   </button>
                 </div>
               ) : (
                 <div className="field-group">
                   <label className="field">
-                    <span className="field-label">Reason for rejection</span>
+                    <span className="field-label">{t('actions.rejectReasonLabel')}</span>
                     <textarea
                       className="field-input"
                       rows={3}
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Explain what needs to change before you'd sign."
+                      placeholder={t('actions.rejectReasonPlaceholder')}
                     />
                   </label>
                   <div className="form-actions">
@@ -263,7 +280,7 @@ export default function ConfirmOwnerPage() {
                       onClick={handleReject}
                       disabled={submitting}
                     >
-                      {submitting ? 'Sending…' : 'Send rejection'}
+                      {submitting ? t('actions.sending') : t('actions.sendRejection')}
                     </button>
                     <button
                       type="button"
@@ -275,7 +292,7 @@ export default function ConfirmOwnerPage() {
                       }}
                       disabled={submitting}
                     >
-                      Cancel
+                      {t('common:actions.cancel')}
                     </button>
                   </div>
                 </div>
@@ -287,7 +304,7 @@ export default function ConfirmOwnerPage() {
           current &&
           current.status === 'approved' &&
           status.state !== 'ready_to_send' && (
-            <p className="muted">Your signature is on file. Waiting for the other co-owners.</p>
+            <p className="muted">{t('waiting.signatureOnFile')}</p>
           )}
 
         {status.state === 'ready_to_send' && (
@@ -298,7 +315,7 @@ export default function ConfirmOwnerPage() {
               onClick={handleSendToProcess}
               disabled={submitting}
             >
-              {submitting ? 'Sending…' : 'Send to process'}
+              {submitting ? t('actions.sending') : t('actions.sendToProcess')}
             </button>
           </div>
         )}
@@ -307,12 +324,24 @@ export default function ConfirmOwnerPage() {
   );
 }
 
-const STATE_LABELS: Record<string, string> = {
-  pending: 'Awaiting signatures',
-  confirmed_waiting: 'Awaiting signatures',
-  ready_to_send: 'Ready to send',
-  sent: 'Sent',
-  rejected: 'Rejected',
+/** API state values (left) → translation keys (right). Never compare against labels. */
+const STATE_KEYS: Record<string, string> = {
+  pending: 'states.awaitingSignatures',
+  confirmed_waiting: 'states.awaitingSignatures',
+  ready_to_send: 'states.readyToSend',
+  sent: 'states.sent',
+  rejected: 'states.rejected',
+};
+
+/** Known error codes (local + backend OwnerConfirmationController) → translation keys. */
+const ERROR_KEYS: Record<string, string> = {
+  missing_reason: 'errors.missingReason',
+  unknown_token: 'errors.unknownToken',
+  already_rejected: 'errors.alreadyRejected',
+  already_sent: 'errors.alreadySent',
+  already_signed: 'errors.alreadySigned',
+  not_waiting: 'errors.notWaiting',
+  not_ready: 'errors.notReady',
 };
 
 function pillClass(status: string): string {
@@ -326,13 +355,13 @@ function pillClass(status: string): string {
   }
 }
 
-function ownerStatusLabel(status: string): string {
+function ownerStatusLabel(t: TFunction<'confirm-owner'>, status: string): string {
   switch (status) {
     case 'approved':
-      return 'Signed';
+      return t('summary.ownerStatus.signed');
     case 'rejected':
-      return 'Rejected';
+      return t('summary.ownerStatus.rejected');
     default:
-      return 'Pending';
+      return t('summary.ownerStatus.pending');
   }
 }

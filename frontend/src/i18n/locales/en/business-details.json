@@ -1,0 +1,98 @@
+{
+  "banner": {
+    "sentBack": "Sent back for corrections."
+  },
+  "intro": {
+    "readOnly": "A read-only view of the submitted OÜ founding details.",
+    "resubmission": "Update the founding details below and resubmit to the Business Register. New signing links will be sent to every co-founder.",
+    "default": "Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, your own details, and list any co-founders that must sign the Articles of Association before the case goes to the Business Register."
+  },
+  "fields": {
+    "companyName": {
+      "label": "Company name",
+      "placeholder": "Acme OÜ"
+    },
+    "boardMember": {
+      "firstNamePlaceholder": "First name",
+      "lastNamePlaceholder": "Last name",
+      "personalCodePlaceholder": "Personal code (11 digits)"
+    },
+    "aoa": {
+      "label": "Articles of Association (required)",
+      "hint": "PDF, JPEG, or PNG up to 10 MB. The Business Register reviewer and every co-founder reviewing the registration will be able to download this file.",
+      "uploadLabel": "Drop your Articles of Association here, or click to choose",
+      "existingFilename": "Articles of Association"
+    },
+    "shareCapital": {
+      "label": "Share capital (EUR)"
+    },
+    "applicantFirstName": {
+      "label": "Your first name"
+    },
+    "applicantLastName": {
+      "label": "Your last name"
+    },
+    "applicantAge": {
+      "label": "Your age"
+    },
+    "residency": {
+      "legend": "Your residency status",
+      "hint": "Drives the Business Register's auto-approval policy: foreign founders always go to a reviewer; Estonian citizens and e-residents with the minimum share capital can auto-approve.",
+      "options": {
+        "citizen": {
+          "label": "Estonian citizen",
+          "hint": "Lives and works in Estonia under Estonian citizenship."
+        },
+        "eResident": {
+          "label": "E-resident",
+          "hint": "Holds an Estonian e-Residency digital ID; lives abroad."
+        },
+        "foreign": {
+          "label": "Foreign founder",
+          "hint": "Neither Estonian citizen nor e-resident — always requires Business Register review."
+        }
+      }
+    },
+    "applicantEmail": {
+      "label": "Your email (required if you list co-founders)",
+      "placeholder": "you@example.com"
+    },
+    "founder": {
+      "namePlaceholder": "Name",
+      "emailPlaceholder": "founder@example.com"
+    }
+  },
+  "sections": {
+    "boardMembers": {
+      "legend": "Board members",
+      "add": "+ Add member",
+      "removeAria": "Remove board member {{number}}"
+    },
+    "coFounders": {
+      "legend": "Co-founders ({{total}})",
+      "hint": "Each co-founder gets an email with a link to sign the Articles of Association or reject. Once all co-founders sign, any founder can click \"Submit to register\" to forward the case to the Business Register. Leave empty if you are the sole founder.",
+      "add": "+ Add co-founder",
+      "removeAria": "Remove co-founder {{number}}"
+    }
+  },
+  "errors": {
+    "companyNameRequired": "Company name is required.",
+    "boardMemberRequired": "At least one board member is required.",
+    "boardMemberIncomplete": "Every board member needs first name, last name, and a personal code.",
+    "personalCodeFormat": "Personal code \"{{code}}\" must be 11 digits.",
+    "shareCapitalMin": "Share capital must be a number >= 2500.",
+    "applicantNameRequired": "Your first name and last name are required.",
+    "applicantAgeRange": "Your age must be a whole number between 0 and 130.",
+    "aoaRequired": "Please upload the Articles of Association.",
+    "emailInvalid": "Please enter a valid email address, or leave the field blank.",
+    "applicantEmailRequiredForFounders": "Your own email is required when adding co-founders — we send you a tracking link.",
+    "founderNameRequired": "Every co-founder needs a name.",
+    "founderEmailInvalid": "Co-founder \"{{name}}\" needs a valid email address.",
+    "unnamedFounder": "(unnamed)",
+    "duplicateFounderEmail": "Two co-founders share the email \"{{email}}\". Each founder needs a unique address.",
+    "applicantEmailInFounders": "Your own email cannot also appear in the co-founder list — the applicant is already counted as a founder."
+  },
+  "actions": {
+    "resubmit": "Resubmit"
+  }
+}

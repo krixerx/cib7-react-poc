@@ -1,0 +1,142 @@
+{
+  "app": {
+    "brandName": "CIB seven",
+    "brandSub": "Digital government · React POC",
+    "partBadge": "Part {{part}}",
+    "roleApplicant": "Applicant",
+    "roleBackOffice": "Back office",
+    "nav": {
+      "services": "Services",
+      "tasks": "Tasks",
+      "incidents": "Incidents",
+      "myProcesses": "My processes"
+    },
+    "auth": {
+      "logIn": "Log in",
+      "logOut": "Log out",
+      "register": "Register"
+    }
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "actions": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "back": "Back",
+    "continue": "Continue",
+    "save": "Save",
+    "close": "Close",
+    "download": "Download",
+    "remove": "Remove",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "add": "Add",
+    "approve": "Approve",
+    "reject": "Reject",
+    "sendBack": "Send back"
+  },
+  "status": {
+    "pending": "Pending",
+    "underReview": "Under review",
+    "confirmed": "Confirmed",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "completed": "Completed",
+    "inProgress": "In progress",
+    "active": "Active",
+    "done": "Done",
+    "incident": "Incident",
+    "paymentRequired": "Payment required",
+    "sentBack": "Sent back"
+  },
+  "feedback": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "submitting": "Submitting…",
+    "error": "Something went wrong",
+    "notFound": "Not found"
+  },
+  "categories": {
+    "business": {
+      "name": "Business & Trade",
+      "blurb": "Register a business, change ownership, file declarations."
+    },
+    "family": {
+      "name": "Family & Civil Status",
+      "blurb": "Birth, marriage, name changes, family certificates."
+    },
+    "property": {
+      "name": "Property & Land",
+      "blurb": "Land titles, transfers, building permits."
+    },
+    "travel": {
+      "name": "Travel & Identity",
+      "blurb": "Passports, ID cards, vehicle registrations, residence permits."
+    },
+    "social": {
+      "name": "Social & Health",
+      "blurb": "Benefits, health entitlements, support requests."
+    },
+    "other": {
+      "name": "Other Services",
+      "blurb": "Anything that does not fit the categories above."
+    }
+  },
+  "backend": {
+    "estonianOuRegistration": "Estonian OÜ Registration",
+    "vehicleRegistration": "Vehicle Registration",
+    "ropLearningPermit": "ROP Driving Learning Permit (Oman)",
+    "ropVehicleRegistration": "ROP Vehicle Registration (Oman)",
+    "submitOuFoundingDetails": "Submit OÜ founding details",
+    "submitOwnerVehicleDetails": "Submit owner & vehicle details",
+    "transportAuthorityReview": "Transport Authority review",
+    "applyForLearningPermit": "Apply for a learning permit",
+    "policeHospitalAssessment": "Police Hospital medical assessment",
+    "submitVehicleRegistrationApplication": "Submit vehicle registration application",
+    "trafficOfficerReview": "Traffic officer review",
+    "attachArticlesOfAssociation": "Attach Articles of Association",
+    "waitForSubmitToRegister": "Wait for submit-to-register",
+    "generateStateFeeInvoice": "Generate state fee invoice",
+    "storeFeeInvoice": "Store fee invoice",
+    "sendApprovalEmail": "Send approval email",
+    "waitForStateFeePayment": "Wait for state fee payment",
+    "generateBcardExtract": "Generate B-card extract",
+    "storeBcardExtract": "Store B-card extract",
+    "sendSentBackEmail": "Send sent-back email",
+    "ouEnteredInBusinessRegister": "OÜ entered in Business Register",
+    "attachOwnerIdDocument": "Attach owner ID document",
+    "sendOwnerTrackingEmail": "Send owner tracking email",
+    "sendCoOwnerSigningEmail": "Send co-owner signing email",
+    "waitForCoOwnerSignature": "Wait for co-owner signature",
+    "waitForOwnerToSubmit": "Wait for owner to submit",
+    "lookUpVehicleInRegistry": "Look up vehicle in registry",
+    "sendReviewerReminderEmail": "Send reviewer reminder email",
+    "reminderSent": "Reminder sent",
+    "generateVehicleRegistrationCertificate": "Generate vehicle registration certificate",
+    "storeRegistrationCertificate": "Store registration certificate",
+    "sendStateFeeInvoiceEmail": "Send state fee invoice email",
+    "vehicleRegistered": "Vehicle registered",
+    "fetchEyeTestLicenseRestrictions": "Fetch eye test, license & restrictions status",
+    "emailVisitPoliceHospital": "Email: visit the Police Hospital",
+    "emailApplicationRejected": "Email: application rejected",
+    "applicationRejected": "Application rejected",
+    "emailPayServiceFee": "Email: pay the service fee",
+    "waitForFeePayment": "Wait for fee payment",
+    "issueLearningPermit": "Issue learning permit",
+    "generateLearningLicensePdf": "Generate electronic learning license (PDF)",
+    "storeLearningLicense": "Store learning license",
+    "emailLicenseAndReceipt": "Email: electronic license & receipt",
+    "emailServiceEvaluation": "Email: service evaluation request",
+    "learningPermitIssued": "Learning permit issued",
+    "checkInspectionInsuranceRestrictions": "Check inspection, insurance & restrictions",
+    "emailReturnedForCorrections": "Email: returned for corrections",
+    "emailPayRegistrationFee": "Email: pay registration fee",
+    "allocatePlateNumber": "Allocate plate number",
+    "generateRegistrationCertificatePdf": "Generate registration certificate (PDF)",
+    "storeCertificate": "Store certificate",
+    "emailCertificatePlateCollection": "Email: certificate & plate collection"
+  }
+}

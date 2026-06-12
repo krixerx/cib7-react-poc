@@ -1,0 +1,87 @@
+{
+  "intro": {
+    "readOnly": "A read-only view of the submitted vehicle registration application.",
+    "resubmission": "Your application was returned by the traffic officer. Update the details below and resubmit.",
+    "default": "Register a new vehicle with the General Traffic Department (Royal Oman Police). The registration fee for your vehicle category is shown below before you submit."
+  },
+  "banners": {
+    "returnedForCorrections": "Returned for corrections."
+  },
+  "feeBanner": {
+    "title": "Registration fee: {{fee}}",
+    "body": "Fee for “{{category}}” per the General Traffic Department fee schedule. Payable after the traffic officer approves the application."
+  },
+  "fields": {
+    "ownerName": {
+      "label": "Owner full name"
+    },
+    "email": {
+      "label": "Email address"
+    },
+    "civilId": {
+      "label": "Civil number",
+      "placeholder": "8 digits"
+    },
+    "residencyStatus": {
+      "label": "Residency status"
+    },
+    "registrationType": {
+      "label": "Registration type"
+    },
+    "vehicleCategory": {
+      "label": "Vehicle category",
+      "optionLabel": "{{category}} — {{fee}}"
+    },
+    "vin": {
+      "label": "Chassis number (VIN)",
+      "placeholder": "11–17 letters/digits",
+      "hint": "Demo VINs: ROPDEMOFAILINSP01 (failed inspection), ROPDEMONOINSURE02 (uninsured), ROPDEMOFINESDUE03 (outstanding fines). Any other VIN is all-clear."
+    },
+    "plateNumber": {
+      "label": "Plate number"
+    },
+    "reservedPlateNumber": {
+      "label": "Reserved plate number"
+    }
+  },
+  "categories": {
+    "motorcycle": "Motorcycle",
+    "privateLt1500": "Private car — engine under 1500 cm³",
+    "private1500To3000": "Private car — engine 1500–3000 cm³",
+    "private3000To4500": "Private car — engine 3000–4500 cm³",
+    "privateGt4500": "Private car — engine over 4500 cm³",
+    "electricLt75kw": "Electric — motor under 75 kW",
+    "electric75To150kw": "Electric — motor 75–150 kW",
+    "electric150To224kw": "Electric — motor 150–224 kW",
+    "electricGt224kw": "Electric — motor over 224 kW",
+    "tractor": "Tractor",
+    "truck3To5t": "Truck — 3 to 5 tons",
+    "truckGte5t": "Truck — 5 tons and above"
+  },
+  "residency": {
+    "citizen": "Omani citizen",
+    "resident": "Resident",
+    "diplomat": "Diplomatic mission",
+    "visitor": "Visitor"
+  },
+  "registrationTypes": {
+    "private": "Private",
+    "commercial": "Commercial",
+    "publicUtility": "Public utility (taxi / education / crane)",
+    "diplomatic": "Diplomatic"
+  },
+  "plateOptions": {
+    "random": "New random plate",
+    "reserved": "Previously reserved plate"
+  },
+  "errors": {
+    "ownerName": "Please enter the owner’s full name.",
+    "email": "Please enter a valid email address — all notifications go there.",
+    "civilId": "The civil number must be exactly 8 digits.",
+    "vin": "The chassis number (VIN) must be 11–17 letters/digits.",
+    "reservedPlate": "Please enter your reserved plate number (or choose a new random plate)."
+  },
+  "actions": {
+    "submitApplication": "Submit application"
+  }
+}

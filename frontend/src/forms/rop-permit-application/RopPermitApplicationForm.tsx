@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FormProps } from '../types';
+import { formatCurrency } from '../../i18n/format';
 
 /**
  * Applicant form for ropLearningPermit (PartA) — ROP ITS Demo Scenario 2.
@@ -13,16 +15,16 @@ import type { FormProps } from '../types';
  */
 
 const RESIDENCY_OPTIONS = [
-  { value: 'citizen', label: 'Omani citizen' },
-  { value: 'gcc-citizen', label: 'GCC-country citizen' },
-  { value: 'resident', label: 'Resident' },
+  { value: 'citizen', labelKey: 'fields.residencyStatus.options.citizen' },
+  { value: 'gcc-citizen', labelKey: 'fields.residencyStatus.options.gccCitizen' },
+  { value: 'resident', labelKey: 'fields.residencyStatus.options.resident' },
 ];
 
 const LICENSE_CATEGORIES = [
-  { value: 'light-vehicle', label: 'Light vehicle' },
-  { value: 'motorcycle', label: 'Motorcycle' },
-  { value: 'heavy-vehicle', label: 'Heavy vehicle' },
-  { value: 'mechanical-equipment', label: 'Mechanical equipment' },
+  { value: 'light-vehicle', labelKey: 'fields.licenseCategory.options.lightVehicle' },
+  { value: 'motorcycle', labelKey: 'fields.licenseCategory.options.motorcycle' },
+  { value: 'heavy-vehicle', labelKey: 'fields.licenseCategory.options.heavyVehicle' },
+  { value: 'mechanical-equipment', labelKey: 'fields.licenseCategory.options.mechanicalEquipment' },
 ];
 
 export default function RopPermitApplicationForm({
@@ -31,6 +33,7 @@ export default function RopPermitApplicationForm({
   submitting,
   readOnly,
 }: FormProps) {
+  const { t } = useTranslation('rop-permit-application');
   const [applicantName, setApplicantName] = useState((data.applicantName as string) ?? '');
   const [applicantEmail, setApplicantEmail] = useState((data.applicantEmail as string) ?? '');
   const [civilId, setCivilId] = useState((data.civilId as string) ?? '');
@@ -45,6 +48,7 @@ export default function RopPermitApplicationForm({
   const [specialNeeds, setSpecialNeeds] = useState(Boolean(data.specialNeeds));
   const [profession, setProfession] = useState((data.profession as string) ?? '');
 
+  /** i18n key of the current validation error, translated at render time. */
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
@@ -52,20 +56,20 @@ export default function RopPermitApplicationForm({
     setError(null);
 
     if (!applicantName.trim()) {
-      setError('Please enter your full name.');
+      setError('errors.nameRequired');
       return;
     }
     if (!applicantEmail.trim() || !applicantEmail.includes('@')) {
-      setError('Please enter a valid email address — all notifications go there.');
+      setError('errors.emailInvalid');
       return;
     }
     if (!/^[0-9]{8}$/.test(civilId.trim())) {
-      setError('The civil number must be exactly 8 digits.');
+      setError('errors.civilIdFormat');
       return;
     }
     const ageNumber = Number(age);
     if (!Number.isInteger(ageNumber) || ageNumber < 15 || ageNumber > 100) {
-      setError('Please enter your age as a whole number between 15 and 100.');
+      setError('errors.ageRange');
       return;
     }
 
@@ -85,21 +89,16 @@ export default function RopPermitApplicationForm({
   return (
     <form className="form" onSubmit={handleSubmit}>
       <p className="form-intro">
-        {readOnly
-          ? 'A read-only view of the submitted learning permit application.'
-          : 'Apply for a driving learning license from the General Traffic Department (Royal Oman Police).'}
+        {readOnly ? t('intro.readOnly') : t('intro.edit')}
       </p>
 
       <div className="form-banner">
-        <strong>Service fee: 6 OMR</strong>
-        <p className="form-banner-body">
-          Flat fee for issuing a driving learning license — payable after your application is
-          approved.
-        </p>
+        <strong>{t('fee.title', { fee: formatCurrency(6, 'OMR') })}</strong>
+        <p className="form-banner-body">{t('fee.body')}</p>
       </div>
 
       <label className="field">
-        <span className="field-label">Full name</span>
+        <span className="field-label">{t('fields.applicantName.label')}</span>
         <input
           className="field-input"
           value={applicantName}
@@ -109,7 +108,7 @@ export default function RopPermitApplicationForm({
       </label>
 
       <label className="field">
-        <span className="field-label">Email address</span>
+        <span className="field-label">{t('fields.applicantEmail.label')}</span>
         <input
           className="field-input"
           type="email"
@@ -120,23 +119,19 @@ export default function RopPermitApplicationForm({
       </label>
 
       <label className="field">
-        <span className="field-label">Civil number</span>
+        <span className="field-label">{t('fields.civilId.label')}</span>
         <input
           className="field-input"
           value={civilId}
           onChange={(e) => setCivilId(e.target.value)}
-          placeholder="8 digits"
+          placeholder={t('fields.civilId.placeholder')}
           disabled={readOnly}
         />
-        <span className="field-hint muted">
-          Demo civil IDs: 90000001 weak vision (Police Hospital branch), 90000002 failed eye test,
-          90000003 no eye test on file, 90000004 already holds a valid license, 90000005
-          outstanding restrictions. Any other 8-digit number is all-clear.
-        </span>
+        <span className="field-hint muted">{t('fields.civilId.hint')}</span>
       </label>
 
       <label className="field">
-        <span className="field-label">Age (years)</span>
+        <span className="field-label">{t('fields.age.label')}</span>
         <input
           className="field-input"
           type="number"
@@ -149,7 +144,7 @@ export default function RopPermitApplicationForm({
       </label>
 
       <label className="field">
-        <span className="field-label">Residency status</span>
+        <span className="field-label">{t('fields.residencyStatus.label')}</span>
         <select
           className="field-input"
           value={residencyStatus}
@@ -158,7 +153,7 @@ export default function RopPermitApplicationForm({
         >
           {RESIDENCY_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.labelKey)}
             </option>
           ))}
         </select>
@@ -171,12 +166,12 @@ export default function RopPermitApplicationForm({
           onChange={(e) => setHasResidentCard(e.target.checked)}
           disabled={readOnly}
         />
-        <span className="field-label">I hold a valid resident card</span>
-        <span className="field-hint muted">Required for GCC-country citizens.</span>
+        <span className="field-label">{t('fields.hasResidentCard.label')}</span>
+        <span className="field-hint muted">{t('fields.hasResidentCard.hint')}</span>
       </label>
 
       <label className="field">
-        <span className="field-label">License category</span>
+        <span className="field-label">{t('fields.licenseCategory.label')}</span>
         <select
           className="field-input"
           value={licenseCategory}
@@ -185,13 +180,11 @@ export default function RopPermitApplicationForm({
         >
           {LICENSE_CATEGORIES.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.labelKey)}
             </option>
           ))}
         </select>
-        <span className="field-hint muted">
-          Heavy vehicle and mechanical equipment require age 21+.
-        </span>
+        <span className="field-hint muted">{t('fields.licenseCategory.hint')}</span>
       </label>
 
       <label className="field field-checkbox">
@@ -201,29 +194,26 @@ export default function RopPermitApplicationForm({
           onChange={(e) => setSpecialNeeds(e.target.checked)}
           disabled={readOnly}
         />
-        <span className="field-label">I am a person with special needs</span>
+        <span className="field-label">{t('fields.specialNeeds.label')}</span>
       </label>
 
       <label className="field">
-        <span className="field-label">Profession (residents)</span>
+        <span className="field-label">{t('fields.profession.label')}</span>
         <input
           className="field-input"
           value={profession}
           onChange={(e) => setProfession(e.target.value)}
           disabled={readOnly}
         />
-        <span className="field-hint muted">
-          For residents, the license category must match the profession registered with the
-          Ministry of Labor.
-        </span>
+        <span className="field-hint muted">{t('fields.profession.hint')}</span>
       </label>
 
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{t(error)}</p>}
 
       {!readOnly && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Submit application'}
+            {submitting ? t('common:feedback.submitting') : t('actions.submitApplication')}
           </button>
         </div>
       )}

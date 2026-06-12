@@ -1,0 +1,57 @@
+{
+  "title": "تأكيد المالكين الشركاء",
+  "linkCard": {
+    "title": "رابط التأكيد"
+  },
+  "states": {
+    "awaitingSignatures": "في انتظار التوقيعات",
+    "readyToSend": "جاهز للإرسال",
+    "sent": "تم الإرسال",
+    "rejected": "مرفوض"
+  },
+  "intro": {
+    "submitted": "قدّم <strong>{{name}}</strong> طلب تسجيل يتطلب توقيع جميع المالكين الشركاء قبل إحالته إلى المكتب الخلفي.",
+    "applicantFallback": "مقدم الطلب",
+    "signingAs": "أنت توقّع بصفتك <strong>{{name}}</strong>.",
+    "signingAsApplicant": "أنت توقّع بصفتك <strong>{{name}}</strong> (مقدم الطلب)."
+  },
+  "banners": {
+    "rejectedBy": "رفضه {{name}}.",
+    "rejectedByUnknown": "رفضه أحد المالكين.",
+    "rejectedBody": "أُعيدت المعاملة إلى مقدم الطلب، وستصدر روابط تأكيد جديدة عند إعادة تقديم الطلب.",
+    "sentTitle": "أُرسلت المعاملة إلى المكتب الخلفي.",
+    "sentBody": "وقّع جميع المالكين الشركاء، وأُحيلت المعاملة للمراجعة."
+  },
+  "summary": {
+    "ownersHeading": "المالكون",
+    "applicantTag": "· مقدم الطلب",
+    "reason": "السبب: {{reason}}",
+    "ownerStatus": {
+      "signed": "تم التوقيع",
+      "rejected": "مرفوض",
+      "pending": "قيد الانتظار"
+    }
+  },
+  "waiting": {
+    "signatureOnFile": "تم تسجيل توقيعك، وننتظر توقيع بقية المالكين الشركاء."
+  },
+  "actions": {
+    "approveAndSign": "الموافقة والتوقيع",
+    "signing": "جارٍ التوقيع…",
+    "rejectReasonLabel": "سبب الرفض",
+    "rejectReasonPlaceholder": "يرجى توضيح ما يلزم تعديله قبل أن توقّع.",
+    "sendRejection": "إرسال الرفض",
+    "sending": "جارٍ الإرسال…",
+    "sendToProcess": "إرسال للمعالجة"
+  },
+  "errors": {
+    "missingReason": "يرجى توضيح سبب الرفض.",
+    "network": "تعذّر الاتصال بالخادم: {{message}}",
+    "unknownToken": "رابط التأكيد هذا غير معروف أو انتهت صلاحيته.",
+    "alreadyRejected": "سبق أن رفض مالك آخر هذا الطلب.",
+    "alreadySent": "سبق أن أُرسلت هذه المعاملة إلى المكتب الخلفي.",
+    "alreadySigned": "لقد وقّعت على هذا الطلب من قبل.",
+    "notWaiting": "لم تعد هذه المعاملة في انتظار توقيعات المالكين.",
+    "notReady": "لم يوقّع جميع المالكين بعد."
+  }
+}

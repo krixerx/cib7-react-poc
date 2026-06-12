@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   getHistoricVariable,
@@ -11,6 +12,8 @@ import {
   type ProcessDefinition,
 } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
+import { translateBackendName } from '../i18n/backendNames';
+import { formatDate } from '../i18n/format';
 import { categoryOf, type CategoryId } from '../services/categories';
 import { CategoryIcon } from '../services/CategoryIcon';
 
@@ -57,15 +60,16 @@ interface ProcessRow {
   waitingOn: string | null;
 }
 
-const STATUS_LABELS: Record<RowStatus, string> = {
-  'awaiting-submission': 'Awaiting submission',
-  'sent-back': 'Sent back for corrections',
-  'payment-needed': 'Payment required',
-  'waiting-signatures': 'Waiting for signatures',
-  'under-review': 'Under review',
-  processing: 'Processing',
-  approved: 'Approved',
-  ended: 'Ended',
+/** i18n keys for the status pills; shared labels come from `common`. */
+const STATUS_LABEL_KEYS: Record<RowStatus, string> = {
+  'awaiting-submission': 'statuses.awaitingSubmission',
+  'sent-back': 'statuses.sentBack',
+  'payment-needed': 'common:status.paymentRequired',
+  'waiting-signatures': 'statuses.waitingSignatures',
+  'under-review': 'common:status.underReview',
+  processing: 'statuses.processing',
+  approved: 'common:status.approved',
+  ended: 'statuses.ended',
 };
 
 const STATUS_PILL_CLASS: Record<RowStatus, string> = {
@@ -81,14 +85,6 @@ const STATUS_PILL_CLASS: Record<RowStatus, string> = {
 
 /** The payment wait state in both shipped BPMNs. */
 const PAYMENT_ACTIVITY_ID = 'Task_WaitForPayment';
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 async function buildRow(
   pi: HistoricProcessInstance,
@@ -145,6 +141,7 @@ async function buildRow(
 }
 
 export default function MyProcessesPage() {
+  const { t } = useTranslation('my-processes');
   const { username } = useAuth();
   const [rows, setRows] = useState<ProcessRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -217,36 +214,40 @@ export default function MyProcessesPage() {
     <div className="mp">
       <div className="mp-head">
         <div>
-          <h1 className="mp-title">My processes</h1>
+          <h1 className="mp-title">{t('head.title')}</h1>
           {showContent && rows.length > 0 && (
             <p className="mp-kpi">
               <span className={`mp-kpi-strong${buckets.attention.length > 0 ? ' alert' : ''}`}>
-                {buckets.attention.length} waiting on you
+                {t('head.kpi.waiting', { count: buckets.attention.length })}
               </span>
               {' · '}
-              <span className="mp-kpi-strong">{buckets.progress.length} in progress</span>
+              <span className="mp-kpi-strong">
+                {t('head.kpi.inProgress', { count: buckets.progress.length })}
+              </span>
               {' · '}
-              <span className="mp-kpi-strong">{buckets.done.length} completed</span>
+              <span className="mp-kpi-strong">
+                {t('head.kpi.completed', { count: buckets.done.length })}
+              </span>
             </p>
           )}
         </div>
         <button className="btn" onClick={load} disabled={loading}>
-          Refresh
+          {t('common:actions.refresh')}
         </button>
       </div>
 
-      {loading && <p className="muted">Loading…</p>}
-      {error && <p className="form-error">{error}</p>}
+      {loading && <p className="muted">{t('common:feedback.loading')}</p>}
+      {error && <p className="form-error">{t('errors.loadFailed', { message: error })}</p>}
 
       {isEmpty && (
         <p className="empty">
-          You haven't started any processes yet. Pick one on the <Link to="/">Services</Link> page.
+          <Trans t={t} i18nKey="empty.noProcesses" components={{ servicesLink: <Link to="/" /> }} />
         </p>
       )}
 
       {showContent && buckets.attention.length > 0 && (
         <section className="mp-section">
-          <h2 className="mp-section-title">Needs your attention</h2>
+          <h2 className="mp-section-title">{t('sections.attention')}</h2>
           <div className="mp-action-grid">
             {buckets.attention.map((r) => (
               <ActionCard key={r.pi.id} row={r} />
@@ -257,7 +258,7 @@ export default function MyProcessesPage() {
 
       {showContent && buckets.progress.length > 0 && (
         <section className="mp-section">
-          <h2 className="mp-section-title">In progress · with the back office</h2>
+          <h2 className="mp-section-title">{t('sections.progress')}</h2>
           <div className="mp-row-list">
             {buckets.progress.map((r) => (
               <ProgressRow key={r.pi.id} row={r} />
@@ -272,7 +273,7 @@ export default function MyProcessesPage() {
           open={buckets.attention.length === 0 && buckets.progress.length === 0}
         >
           <summary>
-            Completed <span className="muted">· {buckets.done.length}</span>
+            {t('sections.completed')} <span className="muted">· {buckets.done.length}</span>
           </summary>
           <div className="mp-completed-body">
             {buckets.done.map((r) => (
@@ -286,6 +287,7 @@ export default function MyProcessesPage() {
 }
 
 function ActionCard({ row }: { row: ProcessRow }) {
+  const { t } = useTranslation('my-processes');
   const isSentBack = row.status === 'sent-back';
   const isPayment = row.status === 'payment-needed';
   // Active applicant task → /tasks; payment wait → the public pay page;
@@ -304,42 +306,49 @@ function ActionCard({ row }: { row: ProcessRow }) {
         <CategoryIcon id={row.category} size={28} />
       </span>
       <span className="mp-action-body">
-        <span className="mp-action-title">{row.serviceName}</span>
+        <span className="mp-action-title">{translateBackendName(t, row.serviceName)}</span>
         <span className="mp-action-status">
           {isPayment
-            ? '💳 State fee payment required'
+            ? t('card.paymentNeeded')
             : isSentBack
-              ? '⚠ Sent back for corrections'
-              : '◆ Awaiting your submission'}
+              ? t('card.sentBack')
+              : t('card.awaitingSubmission')}
         </span>
-        {row.sendBackReason && <span className="mp-action-reason">“{row.sendBackReason}”</span>}
-        <span className="mp-action-meta">Started {formatDate(row.pi.startTime)}</span>
+        {row.sendBackReason && (
+          <span className="mp-action-reason">
+            {t('card.reason', { reason: row.sendBackReason })}
+          </span>
+        )}
+        <span className="mp-action-meta">
+          {t('meta.started', { date: formatDate(row.pi.startTime) })}
+        </span>
       </span>
-      <span className="mp-action-cta">{isPayment ? 'Pay →' : 'Open →'}</span>
+      <span className="mp-action-cta">{isPayment ? t('card.ctaPay') : t('card.ctaOpen')}</span>
     </Link>
   );
 }
 
 function ProgressRow({ row, compact = false }: { row: ProcessRow; compact?: boolean }) {
+  const { t } = useTranslation('my-processes');
   const isEnded = row.pi.endTime !== null;
   const to = `/processes/${row.pi.id}`;
-  const action = isEnded ? 'View →' : 'View submission →';
+  const action = isEnded ? t('row.view') : t('row.viewSubmission');
   return (
     <Link to={to} className={`mp-row cat-${row.category}${compact ? ' compact' : ''}`}>
       <span className="mp-row-icon" aria-hidden="true">
         <CategoryIcon id={row.category} size={20} />
       </span>
       <span className="mp-row-body">
-        <span className="mp-row-title">{row.serviceName}</span>
+        <span className="mp-row-title">{translateBackendName(t, row.serviceName)}</span>
         <span className="mp-row-meta">
           {isEnded
-            ? `Ended ${formatDate(row.pi.endTime!)}`
-            : `Started ${formatDate(row.pi.startTime)}`}
-          {!isEnded && row.waitingOn && ` · ${row.waitingOn}`}
+            ? t('meta.ended', { date: formatDate(row.pi.endTime!) })
+            : t('meta.started', { date: formatDate(row.pi.startTime) })}
+          {!isEnded && row.waitingOn && ` · ${translateBackendName(t, row.waitingOn)}`}
         </span>
       </span>
       <span className="mp-row-right">
-        <span className={STATUS_PILL_CLASS[row.status]}>{STATUS_LABELS[row.status]}</span>
+        <span className={STATUS_PILL_CLASS[row.status]}>{t(STATUS_LABEL_KEYS[row.status])}</span>
         <span className="row-action">{action}</span>
       </span>
     </Link>

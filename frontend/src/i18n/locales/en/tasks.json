@@ -1,0 +1,44 @@
+{
+  "list": {
+    "title": "Process list",
+    "refreshing": "Refreshing…",
+    "countFiltered": "{{shown}} of {{total}}",
+    "refresh": "Refresh list",
+    "newestFirst": "Newest first",
+    "sortPill": "Date submitted ↓",
+    "caseRef": "CASE-{{id}}",
+    "noName": "(no name)",
+    "age": {
+      "minutes": "{{value}}m",
+      "hours": "{{value}}h",
+      "days": "{{value}}d"
+    }
+  },
+  "filters": {
+    "service": "Service",
+    "task": "Task",
+    "status": "Status",
+    "myCases": "My cases",
+    "all": "All",
+    "moreSummary": "{{first}} +{{more}}",
+    "noServices": "No services in view yet.",
+    "noTasks": "No active tasks in view.",
+    "reset": "Reset",
+    "searchPlaceholder": "Search by applicant name…"
+  },
+  "empty": {
+    "noProcesses": "No processes yet.",
+    "noMatches": "No cases match the current filters.",
+    "pickTitle": "Pick a case from the left",
+    "pickBody_one": "{{count}} case in view. Filter by service, task or status, or search by applicant name. Pick one to open its form here.",
+    "pickBody_other": "{{count}} cases in view. Filter by service, task or status, or search by applicant name. Pick one to open its form here."
+  },
+  "incidents": {
+    "caseFallback": "Case",
+    "openCount_one": "{{count}} open incident",
+    "openCount_other": "{{count}} open incidents",
+    "processScope": "(process scope)",
+    "retrying": "Retrying…",
+    "noRetry": "No retry available for this incident type."
+  }
+}

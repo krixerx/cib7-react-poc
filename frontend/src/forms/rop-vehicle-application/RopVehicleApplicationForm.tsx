@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatCurrency } from '../../i18n/format';
 import type { FormProps } from '../types';
 
 /**
@@ -12,33 +14,33 @@ import type { FormProps } from '../types';
  * docs/business/services/rop-vehicle-registration/forms/rop-vehicle-application.md
  */
 
-const VEHICLE_CATEGORIES: { value: string; label: string; fee: number }[] = [
-  { value: 'motorcycle', label: 'Motorcycle', fee: 10 },
-  { value: 'private-lt1500', label: 'Private car — engine under 1500 cm³', fee: 15 },
-  { value: 'private-1500-3000', label: 'Private car — engine 1500–3000 cm³', fee: 20 },
-  { value: 'private-3000-4500', label: 'Private car — engine 3000–4500 cm³', fee: 30 },
-  { value: 'private-gt4500', label: 'Private car — engine over 4500 cm³', fee: 50 },
-  { value: 'electric-lt75kw', label: 'Electric — motor under 75 kW', fee: 15 },
-  { value: 'electric-75-150kw', label: 'Electric — motor 75–150 kW', fee: 20 },
-  { value: 'electric-150-224kw', label: 'Electric — motor 150–224 kW', fee: 30 },
-  { value: 'electric-gt224kw', label: 'Electric — motor over 224 kW', fee: 50 },
-  { value: 'tractor', label: 'Tractor', fee: 40 },
-  { value: 'truck-3-5t', label: 'Truck — 3 to 5 tons', fee: 120 },
-  { value: 'truck-gte5t', label: 'Truck — 5 tons and above', fee: 180 },
+const VEHICLE_CATEGORIES: { value: string; labelKey: string; fee: number }[] = [
+  { value: 'motorcycle', labelKey: 'motorcycle', fee: 10 },
+  { value: 'private-lt1500', labelKey: 'privateLt1500', fee: 15 },
+  { value: 'private-1500-3000', labelKey: 'private1500To3000', fee: 20 },
+  { value: 'private-3000-4500', labelKey: 'private3000To4500', fee: 30 },
+  { value: 'private-gt4500', labelKey: 'privateGt4500', fee: 50 },
+  { value: 'electric-lt75kw', labelKey: 'electricLt75kw', fee: 15 },
+  { value: 'electric-75-150kw', labelKey: 'electric75To150kw', fee: 20 },
+  { value: 'electric-150-224kw', labelKey: 'electric150To224kw', fee: 30 },
+  { value: 'electric-gt224kw', labelKey: 'electricGt224kw', fee: 50 },
+  { value: 'tractor', labelKey: 'tractor', fee: 40 },
+  { value: 'truck-3-5t', labelKey: 'truck3To5t', fee: 120 },
+  { value: 'truck-gte5t', labelKey: 'truckGte5t', fee: 180 },
 ];
 
 const RESIDENCY_OPTIONS = [
-  { value: 'citizen', label: 'Omani citizen' },
-  { value: 'resident', label: 'Resident' },
-  { value: 'diplomat', label: 'Diplomatic mission' },
-  { value: 'visitor', label: 'Visitor' },
+  { value: 'citizen', labelKey: 'citizen' },
+  { value: 'resident', labelKey: 'resident' },
+  { value: 'diplomat', labelKey: 'diplomat' },
+  { value: 'visitor', labelKey: 'visitor' },
 ];
 
 const REGISTRATION_TYPES = [
-  { value: 'private', label: 'Private' },
-  { value: 'commercial', label: 'Commercial' },
-  { value: 'public-utility', label: 'Public utility (taxi / education / crane)' },
-  { value: 'diplomatic', label: 'Diplomatic' },
+  { value: 'private', labelKey: 'private' },
+  { value: 'commercial', labelKey: 'commercial' },
+  { value: 'public-utility', labelKey: 'publicUtility' },
+  { value: 'diplomatic', labelKey: 'diplomatic' },
 ];
 
 export default function RopVehicleApplicationForm({
@@ -47,6 +49,7 @@ export default function RopVehicleApplicationForm({
   submitting,
   readOnly,
 }: FormProps) {
+  const { t } = useTranslation('rop-vehicle-application');
   const [applicantName, setApplicantName] = useState((data.applicantName as string) ?? '');
   const [applicantEmail, setApplicantEmail] = useState((data.applicantEmail as string) ?? '');
   const [civilId, setCivilId] = useState((data.civilId as string) ?? '');
@@ -78,24 +81,24 @@ export default function RopVehicleApplicationForm({
     setError(null);
 
     if (!applicantName.trim()) {
-      setError('Please enter the owner’s full name.');
+      setError('errors.ownerName');
       return;
     }
     if (!applicantEmail.trim() || !applicantEmail.includes('@')) {
-      setError('Please enter a valid email address — all notifications go there.');
+      setError('errors.email');
       return;
     }
     if (!/^[0-9]{8}$/.test(civilId.trim())) {
-      setError('The civil number must be exactly 8 digits.');
+      setError('errors.civilId');
       return;
     }
     const trimmedVin = vin.trim().toUpperCase();
     if (!/^[A-Z0-9]{11,17}$/.test(trimmedVin)) {
-      setError('The chassis number (VIN) must be 11–17 letters/digits.');
+      setError('errors.vin');
       return;
     }
     if (plateOption === 'reserved' && !reservedPlateNumber.trim()) {
-      setError('Please enter your reserved plate number (or choose a new random plate).');
+      setError('errors.reservedPlate');
       return;
     }
 
@@ -120,29 +123,28 @@ export default function RopVehicleApplicationForm({
     <form className="form" onSubmit={handleSubmit}>
       {isResubmission && (
         <div className="form-banner form-banner-warn">
-          <strong>Returned for corrections.</strong>
+          <strong>{t('banners.returnedForCorrections')}</strong>
           <p className="form-banner-body">{sendBackReason}</p>
         </div>
       )}
 
       <p className="form-intro">
         {readOnly
-          ? 'A read-only view of the submitted vehicle registration application.'
+          ? t('intro.readOnly')
           : isResubmission
-            ? 'Your application was returned by the traffic officer. Update the details below and resubmit.'
-            : 'Register a new vehicle with the General Traffic Department (Royal Oman Police). The registration fee for your vehicle category is shown below before you submit.'}
+            ? t('intro.resubmission')
+            : t('intro.default')}
       </p>
 
       <div className="form-banner">
-        <strong>Registration fee: {selectedCategory.fee} OMR</strong>
+        <strong>{t('feeBanner.title', { fee: formatCurrency(selectedCategory.fee, 'OMR') })}</strong>
         <p className="form-banner-body">
-          Fee for “{selectedCategory.label}” per the General Traffic Department fee schedule.
-          Payable after the traffic officer approves the application.
+          {t('feeBanner.body', { category: t(`categories.${selectedCategory.labelKey}`) })}
         </p>
       </div>
 
       <label className="field">
-        <span className="field-label">Owner full name</span>
+        <span className="field-label">{t('fields.ownerName.label')}</span>
         <input
           className="field-input"
           value={applicantName}
@@ -152,7 +154,7 @@ export default function RopVehicleApplicationForm({
       </label>
 
       <label className="field">
-        <span className="field-label">Email address</span>
+        <span className="field-label">{t('fields.email.label')}</span>
         <input
           className="field-input"
           type="email"
@@ -163,18 +165,18 @@ export default function RopVehicleApplicationForm({
       </label>
 
       <label className="field">
-        <span className="field-label">Civil number</span>
+        <span className="field-label">{t('fields.civilId.label')}</span>
         <input
           className="field-input"
           value={civilId}
           onChange={(e) => setCivilId(e.target.value)}
-          placeholder="8 digits"
+          placeholder={t('fields.civilId.placeholder')}
           disabled={readOnly}
         />
       </label>
 
       <label className="field">
-        <span className="field-label">Residency status</span>
+        <span className="field-label">{t('fields.residencyStatus.label')}</span>
         <select
           className="field-input"
           value={residencyStatus}
@@ -183,14 +185,14 @@ export default function RopVehicleApplicationForm({
         >
           {RESIDENCY_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(`residency.${o.labelKey}`)}
             </option>
           ))}
         </select>
       </label>
 
       <label className="field">
-        <span className="field-label">Registration type</span>
+        <span className="field-label">{t('fields.registrationType.label')}</span>
         <select
           className="field-input"
           value={registrationType}
@@ -199,14 +201,14 @@ export default function RopVehicleApplicationForm({
         >
           {REGISTRATION_TYPES.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(`registrationTypes.${o.labelKey}`)}
             </option>
           ))}
         </select>
       </label>
 
       <label className="field">
-        <span className="field-label">Vehicle category</span>
+        <span className="field-label">{t('fields.vehicleCategory.label')}</span>
         <select
           className="field-input"
           value={vehicleCategory}
@@ -215,43 +217,43 @@ export default function RopVehicleApplicationForm({
         >
           {VEHICLE_CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>
-              {c.label} — {c.fee} OMR
+              {t('fields.vehicleCategory.optionLabel', {
+                category: t(`categories.${c.labelKey}`),
+                fee: formatCurrency(c.fee, 'OMR'),
+              })}
             </option>
           ))}
         </select>
       </label>
 
       <label className="field">
-        <span className="field-label">Chassis number (VIN)</span>
+        <span className="field-label">{t('fields.vin.label')}</span>
         <input
           className="field-input"
           value={vin}
           onChange={(e) => setVin(e.target.value.toUpperCase())}
-          placeholder="11–17 letters/digits"
+          placeholder={t('fields.vin.placeholder')}
           disabled={readOnly}
         />
-        <span className="field-hint muted">
-          Demo VINs: ROPDEMOFAILINSP01 (failed inspection), ROPDEMONOINSURE02 (uninsured),
-          ROPDEMOFINESDUE03 (outstanding fines). Any other VIN is all-clear.
-        </span>
+        <span className="field-hint muted">{t('fields.vin.hint')}</span>
       </label>
 
       <label className="field">
-        <span className="field-label">Plate number</span>
+        <span className="field-label">{t('fields.plateNumber.label')}</span>
         <select
           className="field-input"
           value={plateOption}
           onChange={(e) => setPlateOption(e.target.value)}
           disabled={readOnly}
         >
-          <option value="random">New random plate</option>
-          <option value="reserved">Previously reserved plate</option>
+          <option value="random">{t('plateOptions.random')}</option>
+          <option value="reserved">{t('plateOptions.reserved')}</option>
         </select>
       </label>
 
       {plateOption === 'reserved' && (
         <label className="field">
-          <span className="field-label">Reserved plate number</span>
+          <span className="field-label">{t('fields.reservedPlateNumber.label')}</span>
           <input
             className="field-input"
             value={reservedPlateNumber}
@@ -261,12 +263,12 @@ export default function RopVehicleApplicationForm({
         </label>
       )}
 
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{t(error)}</p>}
 
       {!readOnly && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Submit application'}
+            {submitting ? t('common:feedback.submitting') : t('actions.submitApplication')}
           </button>
         </div>
       )}

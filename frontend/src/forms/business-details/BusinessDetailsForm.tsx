@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FormProps } from '../types';
 import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
 
@@ -39,22 +40,11 @@ interface AdditionalFounder {
 /** Drives the residency input in the founder form + the auto-approval DMN. */
 type Residency = 'citizen' | 'e-resident' | 'foreign';
 
-const RESIDENCY_OPTIONS: Array<{ value: Residency; label: string; hint: string }> = [
-  {
-    value: 'citizen',
-    label: 'Estonian citizen',
-    hint: 'Lives and works in Estonia under Estonian citizenship.',
-  },
-  {
-    value: 'e-resident',
-    label: 'E-resident',
-    hint: 'Holds an Estonian e-Residency digital ID; lives abroad.',
-  },
-  {
-    value: 'foreign',
-    label: 'Foreign founder',
-    hint: 'Neither Estonian citizen nor e-resident — always requires Business Register review.',
-  },
+/** `value` is the technical string sent to the engine/DMN; `key` is the i18n key segment. */
+const RESIDENCY_OPTIONS: Array<{ value: Residency; key: string }> = [
+  { value: 'citizen', key: 'citizen' },
+  { value: 'e-resident', key: 'eResident' },
+  { value: 'foreign', key: 'foreign' },
 ];
 
 /** Exported for tests (parsers.test.ts), like the other parse helpers below. */
@@ -125,6 +115,7 @@ export function ensureCompanySuffix(name: string): string {
 const EMPTY_MEMBER: BoardMember = { firstName: '', lastName: '', personalCode: '' };
 
 export default function BusinessDetailsForm({ data, onComplete, submitting, readOnly }: FormProps) {
+  const { t } = useTranslation('business-details');
   const [companyName, setCompanyName] = useState((data.companyName as string) ?? '');
   const [boardMembers, setBoardMembers] = useState<BoardMember[]>(() => {
     const parsed = parseBoardMembers(data.boardMembers);
@@ -162,7 +153,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
     if (typeof attachmentId === 'string' && attachmentId.length > 0) {
       return {
         attachmentId,
-        filename: 'Articles of Association',
+        filename: t('fields.aoa.existingFilename'),
         contentType: 'application/octet-stream',
         size: 0,
       };
@@ -209,7 +200,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
 
     const finalCompanyName = ensureCompanySuffix(companyName);
     if (!finalCompanyName) {
-      setError('Company name is required.');
+      setError(t('errors.companyNameRequired'));
       return;
     }
 
@@ -222,45 +213,45 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       .filter((m) => m.firstName || m.lastName || m.personalCode);
 
     if (cleanedMembers.length === 0) {
-      setError('At least one board member is required.');
+      setError(t('errors.boardMemberRequired'));
       return;
     }
     for (const m of cleanedMembers) {
       if (!m.firstName || !m.lastName || !m.personalCode) {
-        setError('Every board member needs first name, last name, and a personal code.');
+        setError(t('errors.boardMemberIncomplete'));
         return;
       }
       if (!/^\d{11}$/.test(m.personalCode)) {
-        setError(`Personal code "${m.personalCode}" must be 11 digits.`);
+        setError(t('errors.personalCodeFormat', { code: m.personalCode }));
         return;
       }
     }
 
     const capitalNum = Number(shareCapital);
     if (!Number.isFinite(capitalNum) || capitalNum < 2500) {
-      setError('Share capital must be a number >= 2500.');
+      setError(t('errors.shareCapitalMin'));
       return;
     }
 
     const ageNum = Number(applicantAge);
     if (!applicantFirstName.trim() || !applicantLastName.trim()) {
-      setError('Your first name and last name are required.');
+      setError(t('errors.applicantNameRequired'));
       return;
     }
     if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 130) {
-      setError('Your age must be a whole number between 0 and 130.');
+      setError(t('errors.applicantAgeRange'));
       return;
     }
 
     if (!aoaDocument || (!aoaDocument.pendingKey && !aoaDocument.attachmentId)) {
-      setError('Please upload the Articles of Association.');
+      setError(t('errors.aoaRequired'));
       return;
     }
 
     const trimmedEmail = applicantEmail.trim();
     const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
     if (trimmedEmail && !validEmail(trimmedEmail)) {
-      setError('Please enter a valid email address, or leave the field blank.');
+      setError(t('errors.emailInvalid'));
       return;
     }
 
@@ -270,31 +261,27 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
 
     if (cleanedFounders.length > 0) {
       if (!trimmedEmail) {
-        setError(
-          'Your own email is required when adding co-founders — we send you a tracking link.',
-        );
+        setError(t('errors.applicantEmailRequiredForFounders'));
         return;
       }
       for (const f of cleanedFounders) {
         if (!f.name) {
-          setError('Every co-founder needs a name.');
+          setError(t('errors.founderNameRequired'));
           return;
         }
         if (!f.email || !validEmail(f.email)) {
-          setError(`Co-founder "${f.name || '(unnamed)'}" needs a valid email address.`);
+          setError(t('errors.founderEmailInvalid', { name: f.name || t('errors.unnamedFounder') }));
           return;
         }
       }
       const emails = cleanedFounders.map((f) => f.email.toLowerCase());
       const dupe = emails.find((e, i) => emails.indexOf(e) !== i);
       if (dupe) {
-        setError(`Two co-founders share the email "${dupe}". Each founder needs a unique address.`);
+        setError(t('errors.duplicateFounderEmail', { email: dupe }));
         return;
       }
       if (emails.includes(trimmedEmail.toLowerCase())) {
-        setError(
-          'Your own email cannot also appear in the co-founder list — the applicant is already counted as a founder.',
-        );
+        setError(t('errors.applicantEmailInFounders'));
         return;
       }
     }
@@ -356,54 +343,54 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
     <form className="form" onSubmit={handleSubmit}>
       {isResubmission && (
         <div className="form-banner form-banner-warn">
-          <strong>Sent back for corrections.</strong>
+          <strong>{t('banner.sentBack')}</strong>
           <p className="form-banner-body">{sendBackReason}</p>
         </div>
       )}
 
       <p className="form-intro">
         {readOnly
-          ? 'A read-only view of the submitted OÜ founding details.'
+          ? t('intro.readOnly')
           : isResubmission
-            ? 'Update the founding details below and resubmit to the Business Register. New signing links will be sent to every co-founder.'
-            : 'Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, your own details, and list any co-founders that must sign the Articles of Association before the case goes to the Business Register.'}
+            ? t('intro.resubmission')
+            : t('intro.default')}
       </p>
 
       <label className="field">
-        <span className="field-label">Company name</span>
+        <span className="field-label">{t('fields.companyName.label')}</span>
         <input
           className="field-input"
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
-          placeholder="Acme OÜ"
+          placeholder={t('fields.companyName.placeholder')}
           disabled={readOnly}
           required
         />
       </label>
 
       <fieldset className="field-group">
-        <legend className="field-label">Board members</legend>
+        <legend className="field-label">{t('sections.boardMembers.legend')}</legend>
         {boardMembers.map((m, idx) => (
           <div key={idx} className="board-member-row">
             <input
               className="field-input"
               value={m.firstName}
               onChange={(e) => updateMember(idx, 'firstName', e.target.value)}
-              placeholder="First name"
+              placeholder={t('fields.boardMember.firstNamePlaceholder')}
               disabled={readOnly}
             />
             <input
               className="field-input"
               value={m.lastName}
               onChange={(e) => updateMember(idx, 'lastName', e.target.value)}
-              placeholder="Last name"
+              placeholder={t('fields.boardMember.lastNamePlaceholder')}
               disabled={readOnly}
             />
             <input
               className="field-input"
               value={m.personalCode}
               onChange={(e) => updateMember(idx, 'personalCode', e.target.value)}
-              placeholder="Personal code (11 digits)"
+              placeholder={t('fields.boardMember.personalCodePlaceholder')}
               disabled={readOnly}
               inputMode="numeric"
               maxLength={11}
@@ -413,7 +400,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
                 type="button"
                 className="btn btn-small"
                 onClick={() => removeMember(idx)}
-                aria-label={`Remove board member ${idx + 1}`}
+                aria-label={t('sections.boardMembers.removeAria', { number: idx + 1 })}
               >
                 ×
               </button>
@@ -422,17 +409,14 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
         ))}
         {!readOnly && (
           <button type="button" className="btn btn-small" onClick={addMember}>
-            + Add member
+            {t('sections.boardMembers.add')}
           </button>
         )}
       </fieldset>
 
       <div className="field">
-        <span className="field-label">Articles of Association (required)</span>
-        <p className="field-hint">
-          PDF, JPEG, or PNG up to 10 MB. The Business Register reviewer and every co-founder
-          reviewing the registration will be able to download this file.
-        </p>
+        <span className="field-label">{t('fields.aoa.label')}</span>
+        <p className="field-hint">{t('fields.aoa.hint')}</p>
         <FileUpload
           accept="application/pdf,image/jpeg,image/png"
           maxBytes={10 * 1024 * 1024}
@@ -441,12 +425,12 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
           value={aoaDocument}
           onChange={setAoaDocument}
           disabled={readOnly}
-          label="Drop your Articles of Association here, or click to choose"
+          label={t('fields.aoa.uploadLabel')}
         />
       </div>
 
       <label className="field">
-        <span className="field-label">Share capital (EUR)</span>
+        <span className="field-label">{t('fields.shareCapital.label')}</span>
         <input
           className="field-input"
           type="number"
@@ -460,7 +444,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       </label>
 
       <label className="field">
-        <span className="field-label">Your first name</span>
+        <span className="field-label">{t('fields.applicantFirstName.label')}</span>
         <input
           className="field-input"
           value={applicantFirstName}
@@ -471,7 +455,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       </label>
 
       <label className="field">
-        <span className="field-label">Your last name</span>
+        <span className="field-label">{t('fields.applicantLastName.label')}</span>
         <input
           className="field-input"
           value={applicantLastName}
@@ -482,7 +466,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       </label>
 
       <label className="field">
-        <span className="field-label">Your age</span>
+        <span className="field-label">{t('fields.applicantAge.label')}</span>
         <input
           className="field-input"
           type="number"
@@ -496,12 +480,8 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       </label>
 
       <fieldset className="field-group">
-        <legend className="field-label">Your residency status</legend>
-        <p className="field-hint">
-          Drives the Business Register's auto-approval policy: foreign founders always go to a
-          reviewer; Estonian citizens and e-residents with the minimum share capital can
-          auto-approve.
-        </p>
+        <legend className="field-label">{t('fields.residency.legend')}</legend>
+        <p className="field-hint">{t('fields.residency.hint')}</p>
         {RESIDENCY_OPTIONS.map((opt) => (
           <label key={opt.value} className="radio-row">
             <input
@@ -513,19 +493,19 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
               disabled={readOnly}
             />
             <span className="radio-body">
-              <span className="radio-label">{opt.label}</span>
-              <span className="radio-hint">{opt.hint}</span>
+              <span className="radio-label">{t(`fields.residency.options.${opt.key}.label`)}</span>
+              <span className="radio-hint">{t(`fields.residency.options.${opt.key}.hint`)}</span>
             </span>
           </label>
         ))}
       </fieldset>
 
       <label className="field">
-        <span className="field-label">Your email (required if you list co-founders)</span>
+        <span className="field-label">{t('fields.applicantEmail.label')}</span>
         <input
           className="field-input"
           type="email"
-          placeholder="you@example.com"
+          placeholder={t('fields.applicantEmail.placeholder')}
           value={applicantEmail}
           onChange={(e) => setApplicantEmail(e.target.value)}
           disabled={readOnly}
@@ -533,17 +513,15 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       </label>
 
       <fieldset className="field-group">
-        <legend className="field-label">Co-founders ({additionalFounders.length})</legend>
-        <p className="field-hint">
-          Each co-founder gets an email with a link to sign the Articles of Association or reject.
-          Once all co-founders sign, any founder can click "Submit to register" to forward the case
-          to the Business Register. Leave empty if you are the sole founder.
-        </p>
+        <legend className="field-label">
+          {t('sections.coFounders.legend', { total: additionalFounders.length })}
+        </legend>
+        <p className="field-hint">{t('sections.coFounders.hint')}</p>
         {additionalFounders.map((founder, i) => (
           <div key={i} className="owner-row">
             <input
               className="field-input owner-row-name"
-              placeholder="Name"
+              placeholder={t('fields.founder.namePlaceholder')}
               value={founder.name}
               onChange={(e) => updateFounder(i, 'name', e.target.value)}
               disabled={readOnly}
@@ -551,7 +529,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
             <input
               className="field-input owner-row-email"
               type="email"
-              placeholder="founder@example.com"
+              placeholder={t('fields.founder.emailPlaceholder')}
               value={founder.email}
               onChange={(e) => updateFounder(i, 'email', e.target.value)}
               disabled={readOnly}
@@ -561,9 +539,9 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
                 type="button"
                 className="btn btn-link"
                 onClick={() => removeFounder(i)}
-                aria-label={`Remove co-founder ${i + 1}`}
+                aria-label={t('sections.coFounders.removeAria', { number: i + 1 })}
               >
-                Remove
+                {t('common:actions.remove')}
               </button>
             )}
           </div>
@@ -571,7 +549,7 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
         {!readOnly && (
           <div className="form-actions">
             <button type="button" className="btn" onClick={addFounder}>
-              + Add co-founder
+              {t('sections.coFounders.add')}
             </button>
           </div>
         )}
@@ -582,7 +560,11 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       {!readOnly && (
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Submitting…' : isResubmission ? 'Resubmit' : 'Submit'}
+            {submitting
+              ? t('common:feedback.submitting')
+              : isResubmission
+                ? t('actions.resubmit')
+                : t('common:actions.submit')}
           </button>
         </div>
       )}

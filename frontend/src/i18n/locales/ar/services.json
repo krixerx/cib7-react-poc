@@ -1,0 +1,56 @@
+{
+  "hero": {
+    "eyebrow": "الخدمات الحكومية الرقمية",
+    "titleLine1": "الخدمات الحكومية",
+    "titleAccent": "بكل سهولة.",
+    "sub": "ابدأ خدمتك، ووقّع مستنداتك، وتابع كل خطوة في معاملتك عبر بوابة آمنة واحدة. سرعة وشفافية وسهولة وصول للجميع.",
+    "signIn": "سجّل الدخول إلى حسابك ←",
+    "join": "انضم إلى الحكومة الرقمية",
+    "trust": "تسجيل دخول موحّد وآمن · تتبّع شفاف لكل خطوة في معاملتك"
+  },
+  "stats": {
+    "alwaysOpen": {
+      "value": "24/7",
+      "label": "متاح على مدار الساعة"
+    },
+    "averageApplication": {
+      "value": "أقل من 5 دقائق",
+      "label": "متوسط مدة تقديم الطلب"
+    },
+    "digital": {
+      "value": "100%",
+      "label": "رقمية بالكامل، دون أوراق"
+    },
+    "liveServices": {
+      "label": "خدمات متاحة اليوم"
+    }
+  },
+  "catalog": {
+    "loading": "جارٍ تحميل الخدمات…",
+    "heading": "كيف يمكننا خدمتك اليوم؟",
+    "sub": "اختر موضوعًا لعرض جميع الخدمات في ذلك المجال.",
+    "tile": {
+      "comingSoon": "قريبًا",
+      "starting": "جارٍ البدء…",
+      "start": "ابدأ ←",
+      "signInToStart": "سجّل الدخول للبدء ←",
+      "serviceCount_zero": "لا توجد خدمات",
+      "serviceCount_one": "خدمة واحدة",
+      "serviceCount_two": "خدمتان",
+      "serviceCount_few": "{{count}} خدمات",
+      "serviceCount_many": "{{count}} خدمة",
+      "serviceCount_other": "{{count}} خدمة",
+      "servicesBelow_zero": "↓ لا توجد خدمات أدناه",
+      "servicesBelow_one": "↓ خدمة واحدة أدناه",
+      "servicesBelow_two": "↓ خدمتان أدناه",
+      "servicesBelow_few": "↓ {{count}} خدمات أدناه",
+      "servicesBelow_many": "↓ {{count}} خدمة أدناه",
+      "servicesBelow_other": "↓ {{count}} خدمة أدناه"
+    },
+    "panel": {
+      "accountNotice": "يتطلب بدء الخدمة وجود حساب — يمكنك إنشاء حساب أو تسجيل الدخول من أعلى الصفحة.",
+      "empty": "لا توجد خدمات في هذه الفئة حتى الآن.",
+      "rowMeta": "الرمز: {{key}} · الإصدار {{version}}"
+    }
+  }
+}

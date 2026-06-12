@@ -1,0 +1,59 @@
+{
+  "head": {
+    "title": "معاملاتي",
+    "kpi": {
+      "waiting_zero": "لا توجد معاملات بانتظار إجرائك",
+      "waiting_one": "معاملة واحدة بانتظار إجرائك",
+      "waiting_two": "معاملتان بانتظار إجرائك",
+      "waiting_few": "{{count}} معاملات بانتظار إجرائك",
+      "waiting_many": "{{count}} معاملة بانتظار إجرائك",
+      "waiting_other": "{{count}} معاملة بانتظار إجرائك",
+      "inProgress_zero": "لا توجد معاملات قيد التنفيذ",
+      "inProgress_one": "معاملة واحدة قيد التنفيذ",
+      "inProgress_two": "معاملتان قيد التنفيذ",
+      "inProgress_few": "{{count}} معاملات قيد التنفيذ",
+      "inProgress_many": "{{count}} معاملة قيد التنفيذ",
+      "inProgress_other": "{{count}} معاملة قيد التنفيذ",
+      "completed_zero": "لا توجد معاملات منجزة",
+      "completed_one": "معاملة واحدة منجزة",
+      "completed_two": "معاملتان منجزتان",
+      "completed_few": "{{count}} معاملات منجزة",
+      "completed_many": "{{count}} معاملة منجزة",
+      "completed_other": "{{count}} معاملة منجزة"
+    }
+  },
+  "sections": {
+    "attention": "بحاجة إلى إجراء منك",
+    "progress": "قيد التنفيذ · لدى المكتب الخلفي",
+    "completed": "المعاملات المنجزة"
+  },
+  "statuses": {
+    "awaitingSubmission": "بانتظار التقديم",
+    "sentBack": "أُعيدت للتصحيح",
+    "waitingSignatures": "بانتظار التوقيعات",
+    "processing": "قيد المعالجة",
+    "ended": "منتهية"
+  },
+  "card": {
+    "paymentNeeded": "💳 مطلوب سداد الرسوم الحكومية",
+    "sentBack": "⚠ أُعيدت للتصحيح",
+    "awaitingSubmission": "◆ بانتظار تقديمك للطلب",
+    "reason": "«{{reason}}»",
+    "ctaPay": "السداد ←",
+    "ctaOpen": "فتح ←"
+  },
+  "meta": {
+    "started": "بدأت في {{date}}",
+    "ended": "انتهت في {{date}}"
+  },
+  "row": {
+    "view": "عرض ←",
+    "viewSubmission": "عرض الطلب المقدم ←"
+  },
+  "empty": {
+    "noProcesses": "لم تبدأ أي معاملة بعد. يمكنك اختيار إحدى الخدمات من صفحة <servicesLink>الخدمات</servicesLink>."
+  },
+  "errors": {
+    "loadFailed": "تعذّر تحميل معاملاتك: {{message}}"
+  }
+}

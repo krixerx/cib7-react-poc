@@ -1,0 +1,57 @@
+{
+  "title": "Co-owner confirmation",
+  "linkCard": {
+    "title": "Confirmation link"
+  },
+  "states": {
+    "awaitingSignatures": "Awaiting signatures",
+    "readyToSend": "Ready to send",
+    "sent": "Sent",
+    "rejected": "Rejected"
+  },
+  "intro": {
+    "submitted": "<strong>{{name}}</strong> has submitted a registration that requires every co-owner's signature before it can be sent to the back office.",
+    "applicantFallback": "The applicant",
+    "signingAs": "You are signing as <strong>{{name}}</strong>.",
+    "signingAsApplicant": "You are signing as <strong>{{name}}</strong> (the applicant)."
+  },
+  "banners": {
+    "rejectedBy": "Rejected by {{name}}.",
+    "rejectedByUnknown": "Rejected by an owner.",
+    "rejectedBody": "The case has been sent back to the applicant. New confirmation links will be issued once they resubmit.",
+    "sentTitle": "Sent to the back office.",
+    "sentBody": "All co-owners signed and the case has been forwarded for review."
+  },
+  "summary": {
+    "ownersHeading": "Owners",
+    "applicantTag": "· applicant",
+    "reason": "Reason: {{reason}}",
+    "ownerStatus": {
+      "signed": "Signed",
+      "rejected": "Rejected",
+      "pending": "Pending"
+    }
+  },
+  "waiting": {
+    "signatureOnFile": "Your signature is on file. Waiting for the other co-owners."
+  },
+  "actions": {
+    "approveAndSign": "Approve and sign",
+    "signing": "Signing…",
+    "rejectReasonLabel": "Reason for rejection",
+    "rejectReasonPlaceholder": "Explain what needs to change before you'd sign.",
+    "sendRejection": "Send rejection",
+    "sending": "Sending…",
+    "sendToProcess": "Send to process"
+  },
+  "errors": {
+    "missingReason": "Please describe why you are rejecting.",
+    "network": "Could not reach the server: {{message}}",
+    "unknownToken": "This confirmation link is unknown or has expired.",
+    "alreadyRejected": "Another owner has already rejected this application.",
+    "alreadySent": "This case has already been sent to the back office.",
+    "alreadySigned": "You have already signed this application.",
+    "notWaiting": "This case is no longer waiting for owner signatures.",
+    "notReady": "Not all owners have signed yet."
+  }
+}

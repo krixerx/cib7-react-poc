@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { keycloak } from './keycloak';
 
 /**
@@ -37,6 +38,7 @@ export function useAuth(): AuthContextValue {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('components');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (error) {
     return (
       <div className="card">
-        <h1 className="card-title">Login failed</h1>
+        <h1 className="card-title">{t('auth.loginFailed')}</h1>
         <p className="form-error">{error}</p>
       </div>
     );
@@ -74,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="card">
-        <p className="muted">Loading…</p>
+        <p className="muted">{t('common:feedback.loading')}</p>
       </div>
     );
   }

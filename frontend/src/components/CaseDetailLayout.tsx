@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { translateBackendName } from '../i18n/backendNames';
 import DocumentsCard from './DocumentsCard';
 import { CategoryIcon } from '../services/CategoryIcon';
 import type { CategoryId } from '../services/categories';
@@ -47,10 +49,16 @@ export default function CaseDetailLayout({
   processInstanceId,
   children,
 }: CaseDetailLayoutProps) {
+  const { t } = useTranslation('components');
   return (
     <div className="case-detail">
       <header className={`case-detail-head${category ? ` cat-${category}` : ''}`}>
-        <button type="button" className="case-detail-back" onClick={onBack} aria-label="Back">
+        <button
+          type="button"
+          className="case-detail-back"
+          onClick={onBack}
+          aria-label={t('common:actions.back')}
+        >
           <svg
             width="18"
             height="18"
@@ -65,7 +73,7 @@ export default function CaseDetailLayout({
             <path d="M19 12H5" />
             <path d="m12 19-7-7 7-7" />
           </svg>
-          <span>Back</span>
+          <span>{t('common:actions.back')}</span>
         </button>
         <div className="case-detail-bread">
           {category && serviceName && (
@@ -73,14 +81,14 @@ export default function CaseDetailLayout({
               <span className="case-detail-eyebrow-icon" aria-hidden="true">
                 <CategoryIcon id={category} size={14} />
               </span>
-              {serviceName}
+              {translateBackendName(t, serviceName)}
             </span>
           )}
           <h1 className="case-detail-title">{title}</h1>
         </div>
         {outcome && (
           <span className={`case-detail-status${isInFlight ? ' in-flight' : ' ended'}`}>
-            {outcome}
+            {translateBackendName(t, outcome)}
           </span>
         )}
       </header>

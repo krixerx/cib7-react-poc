@@ -1,0 +1,47 @@
+{
+  "intro": {
+    "readOnly": "عرض للاطلاع فقط على الطلب وقرار ضابط المرور.",
+    "edit": "مراجعة ضابط المرور. تحقّق النظام من الفحص الفني والتأمين والقيود. وافِق على الطلب لطلب سداد الرسوم، أو أعِده للتصحيح، أو ارفضه مع بيان السبب."
+  },
+  "summary": {
+    "owner": "المالك",
+    "email": "البريد الإلكتروني",
+    "civilNumber": "الرقم المدني",
+    "residencyStatus": "حالة الإقامة",
+    "registrationType": "نوع التسجيل",
+    "vehicleCategory": "فئة المركبة",
+    "chassisNumber": "رقم الهيكل (VIN)",
+    "plateRequest": "طلب اللوحة",
+    "reservedPlate": "لوحة محجوزة {{number}}",
+    "newRandomPlate": "لوحة جديدة عشوائية",
+    "technicalInspection": "الفحص الفني",
+    "insurance": "التأمين",
+    "restrictionsCleared": "خلوّ القيود",
+    "registrationFee": "رسوم التسجيل",
+    "decision": "القرار",
+    "reason": "السبب",
+    "yes": "نعم",
+    "no": "لا"
+  },
+  "decision": {
+    "returnedForCorrections": "أُعيد للتصحيح"
+  },
+  "fields": {
+    "reason": {
+      "labelSendBack": "ملاحظات إلى مقدم الطلب",
+      "labelReject": "سبب الرفض",
+      "placeholderSendBack": "وضّح لمقدم الطلب ما يلزم تصحيحه (مثال: عدم إرفاق رسالة البيع).",
+      "placeholderReject": "وضّح لمقدم الطلب سبب رفض الطلب."
+    }
+  },
+  "errors": {
+    "sendBackReasonRequired": "يرجى تزويد مقدم الطلب بملاحظات حول ما يلزم تصحيحه.",
+    "rejectionReasonRequired": "يرجى تزويد مقدم الطلب بسبب الرفض."
+  },
+  "actions": {
+    "returnForCorrections": "إعادة للتصحيح…",
+    "reject": "رفض…",
+    "confirmRejection": "تأكيد الرفض",
+    "confirmReturn": "تأكيد الإعادة"
+  }
+}

@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent, type ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { formatNumber } from '../i18n/format';
 import {
   requestUploadUrl,
   uploadToPresigned,
@@ -62,6 +65,7 @@ export default function FileUpload({
   label,
 }: Props) {
   void _category;
+  const { t } = useTranslation('components');
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,11 +108,16 @@ export default function FileUpload({
         .map((s) => s.trim())
         .includes(file.type)
     ) {
-      setError(`Unsupported file type "${file.type}". Allowed: ${accept}.`);
+      setError(t('fileUpload.errors.unsupportedType', { type: file.type, allowed: accept }));
       return;
     }
     if (file.size > maxBytes) {
-      setError(`File too large (${formatBytes(file.size)}). Maximum is ${formatBytes(maxBytes)}.`);
+      setError(
+        t('fileUpload.errors.tooLarge', {
+          size: formatBytes(t, file.size),
+          max: formatBytes(t, maxBytes),
+        }),
+      );
       return;
     }
     setProgress(0);
@@ -159,27 +168,27 @@ export default function FileUpload({
       <div className="file-upload-attached">
         <div className="file-upload-chip">
           <span className="file-upload-chip-name">{value.filename}</span>
-          <span className="file-upload-chip-size">{formatBytes(value.size)}</span>
+          <span className="file-upload-chip-size">{formatBytes(t, value.size)}</span>
         </div>
         {!disabled && (
           <div className="file-upload-actions">
             {value.attachmentId && (
               <button type="button" className="btn btn-link" onClick={handleDownload}>
-                Download
+                {t('common:actions.download')}
               </button>
             )}
             <button type="button" className="btn btn-link" onClick={pickFile}>
-              Replace
+              {t('fileUpload.replace')}
             </button>
             <button type="button" className="btn btn-link" onClick={handleRemove}>
-              Remove
+              {t('common:actions.remove')}
             </button>
           </div>
         )}
         {disabled && value.attachmentId && (
           <div className="file-upload-actions">
             <button type="button" className="btn btn-link" onClick={handleDownload}>
-              Download
+              {t('common:actions.download')}
             </button>
           </div>
         )}
@@ -217,11 +226,13 @@ export default function FileUpload({
         {progress === null ? (
           <>
             <div className="file-upload-title">
-              {label ?? 'Drop a file here, or click to choose'}
+              {label ?? t('fileUpload.dropTitle')}
             </div>
             <div className="file-upload-hint">
-              {accept.replace(/application\//g, '').replace(/image\//g, '')} &middot; up to{' '}
-              {formatBytes(maxBytes)}
+              {t('fileUpload.hint', {
+                types: accept.replace(/application\//g, '').replace(/image\//g, ''),
+                max: formatBytes(t, maxBytes),
+              })}
             </div>
           </>
         ) : (
@@ -232,7 +243,9 @@ export default function FileUpload({
                 style={{ width: `${Math.round(progress * 100)}%` }}
               />
             </div>
-            <div className="file-upload-hint">Uploading… {Math.round(progress * 100)}%</div>
+            <div className="file-upload-hint">
+              {t('fileUpload.uploading', { percent: Math.round(progress * 100) })}
+            </div>
           </div>
         )}
       </div>
@@ -248,8 +261,11 @@ export default function FileUpload({
   );
 }
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} kB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+function formatBytes(t: TFunction, n: number): string {
+  const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  if (n < 1024) return t('fileUpload.size.bytes', { value: formatNumber(n) });
+  if (n < 1024 * 1024) {
+    return t('fileUpload.size.kilobytes', { value: formatNumber(n / 1024, oneDecimal) });
+  }
+  return t('fileUpload.size.megabytes', { value: formatNumber(n / 1024 / 1024, oneDecimal) });
 }

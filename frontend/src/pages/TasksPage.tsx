@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { listWorklist, setJobRetries, type Incident, type WorklistRow } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
+import { formatDate, formatDateTime, formatNumber } from '../i18n/format';
+import { translateBackendName } from '../i18n/backendNames';
 import TaskDetailView from './TaskDetailView';
 import ProcessHistoryView from './ProcessHistoryView';
 
@@ -23,12 +27,10 @@ import ProcessHistoryView from './ProcessHistoryView';
 
 type StatusFilter = WorklistRow['status']; // 'pending' | 'incident' | 'confirmed' | 'rejected'
 
-const STATUS_LABEL: Record<StatusFilter, string> = {
-  pending: 'Pending',
-  incident: 'Incident',
-  confirmed: 'Confirmed',
-  rejected: 'Rejected',
-};
+/** Display label for a decision-state; the raw value keeps driving filter matching. */
+function statusLabel(t: TFunction, status: StatusFilter): string {
+  return t(`common:status.${status}`);
+}
 
 const STATUS_ORDER: StatusFilter[] = ['pending', 'incident', 'confirmed', 'rejected'];
 
@@ -47,25 +49,24 @@ function avatarTone(seed: string): number {
   return Math.abs(h) % 6;
 }
 
-/** "Jun 5, 14:22" — short, locale-light, no year unless older than this year. */
+/** "Jun 5, 14:22" — short, locale-aware, no year unless older than this year. */
 function shortDate(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const sameYear = d.getFullYear() === now.getFullYear();
-  const opts: Intl.DateTimeFormatOptions = sameYear
-    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-    : { year: 'numeric', month: 'short', day: 'numeric' };
-  return d.toLocaleString(undefined, opts);
+  return sameYear
+    ? formatDateTime(d, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : formatDate(d, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 /** "3d", "5h", "12m" — coarse age for a small badge. */
-function ageBadge(iso: string): string {
+function ageBadge(t: TFunction, iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(ms / 60_000);
-  if (minutes < 60) return `${Math.max(minutes, 1)}m`;
+  if (minutes < 60) return t('list.age.minutes', { value: Math.max(minutes, 1) });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) return t('list.age.hours', { value: hours });
+  return t('list.age.days', { value: Math.floor(hours / 24) });
 }
 
 function shortCaseId(processInstanceId: string): string {
@@ -73,6 +74,7 @@ function shortCaseId(processInstanceId: string): string {
 }
 
 export default function TasksPage() {
+  const { t } = useTranslation('tasks');
   const { username } = useAuth();
   const [params, setParams] = useSearchParams();
   const selectedCaseId = params.get('case');
@@ -216,23 +218,26 @@ export default function TasksPage() {
     <div className="worklist">
       <aside className="worklist-list">
         <div className="worklist-list-head">
-          <span className="worklist-list-title">Process list</span>
+          <span className="worklist-list-title">{t('list.title')}</span>
           <span className={`worklist-list-count${loading ? ' refreshing' : ''}`} aria-live="polite">
             {loading
               ? rows.length > 0
-                ? 'Refreshing…'
-                : 'Loading…'
+                ? t('list.refreshing')
+                : t('common:feedback.loading')
               : filtersActive
-                ? `${filteredRows.length} of ${rows.length}`
-                : `${rows.length}`}
+                ? t('list.countFiltered', {
+                    shown: formatNumber(filteredRows.length),
+                    total: formatNumber(rows.length),
+                  })
+                : formatNumber(rows.length)}
           </span>
           <button
             type="button"
             className="worklist-refresh"
             onClick={() => load()}
             disabled={loading}
-            title="Refresh list"
-            aria-label="Refresh list"
+            title={t('list.refresh')}
+            aria-label={t('list.refresh')}
           >
             <svg
               width="14"
@@ -250,7 +255,7 @@ export default function TasksPage() {
             </svg>
           </button>
           <span className="scope-toggle">
-            <span id="my-cases-label">My cases</span>
+            <span id="my-cases-label">{t('filters.myCases')}</span>
             <span
               className={`scope-switch${myCasesOnly ? ' on' : ''}`}
               role="switch"
@@ -271,15 +276,15 @@ export default function TasksPage() {
         <div className="worklist-filters" ref={filtersRef}>
           <div className="filter-row">
             <FilterPill
-              label="Service"
-              values={Array.from(serviceFilter).map(
-                (k) => services.find((s) => s.key === k)?.name ?? k,
+              label={t('filters.service')}
+              values={Array.from(serviceFilter).map((k) =>
+                translateBackendName(t, services.find((s) => s.key === k)?.name ?? k),
               )}
               open={openMenu === 'service'}
               onToggle={() => setOpenMenu(openMenu === 'service' ? null : 'service')}
             >
               {services.length === 0 ? (
-                <div className="dd-empty">No services in view yet.</div>
+                <div className="dd-empty">{t('filters.noServices')}</div>
               ) : (
                 services.map((s) => (
                   <DropdownItem
@@ -287,36 +292,38 @@ export default function TasksPage() {
                     checked={serviceFilter.has(s.key)}
                     onToggle={() => toggleSet(serviceFilter, s.key, setServiceFilter)}
                   >
-                    {s.name}
+                    {translateBackendName(t, s.name)}
                   </DropdownItem>
                 ))
               )}
             </FilterPill>
 
             <FilterPill
-              label="Task"
-              values={Array.from(taskFilter).map((k) => tasks.find((t) => t.key === k)?.name ?? k)}
+              label={t('filters.task')}
+              values={Array.from(taskFilter).map((k) =>
+                translateBackendName(t, tasks.find((tk) => tk.key === k)?.name ?? k),
+              )}
               open={openMenu === 'task'}
               onToggle={() => setOpenMenu(openMenu === 'task' ? null : 'task')}
             >
               {tasks.length === 0 ? (
-                <div className="dd-empty">No active tasks in view.</div>
+                <div className="dd-empty">{t('filters.noTasks')}</div>
               ) : (
-                tasks.map((t) => (
+                tasks.map((tk) => (
                   <DropdownItem
-                    key={t.key}
-                    checked={taskFilter.has(t.key)}
-                    onToggle={() => toggleSet(taskFilter, t.key, setTaskFilter)}
+                    key={tk.key}
+                    checked={taskFilter.has(tk.key)}
+                    onToggle={() => toggleSet(taskFilter, tk.key, setTaskFilter)}
                   >
-                    {t.name}
+                    {translateBackendName(t, tk.name)}
                   </DropdownItem>
                 ))
               )}
             </FilterPill>
 
             <FilterPill
-              label="Status"
-              values={Array.from(statusFilter).map((s) => STATUS_LABEL[s])}
+              label={t('filters.status')}
+              values={Array.from(statusFilter).map((s) => statusLabel(t, s))}
               open={openMenu === 'status'}
               onToggle={() => setOpenMenu(openMenu === 'status' ? null : 'status')}
             >
@@ -327,7 +334,7 @@ export default function TasksPage() {
                   onToggle={() => toggleSet(statusFilter, s, setStatusFilter)}
                 >
                   <span className={`status-dot status-dot-${s}`} aria-hidden="true" />
-                  {STATUS_LABEL[s]}
+                  {statusLabel(t, s)}
                 </DropdownItem>
               ))}
             </FilterPill>
@@ -338,7 +345,7 @@ export default function TasksPage() {
               onClick={resetFilters}
               disabled={!filtersActive}
             >
-              Reset
+              {t('filters.reset')}
             </button>
           </div>
 
@@ -346,7 +353,7 @@ export default function TasksPage() {
             <SearchIcon />
             <input
               type="search"
-              placeholder="Search by applicant name…"
+              placeholder={t('filters.searchPlaceholder')}
               value={applicantQuery}
               onChange={(e) => setApplicantQuery(e.target.value)}
             />
@@ -354,8 +361,8 @@ export default function TasksPage() {
         </div>
 
         <div className="worklist-sort-line">
-          Newest first
-          <span className="worklist-sort-pill">Date submitted ↓</span>
+          {t('list.newestFirst')}
+          <span className="worklist-sort-pill">{t('list.sortPill')}</span>
         </div>
 
         {error && <p className="form-error worklist-error">{error}</p>}
@@ -363,7 +370,7 @@ export default function TasksPage() {
         <ul className="worklist-rows">
           {!loading && filteredRows.length === 0 && (
             <li className="empty worklist-empty">
-              {rows.length === 0 ? 'No processes yet.' : 'No cases match the current filters.'}
+              {rows.length === 0 ? t('empty.noProcesses') : t('empty.noMatches')}
             </li>
           )}
           {filteredRows.map((r) => (
@@ -384,33 +391,36 @@ export default function TasksPage() {
                 </span>
                 <span className="worklist-meta">
                   <span className="worklist-name">
-                    {r.applicantName || r.startUserId || '(no name)'}
+                    {r.applicantName || r.startUserId || t('list.noName')}
                   </span>
                   <span className="worklist-service">
-                    {r.serviceName}
+                    {translateBackendName(t, r.serviceName)}
                     {r.currentTask && (
                       <>
                         <span className="worklist-step-sep">·</span>
-                        {r.currentTask.name}
+                        {translateBackendName(t, r.currentTask.name)}
                       </>
                     )}
                     {!r.currentTask && r.waitingOn && (
                       <>
                         <span className="worklist-step-sep">·</span>
-                        <span className="worklist-waiting">⏳ {r.waitingOn.name}</span>
+                        <span className="worklist-waiting">
+                          ⏳ {translateBackendName(t, r.waitingOn.name)}
+                        </span>
                       </>
                     )}
                   </span>
                   <span className="worklist-date">
-                    CASE-{shortCaseId(r.processInstanceId)} · {shortDate(r.startTime)}
+                    {t('list.caseRef', { id: shortCaseId(r.processInstanceId) })} ·{' '}
+                    {shortDate(r.startTime)}
                   </span>
                 </span>
                 <span className="worklist-right">
                   <span className={`status-tag status-${r.status}`}>
                     <span className="status-dot" aria-hidden="true" />
-                    {STATUS_LABEL[r.status]}
+                    {statusLabel(t, r.status)}
                   </span>
-                  <span className="worklist-age">{ageBadge(r.startTime)}</span>
+                  <span className="worklist-age">{ageBadge(t, r.startTime)}</span>
                 </span>
               </button>
             </li>
@@ -421,18 +431,16 @@ export default function TasksPage() {
       <main className="worklist-detail">
         {!selected && (
           <div className="card worklist-empty-state">
-            <h1 className="card-title">Pick a case from the left</h1>
-            <p className="muted">
-              {filteredRows.length} {filteredRows.length === 1 ? 'case' : 'cases'} in view. Filter
-              by service, task or status, or search by applicant name. Pick one to open its form
-              here.
-            </p>
+            <h1 className="card-title">{t('empty.pickTitle')}</h1>
+            <p className="muted">{t('empty.pickBody', { count: filteredRows.length })}</p>
           </div>
         )}
 
         {selected && selected.incidents.length > 0 && (
           <IncidentBlock
-            applicantName={selected.applicantName || selected.startUserId || 'Case'}
+            applicantName={
+              selected.applicantName || selected.startUserId || t('incidents.caseFallback')
+            }
             serviceName={selected.serviceName}
             caseShortId={shortCaseId(selected.processInstanceId)}
             incidents={selected.incidents}
@@ -447,7 +455,7 @@ export default function TasksPage() {
             processInstanceId={selected.processInstanceId}
             topSlot={
               <button className="btn" onClick={clearCase}>
-                Close
+                {t('common:actions.close')}
               </button>
             }
           />
@@ -462,7 +470,7 @@ export default function TasksPage() {
             }}
             topSlot={
               <button className="btn" onClick={clearCase}>
-                Close
+                {t('common:actions.close')}
               </button>
             }
           />
@@ -489,13 +497,14 @@ interface FilterPillProps {
 }
 
 function FilterPill({ label, values, open, onToggle, children }: FilterPillProps) {
+  const { t } = useTranslation('tasks');
   const active = values.length > 0;
   const summary =
     values.length === 0
-      ? 'All'
+      ? t('filters.all')
       : values.length <= 2
         ? values.join(', ')
-        : `${values[0]} +${values.length - 1}`;
+        : t('filters.moreSummary', { first: values[0], more: values.length - 1 });
   return (
     <div className={`filter-pill-wrap${open ? ' open' : ''}`}>
       <button
@@ -611,6 +620,7 @@ function IncidentBlock({
   onRetry,
   onClose,
 }: IncidentBlockProps) {
+  const { t } = useTranslation('tasks');
   return (
     <div className="card card-incident">
       <div className="card-head">
@@ -621,14 +631,14 @@ function IncidentBlock({
           {applicantName}
         </h1>
         <button className="btn" onClick={onClose}>
-          Close
+          {t('common:actions.close')}
         </button>
       </div>
       <p className="muted">
-        {serviceName} · CASE-{caseShortId} ·{' '}
+        {translateBackendName(t, serviceName)} · {t('list.caseRef', { id: caseShortId })} ·{' '}
         <span className="status-tag status-incident">
           <span className="status-dot" aria-hidden="true" />
-          {incidents.length === 1 ? '1 open incident' : `${incidents.length} open incidents`}
+          {t('incidents.openCount', { count: incidents.length })}
         </span>
       </p>
 
@@ -639,20 +649,20 @@ function IncidentBlock({
           return (
             <li key={inc.id} className="incident">
               <div className="incident-head">
-                <span className="row-title">{inc.activityId ?? '(process scope)'}</span>
+                <span className="row-title">{inc.activityId ?? t('incidents.processScope')}</span>
                 <span className="row-sub">
                   {inc.incidentType} <span className="muted">·</span>{' '}
-                  {new Date(inc.incidentTimestamp).toLocaleString()}
+                  {formatDateTime(inc.incidentTimestamp)}
                 </span>
               </div>
               {inc.incidentMessage && <p className="incident-message">{inc.incidentMessage}</p>}
               <div className="incident-actions">
                 {canRetry ? (
                   <button className="btn btn-primary" onClick={() => onRetry(inc)} disabled={busy}>
-                    {busy ? 'Retrying…' : 'Retry'}
+                    {busy ? t('incidents.retrying') : t('common:actions.retry')}
                   </button>
                 ) : (
-                  <span className="muted">No retry available for this incident type.</span>
+                  <span className="muted">{t('incidents.noRetry')}</span>
                 )}
               </div>
             </li>
