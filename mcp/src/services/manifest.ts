@@ -128,7 +128,7 @@ export function loadManifests(): Map<string, CompiledManifest> {
   try {
     entries = readdirSync(SERVICES_SPEC_DIR)
   } catch (e) {
-    // eslint-disable-next-line no-console
+     
     console.warn(
       `manifest loader: SERVICES_SPEC_DIR (${SERVICES_SPEC_DIR}) not readable; starting with empty registry (${(e as Error).message})`,
     )
@@ -148,7 +148,7 @@ export function loadManifests(): Map<string, CompiledManifest> {
         }
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
+       
       console.error(`manifest loader: failed to load ${path}: ${(e as Error).message}`)
     }
   }

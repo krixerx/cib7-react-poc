@@ -172,7 +172,7 @@ export function nextSteps(graph: FlowGraph, fromActivityId: string, limit = 5): 
   while (current && steps.length < limit && hops < 60) {
     hops += 1;
 
-    let targets: string[] | undefined = graph.outgoing.get(current);
+    const targets: string[] | undefined = graph.outgoing.get(current);
     if (!targets || targets.length === 0) {
       // Dead end — if we're inside a subprocess (inner end event), continue
       // from the subprocess element itself; otherwise we're done.

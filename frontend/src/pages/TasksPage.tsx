@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   listWorklist,
@@ -95,6 +95,27 @@ export default function TasksPage() {
 
   // Open-dropdown state — only one panel open at a time.
   const [openMenu, setOpenMenu] = useState<'service' | 'task' | 'status' | null>(null);
+
+  // Close the open filter menu on any click outside the filters block, or on
+  // Escape. Document-level so clicks in the detail pane dismiss it too.
+  const filtersRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (openMenu === null) return;
+    function onPointerDown(e: PointerEvent) {
+      if (filtersRef.current && !filtersRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpenMenu(null);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [openMenu]);
 
   // Incident retry: track which job-id is mid-flight so the button can show a busy state.
   const [busyIncidentId, setBusyIncidentId] = useState<string | null>(null);
@@ -207,7 +228,7 @@ export default function TasksPage() {
 
   return (
     <div className="worklist">
-      <aside className="worklist-list" onClick={() => setOpenMenu(null)}>
+      <aside className="worklist-list">
         <div className="worklist-list-head">
           <span className="worklist-list-title">Process list</span>
           <span
@@ -225,10 +246,7 @@ export default function TasksPage() {
           <button
             type="button"
             className="worklist-refresh"
-            onClick={(e) => {
-              e.stopPropagation();
-              load();
-            }}
+            onClick={() => load()}
             disabled={loading}
             title="Refresh list"
             aria-label="Refresh list"
@@ -238,15 +256,13 @@ export default function TasksPage() {
               <path d="M21 3v6h-6" />
             </svg>
           </button>
-          <label
-            className="scope-toggle"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span>My cases</span>
+          <span className="scope-toggle">
+            <span id="my-cases-label">My cases</span>
             <span
               className={`scope-switch${myCasesOnly ? ' on' : ''}`}
               role="switch"
               aria-checked={myCasesOnly}
+              aria-labelledby="my-cases-label"
               tabIndex={0}
               onClick={() => setMyCasesOnly((v) => !v)}
               onKeyDown={(e) => {
@@ -256,13 +272,10 @@ export default function TasksPage() {
                 }
               }}
             />
-          </label>
+          </span>
         </div>
 
-        <div
-          className="worklist-filters"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="worklist-filters" ref={filtersRef}>
           <div className="filter-row">
             <FilterPill
               label="Service"

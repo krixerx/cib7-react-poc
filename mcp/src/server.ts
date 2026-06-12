@@ -26,7 +26,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { engineRequest, businessRequest, engineBaseUrl } from './engine/client.js'
-import { toCamundaVariables } from './engine/variables.js'
+import { toCamundaVariables, type JsonSchema } from './engine/variables.js'
 import { decodeBearerUsername } from './auth/identity.js'
 import { verifyBearer } from './auth/verify.js'
 import { adminRequest } from './keycloak/admin.js'
@@ -174,6 +174,8 @@ interface HistoricVariableInstance {
 // -------------------------------------------------------------------------
 
 interface ToolResult {
+  // Index signature keeps this assignable to the MCP SDK's ServerResult union.
+  [key: string]: unknown
   content: { type: 'text'; text: string }[]
   isError?: boolean
 }
@@ -294,10 +296,7 @@ async function handleStartProcess(args: unknown): Promise<ToolResult> {
   }
 
   const entry = getManifest(a.key)!
-  const camundaVars = toCamundaVariables(validated.data, entry.manifest.variables as {
-    type?: string
-    properties?: Record<string, unknown>
-  })
+  const camundaVars = toCamundaVariables(validated.data, entry.manifest.variables as JsonSchema)
 
   const result = await engineRequest<StartProcessResponse>(
     `/engine-rest/process-definition/key/${encodeURIComponent(a.key)}/start`,
@@ -569,10 +568,7 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
 
   const camundaVars = toCamundaVariables(
     validated.data,
-    validated.task.descriptor.schema as {
-      type?: string
-      properties?: Record<string, unknown>
-    },
+    validated.task.descriptor.schema as JsonSchema,
   )
 
   // Auto-claim unassigned candidate-group tasks. The engine refuses
@@ -1190,7 +1186,7 @@ app.all('/mcp', requireBearer, async (req, res) => {
       await transport.handleRequest(req, res, req.body)
     })
   } catch (err) {
-    // eslint-disable-next-line no-console
+     
     console.error('[/mcp] handler error:', err)
     if (!res.headersSent) {
       res.status(500).json({
@@ -1203,7 +1199,7 @@ app.all('/mcp', requireBearer, async (req, res) => {
 
 app.listen(PORT, () => {
   const loaded = listManifests().map((e) => e.manifest.key)
-  // eslint-disable-next-line no-console
+   
   console.log(
     `cib7-mcp listening on :${PORT}\n  resource:        ${RESOURCE_URL}\n  auth server:     ${KEYCLOAK_ISSUER}\n  engine:          ${engineBaseUrl()}\n  metadata:        /.well-known/oauth-protected-resource\n  mcp endpoint:    /mcp\n  manifests:       ${loaded.length > 0 ? loaded.join(', ') : '(none — start_process / complete_task will fail)'}`,
   )

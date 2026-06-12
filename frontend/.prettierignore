@@ -1,0 +1,5 @@
+dist/
+node_modules/
+package-lock.json
+# Rewritten at container start by docker/40-runtime-env.sh
+public/env.js

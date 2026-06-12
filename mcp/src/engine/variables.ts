@@ -4,7 +4,7 @@
 // engine types (Integer vs Double, Json vs String) that aren't always
 // recoverable from runtime values alone.
 
-interface JsonSchema {
+export interface JsonSchema {
   type?: string
   properties?: Record<string, JsonSchema>
 }
