@@ -38,7 +38,7 @@ export function useAuth(): AuthContextValue {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { t } = useTranslation('components');
+  const { t, i18n } = useTranslation('components');
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,11 +93,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // civil servant — admins (Homer) carry both roles in dev seeds.
   const isApplicant = realmRoles.includes('applicant') && !isCivilServant;
 
+  // Carry the SPA's chosen language into Keycloak. keycloak-js maps `locale`
+  // to the OIDC `ui_locales` auth param, so the login/register pages render in
+  // the same language the user picked here (EN/AR) — provided the realm lists
+  // it in supportedLocales. Without this the login window always falls back to
+  // the realm default (English).
+  const uiLocale = i18n.resolvedLanguage ?? i18n.language;
   const login = () => {
-    keycloak.login({ redirectUri: window.location.href });
+    keycloak.login({ redirectUri: window.location.href, locale: uiLocale });
   };
   const register = () => {
-    keycloak.register({ redirectUri: window.location.href });
+    keycloak.register({ redirectUri: window.location.href, locale: uiLocale });
   };
   const logout = () => {
     keycloak.logout({ redirectUri: window.location.origin });
