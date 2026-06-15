@@ -490,12 +490,13 @@ silently.
 
 ## Maven and JDK
 
-### JDK 17
+### JDK 21
 
-CIB seven 2.1 + Spring Boot 3.5 require **JDK 17**. The default `java` on the
-developer's PATH may be JDK 11 — set `JAVA_HOME` to a JDK 17 before running
-Maven. The Docker build uses an `eclipse-temurin:17` base image so it does not
-depend on the host JDK.
+CIB seven + Spring Boot 3.5 build on **JDK 21** (the minimum is 17, but the
+project targets 21 to match CIB seven's own published Docker images). The
+default `java` on the developer's PATH may be JDK 11 — set `JAVA_HOME` to a
+JDK 21 before running Maven. The Docker build uses an `eclipse-temurin:21` base
+image so it does not depend on the host JDK.
 
 ### Dependencies
 

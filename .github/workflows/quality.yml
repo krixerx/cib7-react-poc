@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: maven
       # `verify` runs spotless:check and the test phase for the module.
       - run: mvn -B -f ${{ matrix.module }}/pom.xml verify
