@@ -258,6 +258,11 @@ services:
       - "8180:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # Custom login theme (cib7) — branded to match the React SPA. start-dev
+      # disables theme caching, so edits under keycloak/themes are picked up on
+      # the next browser refresh without restarting the container. The realm's
+      # loginTheme attribute (realm-export.json) selects it.
+      - ./keycloak/themes:/opt/keycloak/themes:ro
     # KC_HEALTH_ENABLED=true exposes /health/* on the management port (9000
     # in Keycloak 26+). A bash TCP probe is enough: once port 9000 is
     # listening, the server has finished its early init and the realm

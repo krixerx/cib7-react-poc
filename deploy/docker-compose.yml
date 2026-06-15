@@ -121,6 +121,10 @@ services:
       - "8180:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # Branded login theme (cib7), selected via the realm loginTheme attribute.
+      # Shipped as files in this bundle rather than baked into the image so it
+      # stays editable without a rebuild.
+      - ./keycloak/themes:/opt/keycloak/themes:ro
     healthcheck:
       # Management port 9000 listening == server init + realm import started.
       # The engine waits on this; without it the engine races Keycloak on

@@ -2,6 +2,7 @@
   "realm": "cib7-poc",
   "enabled": true,
   "displayName": "CIB seven POC",
+  "loginTheme": "cib7",
   "sslRequired": "none",
   "registrationAllowed": true,
   "registrationEmailAsUsername": false,

@@ -1,0 +1,317 @@
+/*
+ * CIB seven login theme — re-skins the stock keycloak login pages to match the
+ * React SPA (frontend/src/styles.css). Loaded AFTER the parent theme's
+ * css/login.css (see theme.properties `styles`), so these rules win the cascade.
+ *
+ * PatternFly (the parent's framework) ships high-specificity rules and inline
+ * underline-style inputs, so a handful of overrides use !important deliberately
+ * — flagged inline where they do.
+ *
+ * Design tokens copied verbatim from frontend/src/styles.css :root.
+ */
+:root {
+  --bg: #f4f6f5;
+  --surface: #ffffff;
+  --border: #e2e7e5;
+  --text: #182420;
+  --muted: #5f6f68;
+  --primary: #005c4c;
+  --primary-hover: #00493c;
+  --primary-soft: #e7f3ef;
+  --primary-soft-border: #b9dccf;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --font: 'Inter', 'Noto Sans Arabic', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ---- page canvas ----------------------------------------------------- */
+/* Parent login.css paints a dark background image on `.login-pf body`; replace
+   it with the app's soft sage canvas + a faint teal glow up top. */
+html.login-pf,
+html.login-pf body {
+  background: radial-gradient(1100px 520px at 50% -8%, var(--primary-soft) 0%, var(--bg) 55%) fixed !important;
+  color: var(--text);
+}
+
+body,
+input,
+button,
+select,
+textarea,
+.pf-c-form-control,
+.pf-c-button {
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+[dir='rtl'] body {
+  font-family: 'Noto Sans Arabic', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Stack header + card, centered in the viewport. */
+.login-pf-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+/* ---- branded header (template.ftl #kc-header) ------------------------ */
+#kc-header {
+  width: 100%;
+  max-width: 420px;
+}
+
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  /* Parent renders the realm name here in white-on-dark; neutralize that. */
+  color: var(--text) !important;
+  text-shadow: none !important;
+  font-size: 0;
+  padding: 0 0 22px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.cib7-logo {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+}
+
+.cib7-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  text-align: start;
+}
+
+.cib7-brand-name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.cib7-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- card ------------------------------------------------------------ */
+.login-pf-page .card-pf {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border); /* parent adds a thick accent top border */
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(10, 34, 28, 0.08), 0 2px 6px rgba(16, 24, 40, 0.04);
+}
+
+.login-pf-header {
+  margin-bottom: 18px;
+}
+
+#kc-page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ---- form fields ----------------------------------------------------- */
+.pf-c-form__label,
+.pf-c-form__label-text,
+#kc-form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* PatternFly draws inputs as a bottom-underline; force a full boxed control. */
+.pf-c-form-control,
+input.pf-c-form-control,
+input[type='text'],
+input[type='password'],
+input[type='email'],
+input[type='number'],
+textarea.pf-c-form-control,
+select.pf-c-form-control {
+  width: 100%;
+  height: auto;
+  padding: 10px 12px;
+  font-size: 15px;
+  color: var(--text);
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.pf-c-form-control:focus,
+input.pf-c-form-control:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-soft) !important;
+  outline: none;
+}
+
+.pf-c-form-control::placeholder {
+  color: #9aa8a2;
+}
+
+.form-group + .form-group,
+.pf-c-form__group + .pf-c-form__group {
+  margin-top: 14px;
+}
+
+/* Password show/hide button sitting in the input-group. */
+.pf-c-input-group .pf-c-button.pf-m-control {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  border-inline-start: none !important;
+  color: var(--muted) !important;
+  border-start-end-radius: 10px;
+  border-end-end-radius: 10px;
+}
+
+/* ---- buttons --------------------------------------------------------- */
+.pf-c-button.pf-m-primary,
+input[type='submit'].pf-m-primary,
+#kc-login {
+  background: var(--primary) !important;
+  border: none !important;
+  border-radius: 10px;
+  color: #fff !important;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 11px 16px;
+  box-shadow: none;
+  transition: background 0.15s ease;
+}
+
+.pf-c-button.pf-m-primary:hover,
+#kc-login:hover {
+  background: var(--primary-hover) !important;
+}
+
+.pf-c-button.pf-m-block {
+  width: 100%;
+}
+
+/* Secondary / default buttons (e.g. Cancel) — quiet outline style. */
+.pf-c-button.pf-m-secondary,
+.pf-c-button.btn-default {
+  background: #fff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.pf-c-button.pf-m-secondary:hover,
+.pf-c-button.btn-default:hover {
+  background: var(--bg) !important;
+}
+
+/* ---- links, options, info ------------------------------------------- */
+a,
+#kc-registration a,
+#kc-info a,
+#reset-login,
+.login-pf-signup a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+a:hover,
+#kc-info a:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+#kc-form-options,
+#kc-form-options label,
+.pf-c-check__label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#kc-form-buttons {
+  margin-top: 20px;
+}
+
+/* "New user? Register" / "Back to login" footer line. */
+#kc-info,
+#kc-registration {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+#kc-registration-container {
+  text-align: center;
+}
+
+/* ---- alerts ---------------------------------------------------------- */
+.pf-c-alert {
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.alert-error .pf-c-alert__title,
+.alert-error .kc-feedback-text {
+  color: var(--danger);
+}
+
+/* ---- locale dropdown (only shown if realm i18n enabled) -------------- */
+#kc-locale {
+  position: absolute;
+  inset-block-start: 18px;
+  inset-inline-end: 18px;
+}
+
+#kc-current-locale-link {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+#kc-locale .pf-c-dropdown__menu {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
