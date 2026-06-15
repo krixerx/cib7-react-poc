@@ -262,6 +262,26 @@ a:hover,
   font-size: 14px;
 }
 
+/* Remember-me: the inherited .checkbox uses Bootstrap's absolute-positioned
+   input + physical padding-left, which reads cramped and breaks in RTL (the
+   padding lands on the wrong side). Drop the positioning and lay the box +
+   label out with a direction-agnostic flex gap so spacing is correct in EN
+   and AR alike. */
+#kc-form-options .checkbox label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 0;
+  padding-inline-start: 0;
+}
+
+#kc-form-options .checkbox input[type='checkbox'],
+#rememberMe {
+  position: static;
+  margin: 0;
+  flex: none;
+}
+
 #kc-form-buttons {
   margin-top: 20px;
 }
