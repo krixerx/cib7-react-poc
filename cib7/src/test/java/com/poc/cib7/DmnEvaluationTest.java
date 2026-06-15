@@ -34,8 +34,11 @@ class DmnEvaluationTest {
   @BeforeAll
   static void parseDecisions() {
     dmnEngine = DmnEngineConfiguration.createDefaultDmnEngineConfiguration().buildEngine();
-    vehicleDecision = parse("processes/vehicle-registration/vehicle-auto-approval.dmn", "vehicle-auto-approval");
-    businessDecision = parse("processes/business-registration/business-auto-approval.dmn", "business-auto-approval");
+    vehicleDecision =
+        parse("processes/vehicle-registration/vehicle-auto-approval.dmn", "vehicle-auto-approval");
+    businessDecision =
+        parse(
+            "processes/business-registration/business-auto-approval.dmn", "business-auto-approval");
   }
 
   private static DmnDecision parse(String resource, String decisionKey) {

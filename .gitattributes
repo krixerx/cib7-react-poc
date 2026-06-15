@@ -2,3 +2,8 @@
 # breaks the shebang (`/bin/sh\r: not found`). Force LF everywhere,
 # regardless of core.autocrlf on the contributor's machine.
 *.sh text eol=lf
+
+# Spotless (google-java-format) runs on Linux CI and enforces LF. Windows
+# contributors with core.autocrlf=true can otherwise commit CRLF blobs that
+# pass locally but fail `spotless:check` in CI. Force LF for all Java.
+*.java text eol=lf

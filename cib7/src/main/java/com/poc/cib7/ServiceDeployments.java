@@ -31,9 +31,9 @@ import org.springframework.stereotype.Component;
  *       without touching the others — matching the spec-first premise that the analyst's service
  *       folder is the unit of change.
  *   <li><b>{@code decisionRefBinding="deployment"} works correctly.</b> Business rule tasks bind to
- *       the decision table that shipped in the SAME deployment as the process, so an in-flight
- *       case never silently picks up a newer DMN. That binding requires the service-scoped
- *       grouping this class creates.
+ *       the decision table that shipped in the SAME deployment as the process, so an in-flight case
+ *       never silently picks up a newer DMN. That binding requires the service-scoped grouping this
+ *       class creates.
  * </ul>
  *
  * <p>The folder name (= the spec folder name under {@code docs/business/services/}) becomes the
