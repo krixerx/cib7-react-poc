@@ -16,11 +16,16 @@
   <version>0.1.0</version>
   <packaging>jar</packaging>
   <name>cib7-react-poc-cib7</name>
-  <description>CIB seven 2.1 process engine module for the React human-tasks POC</description>
+  <description>CIB seven 2.2 process engine module for the React human-tasks POC</description>
 
   <properties>
     <java.version>21</java.version>
-    <cibseven.version>2.1.0</cibseven.version>
+    <cibseven.version>2.2.0</cibseven.version>
+    <!-- The Keycloak identity-provider extension has no 2.2.0 release (latest
+         is 2.1.0, built against Spring Framework 6.2 = the Boot 3.5 line, which
+         is exactly what this module runs). It rides its own version property so
+         the engine can move to 2.2.0 independently. -->
+    <cibseven.keycloak.version>2.1.0</cibseven.keycloak.version>
   </properties>
 
   <dependencies>
@@ -113,12 +118,12 @@
          ReadOnlyIdentityProvider that queries Keycloak's Admin REST API
          for users and groups. Engine then knows who the authenticated
          caller is and which groups they belong to, so candidateGroups
-         on user tasks are actually enforced. Plugin version is aligned
-         with CIB seven 2.1. -->
+         on user tasks are actually enforced. Pinned to 2.1.0 (its latest);
+         see cibseven.keycloak.version above for why it lags the engine. -->
     <dependency>
       <groupId>org.cibseven.bpm.extension</groupId>
       <artifactId>cibseven-keycloak</artifactId>
-      <version>${cibseven.version}</version>
+      <version>${cibseven.keycloak.version}</version>
     </dependency>
 
     <!-- Spring Security + OAuth2 resource server: validates incoming
