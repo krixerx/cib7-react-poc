@@ -36,10 +36,7 @@ public class RopClearanceController {
         .map(
             c ->
                 new VehicleClearanceResponse(
-                    c.getVin(),
-                    c.isInspectionPassed(),
-                    c.isInsured(),
-                    c.isRestrictionsCleared()))
+                    c.getVin(), c.isInspectionPassed(), c.isInsured(), c.isRestrictionsCleared()))
         .orElseGet(() -> new VehicleClearanceResponse(vin.toUpperCase(), true, true, true));
   }
 

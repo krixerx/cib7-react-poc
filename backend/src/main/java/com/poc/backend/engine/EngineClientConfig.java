@@ -32,8 +32,8 @@ import org.springframework.web.client.RestClient;
 public class EngineClientConfig {
 
   /**
-   * Constant principal for the client-credentials token cache. The engine client always acts as
-   * the {@code cib7-business} service account, never as the inbound caller — and the default
+   * Constant principal for the client-credentials token cache. The engine client always acts as the
+   * {@code cib7-business} service account, never as the inbound caller — and the default
    * SecurityContext-based resolver crashes with "principalName cannot be empty" when the inbound
    * request is authenticated by the documents JWT chain (the resolved authentication carries no
    * usable name for the authorized-client store).

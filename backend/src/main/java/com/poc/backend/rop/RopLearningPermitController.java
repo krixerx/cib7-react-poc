@@ -39,8 +39,7 @@ public class RopLearningPermitController {
 
     Instant now = Instant.now();
     LocalDate validUntil = LocalDate.now().plusYears(1);
-    String permitNumber =
-        "LP-%d-%06d".formatted(Year.now().getValue(), permits.count() + 1);
+    String permitNumber = "LP-%d-%06d".formatted(Year.now().getValue(), permits.count() + 1);
 
     LearningPermitRecord saved =
         permits.save(
@@ -54,7 +53,8 @@ public class RopLearningPermitController {
                 validUntil));
 
     return ResponseEntity.ok(
-        new IssueResponse(saved.getPermitNumber(), saved.getValidUntil().toString(), saved.getIssuedAt()));
+        new IssueResponse(
+            saved.getPermitNumber(), saved.getValidUntil().toString(), saved.getIssuedAt()));
   }
 
   private static boolean isBlank(String s) {

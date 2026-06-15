@@ -157,7 +157,14 @@ public class PaymentController {
       // The rop-vehicle-fee DMN writes the authoritative OMR amount.
       double amount = parseAmount(engine.getRawVariable(piId, "registrationFee"));
       return new PaymentContext(
-          piId, pi.definitionKey(), payerName, item, amount, "OMR", ROP_RECIPIENT, ROP_IBAN,
+          piId,
+          pi.definitionKey(),
+          payerName,
+          item,
+          amount,
+          "OMR",
+          ROP_RECIPIENT,
+          ROP_IBAN,
           alreadyPaid);
     }
     if (ROP_PERMIT_KEY.equals(pi.definitionKey())) {
@@ -165,7 +172,14 @@ public class PaymentController {
       String category = engine.getStringVariable(piId, "licenseCategory");
       String item = "Driving learning license — " + Objects.toString(category, "light-vehicle");
       return new PaymentContext(
-          piId, pi.definitionKey(), payerName, item, 6.0, "OMR", ROP_RECIPIENT, ROP_IBAN,
+          piId,
+          pi.definitionKey(),
+          payerName,
+          item,
+          6.0,
+          "OMR",
+          ROP_RECIPIENT,
+          ROP_IBAN,
           alreadyPaid);
     }
     return null;

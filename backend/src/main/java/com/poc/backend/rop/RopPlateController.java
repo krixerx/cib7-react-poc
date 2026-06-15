@@ -35,7 +35,10 @@ public class RopPlateController {
         || isBlank(req.ownerName())
         || isBlank(req.vehicleCategory())) {
       return ResponseEntity.badRequest()
-          .body(new ErrorResponse("missing_fields", "processInstanceId, vin, ownerName, and vehicleCategory are required."));
+          .body(
+              new ErrorResponse(
+                  "missing_fields",
+                  "processInstanceId, vin, ownerName, and vehicleCategory are required."));
     }
 
     String plateNumber;
