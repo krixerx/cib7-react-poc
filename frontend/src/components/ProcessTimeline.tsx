@@ -204,7 +204,8 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
             💳
           </span>
           <span className="pay-alert-body">
-            <strong>{t('timeline.paymentRequiredTitle')}</strong> {t('timeline.paymentRequiredBody')}
+            <strong>{t('timeline.paymentRequiredTitle')}</strong>{' '}
+            {t('timeline.paymentRequiredBody')}
           </span>
           <a
             className="btn btn-primary pay-alert-btn"
@@ -353,9 +354,7 @@ function TimelineItem({ row }: { row: TimelineRow }) {
     meta = t('timeline.waitingSince', { time: stepTime(row.startTime) });
   } else if (row.type === 'userTask') {
     meta = `${
-      row.assignee
-        ? t('timeline.completedBy', { assignee: row.assignee })
-        : t('timeline.completed')
+      row.assignee ? t('timeline.completedBy', { assignee: row.assignee }) : t('timeline.completed')
     }${row.endTime ? ` · ${stepTime(row.endTime)}` : ''}`;
   } else if (row.canceled) {
     meta = t('timeline.skipped');

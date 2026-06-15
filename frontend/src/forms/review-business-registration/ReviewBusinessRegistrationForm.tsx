@@ -105,7 +105,8 @@ export default function ReviewBusinessRegistrationForm({
           <dt>{t('summary.founder')}</dt>
           <dd>
             {(data.applicantFirstName as string) ?? '—'} {(data.applicantLastName as string) ?? ''}
-            {data.applicantAge != null && ` ${t('summary.founderAge', { age: String(data.applicantAge) })}`}
+            {data.applicantAge != null &&
+              ` ${t('summary.founderAge', { age: String(data.applicantAge) })}`}
           </dd>
         </div>
         <div className="summary-row">

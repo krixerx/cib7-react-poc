@@ -41,9 +41,7 @@ export default function RopHospitalAssessmentForm({
       medicalNotes: { value: trimmedNotes, type: 'String' },
       rejectionReason: {
         value:
-          medicalResult === 'negative'
-            ? `Police Hospital medical assessment: ${trimmedNotes}`
-            : '',
+          medicalResult === 'negative' ? `Police Hospital medical assessment: ${trimmedNotes}` : '',
         type: 'String',
       },
     });
@@ -53,9 +51,7 @@ export default function RopHospitalAssessmentForm({
 
   return (
     <div className="form">
-      <p className="form-intro">
-        {readOnly ? t('intro.readOnly') : t('intro.edit')}
-      </p>
+      <p className="form-intro">{readOnly ? t('intro.readOnly') : t('intro.edit')}</p>
 
       <dl className="summary">
         <div className="summary-row">

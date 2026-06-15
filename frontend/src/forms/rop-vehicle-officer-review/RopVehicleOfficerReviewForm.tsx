@@ -77,9 +77,7 @@ export default function RopVehicleOfficerReviewForm({
 
   return (
     <div className="form">
-      <p className="form-intro">
-        {readOnly ? t('intro.readOnly') : t('intro.edit')}
-      </p>
+      <p className="form-intro">{readOnly ? t('intro.readOnly') : t('intro.edit')}</p>
 
       <dl className="summary">
         <div className="summary-row">
@@ -146,18 +144,21 @@ export default function RopVehicleOfficerReviewForm({
             </dd>
           </div>
         )}
-        {readOnly && Boolean((data.rejectionReason as string) || (data.sendBackReason as string)) && (
-          <div className="summary-row">
-            <dt>{t('summary.reason')}</dt>
-            <dd>{(data.rejectionReason as string) || (data.sendBackReason as string)}</dd>
-          </div>
-        )}
+        {readOnly &&
+          Boolean((data.rejectionReason as string) || (data.sendBackReason as string)) && (
+            <div className="summary-row">
+              <dt>{t('summary.reason')}</dt>
+              <dd>{(data.rejectionReason as string) || (data.sendBackReason as string)}</dd>
+            </div>
+          )}
       </dl>
 
       {!readOnly && mode !== 'none' && (
         <label className="field">
           <span className="field-label">
-            {mode === 'sendback' ? t('fields.reason.labelSendBack') : t('fields.reason.labelReject')}
+            {mode === 'sendback'
+              ? t('fields.reason.labelSendBack')
+              : t('fields.reason.labelReject')}
           </span>
           <textarea
             className="field-input"

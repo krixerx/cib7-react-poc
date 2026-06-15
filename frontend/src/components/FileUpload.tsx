@@ -225,9 +225,7 @@ export default function FileUpload({
       >
         {progress === null ? (
           <>
-            <div className="file-upload-title">
-              {label ?? t('fileUpload.dropTitle')}
-            </div>
+            <div className="file-upload-title">{label ?? t('fileUpload.dropTitle')}</div>
             <div className="file-upload-hint">
               {t('fileUpload.hint', {
                 types: accept.replace(/application\//g, '').replace(/image\//g, ''),

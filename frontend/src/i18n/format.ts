@@ -16,7 +16,10 @@ export function uiLocale(): string {
 
 export function formatDate(iso: string | Date, opts?: Intl.DateTimeFormatOptions): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleDateString(uiLocale(), opts ?? { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(
+    uiLocale(),
+    opts ?? { day: 'numeric', month: 'short', year: 'numeric' },
+  );
 }
 
 export function formatDateTime(iso: string | Date, opts?: Intl.DateTimeFormatOptions): string {

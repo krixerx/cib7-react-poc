@@ -40,7 +40,11 @@ export default function VehicleReviewForm({ data, onComplete, submitting, readOn
       ? Number(data.price)
       : null;
   const price =
-    priceNum != null ? formatCurrency(priceNum) : data.price != null && data.price !== '' ? String(data.price) : '—';
+    priceNum != null
+      ? formatCurrency(priceNum)
+      : data.price != null && data.price !== ''
+        ? String(data.price)
+        : '—';
   const decision = (data.decision as string) ?? null;
   const priorReason = (data.sendBackReason as string) ?? '';
 

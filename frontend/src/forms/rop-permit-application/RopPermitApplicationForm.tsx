@@ -88,9 +88,7 @@ export default function RopPermitApplicationForm({
 
   return (
     <form className="form" onSubmit={handleSubmit}>
-      <p className="form-intro">
-        {readOnly ? t('intro.readOnly') : t('intro.edit')}
-      </p>
+      <p className="form-intro">{readOnly ? t('intro.readOnly') : t('intro.edit')}</p>
 
       <div className="form-banner">
         <strong>{t('fee.title', { fee: formatCurrency(6, 'OMR') })}</strong>

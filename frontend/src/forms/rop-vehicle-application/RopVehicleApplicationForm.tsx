@@ -137,7 +137,9 @@ export default function RopVehicleApplicationForm({
       </p>
 
       <div className="form-banner">
-        <strong>{t('feeBanner.title', { fee: formatCurrency(selectedCategory.fee, 'OMR') })}</strong>
+        <strong>
+          {t('feeBanner.title', { fee: formatCurrency(selectedCategory.fee, 'OMR') })}
+        </strong>
         <p className="form-banner-body">
           {t('feeBanner.body', { category: t(`categories.${selectedCategory.labelKey}`) })}
         </p>
