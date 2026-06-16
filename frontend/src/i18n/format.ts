@@ -1,8 +1,8 @@
 import i18n from './index';
 
 /**
- * BCP-47 locales for Intl formatting, per UI language. Arabic uses the Omani
- * locale but pins Western (Latin) digits — the convention on Omani government
+ * BCP-47 locales for Intl formatting, per UI language. Arabic uses the local
+ * locale but pins Western (Latin) digits — the convention on local government
  * portals — instead of Eastern Arabic numerals.
  */
 const FORMAT_LOCALES: Record<string, string> = {

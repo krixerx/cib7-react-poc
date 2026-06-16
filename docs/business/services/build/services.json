@@ -9,18 +9,18 @@
       "manifestPath": "business-registration/build/mcp-service.json"
     },
     {
-      "key": "ropLearningPermit",
-      "name": "ROP Driving Learning Permit (Oman)",
-      "description": "Apply for a driving learning license (ROP ITS Demo Scenario 2). Flat 6 OMR fee; eye test fetched from approved opticians; weak vision routes to a Police Hospital assessment; the electronic license with payment receipt is emailed after payment.",
+      "key": "transportLearningPermit",
+      "name": "Transport Driving Learner Permit",
+      "description": "Apply for a driving learning license (ITS Demo Scenario 2). Flat 6 EUR fee; eye test fetched from approved opticians; weak vision routes to a Police Hospital assessment; the electronic license with payment receipt is emailed after payment.",
       "audience": "applicant",
-      "manifestPath": "rop-learning-permit/build/mcp-service.json"
+      "manifestPath": "transport-learning-permit/build/mcp-service.json"
     },
     {
-      "key": "ropVehicleRegistration",
-      "name": "ROP Vehicle Registration (Oman)",
-      "description": "Register a new vehicle with the Royal Oman Police General Traffic Department (ROP ITS Demo Scenario 1). Category-based fee (10–180 OMR) known up front; system condition checks, traffic officer review, fee payment, plate allocation, and certificate by email.",
+      "key": "transportVehicleRegistration",
+      "name": "Transport Vehicle Registration",
+      "description": "Register a new vehicle with the Transport Authority (ITS Demo Scenario 1). Category-based fee (10–180 EUR) known up front; system condition checks, traffic officer review, fee payment, plate allocation, and certificate by email.",
       "audience": "applicant",
-      "manifestPath": "rop-vehicle-registration/build/mcp-service.json"
+      "manifestPath": "transport-vehicle-registration/build/mcp-service.json"
     },
     {
       "key": "vehicleRegistration",

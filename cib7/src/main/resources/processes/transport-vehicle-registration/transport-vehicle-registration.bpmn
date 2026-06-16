@@ -1,0 +1,586 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_TransportVehicleRegistration"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="cib7-react-poc" exporterVersion="0.6.0">
+  <!--
+    Transport Vehicle Registration — ITS Demo Scenario 1.
+
+      start (initiator = service requester)
+        -> [Submit vehicle registration application]  user task (applicant — PartA)
+              fee preview shown in the form before submit (demo: cost visible
+              at the beginning); fields incl. category, VIN, plate option
+        -> (Check inspection, insurance & restrictions) service task
+              GET /api/public/transport/vehicle-clearance/{vin} (backend stand-in for
+              technical inspection systems + insurers + fines restrictions)
+        -> {Validate registration conditions}  business rule task (DMN
+              transport-vehicle-eligibility -> eligibilityDecision; non-"ok" output
+              IS the human-readable rejection reason)
+        -> <Conditions met?>
+             ok            -> {Determine registration fee} business rule task
+                               (DMN transport-vehicle-fee -> registrationFee, EUR)
+             else (default) -> (Email: application rejected) -> end rejected
+        -> [Traffic officer review]  user task (civil-servant — PartB)
+              approve / reject (reason) / return for corrections (notes)
+        -> <Officer decision?>
+             approve        -> (Email: pay registration fee, /pay link)
+             reject         -> (Email: application rejected) -> end rejected
+             else (default) -> (Email: returned for corrections) -> Submit (loop)
+        -> [Wait for fee payment]  receiveTask (msg "PaymentReceived",
+              correlated by processInstanceId from PaymentController; pay page
+              renders the EUR amount from registrationFee)
+        -> (Allocate plate number)   POST /api/public/transport/plates/allocate
+              (persists transport_plate_registrations; random or reserved plate)
+        -> (Generate registration certificate PDF)  pdf-renderer
+        -> (Store certificate)       server-upload, category generated-certificate
+        -> (Email: certificate & plate collection)  PDF attached
+        -> (Email: service evaluation request)      demo service-path step 6
+        -> end (Vehicle registered)
+
+    Process variables: see docs/business/services/transport-vehicle-registration/README.md.
+      certificatePdfBytes is bytes-typed — stored bytes to spill to
+      ACT_GE_BYTEARRAY instead of the 4000-char ACT_HI_VARINST.TEXT_ column.
+
+    Spec lives at docs/business/services/transport-vehicle-registration/. Generated
+    by .claude/skills/service-builder.
+  -->
+
+  <bpmn:message id="Message_PaymentReceived" name="PaymentReceived" />
+
+  <bpmn:process id="transportVehicleRegistration" name="Transport Vehicle Registration"
+                isExecutable="true" camunda:historyTimeToLive="P30D">
+    <bpmn:startEvent id="StartEvent_1" name="Application submitted"
+                     camunda:initiator="initiator">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:sequenceFlow id="Flow_Start"
+                       sourceRef="StartEvent_1" targetRef="Task_TransportVehicleApplication" />
+
+    <bpmn:userTask id="Task_TransportVehicleApplication" name="Submit vehicle registration application"
+                   camunda:formKey="react:transport-vehicle-application"
+                   camunda:assignee="${initiator}">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:incoming>Flow_SendbackEmail_Application</bpmn:incoming>
+      <bpmn:outgoing>Flow_Application_Clearance</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="Flow_Application_Clearance"
+                       sourceRef="Task_TransportVehicleApplication" targetRef="Task_TransportClearanceCheck" />
+
+    <!--
+      Clearance registry stand-in for three demo linkages: technical
+      inspection systems, insurance companies, and the fines/circulars
+      restrictions check. Unknown VINs come back all-clear; the seeded demo
+      VINs trigger the rejection rules. Missing properties degrade to false
+      (fail-safe reject, never fail-open approve).
+    -->
+    <bpmn:serviceTask id="Task_TransportClearanceCheck" name="Check inspection, insurance &amp; restrictions"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/public/transport/vehicle-clearance/${vin}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:outputParameter name="inspectionPassed">${!S(response).hasProp('inspectionPassed') ? false : S(response).prop('inspectionPassed').boolValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="insured">${!S(response).hasProp('insured') ? false : S(response).prop('insured').boolValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="restrictionsCleared">${!S(response).hasProp('restrictionsCleared') ? false : S(response).prop('restrictionsCleared').boolValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Application_Clearance</bpmn:incoming>
+      <bpmn:outgoing>Flow_Clearance_Eligibility</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_Clearance_Eligibility"
+                       sourceRef="Task_TransportClearanceCheck" targetRef="Task_TransportVehicleEligibility" />
+
+    <bpmn:businessRuleTask id="Task_TransportVehicleEligibility" name="Validate registration conditions"
+                           camunda:decisionRef="transport-vehicle-eligibility"
+                           camunda:decisionRefBinding="deployment"
+                           camunda:mapDecisionResult="singleEntry"
+                           camunda:resultVariable="eligibilityDecision">
+      <bpmn:incoming>Flow_Clearance_Eligibility</bpmn:incoming>
+      <bpmn:outgoing>Flow_Eligibility_ConditionsMet</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:sequenceFlow id="Flow_Eligibility_ConditionsMet"
+                       sourceRef="Task_TransportVehicleEligibility" targetRef="Gateway_ConditionsMet" />
+
+    <bpmn:exclusiveGateway id="Gateway_ConditionsMet" name="Conditions met?"
+                           default="Flow_ConditionsMet_Rejected">
+      <bpmn:incoming>Flow_Eligibility_ConditionsMet</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConditionsMet_Fee</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ConditionsMet_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_ConditionsMet_Fee" name="conditions met"
+                       sourceRef="Gateway_ConditionsMet" targetRef="Task_TransportVehicleFee">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${eligibilityDecision == "ok"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_ConditionsMet_Rejected" name="rejected"
+                       sourceRef="Gateway_ConditionsMet" targetRef="Task_TransportVehicleRejectionEmail" />
+
+    <bpmn:businessRuleTask id="Task_TransportVehicleFee" name="Determine registration fee"
+                           camunda:decisionRef="transport-vehicle-fee"
+                           camunda:decisionRefBinding="deployment"
+                           camunda:mapDecisionResult="singleEntry"
+                           camunda:resultVariable="registrationFee">
+      <bpmn:incoming>Flow_ConditionsMet_Fee</bpmn:incoming>
+      <bpmn:outgoing>Flow_Fee_OfficerReview</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:sequenceFlow id="Flow_Fee_OfficerReview"
+                       sourceRef="Task_TransportVehicleFee" targetRef="Task_TransportVehicleOfficerReview" />
+
+    <!--
+      The civil-servant group plays the Transport Authority Traffic Officer in this POC —
+      see the spec's Known trade-offs. Outcomes: approve / reject (reason) /
+      return for corrections (default, loops to the applicant).
+    -->
+    <bpmn:userTask id="Task_TransportVehicleOfficerReview" name="Traffic officer review"
+                   camunda:formKey="react:transport-vehicle-officer-review"
+                   camunda:candidateGroups="civil-servant">
+      <bpmn:incoming>Flow_Fee_OfficerReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_OfficerReview_Decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="Flow_OfficerReview_Decision"
+                       sourceRef="Task_TransportVehicleOfficerReview" targetRef="Gateway_OfficerDecision" />
+
+    <bpmn:exclusiveGateway id="Gateway_OfficerDecision" name="Officer decision?"
+                           default="Flow_Officer_SendBack">
+      <bpmn:incoming>Flow_OfficerReview_Decision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Officer_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Officer_Rejected</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Officer_SendBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_Officer_Approved" name="approved"
+                       sourceRef="Gateway_OfficerDecision" targetRef="Task_TransportVehiclePaymentEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${decision == "approve"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_Officer_Rejected" name="rejected"
+                       sourceRef="Gateway_OfficerDecision" targetRef="Task_TransportVehicleRejectionEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${decision == "reject"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_Officer_SendBack" name="returned"
+                       sourceRef="Gateway_OfficerDecision" targetRef="Task_TransportVehicleSendbackEmail" />
+
+    <bpmn:serviceTask id="Task_TransportVehicleSendbackEmail" name="Email: returned for corrections"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-sendback-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Officer_SendBack</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendbackEmail_Application</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_SendbackEmail_Application"
+                       sourceRef="Task_TransportVehicleSendbackEmail" targetRef="Task_TransportVehicleApplication" />
+
+    <!--
+      Shared rejection notice — two incoming flows: system rejection (the
+      DMN's eligibilityDecision text IS the reason) and officer rejection
+      (rejectionReason wins). The template resolves which to render.
+    -->
+    <bpmn:serviceTask id="Task_TransportVehicleRejectionEmail" name="Email: application rejected"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-rejection-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ConditionsMet_Rejected</bpmn:incoming>
+      <bpmn:incoming>Flow_Officer_Rejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectionEmail_Rejected</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_RejectionEmail_Rejected"
+                       sourceRef="Task_TransportVehicleRejectionEmail" targetRef="EndEvent_Rejected" />
+
+    <bpmn:endEvent id="EndEvent_Rejected" name="Application rejected">
+      <bpmn:incoming>Flow_RejectionEmail_Rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="Task_TransportVehiclePaymentEmail" name="Email: pay registration fee"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-payment-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Officer_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_PaymentEmail_Wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_PaymentEmail_Wait"
+                       sourceRef="Task_TransportVehiclePaymentEmail" targetRef="Task_TransportWaitFeePayment" />
+
+    <!--
+      Park until the applicant confirms on the public /pay/{piId} page.
+      PaymentController correlates PaymentReceived by processInstanceId and
+      renders the EUR amount from the registrationFee variable for this
+      definition key.
+    -->
+    <bpmn:receiveTask id="Task_TransportWaitFeePayment" name="Wait for fee payment"
+                      messageRef="Message_PaymentReceived">
+      <bpmn:incoming>Flow_PaymentEmail_Wait</bpmn:incoming>
+      <bpmn:outgoing>Flow_Wait_AllocatePlate</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <bpmn:sequenceFlow id="Flow_Wait_AllocatePlate"
+                       sourceRef="Task_TransportWaitFeePayment" targetRef="Task_TransportAllocatePlate" />
+
+    <!--
+      System-of-record write: persists transport_plate_registrations and returns
+      the plate (random generic or the validated reserved number). No
+      defensive fallback on purpose — a failure must raise an incident, not
+      issue a certificate without a plate.
+    -->
+    <bpmn:serviceTask id="Task_TransportAllocatePlate" name="Allocate plate number"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/public/transport/plates/allocate</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-allocate-plate.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="plateNumber">${S(response).prop('plateNumber').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Wait_AllocatePlate</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllocatePlate_CertificatePdf</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_AllocatePlate_CertificatePdf"
+                       sourceRef="Task_TransportAllocatePlate" targetRef="Task_TransportCertificatePdf" />
+
+    <bpmn:serviceTask id="Task_TransportCertificatePdf" name="Generate registration certificate (PDF)"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${pdfApiBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-certificate-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <!-- stored bytes to spill to ACT_GE_BYTEARRAY -->
+            <camunda:outputParameter name="certificatePdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="certificatePdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_AllocatePlate_CertificatePdf</bpmn:incoming>
+      <bpmn:outgoing>Flow_CertificatePdf_Store</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_CertificatePdf_Store"
+                       sourceRef="Task_TransportCertificatePdf" targetRef="Task_TransportStoreCertificate" />
+
+    <bpmn:serviceTask id="Task_TransportStoreCertificate" name="Store certificate"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${apiBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+                <camunda:entry key="X-Internal-Token">${internalTaskToken}</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-store-certificate.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="certificateAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CertificatePdf_Store</bpmn:incoming>
+      <bpmn:outgoing>Flow_Store_CertificateEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_Store_CertificateEmail"
+                       sourceRef="Task_TransportStoreCertificate" targetRef="Task_TransportCertificateEmail" />
+
+    <bpmn:serviceTask id="Task_TransportCertificateEmail" name="Email: certificate &amp; plate collection"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-certificate-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Store_CertificateEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_CertificateEmail_Evaluation</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_CertificateEmail_Evaluation"
+                       sourceRef="Task_TransportCertificateEmail" targetRef="Task_TransportEvaluationEmail" />
+
+    <bpmn:serviceTask id="Task_TransportEvaluationEmail" name="Email: service evaluation request"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-evaluation-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_CertificateEmail_Evaluation</bpmn:incoming>
+      <bpmn:outgoing>Flow_Evaluation_Registered</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_Evaluation_Registered"
+                       sourceRef="Task_TransportEvaluationEmail" targetRef="EndEvent_Registered" />
+
+    <bpmn:endEvent id="EndEvent_Registered" name="Vehicle registered">
+      <bpmn:incoming>Flow_Evaluation_Registered</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+
+  <!--
+    BPMNDI: three horizontal bands, functional-not-pretty (re-flow in
+    cibseven-modeller if needed):
+      y = 160   main row: start -> application -> clearance -> eligibility ->
+                <conditions met?> -> fee -> officer review -> <decision?>
+      y = 400   payment + certificate pipeline (approved path)
+      y = 640   rejection band (shared email + end) and send-back loop
+  -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_TransportVehicleRegistration">
+    <bpmndi:BPMNPlane id="BPMNPlane_TransportVehicleRegistration" bpmnElement="transportVehicleRegistration">
+
+      <!-- Main row -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="160" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="138" y="225" width="80" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleApplication_di" bpmnElement="Task_TransportVehicleApplication">
+        <dc:Bounds x="240" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportClearanceCheck_di" bpmnElement="Task_TransportClearanceCheck">
+        <dc:Bounds x="420" y="160" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleEligibility_di" bpmnElement="Task_TransportVehicleEligibility">
+        <dc:Bounds x="610" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ConditionsMet_di" bpmnElement="Gateway_ConditionsMet" isMarkerVisible="true">
+        <dc:Bounds x="790" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="775" y="145" width="80" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleFee_di" bpmnElement="Task_TransportVehicleFee">
+        <dc:Bounds x="880" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleOfficerReview_di" bpmnElement="Task_TransportVehicleOfficerReview">
+        <dc:Bounds x="1060" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_OfficerDecision_di" bpmnElement="Gateway_OfficerDecision" isMarkerVisible="true">
+        <dc:Bounds x="1240" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1228" y="145" width="84" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Payment + certificate pipeline -->
+      <bpmndi:BPMNShape id="Task_TransportVehiclePaymentEmail_di" bpmnElement="Task_TransportVehiclePaymentEmail">
+        <dc:Bounds x="240" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportWaitFeePayment_di" bpmnElement="Task_TransportWaitFeePayment">
+        <dc:Bounds x="420" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportAllocatePlate_di" bpmnElement="Task_TransportAllocatePlate">
+        <dc:Bounds x="600" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportCertificatePdf_di" bpmnElement="Task_TransportCertificatePdf">
+        <dc:Bounds x="780" y="400" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportStoreCertificate_di" bpmnElement="Task_TransportStoreCertificate">
+        <dc:Bounds x="970" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportCertificateEmail_di" bpmnElement="Task_TransportCertificateEmail">
+        <dc:Bounds x="1150" y="400" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportEvaluationEmail_di" bpmnElement="Task_TransportEvaluationEmail">
+        <dc:Bounds x="1340" y="400" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Registered_di" bpmnElement="EndEvent_Registered">
+        <dc:Bounds x="1540" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1515" y="465" width="90" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Rejection band + send-back loop -->
+      <bpmndi:BPMNShape id="Task_TransportVehicleSendbackEmail_di" bpmnElement="Task_TransportVehicleSendbackEmail">
+        <dc:Bounds x="240" y="640" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleRejectionEmail_di" bpmnElement="Task_TransportVehicleRejectionEmail">
+        <dc:Bounds x="700" y="640" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
+        <dc:Bounds x="920" y="662" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="895" y="705" width="92" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges: main row -->
+      <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
+        <di:waypoint x="196" y="200" /><di:waypoint x="240" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Application_Clearance_di" bpmnElement="Flow_Application_Clearance">
+        <di:waypoint x="380" y="200" /><di:waypoint x="420" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Clearance_Eligibility_di" bpmnElement="Flow_Clearance_Eligibility">
+        <di:waypoint x="570" y="200" /><di:waypoint x="610" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Eligibility_ConditionsMet_di" bpmnElement="Flow_Eligibility_ConditionsMet">
+        <di:waypoint x="750" y="200" /><di:waypoint x="790" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ConditionsMet_Fee_di" bpmnElement="Flow_ConditionsMet_Fee">
+        <di:waypoint x="840" y="200" /><di:waypoint x="880" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="836" y="180" width="78" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ConditionsMet_Rejected_di" bpmnElement="Flow_ConditionsMet_Rejected">
+        <di:waypoint x="815" y="225" /><di:waypoint x="815" y="680" /><di:waypoint x="850" y="680" />
+        <bpmndi:BPMNLabel><dc:Bounds x="820" y="430" width="44" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Fee_OfficerReview_di" bpmnElement="Flow_Fee_OfficerReview">
+        <di:waypoint x="1020" y="200" /><di:waypoint x="1060" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_OfficerReview_Decision_di" bpmnElement="Flow_OfficerReview_Decision">
+        <di:waypoint x="1200" y="200" /><di:waypoint x="1240" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Edges: officer outcomes -->
+      <bpmndi:BPMNEdge id="Flow_Officer_Approved_di" bpmnElement="Flow_Officer_Approved">
+        <di:waypoint x="1265" y="225" /><di:waypoint x="1265" y="330" /><di:waypoint x="310" y="330" /><di:waypoint x="310" y="400" />
+        <bpmndi:BPMNLabel><dc:Bounds x="760" y="312" width="48" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Officer_Rejected_di" bpmnElement="Flow_Officer_Rejected">
+        <di:waypoint x="1290" y="200" /><di:waypoint x="1340" y="200" /><di:waypoint x="1340" y="680" /><di:waypoint x="850" y="680" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1295" y="430" width="44" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Officer_SendBack_di" bpmnElement="Flow_Officer_SendBack">
+        <di:waypoint x="1265" y="175" /><di:waypoint x="1265" y="100" /><di:waypoint x="180" y="100" /><di:waypoint x="180" y="680" /><di:waypoint x="240" y="680" />
+        <bpmndi:BPMNLabel><dc:Bounds x="700" y="82" width="46" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SendbackEmail_Application_di" bpmnElement="Flow_SendbackEmail_Application">
+        <di:waypoint x="315" y="640" /><di:waypoint x="315" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RejectionEmail_Rejected_di" bpmnElement="Flow_RejectionEmail_Rejected">
+        <di:waypoint x="850" y="680" /><di:waypoint x="920" y="680" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Edges: payment + certificate pipeline -->
+      <bpmndi:BPMNEdge id="Flow_PaymentEmail_Wait_di" bpmnElement="Flow_PaymentEmail_Wait">
+        <di:waypoint x="380" y="440" /><di:waypoint x="420" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Wait_AllocatePlate_di" bpmnElement="Flow_Wait_AllocatePlate">
+        <di:waypoint x="560" y="440" /><di:waypoint x="600" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllocatePlate_CertificatePdf_di" bpmnElement="Flow_AllocatePlate_CertificatePdf">
+        <di:waypoint x="740" y="440" /><di:waypoint x="780" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CertificatePdf_Store_di" bpmnElement="Flow_CertificatePdf_Store">
+        <di:waypoint x="930" y="440" /><di:waypoint x="970" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Store_CertificateEmail_di" bpmnElement="Flow_Store_CertificateEmail">
+        <di:waypoint x="1110" y="440" /><di:waypoint x="1150" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_CertificateEmail_Evaluation_di" bpmnElement="Flow_CertificateEmail_Evaluation">
+        <di:waypoint x="1300" y="440" /><di:waypoint x="1340" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Evaluation_Registered_di" bpmnElement="Flow_Evaluation_Registered">
+        <di:waypoint x="1490" y="440" /><di:waypoint x="1540" y="440" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

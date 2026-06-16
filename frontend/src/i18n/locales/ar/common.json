@@ -88,8 +88,8 @@
   "backend": {
     "estonianOuRegistration": "تسجيل شركة OÜ الإستونية",
     "vehicleRegistration": "تسجيل المركبات",
-    "ropLearningPermit": "تصريح تعلم القيادة – شرطة عُمان السلطانية",
-    "ropVehicleRegistration": "تسجيل المركبات – شرطة عُمان السلطانية",
+    "transportLearningPermit": "تصريح تعلم القيادة – شرطة عُمان السلطانية",
+    "transportVehicleRegistration": "تسجيل المركبات – شرطة عُمان السلطانية",
     "submitOuFoundingDetails": "تقديم بيانات تأسيس الشركة",
     "submitOwnerVehicleDetails": "تقديم بيانات المالك والمركبة",
     "transportAuthorityReview": "مراجعة هيئة النقل",

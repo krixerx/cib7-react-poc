@@ -13,8 +13,8 @@ const BACKEND_NAME_KEYS: Record<string, string> = {
   // Process definition names
   'Estonian OÜ Registration': 'estonianOuRegistration',
   'Vehicle Registration': 'vehicleRegistration',
-  'ROP Driving Learning Permit (Oman)': 'ropLearningPermit',
-  'ROP Vehicle Registration (Oman)': 'ropVehicleRegistration',
+  'Transport Driving Learner Permit': 'transportLearningPermit',
+  'Transport Vehicle Registration': 'transportVehicleRegistration',
   // User tasks
   'Submit OÜ founding details': 'submitOuFoundingDetails',
   'Submit owner & vehicle details': 'submitOwnerVehicleDetails',
@@ -48,7 +48,7 @@ const BACKEND_NAME_KEYS: Record<string, string> = {
   'Send state fee invoice email': 'sendStateFeeInvoiceEmail',
   'Send "sent back" email': 'sendSentBackEmail',
   'Vehicle registered': 'vehicleRegistered',
-  // ROP learning permit activities
+  // Transport Authority learning permit activities
   'Fetch eye test, license & restrictions status': 'fetchEyeTestLicenseRestrictions',
   'Email: visit the Police Hospital': 'emailVisitPoliceHospital',
   'Email: application rejected': 'emailApplicationRejected',
@@ -61,7 +61,7 @@ const BACKEND_NAME_KEYS: Record<string, string> = {
   'Email: electronic license & receipt': 'emailLicenseAndReceipt',
   'Email: service evaluation request': 'emailServiceEvaluation',
   'Learning permit issued': 'learningPermitIssued',
-  // ROP vehicle registration activities
+  // Transport Authority vehicle registration activities
   'Check inspection, insurance & restrictions': 'checkInspectionInsuranceRestrictions',
   'Email: returned for corrections': 'emailReturnedForCorrections',
   'Email: pay registration fee': 'emailPayRegistrationFee',

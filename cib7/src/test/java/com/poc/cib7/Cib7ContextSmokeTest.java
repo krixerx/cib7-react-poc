@@ -39,8 +39,8 @@ class Cib7ContextSmokeTest {
     // ServiceDeployments ran: the DMN decisions are on the engine.
     assertEquals(1, countDecision("vehicle-auto-approval"));
     assertEquals(1, countDecision("business-auto-approval"));
-    assertEquals(1, countDecision("rop-vehicle-eligibility"));
-    assertEquals(1, countDecision("rop-permit-eligibility"));
+    assertEquals(1, countDecision("transport-vehicle-eligibility"));
+    assertEquals(1, countDecision("transport-permit-eligibility"));
   }
 
   @Test
@@ -51,8 +51,8 @@ class Cib7ContextSmokeTest {
         new String[] {
           "vehicle-registration",
           "business-registration",
-          "rop-vehicle-registration",
-          "rop-learning-permit"
+          "transport-vehicle-registration",
+          "transport-learning-permit"
         }) {
       assertEquals(
           1,
@@ -81,7 +81,7 @@ class Cib7ContextSmokeTest {
         processEngine
             .getRepositoryService()
             .createProcessDefinitionQuery()
-            .processDefinitionKey("ropVehicleRegistration")
+            .processDefinitionKey("transportVehicleRegistration")
             .latestVersion()
             .singleResult()
             .getDeploymentId();
@@ -92,7 +92,7 @@ class Cib7ContextSmokeTest {
             .createDecisionDefinitionQuery()
             .deploymentId(deploymentId)
             .count(),
-        "rop-vehicle-eligibility + rop-vehicle-fee must ship with the process");
+        "transport-vehicle-eligibility + transport-vehicle-fee must ship with the process");
   }
 
   private long countDecision(String decisionDefinitionKey) {

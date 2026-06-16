@@ -88,8 +88,8 @@
   "backend": {
     "estonianOuRegistration": "Estonian OÜ Registration",
     "vehicleRegistration": "Vehicle Registration",
-    "ropLearningPermit": "ROP Driving Learning Permit (Oman)",
-    "ropVehicleRegistration": "ROP Vehicle Registration (Oman)",
+    "transportLearningPermit": "Transport Driving Learner Permit",
+    "transportVehicleRegistration": "Transport Vehicle Registration",
     "submitOuFoundingDetails": "Submit OÜ founding details",
     "submitOwnerVehicleDetails": "Submit owner & vehicle details",
     "transportAuthorityReview": "Transport Authority review",

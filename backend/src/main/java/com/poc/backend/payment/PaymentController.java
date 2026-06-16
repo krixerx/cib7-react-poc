@@ -33,9 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   vehicleRegistration    → €25 / €75 / €150 tiered by vehicle value
  *                            (mirrors the fee tiers rendered in the
  *                            state-fee-invoice PDF template)
- *   ropVehicleRegistration → OMR, amount from the registrationFee process
- *                            variable (written by the rop-vehicle-fee DMN)
- *   ropLearningPermit      → 6 OMR flat (ROP ITS Demo Scenario 2)
+ *   transportVehicleRegistration → EUR, amount from the registrationFee process
+ *                            variable (written by the transport-vehicle-fee DMN)
+ *   transportLearningPermit      → 6 EUR flat (ITS Demo Scenario 2)
  * </pre>
  */
 @RestController
@@ -44,13 +44,13 @@ public class PaymentController {
 
   private static final String VEHICLE_KEY = "vehicleRegistration";
   private static final String OU_KEY = "businessRegistration";
-  private static final String ROP_VEHICLE_KEY = "ropVehicleRegistration";
-  private static final String ROP_PERMIT_KEY = "ropLearningPermit";
+  private static final String TRANSPORT_VEHICLE_KEY = "transportVehicleRegistration";
+  private static final String TRANSPORT_PERMIT_KEY = "transportLearningPermit";
 
   private static final String VEHICLE_IBAN = "EE89 3300 3334 1110 3007";
   private static final String OU_IBAN = "EE76 1010 2200 2401 4115";
-  private static final String ROP_IBAN = "OM42 0180 0000 0123 4567 8901";
-  private static final String ROP_RECIPIENT = "Royal Oman Police — General Traffic Department";
+  private static final String TRANSPORT_IBAN = "EE47 1000 0010 2014 5685";
+  private static final String TRANSPORT_RECIPIENT = "Transport Authority";
 
   private final EngineClient engine;
 
@@ -146,7 +146,7 @@ public class PaymentController {
           OU_IBAN,
           alreadyPaid);
     }
-    if (ROP_VEHICLE_KEY.equals(pi.definitionKey())) {
+    if (TRANSPORT_VEHICLE_KEY.equals(pi.definitionKey())) {
       String payerName = Objects.toString(engine.getStringVariable(piId, "applicantName"), "");
       String vin = engine.getStringVariable(piId, "vin");
       String category = engine.getStringVariable(piId, "vehicleCategory");
@@ -154,7 +154,7 @@ public class PaymentController {
           "Vehicle registration — "
               + Objects.toString(category, "vehicle")
               + (vin != null ? " (" + vin + ")" : "");
-      // The rop-vehicle-fee DMN writes the authoritative OMR amount.
+      // The transport-vehicle-fee DMN writes the authoritative EUR amount.
       double amount = parseAmount(engine.getRawVariable(piId, "registrationFee"));
       return new PaymentContext(
           piId,
@@ -162,12 +162,12 @@ public class PaymentController {
           payerName,
           item,
           amount,
-          "OMR",
-          ROP_RECIPIENT,
-          ROP_IBAN,
+          "EUR",
+          TRANSPORT_RECIPIENT,
+          TRANSPORT_IBAN,
           alreadyPaid);
     }
-    if (ROP_PERMIT_KEY.equals(pi.definitionKey())) {
+    if (TRANSPORT_PERMIT_KEY.equals(pi.definitionKey())) {
       String payerName = Objects.toString(engine.getStringVariable(piId, "applicantName"), "");
       String category = engine.getStringVariable(piId, "licenseCategory");
       String item = "Driving learning license — " + Objects.toString(category, "light-vehicle");
@@ -177,9 +177,9 @@ public class PaymentController {
           payerName,
           item,
           6.0,
-          "OMR",
-          ROP_RECIPIENT,
-          ROP_IBAN,
+          "EUR",
+          TRANSPORT_RECIPIENT,
+          TRANSPORT_IBAN,
           alreadyPaid);
     }
     return null;

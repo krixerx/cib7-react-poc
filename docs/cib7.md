@@ -64,8 +64,8 @@ cib7/
         ├── processes/<service>/           — one engine deployment per folder (ServiceDeployments.java)
         │   ├── vehicle-registration/      — vehicle-registration.bpmn + vehicle-auto-approval.dmn
         │   ├── business-registration/     — business-registration.bpmn + business-auto-approval.dmn
-        │   ├── rop-vehicle-registration/  — BPMN + eligibility/fee DMNs
-        │   └── rop-learning-permit/       — BPMN + eligibility DMN
+        │   ├── transport-vehicle-registration/  — BPMN + eligibility/fee DMNs
+        │   └── transport-learning-permit/       — BPMN + eligibility DMN
         └── templates/                     — FreeMarker payloads for the http-connector
             └── *.json.ftl                 — Mailpit emails, pdf-renderer renders,
                                              backend /api/documents calls
