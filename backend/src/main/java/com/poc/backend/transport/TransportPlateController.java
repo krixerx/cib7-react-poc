@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Plate allocation for {@code transport-vehicle-registration.bpmn} — called by {@code
- * Task_TransportAllocatePlate} strictly after the fee payment is correlated. Persists the registration
- * record (the demo's "integration to database" requirement) and returns the plate: a generated
- * generic {@code NNNNN AB} number for {@code plateOption=random}, or the caller's reserved
- * number verbatim ("previously reserved number plates" in the demo's service path).
+ * Task_TransportAllocatePlate} strictly after the fee payment is correlated. Persists the
+ * registration record (the demo's "integration to database" requirement) and returns the plate: a
+ * generated generic {@code NNNNN AB} number for {@code plateOption=random}, or the caller's
+ * reserved number verbatim ("previously reserved number plates" in the demo's service path).
  */
 @RestController
 @RequestMapping("/api/public/transport/plates")

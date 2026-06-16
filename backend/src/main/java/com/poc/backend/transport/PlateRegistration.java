@@ -10,9 +10,10 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * The system-of-record row for one completed Transport Authority vehicle registration — written by {@code
- * Task_TransportAllocatePlate} after the fee payment is correlated. Carries the allocated (or reserved)
- * plate number plus enough denormalised case data to read the table without the engine.
+ * The system-of-record row for one completed Transport Authority vehicle registration — written by
+ * {@code Task_TransportAllocatePlate} after the fee payment is correlated. Carries the allocated
+ * (or reserved) plate number plus enough denormalised case data to read the table without the
+ * engine.
  */
 @Entity
 @Table(

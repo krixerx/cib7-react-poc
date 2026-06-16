@@ -21,9 +21,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  *
  * <p>The MCP manifest (docs/business/services/business-registration/build/mcp-service.json) exposes
  * a deliberately minimal six-field surface with {@code additionalProperties:false}, so a process
- * completed via MCP never sets the form-internal variables that the SPA business-details form always
- * writes (additionalFounders, applicantResidency, founderSignatures, rejectedByFounder, ...). Two
- * downstream expressions used to assume the rich SPA variable set:
+ * completed via MCP never sets the form-internal variables that the SPA business-details form
+ * always writes (additionalFounders, applicantResidency, founderSignatures, rejectedByFounder,
+ * ...). Two downstream expressions used to assume the rich SPA variable set:
  *
  * <ul>
  *   <li>{@code Gateway_NeedsSignatures} branched on a bare {@code additionalFounders} identifier.
@@ -31,7 +31,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  *       to null, so completing the applicant task without it surfaced as ENGINE-REST HTTP500 — the
  *       exact failure reported from Claude Desktop.
  *   <li>{@code Task_AutoDecide} fed {@code applicantResidency} straight into the DMN; absent on the
- *       MCP path it fell through to {@code Rule_DefaultReview} ("review") instead of auto-approving.
+ *       MCP path it fell through to {@code Rule_DefaultReview} ("review") instead of
+ *       auto-approving.
  * </ul>
  *
  * <p>This test completes the applicant task with ONLY the six manifest fields and pins both fixes:
