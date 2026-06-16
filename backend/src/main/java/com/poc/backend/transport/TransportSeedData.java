@@ -7,9 +7,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Seeds the deterministic demo rows for the two ITS demo scenarios. Everything NOT listed here
- * is all-clear (the controllers default unknown ids to pass), so these rows are the only way to
- * reach the rejection / medical branches — they are documented in the service specs and rendered as
+ * Seeds the deterministic demo rows for the two ITS demo scenarios. Everything NOT listed here is
+ * all-clear (the controllers default unknown ids to pass), so these rows are the only way to reach
+ * the rejection / medical branches — they are documented in the service specs and rendered as
  * helper text in the application forms.
  *
  * <p>Idempotent: keyed inserts, re-running overwrites the same rows.

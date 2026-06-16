@@ -6,10 +6,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * One applicant's driver clearance — the stand-in for the ITS demo's approved-opticians eye
- * test linkage, the existing-license check, and the violations/circulars restrictions check. Keyed
- * by the civil number. Civil IDs without a row are treated as all-clear with a passed eye
- * test; the seeded demo IDs exercise the branches of {@code transport-learning-permit.bpmn}.
+ * One applicant's driver clearance — the stand-in for the ITS demo's approved-opticians eye test
+ * linkage, the existing-license check, and the violations/circulars restrictions check. Keyed by
+ * the civil number. Civil IDs without a row are treated as all-clear with a passed eye test; the
+ * seeded demo IDs exercise the branches of {@code transport-learning-permit.bpmn}.
  */
 @Entity
 @Table(name = "transport_driver_clearances")

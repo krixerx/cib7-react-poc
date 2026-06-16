@@ -8,7 +8,8 @@ portal.
 
 ## What to ask the user for
 
-To start a businessRegistration, you need six pieces of information:
+To start a businessRegistration, you need these pieces of information
+(name and email are added automatically — see the note below):
 
 - **companyName** — the trade name. Must end in "OÜ" (limited liability).
   If the user gives "Acme" without the suffix, ask whether to append it
@@ -19,14 +20,39 @@ To start a businessRegistration, you need six pieces of information:
 - **shareCapital** — share capital in EUR. Must be at least 2500 (historical
   Estonian Commercial Code minimum). Below that, ask whether the user
   meant a different company form (sole proprietorship, MTÜ non-profit).
-- **applicantFirstName**, **applicantLastName**, **applicantAge** — the
-  applicant's own identity. **Always call query_user_history on each of
-  these BEFORE asking the user.** If history exists, pre-fill all three
-  and confirm in a single message ("I've got your name as Bart Simpson,
-  age 30 — confirm?") rather than re-prompting field by field.
+- **applicantAge** — the applicant's age in years. Call
+  query_user_history('applicantAge') before asking and pre-fill if found.
+
+The applicant's **first name, last name, and email are filled automatically
+from their signed-in account** — do NOT ask for them or send them. The engine
+writes them at process start and re-validates them on completion; a forged
+value is refused with an HTTP 400.
 
 Do NOT include `initiator` in your start_process call. The engine sets it
 from the authenticated Keycloak user automatically.
+
+## MCP-path scope (what chat can and cannot do)
+
+The chat path registers a **sole-founder OÜ only**, and two web-portal
+capabilities are deliberately not reachable over MCP. Tell the user up front
+when their request needs one of these — don't let them discover it after
+starting the process:
+
+- **Co-founder e-signatures** — the multi-founder flow keys off an
+  `additionalFounders` variable and drives per-founder signing via public
+  tracking links the engine emails out. MCP cannot send `additionalFounders`
+  (the start schema is closed) and has no tool to correlate the signature
+  receive task, so every chat-started registration is a single-founder OÜ.
+- **Articles of Association upload** — the AoA document upload has no field in
+  the MCP manifest, so no AoA is attached on the chat path.
+
+One more thing to set expectations on: because the applicant's email is now
+always known (filled from their account), an approved registration generates a
+state-fee invoice + approval email and then waits at a payment step
+(`/pay/{processInstanceId}`). There is no MCP payment tool, so over chat the
+case completes up to that payment step and the user pays on the web. Everything
+before payment — sole-founder registration, auto-approval, civil-servant
+review, the send-back loop — works end-to-end over chat.
 
 ## Auto-approval rule
 
@@ -52,8 +78,9 @@ The engine creates the "Submit business details" user task assigned to the
 applicant. The variables you passed at start time are pre-filled.
 
 Since complete_task is already wired (eng-review T9), you can finish the
-applicant task directly via MCP — call complete_task with the same six
-variables (or corrected ones if the user wants to change). Once completed,
+applicant task directly via MCP — call complete_task with the same
+variables (or corrected ones if the user wants to change); name and email are
+already on the instance and must not be resent. Once completed,
 the engine runs the DMN, then either auto-approves (process ends, approval
 email sent) or routes to civil-servant review.
 

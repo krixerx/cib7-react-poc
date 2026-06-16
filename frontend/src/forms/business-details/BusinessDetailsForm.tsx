@@ -449,9 +449,9 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
           className="field-input"
           value={applicantFirstName}
           onChange={(e) => setApplicantFirstName(e.target.value)}
-          disabled={readOnly}
-          required
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <label className="field">
@@ -460,9 +460,9 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
           className="field-input"
           value={applicantLastName}
           onChange={(e) => setApplicantLastName(e.target.value)}
-          disabled={readOnly}
-          required
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <label className="field">
@@ -508,8 +508,9 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
           placeholder={t('fields.applicantEmail.placeholder')}
           value={applicantEmail}
           onChange={(e) => setApplicantEmail(e.target.value)}
-          disabled={readOnly}
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <fieldset className="field-group">

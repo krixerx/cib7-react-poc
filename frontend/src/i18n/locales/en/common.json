@@ -22,6 +22,9 @@
     "en": "English",
     "ar": "العربية"
   },
+  "identity": {
+    "fromAccount": "From your verified account"
+  },
   "actions": {
     "submit": "Submit",
     "cancel": "Cancel",

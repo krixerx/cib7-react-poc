@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Learning-permit issuance for {@code transport-learning-permit.bpmn} — called by {@code
- * Task_TransportIssuePermit} strictly after the 6 EUR fee payment is correlated. Persists the permit
- * (validity one year from issue) and returns the permit number the PDF and email render.
+ * Task_TransportIssuePermit} strictly after the 6 EUR fee payment is correlated. Persists the
+ * permit (validity one year from issue) and returns the permit number the PDF and email render.
  */
 @RestController
 @RequestMapping("/api/public/transport/learning-permits")

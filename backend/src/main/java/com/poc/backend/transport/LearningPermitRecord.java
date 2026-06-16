@@ -11,8 +11,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * The system-of-record row for one issued Transport Authority driving learning license — written by {@code
- * Task_TransportIssuePermit} after the 6 EUR fee is paid. Validity is one year from issue.
+ * The system-of-record row for one issued Transport Authority driving learning license — written by
+ * {@code Task_TransportIssuePermit} after the 6 EUR fee is paid. Validity is one year from issue.
  */
 @Entity
 @Table(

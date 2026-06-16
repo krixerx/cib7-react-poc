@@ -151,8 +151,9 @@ export default function TransportVehicleApplicationForm({
           className="field-input"
           value={applicantName}
           onChange={(e) => setApplicantName(e.target.value)}
-          disabled={readOnly}
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <label className="field">
@@ -162,8 +163,9 @@ export default function TransportVehicleApplicationForm({
           type="email"
           value={applicantEmail}
           onChange={(e) => setApplicantEmail(e.target.value)}
-          disabled={readOnly}
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <label className="field">

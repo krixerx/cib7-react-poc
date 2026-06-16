@@ -6,10 +6,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Clearance lookups for the two ITS demo services — the stand-in for the external linkages the
- * demo document lists under "Service Link with Other Parties" (technical inspection systems,
- * insurance companies, approved optical shops, the license registry, and the fines/circulars
- * restrictions check).
+ * Clearance lookups for the two ITS demo services — the stand-in for the external linkages the demo
+ * document lists under "Service Link with Other Parties" (technical inspection systems, insurance
+ * companies, approved optical shops, the license registry, and the fines/circulars restrictions
+ * check).
  *
  * <p>Both endpoints return 200 for ANY id: unknown ids come back all-clear so any ad-hoc demo input
  * sails through, while the rows seeded by {@link TransportSeedData} trigger the rejection / medical

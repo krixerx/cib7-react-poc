@@ -1,7 +1,7 @@
 {
   "key": "businessRegistration",
   "name": "Business Registration",
-  "description": "Register a new Estonian limited liability company (OÜ). Adult applicants submitting at least the legal minimum share capital (€2500) are auto-approved by DMN and notified by email; everyone else routes to a civil-servant review queue. The send-back loop lets the reviewer return the case to the applicant with a reason.",
+  "description": "Register a new Estonian limited liability company (OÜ). Adult applicants submitting at least the legal minimum share capital (€2500) are auto-approved by DMN and notified by email; everyone else routes to a civil-servant review queue. The send-back loop lets the reviewer return the case to the applicant with a reason. The applicant's name and email are filled automatically from their signed-in account (do NOT ask for or send them). MCP-path scope: the chat path registers a SOLE-FOUNDER OÜ only (the co-founder e-signature flow uses public tracking links the web portal drives, not chat), and it does not upload the Articles of Association document. Because the applicant's email is now always known, approved cases generate a state-fee invoice and an approval email and then wait at a payment step (Task_WaitForPayment) that is only advanced by the public /pay web page — MCP has no payment tool, so over chat a registration completes up to that payment step and the user pays on the web. Applicants who need co-founders or an AoA upload should use the web portal. Tell the user this up front.",
   "audience": "applicant",
   "candidateGroups": ["applicant"],
   "initialTask": {
@@ -13,7 +13,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "title": "businessRegistration start-time variables",
-    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input. The applicant's first name, last name, and email are filled automatically from their signed-in Keycloak account at process start — do NOT ask for them and do NOT send them (they are not accepted here, and the engine re-validates them on task completion).",
     "properties": {
       "companyName": {
         "type": "string",
@@ -45,18 +45,6 @@
         "minimum": 2500,
         "description": "Share capital in EUR. Minimum 2500 by historical Estonian Commercial Code; the React form, DMN, and Ajv all enforce this floor."
       },
-      "applicantFirstName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 100,
-        "description": "Applicant's first name. The MCP agent should call query_user_history('firstName') before asking — autofill when available."
-      },
-      "applicantLastName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 100,
-        "description": "Applicant's last name. Autofill pattern same as applicantFirstName."
-      },
       "applicantAge": {
         "type": "integer",
         "minimum": 0,
@@ -64,14 +52,7 @@
         "description": "Applicant's age in years. Drives the auto-approval DMN (minors always need human review). Autofill via query_user_history('age')."
       }
     },
-    "required": [
-      "companyName",
-      "boardMembers",
-      "shareCapital",
-      "applicantFirstName",
-      "applicantLastName",
-      "applicantAge"
-    ],
+    "required": ["companyName", "boardMembers", "shareCapital", "applicantAge"],
     "additionalProperties": false
   },
   "userTasks": [
@@ -100,22 +81,13 @@
             }
           },
           "shareCapital": { "type": "number", "minimum": 2500 },
-          "applicantFirstName": { "type": "string", "minLength": 1, "maxLength": 100 },
-          "applicantLastName": { "type": "string", "minLength": 1, "maxLength": 100 },
           "applicantAge": { "type": "integer", "minimum": 0, "maximum": 130 },
           "sendBackReason": {
             "type": "string",
             "description": "Always empty on submit — the form clears the previous reason on resubmit so a future cycle starts clean."
           }
         },
-        "required": [
-          "companyName",
-          "boardMembers",
-          "shareCapital",
-          "applicantFirstName",
-          "applicantLastName",
-          "applicantAge"
-        ],
+        "required": ["companyName", "boardMembers", "shareCapital", "applicantAge"],
         "additionalProperties": false
       }
     },
