@@ -236,9 +236,19 @@
       <bpmn:outgoing>Flow_NeedsSignatures_TrackingEmail</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
+    <!--
+      "sole founder" branch. The condition must defend against a missing
+      additionalFounders variable: the SPA business-details form always
+      writes it, but the MCP start/complete path only sends the six
+      manifest fields and never sets it. A bare ${additionalFounders ...}
+      reference throws JUEL PropertyNotFoundException for an unset variable
+      (surfacing as ENGINE-REST HTTP500 on complete_task), so guard with
+      execution.hasVariable() — same defensive pattern as Gateway_HasPendingAoa
+      and Gateway_SendApprovalEmail above.
+    -->
     <bpmn:sequenceFlow id="Flow_NeedsSignatures_AutoDecide" name="sole founder"
                        sourceRef="Gateway_NeedsSignatures" targetRef="Task_AutoDecide">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${additionalFounders == null || additionalFounders.elements().isEmpty()}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!execution.hasVariable("additionalFounders") || execution.getVariable("additionalFounders") == null || execution.getVariable("additionalFounders").elements().isEmpty()}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <bpmn:sequenceFlow id="Flow_NeedsSignatures_TrackingEmail" name="has co-founders"
@@ -410,6 +420,22 @@
                            camunda:decisionRefBinding="deployment"
                            camunda:mapDecisionResult="singleEntry"
                            camunda:resultVariable="autoDecision">
+      <!--
+        Default applicantResidency to "citizen" when the variable is absent.
+        The SPA business-details form always writes it (its normaliseResidency
+        helper defaults to "citizen"), but the MCP path only sends the six
+        manifest fields and never sets residency. Without this default the
+        DMN's residency column would never match the citizen/e-resident
+        approve rule, so every MCP-driven registration would fall through to
+        Rule_DefaultReview — contradicting the documented age+capital
+        auto-approval. Local input mapping: it feeds the decision evaluation
+        without mutating the process variable.
+      -->
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="applicantResidency">${execution.hasVariable("applicantResidency") and execution.getVariable("applicantResidency") != null ? execution.getVariable("applicantResidency") : "citizen"}</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_NeedsSignatures_AutoDecide</bpmn:incoming>
       <bpmn:incoming>Flow_WaitSubmitToRegister_AutoDecide</bpmn:incoming>
       <bpmn:outgoing>Flow_AutoDecided</bpmn:outgoing>
