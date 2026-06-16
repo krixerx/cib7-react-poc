@@ -26,3 +26,11 @@ Thumbs.db
 # Claude Code (local, per-machine)
 **/.claude/settings.local.json
 .gstack/
+
+# Per-host deployment config & secrets — local-only, synced to the server
+# out-of-band (scp), never committed, so the public bundle stays generic.
+deploy/.env
+deploy/docker-compose.override.yml
+deploy/traefik/dynamic/tls.yml
+deploy/traefik/certs/*.crt
+deploy/traefik/certs/*.key
