@@ -29,11 +29,10 @@ plate-collection instructions, followed by a service evaluation request.
 
 ## What to ask the user for
 
-To start a transportVehicleRegistration, you need these pieces of information:
+The owner's **full name and email are filled automatically from their
+signed-in account** — do NOT ask for them or send them; the engine sets them
+at start and re-validates them on completion. You still need:
 
-- **applicantName** — the owner's full name as on the civil ID.
-- **applicantEmail** — where the payment request, certificate, and all
-  notices are sent.
 - **civilId** — civil number, exactly 8 digits.
 - **residencyStatus** — citizen / resident / diplomat / visitor.
 - **registrationType** — private / commercial / public-utility /

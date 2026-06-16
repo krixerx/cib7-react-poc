@@ -7,10 +7,10 @@ on the same pattern.
 
 ## What to ask the user for
 
-To start a vehicleRegistration, you need exactly four pieces of information:
+The owner's **first name, last name, and email are filled automatically from
+their signed-in account** — do NOT ask for them or send them; the engine sets
+them at start and re-validates them on completion. You still need:
 
-- **firstName** — applicant's first name
-- **lastName** — applicant's last name
 - **age** — applicant's age in years (integer, 0–130)
 - **objectId** — a product ID from the public catalogue at
   https://api.restful-api.dev/objects
@@ -63,6 +63,20 @@ before the case reaches the back office. The sign-off loop relies on emailed
 links and a Camunda message correlation that MCP does not surface yet. If a
 user wants to use that flow, point them at the web portal at
 http://localhost:3000. Plain solo applications work entirely via MCP.
+
+## Name and email come from the signed-in account
+
+The owner's name and email are no longer form fields you fill — the engine reads
+them from the authenticated Keycloak user at process start, writes them as
+process variables, and re-validates them when the applicant task is completed.
+Do not collect them and do not pass them to `start_process` / `complete_task`;
+they are rejected by the schema, and a forged value would be refused with an
+HTTP 400. Because the email is now always known, a **manually-reviewed**
+registration runs the state-fee invoice + approval email and then waits at the
+payment step (`/pay/{processInstanceId}`), which has no MCP affordance — those
+cases complete up to payment and the user pays on the web. Auto-approved cases
+(adult owner, low-value older vehicle) skip review and payment and finish over
+chat.
 
 ## Status interpretation
 

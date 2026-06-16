@@ -13,20 +13,8 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "title": "transportLearningPermit start-time variables",
-    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input. The applicant's full name and email are filled automatically from their signed-in Keycloak account at process start — do NOT ask for them and do NOT send them (they are not accepted here, and the engine re-validates them on task completion).",
     "properties": {
-      "applicantName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 200,
-        "description": "Applicant's full name as on the civil ID."
-      },
-      "applicantEmail": {
-        "type": "string",
-        "minLength": 3,
-        "pattern": "@",
-        "description": "Email address — all notifications go here."
-      },
       "civilId": {
         "type": "string",
         "pattern": "^[0-9]{8}$",
@@ -62,8 +50,6 @@
       }
     },
     "required": [
-      "applicantName",
-      "applicantEmail",
       "civilId",
       "age",
       "residencyStatus",
@@ -79,13 +65,11 @@
       "formKey": "transport-permit-application",
       "name": "Apply for a learning permit",
       "audience": "applicant",
-      "description": "The applicant confirms the learning permit application. Same field set as start_process input. There is no send-back loop in this service.",
+      "description": "The applicant confirms the learning permit application. The applicant's name and email are filled automatically from their signed-in account — do NOT collect or send them. There is no send-back loop in this service.",
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "applicantName": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "applicantEmail": { "type": "string", "minLength": 3, "pattern": "@" },
           "civilId": { "type": "string", "pattern": "^[0-9]{8}$" },
           "age": { "type": "integer", "minimum": 15, "maximum": 100 },
           "residencyStatus": {
@@ -101,8 +85,6 @@
           "profession": { "type": "string" }
         },
         "required": [
-          "applicantName",
-          "applicantEmail",
           "civilId",
           "age",
           "residencyStatus",

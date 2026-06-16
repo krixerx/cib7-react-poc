@@ -24,10 +24,10 @@ receipt) is issued, stored, and emailed.
 
 ## What to ask the user for
 
-To start a transportLearningPermit, you need these pieces of information:
+The applicant's **full name and email are filled automatically from their
+signed-in account** — do NOT ask for them or send them; the engine sets them
+at start and re-validates them on completion. You still need:
 
-- **applicantName** — full name as on the civil ID.
-- **applicantEmail** — where all notifications are sent.
 - **civilId** — civil number, exactly 8 digits (drives the
   eye-test lookup; see the demo IDs above).
 - **age** — in years; 18+ required, 21+ for heavy vehicle / mechanical

@@ -13,20 +13,8 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "title": "vehicleRegistration start-time variables",
-    "description": "Variables collected from the registering owner. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "description": "Variables collected from the registering owner. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input. The owner's first name, last name, and email are filled automatically from their signed-in Keycloak account at process start — do NOT ask the user for them and do NOT send them (they are not accepted here, and the engine re-validates them on task completion).",
     "properties": {
-      "firstName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 100,
-        "description": "Registering owner's first name."
-      },
-      "lastName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 100,
-        "description": "Registering owner's last name."
-      },
       "age": {
         "type": "integer",
         "minimum": 0,
@@ -39,7 +27,7 @@
         "description": "Vehicle VIN. The engine looks the vehicle up against the curated registry served by VehicleRegistryController at /api/public/vehicle-registry/vehicles/{vin}; the response (value, year, fuel type, etc.) feeds the auto-approval DMN."
       }
     },
-    "required": ["firstName", "lastName", "age", "objectId"],
+    "required": ["age", "objectId"],
     "additionalProperties": false
   },
   "userTasks": [
@@ -47,7 +35,7 @@
       "formKey": "owner-vehicle",
       "name": "Submit owner & vehicle details",
       "audience": "applicant",
-      "description": "The registering owner confirms (or corrects) their details, picks a vehicle from the catalog (a VIN), and uploads their ID document. Call upload_document FIRST to stage the ID file, then pass the returned object as `pendingIdDocument` here. If start_process pre-filled the names/age/VIN, the LLM only needs to gather the document and call complete_task.",
+      "description": "The registering owner confirms (or corrects) their details, picks a vehicle from the catalog (a VIN), and uploads their ID document. The owner's name and email are filled automatically from their signed-in account — do NOT collect or send them. Call upload_document FIRST to stage the ID file, then pass the returned object as `pendingIdDocument` here. Typically the LLM only needs to gather age, the VIN, and the document, then call complete_task.",
       "requiredDocuments": [
         {
           "category": "applicant-id-document",
@@ -61,18 +49,6 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "firstName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100,
-            "description": "Registering owner's first name."
-          },
-          "lastName": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100,
-            "description": "Registering owner's last name."
-          },
           "age": {
             "type": "integer",
             "minimum": 0,
@@ -83,11 +59,6 @@
             "type": "string",
             "minLength": 1,
             "description": "Vehicle VIN, matched against the curated registry."
-          },
-          "applicantEmail": {
-            "type": "string",
-            "description": "Optional. Required only if the owner lists co-owners (so they can receive a tracking link) or wants the state fee invoice emailed. Leave empty otherwise.",
-            "default": ""
           },
           "additionalOwners": {
             "type": "array",
@@ -121,7 +92,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["firstName", "lastName", "age", "objectId", "pendingIdDocument"],
+        "required": ["age", "objectId", "pendingIdDocument"],
         "additionalProperties": false
       }
     },

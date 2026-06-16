@@ -209,9 +209,9 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
           className="field-input"
           value={firstName}
           onChange={(e) => setFirstName(e.target.value)}
-          autoFocus={!readOnly}
-          disabled={readOnly}
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <label className="field">
@@ -220,8 +220,9 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
           className="field-input"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
-          disabled={readOnly}
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <label className="field">
@@ -245,8 +246,9 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
           placeholder={t('fields.email.placeholder')}
           value={applicantEmail}
           onChange={(e) => setApplicantEmail(e.target.value)}
-          disabled={readOnly}
+          disabled
         />
+        <span className="field-hint muted">{t('common:identity.fromAccount')}</span>
       </label>
 
       <div className="field">

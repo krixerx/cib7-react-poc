@@ -13,20 +13,8 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "title": "transportVehicleRegistration start-time variables",
-    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input.",
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input. The owner's full name and email are filled automatically from their signed-in Keycloak account at process start — do NOT ask for them and do NOT send them (they are not accepted here, and the engine re-validates them on task completion).",
     "properties": {
-      "applicantName": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 200,
-        "description": "Owner's full name as on the civil ID."
-      },
-      "applicantEmail": {
-        "type": "string",
-        "minLength": 3,
-        "pattern": "@",
-        "description": "Email address — payment request, rejection notice, certificate, and evaluation emails go here."
-      },
       "civilId": {
         "type": "string",
         "pattern": "^[0-9]{8}$",
@@ -76,8 +64,6 @@
       }
     },
     "required": [
-      "applicantName",
-      "applicantEmail",
       "civilId",
       "residencyStatus",
       "registrationType",
@@ -93,13 +79,11 @@
       "formKey": "transport-vehicle-application",
       "name": "Submit vehicle registration application",
       "audience": "applicant",
-      "description": "The applicant confirms (or corrects) the registration application. Same field set as start_process input. On a return-for-corrections resubmit the applicant sees the officer's notes as a banner; the form clears sendBackReason on submit.",
+      "description": "The applicant confirms (or corrects) the registration application. The owner's name and email are filled automatically from their signed-in account — do NOT collect or send them. On a return-for-corrections resubmit the applicant sees the officer's notes as a banner; the form clears sendBackReason on submit.",
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "applicantName": { "type": "string", "minLength": 1, "maxLength": 200 },
-          "applicantEmail": { "type": "string", "minLength": 3, "pattern": "@" },
           "civilId": { "type": "string", "pattern": "^[0-9]{8}$" },
           "residencyStatus": {
             "type": "string",
@@ -135,8 +119,6 @@
           }
         },
         "required": [
-          "applicantName",
-          "applicantEmail",
           "civilId",
           "residencyStatus",
           "registrationType",

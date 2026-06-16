@@ -22,6 +22,9 @@
     "en": "English",
     "ar": "العربية"
   },
+  "identity": {
+    "fromAccount": "من حسابك الموثّق"
+  },
   "actions": {
     "submit": "إرسال",
     "cancel": "إلغاء",
