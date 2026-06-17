@@ -26,9 +26,17 @@ anything.
 | `admin` | `admin` | Camunda admin  | Cockpit / Admin / Tasklist consoles |
 
 Camunda webapps: <https://companylab.ai/camunda/app/cockpit/> · Keycloak admin:
-<https://keycloak.companylab.ai/admin/>. Mailpit and the Traefik dashboard are
+<https://keycloak.companylab.ai/admin/> · **demo email inbox** (registration &
+notification mail): <https://companylab.ai/mailpit>. The Traefik dashboard is
 local-dev only. The table below is the **local `docker compose` equivalent** —
 same logins, just swap `localhost:3000` for `companylab.ai`.
+
+> **Shared inbox — don't enter real data.** The demo has Keycloak email
+> verification on, and all mail (verification links + process notifications)
+> lands in one **public** Mailpit inbox that any visitor can read. New
+> registrants must open <https://companylab.ai/mailpit> to click their
+> verification link. The registration and verify-email pages show this warning
+> inline.
 
 ## Test logins & consoles
 
