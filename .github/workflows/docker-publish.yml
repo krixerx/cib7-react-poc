@@ -49,6 +49,9 @@ jobs:
           - image: cib7-poc-pdf-renderer
             context: ./pdf-renderer
             dockerfile: ./pdf-renderer/Dockerfile
+          - image: cib7-poc-esb
+            context: ./esb
+            dockerfile: ./esb/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

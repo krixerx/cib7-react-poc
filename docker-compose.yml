@@ -70,6 +70,10 @@ services:
       # The bus injects X-Internal-Token on the /api/documents route (the engine
       # no longer sets it). Must match the backend's INTERNAL_TASK_TOKEN.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # Mailpit send endpoint the notification route forwards to. Here Mailpit is
+      # served at the root; the deploy bundle overrides this with the /mailpit
+      # webroot form. No placeholder default in the route — set it here.
+      MAILPIT_SEND_URL: http://mailpit:8025/api/v1/send
     expose:
       - "8080" # platform-http (network-internal; cib7 reaches it at http://esb:8080)
     depends_on:

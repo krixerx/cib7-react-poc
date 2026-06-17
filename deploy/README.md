@@ -2,7 +2,7 @@
 
 This guide is for the **administrator deploying the application**. You do
 not need the source code, a Java/Node toolchain, or any build step — all
-five application images are pre-built and published to
+six application images are pre-built and published to
 [Docker Hub](https://hub.docker.com/u/krixerx) on every change. Everything
 you need is in this `deploy/` folder:
 
@@ -103,7 +103,7 @@ docker compose up -d        # recreates only the affected containers
 
 | Variable | Default | What it does |
 |---|---|---|
-| `IMAGE_TAG` | `latest` | Docker Hub tag for the five app images. Pin a commit SHA for reproducible deploys. |
+| `IMAGE_TAG` | `latest` | Docker Hub tag for the six app images. Pin a commit SHA for reproducible deploys. |
 | `PUBLIC_KEYCLOAK_URL` | `http://localhost:8180` | Browser-visible Keycloak URL. Stamped into every JWT — must match the address bar exactly. |
 | `PUBLIC_FRONTEND_URL` | `http://localhost:3000` | Browser-visible app URL. Embedded in confirmation-email links. |
 | `PUBLIC_S3_URL` | `http://localhost:9000` | Browser-visible object-storage URL (presigned upload/download links). |

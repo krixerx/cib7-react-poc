@@ -20,6 +20,14 @@
 # producer would otherwise append to its own path, producing the duplicated
 # .../api/v1/send/api/v1/send and a 405. Removing it pins the forward to the
 # Mailpit endpoint. Mailpit's response flows back to the engine as the reply.
+#
+# The Mailpit send URL is env-driven (MAILPIT_SEND_URL) because the pull-only
+# deploy bundle serves Mailpit under an MP_WEBROOT of /mailpit (so the API lives
+# at /mailpit/api/v1/send), while the from-source stack serves it at the root.
+# Both docker-compose.yml and deploy/docker-compose.yml set MAILPIT_SEND_URL on
+# the esb service. We read it via toD + the simple language (${env.X}); Camel
+# JBang's {{env:...}} property-placeholder function does not resolve env vars
+# here, but the simple-language env lookup does.
 # ─────────────────────────────────────────────────────────────────────────────
 - route:
     id: notification-bus
@@ -27,7 +35,7 @@
       uri: "platform-http:/api/v1/send?httpMethodRestrict=POST"
       steps:
         - log:
-            message: "[ESB] notification crossing the bus correlationId=${exchangeId} -> mailpit:8025"
+            message: "[ESB] notification crossing the bus correlationId=${exchangeId} -> mailpit"
         - removeHeader:
             name: "CamelHttpPath"
-        - to: "http://mailpit:8025/api/v1/send?bridgeEndpoint=true"
+        - toD: "${env.MAILPIT_SEND_URL}?bridgeEndpoint=true"
