@@ -14,6 +14,22 @@ It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
 see [Deviations from the spec](#deviations-from-the-spec) below.
 
+## Live demo
+
+A hosted instance runs at **<https://companylab.ai>** — try it without cloning
+anything.
+
+| User | Password | Role | Sees |
+|---|---|---|---|
+| `bart`  | `bart`  | applicant      | PartA — start & fill applications |
+| `homer` | `homer` | civil servant  | PartB — review / accept / send back |
+| `admin` | `admin` | Camunda admin  | Cockpit / Admin / Tasklist consoles |
+
+Camunda webapps: <https://companylab.ai/camunda/app/cockpit/> · Keycloak admin:
+<https://keycloak.companylab.ai/admin/>. Mailpit and the Traefik dashboard are
+local-dev only. The table below is the **local `docker compose` equivalent** —
+same logins, just swap `localhost:3000` for `companylab.ai`.
+
 ## Test logins & consoles
 
 | Console | URL | Login | Password |
