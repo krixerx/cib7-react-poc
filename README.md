@@ -35,8 +35,9 @@ same logins, just swap `localhost:3000` for `companylab.ai`.
 > verification on, and all mail (verification links + process notifications)
 > lands in one **public** Mailpit inbox that any visitor can read. New
 > registrants must open <https://companylab.ai/mailpit> to click their
-> verification link. The registration and verify-email pages show this warning
-> inline.
+> verification link. The SPA shows a demo banner (warning + a "Demo email
+> inbox" link) above its header, and the Keycloak registration / verify-email
+> pages carry the same warning inline.
 
 ## Test logins & consoles
 
