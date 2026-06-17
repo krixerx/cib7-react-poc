@@ -9,9 +9,9 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>This one bean replaces the former {@code MailConfiguration} / {@code PdfConfiguration} /
  * {@code BackendConfiguration} trio. The engine no longer knows the address of any individual
- * downstream system (Mailpit, pdf-renderer, the backend) — every outbound HTTP integration now
- * goes to the bus, and the bus (Apache Camel, see the {@code esb} service) routes each path to the
- * real system. BPMN connectors therefore all read {@code ${busBaseUrl}}:
+ * downstream system (Mailpit, pdf-renderer, the backend) — every outbound HTTP integration now goes
+ * to the bus, and the bus (Apache Camel, see the {@code esb} service) routes each path to the real
+ * system. BPMN connectors therefore all read {@code ${busBaseUrl}}:
  *
  * <pre>{@code
  * <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>          <!-- email   -->
@@ -24,10 +24,10 @@ import org.springframework.context.annotation.Configuration;
  * BPMN document tasks — the bus injects it on the {@code /api/documents} route — so the engine no
  * longer holds that credential.
  *
- * <p>Driven by the {@code BUS_URL} env var ({@code http://esb:8080} in Docker). The
- * {@code localhost} default is only a convenience for running the engine standalone via
- * {@code mvn spring-boot:run}; in that mode the bus must be reachable on the host (run it via
- * Docker Compose, which is the usual setup).
+ * <p>Driven by the {@code BUS_URL} env var ({@code http://esb:8080} in Docker). The {@code
+ * localhost} default is only a convenience for running the engine standalone via {@code mvn
+ * spring-boot:run}; in that mode the bus must be reachable on the host (run it via Docker Compose,
+ * which is the usual setup).
  */
 @Configuration
 public class BusConfiguration {
