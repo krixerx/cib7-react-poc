@@ -3,7 +3,7 @@
 **Decision id:** `business-auto-approval`
 **BPMN business rule task:** `Task_AutoDecide`
 **Output variable:** `autoDecision` (single entry)
-**History TTL:** `P30D` (matches the BPMN's process TTL — required by CIB seven 2.1)
+**History TTL:** `P30D` (matches the BPMN's process TTL — required by CIB seven 2.2)
 
 ## Inputs
 

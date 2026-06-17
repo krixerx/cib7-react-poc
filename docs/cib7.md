@@ -4,7 +4,7 @@
 the BPMN, the engine config, the connector wiring, or `pom.xml`; when
 investigating a startup failure or a service-task execution issue.
 
-This module is the embedded CIB seven 2.1 process engine + REST API — and
+This module is the embedded CIB seven 2.2 process engine + REST API — and
 deliberately nothing else: engine, plugins, connectors, security wiring, and
 the BPMN/DMN/FreeMarker resources. Every business REST endpoint (`/api/**` —
 public confirmation/payment links, the vehicle registry, documents) lives in
@@ -32,7 +32,7 @@ http-connector like any other external REST service.
 |---|---|
 | Language | Java 17 |
 | Framework | Spring Boot 3.5 |
-| Process engine | CIB seven 2.1 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
+| Process engine | CIB seven 2.2 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
 | Database | H2, in-memory (no `spring.datasource` configured) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
 | Template engine | `cibseven-template-engines-freemarker` — renders connector payloads from `templates/*.ftl` |
@@ -221,7 +221,7 @@ and DI). Hand-editing the XML is fine for small changes; keep the
 
 **Namespace.** Use the `camunda:` namespace
 (`xmlns:camunda="http://camunda.org/schema/1.0/bpmn"`), not `cib:` — CIB seven
-2.1 uses `camunda:` exactly like Camunda 7. The spec's §5.3 is inaccurate on
+2.2 uses `camunda:` exactly like Camunda 7. The spec's §5.3 is inaccurate on
 this point; see the deviations table in the top-level
 [`README.md`](../README.md#deviations-from-the-spec).
 

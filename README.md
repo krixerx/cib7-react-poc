@@ -1,6 +1,6 @@
-# eRegistrations — a CIB seven 2.1 + React human-tasks POC
+# eRegistrations — a CIB seven 2.2 + React human-task & service-task POC
 
-A proof of concept: a [CIB seven](https://cibseven.org) 2.1 process engine runs
+A proof of concept: a [CIB seven](https://cibseven.org) 2.2 process engine runs
 a BPMN process with **two human tasks**, a **DMN auto-approval decision**, a
 **non-interrupting timer boundary event**, and **five connector-backed
 service tasks** (one fetches a product price, one renders an approval PDF
@@ -205,7 +205,7 @@ run the builder, how to test — see
    │   Bearer JWT            │ │ (cib7-webapps client)
    ▼                         │ │
   /engine-rest               │ ▼
-  /camunda/*  ─────▶  CIB seven 2.1 engine + REST + Cockpit/Tasklist/Admin
+  /camunda/*  ─────▶  CIB seven 2.2 engine + REST + Cockpit/Tasklist/Admin
    │ (nginx / Vite      (cib7/ — Spring Boot, embedded engine, in-memory H2;
    │  proxy)             plugins + connectors only, no business endpoints)
    │                            │
@@ -362,7 +362,7 @@ generated from the spec), read [`docs/mcp.md`](docs/mcp.md).
 ```
 cib7-react-poc/
 ├── docker-compose.yml
-├── cib7/                           CIB seven 2.1 Spring Boot engine module
+├── cib7/                           CIB seven 2.2 Spring Boot engine module
 │   │                               (engine + plugins + connectors ONLY — no
 │   │                               business endpoints; those live in backend/)
 │   ├── pom.xml
@@ -554,7 +554,7 @@ What the spec must cover:
 - Large variables (PDFs, images, anything > 4 kB) are declared as `byte[]`
   in the variables table so the engine spills them to `ACT_GE_BYTEARRAY`
   — see [`docs/cib7.md` § Large process variables](docs/cib7.md#large-process-variables-bytes-typed).
-- DMN files **must** declare `historyTimeToLive` (CIB seven 2.1 hard rule).
+- DMN files **must** declare `historyTimeToLive` (CIB seven 2.2 hard rule).
 
 ### 2. Generate (service-builder skill)
 
@@ -827,7 +827,7 @@ This POC intentionally simplifies `docs/human-role-react-forms-spec.md`:
 
 | Spec | This POC | Why |
 |------|----------|-----|
-| `cib:` BPMN namespace (§5.3) | Standard **`camunda:`** namespace | CIB seven 2.1 uses `camunda:` — confirmed against the official `cibseven-get-started-spring-boot` example. The spec's §5.3 is inaccurate. |
+| `cib:` BPMN namespace (§5.3) | Standard **`camunda:`** namespace | CIB seven 2.2 uses `camunda:` — confirmed against the official `cibseven-get-started-spring-boot` example. The spec's §5.3 is inaccurate. |
 | BFF between React and engine (D11) | React calls **`/engine-rest` directly** with a Bearer JWT | Bearer auth + the resource-server filter chain in front of the engine is the production-acceptable middle ground until a BFF is added. |
 | Form manifest + publish-time validation (§11) | Omitted | The BPMN is a single static file, not dynamically generated. |
 | Single `json` Spin variable (§10) | Plain typed variables (`firstName`, `objectId`, `price`, `decision`, …) | Simpler; no Spin needed for a POC. |

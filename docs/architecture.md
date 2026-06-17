@@ -25,7 +25,7 @@ microservice (`backend/`), frontend (`frontend/`), the Keycloak realm export
 released together — one branch / one PR can change both sides of the React ↔
 engine boundary atomically, which is the whole point.
 
-**Module split.** `cib7/` is a *clean engine*: CIB seven 2.1 + plugins +
+**Module split.** `cib7/` is a *clean engine*: CIB seven 2.2 + plugins +
 connectors + BPMN/DMN/FreeMarker resources, no business endpoints. Every
 `/api/**` surface (public owner-confirmation / founder-signature / payment
 links, the vehicle-registry stand-in, document storage) lives in `backend/`,
@@ -36,7 +36,7 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
   Browser (React SPA) ──OIDC login──▶ Keycloak
    │  (PKCE)
    │  Bearer JWT
-   ├─ /engine-rest ───▶  CIB seven 2.1 engine + REST API     (cib7/, in-memory H2)
+   ├─ /engine-rest ───▶  CIB seven 2.2 engine + REST API     (cib7/, in-memory H2)
    │                     │
    │                     │  http-connector
    │                     ├──▶ backend /api/...           (vehicle lookup, document
@@ -64,7 +64,7 @@ The runtime pieces:
   (Bearer JWT on every call) and `/api/...` (backend — Bearer for documents,
   public for token-link pages and the vehicle dropdown).
 - **Engine service (`cib7/`)** — Spring Boot 3.5 app embedding the CIB seven
-  2.1 process engine, exposing `/engine-rest` and the legacy `/camunda`
+  2.2 process engine, exposing `/engine-rest` and the legacy `/camunda`
   webapps. Auto-deploys every BPMN/DMN on the classpath at startup. Validates
   JWTs as an OAuth2 resource server and bridges the authenticated user into
   the engine's `IdentityService` per request. Contains no business REST
@@ -121,10 +121,10 @@ The runtime pieces:
 | Ingress (prod compose) | Traefik v3.4 | `docker-compose.yml` (`traefik` service) | Single public front door on `:3000`; path-routes `/engine-rest`, `/camunda`, `/oauth2`, `/login`, `/logout` → cib7; `/api` → backend; `/mcp`, `/.well-known/oauth-protected-resource` → mcp; everything else → frontend. The engine, backend, MCP, frontend, and Mailpit are network-internal — only Traefik, Keycloak, and RustFS publish host ports. |
 | HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA. Cross-service routing has moved to Traefik; this nginx only does the SPA fallback (`try_files $uri /index.html`). |
 | Dev server | Vite | `frontend/vite.config.ts` | Serves SPA in dev, proxies `/engine-rest` to `localhost:8080`. (Vite-dev does not use Traefik; the engine still binds 8080 when run via `mvn spring-boot:run`.) |
-| Engine app | Spring Boot 3.5, CIB seven 2.1 starter | `cib7/` | Embedded engine + REST API; no business endpoints |
+| Engine app | Spring Boot 3.5, CIB seven 2.2 starter | `cib7/` | Embedded engine + REST API; no business endpoints |
 | Business microservice | Spring Boot 4 (webmvc + data-jpa + security) | `backend/` | All `/api/**`: public confirmation/payment links, vehicle registry, documents (JPA `Document` metadata + S3 presigner); engine access via `/engine-rest` with the `cib7-business` service account |
 | Object storage | RustFS (S3-compatible) | compose service | Applicant uploads + generated PDFs under `process/{piId}/…`; presigned URLs minted by the backend |
-| Process engine | CIB seven 2.1 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
+| Process engine | CIB seven 2.2 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | wired in `ConnectorConfiguration.java` | Enables `<camunda:connector>` service tasks |
 | Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin |
 | Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
