@@ -13,7 +13,7 @@ page.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${mailApiBaseUrl}/api/v1/send` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/v1/send` | `Content-Type: application/json` |
 
 ## Payload
 

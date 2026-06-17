@@ -11,7 +11,7 @@ Generates the vehicle registration certificate ("Mulkiya"-style document)
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${pdfApiBaseUrl}/render` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/render` | `Content-Type: application/json` |
 
 ## Payload
 

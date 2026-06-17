@@ -23,18 +23,23 @@
 | Field | Value |
 |---|---|
 | Method | `GET` \| `POST` \| `PUT` \| `DELETE` |
-| URL | `${baseUrlVar}/path/${someProcessVar}` |
+| URL | `${busBaseUrl}/path/${someProcessVar}` |
 | Headers | `Accept: application/json`, `Content-Type: application/json`, … |
 
-Use the engine's exposed JUEL beans for base URLs — **don't hard-code**:
+All outbound HTTP goes to `${busBaseUrl}` — the integration bus (`esb`, Apache
+Camel) routes the path to the real downstream system. **Don't hard-code** a
+system URL, and **don't** add an `X-Internal-Token` header to `/api/documents/**`
+calls — the bus injects it.
 
-| JUEL | When | Pattern |
+| Path on `${busBaseUrl}` | Downstream | When |
 |---|---|---|
-| `${mailApiBaseUrl}` | sending mail via Mailpit | `/api/v1/send` |
-| `${pdfApiBaseUrl}` | rendering PDFs via pdf-renderer | `/render` |
+| `/api/v1/send` | Mailpit | sending mail |
+| `/render` | pdf-renderer | rendering PDFs |
+| `/api/public/**` \| `/api/documents/**` | backend | business calls / document writes |
 
-If the request targets a new external system, ask the platform team to add a
-`*Configuration.java` bean for the base URL — don't inline the literal URL.
+If the request targets a NEW external system on a new path, add a declarative
+route to `esb/routes/` rather than inlining a literal URL or a new
+`*Configuration.java` bean.
 
 ## Payload (request body)
 

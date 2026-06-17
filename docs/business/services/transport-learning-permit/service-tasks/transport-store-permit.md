@@ -11,7 +11,7 @@ server-upload) so it shows in the SPA's Documents card.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${apiBaseUrl}/api/documents/server-upload` | `Content-Type: application/json`, `X-Internal-Token: ${internalTaskToken}` |
+| POST | `${busBaseUrl}/api/documents/server-upload` | `Content-Type: application/json` |
 
 ## Payload
 

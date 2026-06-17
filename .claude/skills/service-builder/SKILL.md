@@ -268,7 +268,7 @@ HTTP service task (inline payload):
     <camunda:connector>
       <camunda:connectorId>http-connector</camunda:connectorId>
       <camunda:inputOutput>
-        <camunda:inputParameter name="url">${baseUrl}/path/${someVar}</camunda:inputParameter>
+        <camunda:inputParameter name="url">${busBaseUrl}/path/${someVar}</camunda:inputParameter>
         <camunda:inputParameter name="method">GET</camunda:inputParameter>
         <camunda:inputParameter name="headers">
           <camunda:map>
@@ -326,13 +326,27 @@ JUEL variables exposed by the engine (use these in URLs; don't hard-code):
 
 | JUEL | Source | Pattern |
 |---|---|---|
-| `${mailApiBaseUrl}` | `MailConfiguration.java` | Mailpit `/api/v1/send` |
-| `${pdfApiBaseUrl}` | `PdfConfiguration.java` | `pdf-renderer` `/render` |
+| `${busBaseUrl}` | `BusConfiguration.java` | the integration bus — ALL outbound HTTP goes here |
+| `${frontendBaseUrl}` | `FrontendConfiguration.java` | browser links embedded in emails |
 | `${pdf}` | `PdfHelper.java` bean | `${pdf.decode(...)}`, `${pdf.encode(...)}` |
 
-If the spec asks for a new external integration that needs an environment-driven
-base URL, **stop and ask** — that requires a hand-written `*Configuration.java`
-bean which is out of scope for this skill.
+**All outbound HTTP goes to `${busBaseUrl}`** — the engine never addresses
+Mailpit, pdf-renderer, or the backend directly. The `esb` service (Apache
+Camel, `esb/routes/*.yaml`) routes each path to the real downstream system:
+
+| Path on `${busBaseUrl}` | Downstream | Use |
+|---|---|---|
+| `/api/v1/send` | Mailpit | send email |
+| `/render` | pdf-renderer | render a PDF |
+| `/api/public/**` | backend | clearance, registry, plate, permit |
+| `/api/documents/**` | backend | move-pending, server-upload |
+
+Two rules when generating service tasks:
+- **Never** add an `X-Internal-Token` header to `/api/documents/**` calls — the
+  bus injects it. Emitting it would reference a deleted bean and break the task.
+- If the spec needs a NEW external integration on a new path, add a declarative
+  route to `esb/routes/` (YAML) rather than a hand-written `*Configuration.java`
+  bean; the engine still just calls `${busBaseUrl}/<new-path>`.
 
 ---
 

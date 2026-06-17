@@ -137,10 +137,12 @@ and backed by `/api/public/owner-confirmations/**` in the backend business servi
 | `ReceiveTask_OwnerConfirmation` (in subprocess) | `OwnerConfirmation` | local `ownerToken` (set from `owner.token` via inputOutput) | `POST /api/public/owner-confirmations/{token}` (approve or reject) |
 | `Task_WaitSendToProcess` | `SendToProcess` | `processInstanceId` | `POST /api/public/owner-confirmations/{token}/send-to-process` |
 
-`mailApiBaseUrl`, `pdfApiBaseUrl`, and `frontendBaseUrl` are exposed as
-JUEL variables by `MailConfiguration`, `PdfConfiguration`, and
-`FrontendConfiguration` in the engine. The `pdf` bean is `PdfHelper`. See
-[`../../../cib7.md`](../../../cib7.md) for the wiring.
+`busBaseUrl` (the integration bus address) and `frontendBaseUrl` are exposed
+as JUEL variables by `BusConfiguration` and `FrontendConfiguration` in the
+engine. Outbound email/PDF/backend calls all go to `${busBaseUrl}`; the bus
+(`esb`, Apache Camel) routes each path to the real downstream system. The
+`pdf` bean is `PdfHelper`. See [`../../../cib7.md`](../../../cib7.md) for the
+wiring.
 
 ## Process variables
 

@@ -13,7 +13,7 @@ traffic-officer rejection — so it has two incoming sequence flows.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${mailApiBaseUrl}/api/v1/send` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/v1/send` | `Content-Type: application/json` |
 
 ## Payload
 

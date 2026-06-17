@@ -13,7 +13,7 @@ the `transport_driver_clearances` table (JPA entity `DriverClearance`).
 
 | HTTP | URL | Headers |
 |---|---|---|
-| GET | `${apiBaseUrl}/api/public/transport/driver-clearance/${civilId}` | `Accept: application/json` |
+| GET | `${busBaseUrl}/api/public/transport/driver-clearance/${civilId}` | `Accept: application/json` |
 
 Returns 200 for ANY civil ID — unknown IDs come back all-clear with
 `eyeTestResult: "pass"`; the seeded demo IDs (`90000001` weak, `90000002`

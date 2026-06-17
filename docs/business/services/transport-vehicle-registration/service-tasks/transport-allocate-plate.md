@@ -16,7 +16,7 @@ or the validated `reservedPlateNumber`.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${apiBaseUrl}/api/public/transport/plates/allocate` | `Content-Type: application/json`, `Accept: application/json` |
+| POST | `${busBaseUrl}/api/public/transport/plates/allocate` | `Content-Type: application/json`, `Accept: application/json` |
 
 ## Payload
 

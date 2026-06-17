@@ -9,11 +9,11 @@ preceding gateway)
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${mailApiBaseUrl}/api/v1/send` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/v1/send` | `Content-Type: application/json` |
 
-`${mailApiBaseUrl}` resolves from `MailConfiguration.java`
-(`MAIL_API_URL` env var; defaults to `http://mailpit:8025` in compose,
-`http://localhost:8025` for `mvn spring-boot:run`).
+`${busBaseUrl}` resolves from `BusConfiguration.java` (`BUS_URL` env var =
+`http://esb:8080` in compose). It points at the integration bus, which routes
+`/api/v1/send` to Mailpit.
 
 ## Payload
 

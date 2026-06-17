@@ -14,9 +14,9 @@ check (payment of fines, circulars, expired vehicles).
 
 | HTTP | URL | Headers |
 |---|---|---|
-| GET | `${apiBaseUrl}/api/public/transport/vehicle-clearance/${vin}` | `Accept: application/json` |
+| GET | `${busBaseUrl}/api/public/transport/vehicle-clearance/${vin}` | `Accept: application/json` |
 
-`${apiBaseUrl}` resolves from `BackendConfiguration.java`. The endpoint
+`${busBaseUrl}` resolves from `BusConfiguration.java`. The endpoint
 returns 200 for ANY vin — unknown VINs come back all-clear, seeded demo
 VINs (`DEMOFAILINSP01`, `DEMONOINSURE02`, `DEMOFINESDUE03`)
 trigger the rejection branches. Backed by the `transport_vehicle_clearances`
