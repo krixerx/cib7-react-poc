@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Integration bus — business microservice routes (Stage 3)
+#
+# The CIB seven engine calls the backend through the bus instead of directly.
+# Two prefixes, both PATH-PRESERVING proxies (unlike the fixed-path email/PDF
+# routes): the full sub-path under the prefix must reach the backend unchanged.
+#
+#   /api/public/**     → backend:8085   (vehicle/driver clearance, registry,
+#                                         plate allocation, permit issue) — public,
+#                                         no internal token. GET + POST.
+#   /api/documents/**  → backend:8085   (move-pending, server-upload) — internal.
+#                                         The bus INJECTS X-Internal-Token here
+#                                         (from its INTERNAL_TASK_TOKEN env): the
+#                                         BPMN document tasks no longer set it, so
+#                                         the engine no longer holds that secret.
+#
+# These prefixes are deliberately more specific than "/api" so they do NOT
+# collide with the email route's exact "/api/v1/send" mapping.
+#
+# matchOnUriPrefix=true matches any path under the prefix; bridgeEndpoint=true
+# forwards method, body, headers, and reconstructs the path against the backend.
+# We do NOT strip CamelHttpPath here (the email/PDF fix) because we WANT the full
+# path preserved.
+# ─────────────────────────────────────────────────────────────────────────────
+- route:
+    id: backend-public-bus
+    from:
+      uri: "platform-http:/api/public?matchOnUriPrefix=true"
+      steps:
+        - log:
+            message: "[ESB] backend call crossing the bus ${header.CamelHttpMethod} ${header.CamelHttpPath} -> backend:8085"
+        - to: "http://backend:8085?bridgeEndpoint=true"
+- route:
+    id: backend-documents-bus
+    from:
+      uri: "platform-http:/api/documents?matchOnUriPrefix=true"
+      steps:
+        - log:
+            message: "[ESB] internal document call crossing the bus ${header.CamelHttpMethod} ${header.CamelHttpPath} -> backend:8085 (injecting X-Internal-Token)"
+        - setHeader:
+            name: "X-Internal-Token"
+            simple: "${env.INTERNAL_TASK_TOKEN}"
+        - to: "http://backend:8085?bridgeEndpoint=true"

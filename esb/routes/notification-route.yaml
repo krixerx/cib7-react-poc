@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Integration bus — outbound notification route (Stage 1)
+#
+# The CIB seven engine POSTs the Mailpit "/api/v1/send" payload to the bus
+# instead of calling Mailpit directly. The bus logs the crossing (a stand-in
+# for the central-platform audit trail) and forwards the request verbatim to
+# Mailpit. This is the minimal demonstration of the RFP mandate that outbound
+# integration cross a central "communication bus" rather than going
+# point-to-point.
+#
+# Everything here is declarative Camel YAML DSL — there is no Java RouteBuilder.
+# Camel JBang auto-resolves the platform-http (server) and http (client)
+# components from the `platform-http:` and `http:` URIs below.
+#
+#   engine ──POST http://esb:8080/api/v1/send──▶ [ this route ] ──▶ mailpit:8025
+#
+# bridgeEndpoint=true makes the http producer forward the JSON body, Content-Type
+# and POST method as-is. We also drop the inbound CamelHttpPath header first:
+# platform-http sets it to the matched path (/api/v1/send), which the http
+# producer would otherwise append to its own path, producing the duplicated
+# .../api/v1/send/api/v1/send and a 405. Removing it pins the forward to the
+# Mailpit endpoint. Mailpit's response flows back to the engine as the reply.
+# ─────────────────────────────────────────────────────────────────────────────
+- route:
+    id: notification-bus
+    from:
+      uri: "platform-http:/api/v1/send?httpMethodRestrict=POST"
+      steps:
+        - log:
+            message: "[ESB] notification crossing the bus correlationId=${exchangeId} -> mailpit:8025"
+        - removeHeader:
+            name: "CamelHttpPath"
+        - to: "http://mailpit:8025/api/v1/send?bridgeEndpoint=true"

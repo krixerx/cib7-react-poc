@@ -46,6 +46,36 @@ services:
     depends_on:
       - mailpit
 
+  esb:
+    # Integration bus (Stage 1) — Apache Camel JBang running a declarative YAML
+    # route. Minimal stand-in for the RFP's "Central Integration Platform"
+    # mandate that outbound integration cross a central bus rather than the
+    # engine calling external systems point-to-point.
+    #
+    # Today it carries one flow: the engine POSTs outbound email here (see
+    # cib7's MAIL_API_URL below) and the route logs the crossing then forwards
+    # verbatim to Mailpit. Watch it:  docker compose logs -f esb
+    #
+    # All routing logic lives in esb/routes/*.yaml — no Java. Each route file is
+    # loaded via `camel run --source-dir`, so adding an integration is a drop-in
+    # YAML file. Today: email (notification-route), PDF render (pdf-route), and
+    # the backend /api/public + /api/documents calls (backend-route).
+    #
+    # NB: `backend` is intentionally NOT in depends_on — backend depends_on cib7
+    # which depends_on esb, so esb→backend would be a startup cycle. The route
+    # resolves backend:8085 at request time, so no startup ordering is needed.
+    build: ./esb
+    container_name: cib7-poc-esb
+    environment:
+      # The bus injects X-Internal-Token on the /api/documents route (the engine
+      # no longer sets it). Must match the backend's INTERNAL_TASK_TOKEN.
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+    expose:
+      - "8080" # platform-http (network-internal; cib7 reaches it at http://esb:8080)
+    depends_on:
+      - mailpit
+      - pdf-renderer
+
   traefik:
     # Single public ingress for the POC. Replaces the old per-service
     # port mappings (cib7:8080, frontend:3000, mailpit:8025) with one
@@ -381,35 +411,30 @@ services:
       KEYCLOAK_BACKEND_CLIENT_ID: cib7-backend
       KEYCLOAK_BACKEND_CLIENT_SECRET: cib7-backend-secret
       KEYCLOAK_REST_AUDIENCE: cib7-rest-api
-      # Used by the send-back and review-reminder service tasks in
-      # person-registration.bpmn. The Mailpit container resolves under the
-      # docker-compose network alias "mailpit".
-      MAIL_API_URL: http://mailpit:8025
-      # Used by the "Generate approval PDF" service task. Exposed to the
-      # engine's JUEL context as ${pdfApiBaseUrl} via PdfConfiguration.
-      PDF_API_URL: http://pdf-renderer:8088
+      # Single integration-bus address (${busBaseUrl} via BusConfiguration). The
+      # engine sends ALL outbound HTTP here — email, PDF, and backend calls — and
+      # the bus (esb / Apache Camel) routes each path to the real downstream
+      # system (mailpit, pdf-renderer, backend). The engine no longer knows any
+      # individual system's address; those live in esb/routes/*.yaml.
+      BUS_URL: http://esb:8080
       # Browser-visible base URL for the SPA. Owner-confirmation emails
       # embed ${frontendBaseUrl}/confirm-owner/{token}, so this must be
       # the URL the recipient's browser can open — NOT the docker
       # internal alias. Exposed via FrontendConfiguration as
       # ${frontendBaseUrl} in BPMN/FreeMarker.
       FRONTEND_BASE_URL: http://localhost:3000
-      # Business microservice base URL — used by BPMN http-connector tasks
-      # that call /api/documents/move-pending, /api/documents/server-upload,
-      # and the vehicle-registry lookup. Same loopback trick as MAIL_API_URL /
-      # PDF_API_URL: the engine treats the backend as just another external
-      # REST service. Exposed as ${apiBaseUrl} via BackendConfiguration.
-      BACKEND_API_URL: http://backend:8085
-      # Shared secret the BPMN http-connector sends as X-Internal-Token on
-      # the two internal document endpoints above. Must match the backend
-      # service's INTERNAL_TASK_TOKEN.
-      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # NB: the engine no longer carries MAIL_API_URL / PDF_API_URL /
+      # BACKEND_API_URL / INTERNAL_TASK_TOKEN — all outbound integration goes
+      # through BUS_URL above, and the X-Internal-Token secret moved to the esb
+      # service (the bus injects it on /api/documents).
     depends_on:
       keycloak:
         condition: service_healthy
       mailpit:
         condition: service_started
       pdf-renderer:
+        condition: service_started
+      esb:
         condition: service_started
 
   frontend:

@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Integration bus — PDF render route (Stage 2)
+#
+# The CIB seven engine POSTs {html, filename} to the bus instead of calling the
+# pdf-renderer directly; the bus logs the crossing and forwards verbatim. Unlike
+# the email route, the response matters here: pdf-renderer returns
+# {filename, base64} and the engine reads it back (S(response).prop('base64')…),
+# so bridgeEndpoint=true is what lets the response body flow back unchanged.
+#
+#   engine ──POST http://esb:8080/render──▶ [ this route ] ──▶ pdf-renderer:8088
+#                                                                     │
+#                          {filename, base64} ◀───────────────────────┘
+#
+# Same platform-http→http path-duplication fix as the email route: drop the
+# inbound CamelHttpPath header before forwarding.
+# ─────────────────────────────────────────────────────────────────────────────
+- route:
+    id: pdf-bus
+    from:
+      uri: "platform-http:/render?httpMethodRestrict=POST"
+      steps:
+        - log:
+            message: "[ESB] PDF render crossing the bus correlationId=${exchangeId} -> pdf-renderer:8088"
+        - removeHeader:
+            name: "CamelHttpPath"
+        - to: "http://pdf-renderer:8088/render?bridgeEndpoint=true"

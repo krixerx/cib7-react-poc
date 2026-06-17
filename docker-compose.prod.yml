@@ -38,7 +38,8 @@ services:
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
       # Browser-visible SPA URL embedded in confirmation email links.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
-      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      # INTERNAL_TASK_TOKEN moved to the esb service — the bus injects
+      # X-Internal-Token now, the engine no longer holds the secret.
     # Override the two router keys that change for TLS-terminated prod:
     # entrypoints flips from `web` → `websecure`, and tls=true tells the
     # router to require a TLS connection. All other labels (the rule and
@@ -101,6 +102,16 @@ services:
     restart: unless-stopped
 
   pdf-renderer:
+    restart: unless-stopped
+
+  esb:
+    # Integration bus. The engine inherits BUS_URL=http://esb:8080 from the base
+    # file, so all outbound integration (email, PDF, backend) crosses the bus.
+    # Internal-only (no Traefik route) — only the engine talks to it.
+    environment:
+      # Real internal-task secret in prod — the bus injects X-Internal-Token on
+      # the /api/documents route. Must match the backend's INTERNAL_TASK_TOKEN.
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
     restart: unless-stopped
 
   gotenberg:
