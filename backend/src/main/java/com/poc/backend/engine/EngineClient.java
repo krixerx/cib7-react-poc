@@ -43,7 +43,7 @@ public class EngineClient {
 
   // --- process instance queries -----------------------------------------
 
-  /** Active instance summary: id + the definition key derived from definitionId. */
+  /** Active instance summary: id + the engine's definitionKey. */
   public record ProcessInstanceRef(String id, String definitionKey) {}
 
   /**
@@ -87,11 +87,20 @@ public class EngineClient {
       if (pi == null || pi.path("suspended").asBoolean(false)) {
         return null;
       }
-      String definitionId = pi.path("definitionId").asText("");
-      String key =
-          definitionId.contains(":")
-              ? definitionId.substring(0, definitionId.indexOf(':'))
-              : definitionId;
+      // Use the definitionKey the engine already returns. CIB seven issues
+      // bare-UUID definition ids (no key:version:deployment prefix), so the old
+      // approach of splitting definitionId on ':' kept the whole UUID as the
+      // "key" and every downstream key comparison (e.g. PaymentController)
+      // silently missed. Fall back to the definitionId prefix only if the
+      // definitionKey field is somehow absent.
+      String key = pi.path("definitionKey").asText("");
+      if (key.isBlank()) {
+        String definitionId = pi.path("definitionId").asText("");
+        key =
+            definitionId.contains(":")
+                ? definitionId.substring(0, definitionId.indexOf(':'))
+                : definitionId;
+      }
       return new ProcessInstanceRef(pi.path("id").asText(), key);
     } catch (HttpClientErrorException.NotFound e) {
       return null;
