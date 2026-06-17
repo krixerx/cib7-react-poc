@@ -63,10 +63,13 @@ export default function DocumentsCard({ processInstanceId, refreshKey }: Props) 
     }
   }
 
-  const submitted = (docs ?? []).filter((d) => d.category === 'applicant-id-document');
-  const generated = (docs ?? []).filter(
-    (d) => d.category === 'generated-approval-pdf' || d.category === 'generated-certificate',
-  );
+  // Generated PDFs are the `generated-*` categories; everything else is an
+  // applicant upload. Prefix-based so every process's documents bucket
+  // correctly — business registration (founder articles, state-fee invoice,
+  // B-card) as well as vehicle registration (approval PDF, certificate) —
+  // without re-listing each category here.
+  const generated = (docs ?? []).filter((d) => d.category.startsWith('generated-'));
+  const submitted = (docs ?? []).filter((d) => !d.category.startsWith('generated-'));
 
   return (
     <div className="card documents-card">
