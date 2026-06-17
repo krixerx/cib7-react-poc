@@ -93,7 +93,7 @@
                 </svg>
             </span>
             <span class="cib7-brand-text">
-                <span class="cib7-brand-name">CIB seven</span>
+                <span class="cib7-brand-name">eRegistrations</span>
                 <span class="cib7-brand-sub">${msg("cib7BrandSub")}</span>
             </span>
         </div>

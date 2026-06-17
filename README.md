@@ -1,4 +1,4 @@
-# CIB seven 2.1 + React — Human Tasks POC
+# eRegistrations — a CIB seven 2.1 + React human-tasks POC
 
 A proof of concept: a [CIB seven](https://cibseven.org) 2.1 process engine runs
 a BPMN process with **two human tasks**, a **DMN auto-approval decision**, a
@@ -9,6 +9,10 @@ one with the PDF attached — to [Mailpit](https://mailpit.axllent.org/)). A
 **React** app opens each human task with its own hand-written form; the
 **Cockpit / Tasklist / Admin** webapps are also bundled with full Keycloak
 SSO.
+
+The React SPA and the Keycloak login are branded **eRegistrations**;
+"CIB seven" throughout this repo always refers to the underlying process
+engine ([cibseven.org](https://cibseven.org)), not the app.
 
 It is a slice of the larger design in
 [`docs/human-role-react-forms-spec.md`](docs/human-role-react-forms-spec.md) —
