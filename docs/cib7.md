@@ -51,9 +51,7 @@ cib7/
     ├── java/com/poc/cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
     │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin + Spin plugin
-    │   ├── MailConfiguration.java         — exposes ${mailApiBaseUrl} to BPMN JUEL
-    │   ├── PdfConfiguration.java          — exposes ${pdfApiBaseUrl} to BPMN JUEL
-    │   ├── BackendConfiguration.java      — exposes ${apiBaseUrl} + ${internalTaskToken} (backend microservice)
+    │   ├── BusConfiguration.java          — exposes ${busBaseUrl} to BPMN JUEL (the integration bus)
     │   ├── FrontendConfiguration.java     — exposes ${frontendBaseUrl} (links in emails)
     │   ├── PdfHelper.java                 — @Component("pdf") — base64 ↔ byte[] bridge
     │   ├── AuthorizationBootstrap.java    — grants applicant + civil-servant engine perms on startup
@@ -98,19 +96,23 @@ and the "Get price" service task fails at deploy/runtime.
 If you add another engine plugin (e.g. an LDAP identity provider), add it as
 another `@Bean` in the same `@Configuration` class or split per concern.
 
-### `MailConfiguration.java` / `PdfConfiguration.java` / `BackendConfiguration.java`
+### `BusConfiguration.java` / `FrontendConfiguration.java`
 
-Each exposes Spring `String` beans driven by env vars. The engine's
+Each exposes a Spring `String` bean driven by an env var. The engine's
 expression manager auto-binds beans by name, so the BPMN can reference them
 without any further wiring:
 
 | Bean | Env var | Used by BPMN as |
 |---|---|---|
-| `mailApiBaseUrl` | `MAIL_API_URL` | `${mailApiBaseUrl}/api/v1/send` (Mailpit emails) |
-| `pdfApiBaseUrl` | `PDF_API_URL` | `${pdfApiBaseUrl}/render` (pdf-renderer) |
-| `apiBaseUrl` | `BACKEND_API_URL` | `${apiBaseUrl}/api/public/vehicle-registry/...`, `${apiBaseUrl}/api/documents/move-pending`, `.../server-upload` (backend microservice) |
-| `internalTaskToken` | `INTERNAL_TASK_TOKEN` | `X-Internal-Token` header on the two internal document calls — must match the backend's value |
+| `busBaseUrl` | `BUS_URL` | `${busBaseUrl}/...` for ALL outbound HTTP. The integration bus (`esb`, Apache Camel) routes each path: `/api/v1/send`→Mailpit, `/render`→pdf-renderer, `/api/public/**` and `/api/documents/**`→backend |
 | `frontendBaseUrl` | `FRONTEND_BASE_URL` | links embedded in confirmation / payment emails |
+
+The former `MailConfiguration` / `PdfConfiguration` / `BackendConfiguration`
+beans (one per downstream system) were collapsed into the single `busBaseUrl`;
+the per-system addresses now live in `esb/routes/*.yaml`. The internal
+`X-Internal-Token` secret also moved to the bus — the engine no longer sets it
+(the bus injects it on `/api/documents`), so `INTERNAL_TASK_TOKEN` is an `esb`
+env var, not an engine one.
 
 Defaults target `localhost` ports for `mvn spring-boot:run`; docker-compose
 overrides them to docker-network aliases (`mailpit`, `pdf-renderer`,
@@ -367,7 +369,7 @@ malformed response degrades to "review" instead of crashing the activity:
 <camunda:connector>
   <camunda:connectorId>http-connector</camunda:connectorId>
   <camunda:inputOutput>
-    <camunda:inputParameter name="url">${apiBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
+    <camunda:inputParameter name="url">${busBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
     <camunda:inputParameter name="method">GET</camunda:inputParameter>
     <camunda:inputParameter name="headers">
       <camunda:map>
@@ -385,16 +387,17 @@ after the previous user task is completed, the call happens on a background
 thread; the next user task appears a moment later. The Tasks page **Refresh**
 button is the polling mechanism.
 
-The two email service tasks reuse the same connector against Mailpit. The
-target URL is built from a Spring bean `mailApiBaseUrl` registered by
-`MailConfiguration.java`; in JUEL `${mailApiBaseUrl}` resolves to whatever
-the `MAIL_API_URL` env var is set to (defaults to `http://localhost:8025`
-for `mvn spring-boot:run`; `http://mailpit:8025` inside docker-compose).
+The two email service tasks reuse the same connector. The target URL is built
+from a Spring bean `busBaseUrl` registered by `BusConfiguration.java`; in JUEL
+`${busBaseUrl}` resolves to whatever the `BUS_URL` env var is set to
+(`http://esb:8080` inside docker-compose). The engine POSTs to the integration
+bus, which routes `/api/v1/send` to Mailpit.
 Mailpit's HTTP API is intentionally Mailpit-flavoured — `From`/`To` lists,
 `Subject`, `Text` — there is no SMTP traffic involved.
 
-`Task_GeneratePdf` follows the same pattern against the [`pdf-renderer/`](../pdf-renderer/)
-sidecar (URL `${pdfApiBaseUrl}/render` from `PdfConfiguration.java`).
+`Task_GeneratePdf` follows the same pattern, posting to the bus
+(`${busBaseUrl}/render`), which routes to the [`pdf-renderer/`](../pdf-renderer/)
+sidecar.
 pdf-renderer is a 20-line Express app that hides two warts Gotenberg
 exposes: it accepts JSON (Gotenberg requires multipart/form-data) and
 returns base64 inside JSON (Gotenberg returns raw binary, which the

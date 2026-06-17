@@ -12,21 +12,26 @@ BPMN `http-connector` (Mailpit, pdf-renderer, the backend). The RFP requires the
 opposite: each application talks to a central bus, and the bus talks to the real
 systems. This service is the bus.
 
-## What it carries today (Stage 1)
+## What it carries today
 
-One flow — **outbound email**:
+**All** of the engine's outbound HTTP. The engine knows one address —
+`${busBaseUrl}` = `http://esb:8080` — and the bus routes each path to the real
+downstream system:
 
 ```
-cib7 engine ──POST http://esb:8080/api/v1/send──▶ [ Camel route ] ──▶ mailpit:8025
-                                                         │
-                                                         └─ logs every crossing (audit)
+cib7 engine ──POST ${busBaseUrl}/…──▶ [ Camel routes ] ──▶ downstream
+   /api/v1/send      ──▶ mailpit:8025
+   /render           ──▶ pdf-renderer:8088   (response flows back)
+   /api/public/**    ──▶ backend:8085        (clearance, registry, plate, permit)
+   /api/documents/** ──▶ backend:8085        (move-pending, server-upload;
+                                              bus injects X-Internal-Token)
 ```
 
-The engine's `MAIL_API_URL` points at `http://esb:8080` (see
-`docker-compose.yml`) instead of Mailpit directly. The route
-(`routes/notification-route.yaml`) logs the crossing and forwards the request
-verbatim; Mailpit's response flows back to the engine. No engine code or BPMN
-was changed — only the one env var was repointed, so it is fully reversible.
+Each integration is one declarative route file in `routes/`, all loaded via
+`camel run --source-dir`. The engine carries only `BUS_URL`; the per-system
+addresses and the `INTERNAL_TASK_TOKEN` secret live here on the bus. The
+engine's `BusConfiguration.java` exposes `${busBaseUrl}` to BPMN — there is no
+longer a Mail/Pdf/Backend config class per system.
 
 ## See it working
 
@@ -35,26 +40,32 @@ docker compose up -d --build esb        # build + start the bus
 docker compose logs -f esb              # watch the bus
 ```
 
-Then drive any process to a state that sends an email (e.g. the transport
-vehicle "send back for corrections" branch, or `scripts/transport-demo-drive.py`).
-Each email now prints an `[ESB] notification crossing the bus …` line here before
-landing in Mailpit. Inspect the inbox with the dev profile:
+Then drive a process (`scripts/transport-demo-drive.py`, or the transport
+vehicle "send back for corrections" branch). Each crossing prints an `[ESB] …`
+line here before reaching the downstream system. Inspect the email inbox with
+the dev profile:
 
 ```bash
 docker compose --profile dev up -d mailpit-ui   # Mailpit UI at http://localhost:8025
 ```
 
+## Adding an integration
+
+Drop a new `routes/<name>.yaml` in — `--source-dir` auto-loads it, no Dockerfile
+change — and point the engine connector at `${busBaseUrl}/<new-path>`. Gotcha:
+for a fixed-path forward, `removeHeader CamelHttpPath` before the `to` (else the
+inbound platform-http path is appended and the downstream 404s); for a
+path-preserving prefix proxy, use `matchOnUriPrefix=true` and keep the header.
+
 ## Roadmap (not yet implemented)
 
-- **Stage 2/3** — route the PDF (`/render`) and backend (`/api/**`) calls through
-  the bus too, each as one more YAML route; the bus injects the backend
-  `X-Internal-Token`.
-- **Stage 4** — collapse the engine's `Mail`/`Pdf`/`Backend` config classes into a
-  single `busBaseUrl`; downstream addresses + the secret live here on the bus.
-- Later — canonical message envelope + transformation, a mock external
-  "Central Integration Platform" target, and a Kafka async event.
+- A canonical message envelope + transformation (so apps speak one neutral
+  format to the bus), a mock external "Central Integration Platform" target,
+  and a Kafka async event for the event-driven path.
 
 ## Revert
 
-Point `MAIL_API_URL` back to `http://mailpit:8025` in `docker-compose.yml` and
-the engine bypasses the bus again.
+Reverting means restoring the per-system wiring the bus replaced — `MAIL_API_URL`
+/ `PDF_API_URL` / `BACKEND_API_URL` on the engine, the `${mailApiBaseUrl}` etc.
+beans, and the BPMN `X-Internal-Token` headers. The pre-ESB commit is the
+simplest reference.

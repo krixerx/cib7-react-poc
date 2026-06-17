@@ -124,7 +124,7 @@ Vehicle Registration (BPMN + DMN)
     ▼  Co-owner signatures        multi-instance subprocess (email links,  │
     │    public /confirm-owner/{token} pages, message correlation)         │
     ▼  Look up vehicle in registry  service task (http-connector)          │
-    │    GET {apiBaseUrl}/api/public/vehicle-registry/vehicles/{vin}       │
+    │    GET {busBaseUrl}/api/public/vehicle-registry/vehicles/{vin}       │
     │    → price, vehicleAgeYears, make/model/year/fuelType                │
     ▼  Auto-approval policy       business rule task (DMN)                 │
     │    age + price + vehicleAgeYears → autoDecision                      │
@@ -371,9 +371,8 @@ cib7-react-poc/
 │       ├── java/com/poc/cib7/
 │       │   ├── Cib7PocApplication.java
 │       │   ├── ConnectorConfiguration.java   registers the Connect plugin
-│       │   ├── MailConfiguration.java        exposes ${mailApiBaseUrl}
-│       │   ├── PdfConfiguration.java         exposes ${pdfApiBaseUrl}
-│       │   ├── BackendConfiguration.java     exposes ${apiBaseUrl} + ${internalTaskToken}
+│       │   ├── BusConfiguration.java         exposes ${busBaseUrl} (integration bus)
+│       │   ├── FrontendConfiguration.java    exposes ${frontendBaseUrl} (email links)
 │       │   ├── PdfHelper.java                @Component("pdf") base64↔byte[]
 │       │   ├── AuthorizationBootstrap.java   grants /applicant engine perms
 │       │   └── keycloak/                     Spring Security + Keycloak identity wiring
@@ -671,7 +670,7 @@ It is wired in two places:
   <camunda:connector>
     <camunda:connectorId>http-connector</camunda:connectorId>
     <camunda:inputOutput>
-      <camunda:inputParameter name="url">${apiBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
+      <camunda:inputParameter name="url">${busBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
       <camunda:inputParameter name="method">GET</camunda:inputParameter>
       <camunda:inputParameter name="headers">
         <camunda:map>
@@ -724,11 +723,11 @@ The **Review application** user task carries a non-interrupting timer
 boundary event (`R/PT2M`). Every two minutes while the task is open the
 engine job executor fires a parallel branch into a **Send reminder email**
 service task — the user task itself stays open and can fire again. The
-service task is just the `http-connector` POSTing to Mailpit's
-`/api/v1/send` JSON endpoint:
+service task is just the `http-connector` POSTing to the integration bus,
+which forwards to Mailpit's `/api/v1/send` JSON endpoint:
 
 ```xml
-<camunda:inputParameter name="url">${mailApiBaseUrl}/api/v1/send</camunda:inputParameter>
+<camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
 <camunda:inputParameter name="method">POST</camunda:inputParameter>
 <camunda:inputParameter name="payload">{
   "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
@@ -740,11 +739,12 @@ service task is just the `http-connector` POSTing to Mailpit's
 
 The same connector is reused on the send-back path to email the applicant
 (`${initiator}@cib7-poc.local`) the rejection reason before looping back. The
-`${mailApiBaseUrl}` variable is exposed by
-[`MailConfiguration.java`](cib7/src/main/java/com/poc/cib7/MailConfiguration.java)
-as a Spring bean, driven by the `MAIL_API_URL` env var
-(`http://mailpit:8025` in Docker, `http://localhost:8025` for
-`mvn spring-boot:run`).
+`${busBaseUrl}` variable is exposed by
+[`BusConfiguration.java`](cib7/src/main/java/com/poc/cib7/BusConfiguration.java)
+as a Spring bean, driven by the `BUS_URL` env var (`http://esb:8080` in
+Docker). It points at the integration bus (`esb`, Apache Camel), which routes
+`/api/v1/send` to Mailpit — the engine never addresses Mailpit directly. See
+the [Integration bus](docs/architecture.md#system-overview) note.
 
 [Mailpit](https://mailpit.axllent.org/) (`axllent/mailpit:latest`) is a tiny
 SMTP server + web UI; the inbox at <http://localhost:8025> visualizes every
@@ -757,8 +757,9 @@ dev up -d mailpit-ui`, which spins up a socat sidecar that publishes
 
 When the case ends in approval and the applicant provided an email, a
 **Generate approval PDF** service task runs before the approval email. It is
-yet another `http-connector` call — this time against the `pdf-renderer/`
-sidecar at `${pdfApiBaseUrl}/render`, which takes JSON `{html, filename}`
+yet another `http-connector` call — this time to the bus at
+`${busBaseUrl}/render`, which routes to the `pdf-renderer/` sidecar; it takes
+JSON `{html, filename}`
 and returns JSON `{filename, base64}`. The sidecar internally POSTs
 `multipart/form-data` to **Gotenberg** (`gotenberg/gotenberg:8`, headless
 Chromium) and base64-encodes the binary response — both warts that would

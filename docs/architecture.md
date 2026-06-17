@@ -38,11 +38,15 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
    │  Bearer JWT
    ├─ /engine-rest ───▶  CIB seven 2.2 engine + REST API     (cib7/, in-memory H2)
    │                     │
-   │                     │  http-connector
-   │                     ├──▶ backend /api/...           (vehicle lookup, document
-   │                     │                                move-pending/server-upload)
+   │                     │  http-connector → ${busBaseUrl}
+   │                     ▼
+   │                  esb — integration bus (Apache Camel, YAML routes)
+   │                     │  routes each path to the real downstream system:
    │                     ├──▶ Mailpit /api/v1/send       (email + attachments)
-   │                     └──▶ pdf-renderer /render ──▶ Gotenberg (Chromium → PDF)
+   │                     ├──▶ pdf-renderer /render ──▶ Gotenberg (Chromium → PDF)
+   │                     └──▶ backend /api/...           (vehicle lookup, document
+   │                                                      move-pending/server-upload;
+   │                                                      bus injects X-Internal-Token)
    │
    └─ /api/... ───────▶  backend — business microservice  (backend/, Spring Boot 4)
                           │  public confirmations / payments / vehicle registry,
@@ -83,9 +87,17 @@ The runtime pieces:
   engine-generated PDFs. The backend mints presigned PUT/GET URLs so the
   browser moves bytes directly; port `9000` stays host-published because S3
   signature v4 hashes the host header.
-- **Mailpit** — local SMTP+HTTP test server. The engine POSTs notifications
-  (reminder, send-back, approval) to its `/api/v1/send` endpoint; the inbox
-  at `:8025` renders them with attachments.
+- **Mailpit** — local SMTP+HTTP test server. Notifications (reminder,
+  send-back, approval) reach its `/api/v1/send` endpoint through the
+  integration bus; the inbox at `:8025` renders them with attachments.
+- **Integration bus (`esb`)** — Apache Camel JBang running declarative YAML
+  routes (`esb/routes/*.yaml`, no Java). The engine makes every outbound HTTP
+  call to a single address (`${busBaseUrl}` = `http://esb:8080`) and the bus
+  routes each path to the real downstream system — `/api/v1/send`→Mailpit,
+  `/render`→pdf-renderer, `/api/public/**` and `/api/documents/**`→backend
+  (injecting `X-Internal-Token` on the document calls). Demonstrates the
+  RFP's "all integration crosses the Central Integration Platform" mandate as
+  a mediated bus instead of point-to-point connector calls.
 - **PDF stack** — two collaborating sidecars: **Gotenberg** (headless
   Chromium) handles the actual rendering, and **pdf-renderer** (a 20-line
   Node sidecar) sits in front of it to give the engine a JSON-in / JSON-out
@@ -126,7 +138,8 @@ The runtime pieces:
 | Object storage | RustFS (S3-compatible) | compose service | Applicant uploads + generated PDFs under `process/{piId}/…`; presigned URLs minted by the backend |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | wired in `ConnectorConfiguration.java` | Enables `<camunda:connector>` service tasks |
-| Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin |
+| Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin. Every call now targets `${busBaseUrl}` (the integration bus), not a downstream system directly |
+| Integration bus | Apache Camel JBang (`apache/camel-jbang`) | `esb/` (declarative YAML routes) | Mediates every engine→downstream HTTP call; engine talks only to `${busBaseUrl}` and the bus routes each path to mailpit / pdf-renderer / backend (injecting `X-Internal-Token` on `/api/documents`) |
 | Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | Grants the `applicant` engine group the narrow set of permissions it needs (admins are handled by the plugin's `administratorGroupName`) |
@@ -138,7 +151,7 @@ The runtime pieces:
 | MCP sidecar | `mcp/` (Node + TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`) | local module, compose service | Streamable HTTP MCP transport at `/mcp`; OAuth2 PKCE-loopback against Keycloak; JOSE jwtVerify at the door; Bearer-forwards to `/engine-rest`; Ajv-validates inputs against per-service manifests; uses `cib7-backend` service account for invitation emails |
 | Per-service MCP manifests | `docs/business/services/<svc>/build/mcp-service.json` (generated) | `/service-builder` skill | Variable schemas + audience metadata; loaded by the MCP sidecar at startup |
 | Aggregated MCP index | `docs/business/services/build/services.json` (generated) | `/service-builder` skill | Top-level catalog of MCP-callable services |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Ten services + ingress: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp` |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Eleven services + ingress: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `esb` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
@@ -166,16 +179,16 @@ A single "Vehicle Registration" process instance:
      SPA → POST /engine-rest/task/{taskId}/complete
      ↓
 6. Engine promotes the staged upload + looks the vehicle up (job executor)
-     Engine → POST {apiBaseUrl}/api/documents/move-pending   (X-Internal-Token)
-     Engine → GET  {apiBaseUrl}/api/public/vehicle-registry/vehicles/{vin}
+     Engine → POST {busBaseUrl}/api/documents/move-pending   (bus injects X-Internal-Token)
+     Engine → GET  {busBaseUrl}/api/public/vehicle-registry/vehicles/{vin}
      Spin reads value/age inline; engine writes `price`, `vehicleAgeYears`
      ↓
 7. DMN auto-approval policy decides: auto-approve, or create the
    "Transport Authority review" user task (candidateGroup civil-servant)
      Reviewer approves → {decision: "approve"} — or sends back to step 3
      ↓
-8. Engine generates + stores the state-fee invoice PDF
-     Engine → pdf-renderer /render → backend /api/documents/server-upload
+8. Engine generates + stores the state-fee invoice PDF (both via the bus)
+     Engine → {busBaseUrl}/render (→ pdf-renderer) → {busBaseUrl}/api/documents/server-upload (→ backend)
    then parks on "Wait for state fee payment" (receive task)
      Payer → public /pay/{piId} page → POST /api/public/payments/{piId}/confirm
      Backend correlates PaymentReceived via /engine-rest/message
@@ -202,7 +215,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 
 ## Deployment topology
 
-`docker-compose.yml` defines ten services (plus the `dev`-profile
+`docker-compose.yml` defines eleven services (plus the `dev`-profile
 `mailpit-ui` sidecar):
 
 - **keycloak** — `quay.io/keycloak/keycloak:26.1` in `start-dev --import-realm`
@@ -215,18 +228,21 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   nginx). Reaches Keycloak over the docker network at `http://keycloak:8080`
   (internal), while the browser uses `http://localhost:8180` (external) —
   see the "issuer-URL split" note below. Depends on `keycloak` (healthy),
-  `mailpit` (started), and `pdf-renderer` (started); reads
-  `MAIL_API_URL=http://mailpit:8025`, `PDF_API_URL=http://pdf-renderer:8088`,
-  and `BACKEND_API_URL=http://backend:8085` (exposed to BPMN as
-  `${apiBaseUrl}`) to drive the email, PDF, and document/vehicle-registry
-  service tasks.
+  `mailpit` (started), `pdf-renderer` (started), and `esb` (started); reads
+  `BUS_URL=http://esb:8080` (exposed to BPMN as `${busBaseUrl}`). Every
+  outbound HTTP call — email, PDF, and the document/vehicle-registry tasks —
+  goes to the integration bus, which routes each path to the real downstream
+  system. The engine no longer carries `MAIL_API_URL` / `PDF_API_URL` /
+  `BACKEND_API_URL` / `INTERNAL_TASK_TOKEN`, and no longer knows any
+  individual system's address.
 - **backend** — built from `backend/Dockerfile`. Network-internal on port
   `8085`; Traefik (and the frontend nginx fallback) route `/api` to it.
   Owns the `/api/**` business surface; depends on `keycloak` (healthy),
   `rustfs` (healthy), and `cib7` (started). Authenticates its
   `/engine-rest` calls with the `cib7-business` service account and shares
-  `INTERNAL_TASK_TOKEN` with the engine for the two BPMN-called document
-  endpoints (`move-pending`, `server-upload`).
+  `INTERNAL_TASK_TOKEN` with the integration bus (`esb`), which injects the
+  `X-Internal-Token` header on the two BPMN-called document endpoints
+  (`move-pending`, `server-upload`) — the engine no longer holds that secret.
 - **rustfs** — S3-compatible object storage, host-published on `:9000` (the
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
@@ -245,6 +261,14 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   front of Gotenberg. Hides Gotenberg's multipart input format and binary
   output from the http-connector, which only handles plain
   `application/json` cleanly.
+- **esb** — built from `esb/Dockerfile` (`apache/camel-jbang`). Internal only
+  on port `8080`. The integration bus: the engine POSTs every outbound call to
+  `http://esb:8080` and the declarative YAML routes (`esb/routes/*.yaml`,
+  loaded via `camel run --source-dir`) forward each path to mailpit /
+  pdf-renderer / backend. Holds `INTERNAL_TASK_TOKEN` and injects
+  `X-Internal-Token` on the `/api/documents` route. Not in `esb.depends_on`'s
+  `backend` (that would be a `backend → cib7 → esb` startup cycle); the route
+  resolves the backend at request time.
 - **mcp** — built from `mcp/Dockerfile` with the repo root as build
   context (so the Dockerfile can COPY both `mcp/` source AND
   `docs/business/services/` for the per-service MCP manifests). Node 20 +
@@ -343,7 +367,8 @@ End-to-end Keycloak authentication, authorization, and a single seeded user:
   `backend/`: `/api/public/**` is unauthenticated by design (the
   per-participant UUID token — or the opaque process-instance id for
   payments — in the URL is the credential); the two BPMN-called document
-  endpoints accept only the shared `X-Internal-Token` header; everything
+  endpoints accept only the shared `X-Internal-Token` header (injected by the
+  integration bus, not the engine); everything
   else under `/api/documents/**` is a JWT resource server validating the
   same issuer + `cib7-rest-api` audience as the engine.
 - **`/engine-rest` is still directly exposed.** This POC has no BFF — the spec

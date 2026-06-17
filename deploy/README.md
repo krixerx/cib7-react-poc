@@ -114,7 +114,7 @@ docker compose up -d        # recreates only the affected containers
 | `KEYCLOAK_WEBAPPS_CLIENT_SECRET` | dev value | Same, for the Cockpit/Tasklist SSO client. |
 | `KEYCLOAK_BUSINESS_CLIENT_SECRET` | dev value | Same, for the backend's service account. |
 | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` | dev values | Object-storage root credentials. |
-| `INTERNAL_TASK_TOKEN` | dev value | Shared secret for engine→backend service-task calls. |
+| `INTERNAL_TASK_TOKEN` | dev value | Shared secret for the internal document-write calls; the integration bus (`esb`) injects it as `X-Internal-Token`, the backend verifies it. |
 
 > **Rule of thumb:** the three `KEYCLOAK_*_CLIENT_SECRET` values and the
 > demo users live in **two places** — `.env` *and*
