@@ -116,8 +116,13 @@ def scenario1():
 
     t = wait_for_task(bart, pi, "Submit vehicle registration")
     api(BASE + f"/engine-rest/task/{t['id']}/complete", bart, "POST", {"variables": {
+        # The identity-prefill plugin does NOT populate these for the vehicle
+        # process, and plate allocation requires ownerName (= applicantName), so
+        # submit them. Use bart's real verified email so process emails reach the
+        # right address (this Submit task isn't ${initiator}-guarded, so the email
+        # itself isn't validated here — but it should still be correct).
         "applicantName": s("Bart Simpson"),
-        "applicantEmail": s("bart@cib7-poc.local"),
+        "applicantEmail": s("bart@example.com"),
         "civilId": s("12345678"),
         "residencyStatus": s("citizen"),
         "registrationType": s("private"),
@@ -158,8 +163,13 @@ def scenario1_rejection():
              bart, "POST", {"variables": {}})["id"]
     t = wait_for_task(bart, pi, "Submit vehicle registration")
     api(BASE + f"/engine-rest/task/{t['id']}/complete", bart, "POST", {"variables": {
+        # The identity-prefill plugin does NOT populate these for the vehicle
+        # process, and plate allocation requires ownerName (= applicantName), so
+        # submit them. Use bart's real verified email so process emails reach the
+        # right address (this Submit task isn't ${initiator}-guarded, so the email
+        # itself isn't validated here — but it should still be correct).
         "applicantName": s("Bart Simpson"),
-        "applicantEmail": s("bart@cib7-poc.local"),
+        "applicantEmail": s("bart@example.com"),
         "civilId": s("12345678"),
         "residencyStatus": s("citizen"),
         "registrationType": s("private"),
@@ -182,9 +192,12 @@ def scenario2():
     print("started", pi)
 
     t = wait_for_task(bart, pi, "Apply for a learning permit")
+    # This applicant task is assigned to ${initiator}, so IdentityValidationListener
+    # validates applicantName/applicantEmail on complete against bart's verified
+    # Keycloak account — submit his real values (matching name + verified email).
     api(BASE + f"/engine-rest/task/{t['id']}/complete", bart, "POST", {"variables": {
         "applicantName": s("Bart Simpson"),
-        "applicantEmail": s("bart@cib7-poc.local"),
+        "applicantEmail": s("bart@example.com"),
         "civilId": s("90000001"),
         "age": {"value": 24, "type": "Integer"},
         "residencyStatus": s("citizen"),
