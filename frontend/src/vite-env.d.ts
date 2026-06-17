@@ -18,5 +18,9 @@ interface Window {
     KEYCLOAK_URL?: string;
     KEYCLOAK_REALM?: string;
     KEYCLOAK_CLIENT_ID?: string;
+    // Demo-banner controls (DemoBanner.tsx). MAILPIT_URL overrides the
+    // localhost/same-origin auto-detect; DEMO_BANNER='false' hides the strip.
+    MAILPIT_URL?: string;
+    DEMO_BANNER?: string;
   };
 }

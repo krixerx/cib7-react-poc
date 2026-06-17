@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
+import DemoBanner from './components/DemoBanner';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import ServicesPage from './pages/ServicesPage';
 import TasksPage from './pages/TasksPage';
@@ -50,6 +51,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <DemoBanner />
       <header className="app-header">
         <Link to="/" className="app-title">
           <span className="app-logo" aria-hidden="true">

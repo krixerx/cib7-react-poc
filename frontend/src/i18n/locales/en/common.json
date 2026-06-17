@@ -17,6 +17,10 @@
       "register": "Register"
     }
   },
+  "demo": {
+    "warning": "Public demo — please don't enter real personal data.",
+    "inbox": "Demo email inbox"
+  },
   "language": {
     "label": "Language",
     "en": "English",

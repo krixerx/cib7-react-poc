@@ -56,6 +56,47 @@ body {
   flex-direction: column;
 }
 
+/* Public-demo strip above the header. Same warn palette as .form-banner-warn. */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff7ed;
+  color: #9a3412;
+  border-bottom: 1px solid #fed7aa;
+}
+
+.demo-banner-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ea580c;
+  flex-shrink: 0;
+}
+
+.demo-banner-inbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.demo-banner-inbox:hover {
+  text-decoration: none;
+}
+
 .app-header {
   display: flex;
   align-items: center;
