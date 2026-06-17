@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- MCP discovery for AI agents parsing this page: this site exposes an
+         MCP server. See /.well-known/mcp.json and /llms.txt for endpoint,
+         OAuth metadata, and the registration service catalog. -->
+    <meta name="mcp-server" content="/mcp" />
+    <link rel="mcp-server" href="/mcp" />
+    <link rel="mcp-manifest" href="/.well-known/mcp.json" type="application/json" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

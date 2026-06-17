@@ -40,6 +40,10 @@ import {
 
 const PORT = Number(process.env.PORT ?? 8090);
 const RESOURCE_URL = process.env.MCP_RESOURCE_URL ?? 'http://localhost:3000/mcp';
+// Public site origin, derived from the MCP endpoint by dropping the `/mcp`
+// suffix (e.g. https://companylab.ai/mcp -> https://companylab.ai). Used to
+// build absolute links in the agent-discovery surfaces below.
+const SITE_BASE_URL = RESOURCE_URL.replace(/\/mcp\/?$/, '');
 const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER_URL ?? 'http://localhost:8180/realms/cib7-poc';
 const APPLICANT_PORTAL_URL = process.env.MCP_APPLICANT_PORTAL_URL ?? 'http://localhost:3000';
 const MAILPIT_URL = process.env.MCP_MAILPIT_URL ?? 'http://localhost:8025';
@@ -1171,6 +1175,91 @@ app.get('/.well-known/oauth-protected-resource', (_req, res) => {
     // scopes do not exist in this realm (we replaced them with cib7-claims).
     scopes_supported: ['openid'],
   });
+});
+
+// Agent-discovery surfaces. These let an AI agent that simply lands on the
+// site (or probes the well-known prefix) realise MCP is supported without
+// prior knowledge of the endpoint. They are served from the MCP service so
+// they always reflect the live manifest registry. The frontend nginx /
+// Traefik route these specific paths here instead of the SPA fallback.
+function discoveryServices(): Array<{
+  key: string;
+  name: string;
+  description: string;
+  audience?: string;
+}> {
+  return listManifests().map(({ manifest }) => ({
+    key: manifest.key,
+    name: manifest.name,
+    description: manifest.description,
+    audience: manifest.audience,
+  }));
+}
+
+// Top-level MCP discovery document. Not (yet) an IETF-registered well-known
+// URI, but the de-facto path agents probe; kept self-describing — endpoint,
+// transport, OAuth pointer, a paste-ready client config, and the catalog.
+app.get('/.well-known/mcp.json', (_req, res) => {
+  res.json({
+    name: 'eRegistrations (CIB seven POC)',
+    description:
+      'Estonian e-government registration services (business, vehicle, transport) ' +
+      'exposed over the Model Context Protocol so AI agents can complete them end-to-end.',
+    mcp: {
+      url: RESOURCE_URL,
+      transport: 'streamable-http',
+      authorization: {
+        type: 'oauth2',
+        protected_resource_metadata: `${SITE_BASE_URL}/.well-known/oauth-protected-resource`,
+        authorization_servers: [KEYCLOAK_ISSUER],
+      },
+    },
+    // Ready-to-paste mcp-remote / Claude Desktop client config.
+    mcpServers: {
+      'cib7-poc': {
+        command: 'npx',
+        args: ['-y', 'mcp-remote', RESOURCE_URL],
+      },
+    },
+    instructions: SERVER_INSTRUCTIONS,
+    services: discoveryServices(),
+  });
+});
+
+app.get('/.well-known/mcp/services.json', (_req, res) => {
+  res.json({ version: 1, services: discoveryServices() });
+});
+
+// llms.txt — the plain-text/markdown convention (llmstxt.org) for telling an
+// LLM what a site is and how to use it. Highest-signal because an agent can
+// read it without an MCP handshake.
+app.get('/llms.txt', (_req, res) => {
+  const lines = [
+    '# eRegistrations (CIB seven POC)',
+    '',
+    '> Estonian e-government registration services exposed over the Model Context',
+    '> Protocol (MCP). AI agents can complete business, vehicle and transport',
+    '> registrations end-to-end on behalf of a signed-in user.',
+    '',
+    'This site supports MCP. Point any MCP client at the endpoint below; it uses',
+    'OAuth 2.0 (Keycloak) for authentication and the Streamable HTTP transport.',
+    '',
+    '## MCP',
+    `- Endpoint: ${RESOURCE_URL} (Streamable HTTP)`,
+    `- Discovery: ${SITE_BASE_URL}/.well-known/mcp.json`,
+    `- Auth (OAuth 2.0 protected resource): ${SITE_BASE_URL}/.well-known/oauth-protected-resource`,
+    `- Claude Desktop / mcp-remote: npx -y mcp-remote ${RESOURCE_URL}`,
+    '',
+    '## Services',
+    ...discoveryServices().map((s) => `- ${s.name}: ${s.description}`),
+    '',
+    '## Getting started',
+    'Call `list_services`, then `describe_service` for the one you want, then',
+    '`start_process`. To create an account use `send_account_invitation` (invite',
+    'by email) or `get_signup_url` (self-service). Never ask the user for a password.',
+    '',
+  ];
+  res.type('text/plain').send(lines.join('\n'));
 });
 
 app.get('/health', (_req, res) => {
