@@ -136,6 +136,20 @@ export function completeTask(id: string, variables: CamundaVariables): Promise<v
   });
 }
 
+/**
+ * Sets a task's assignee. We call this just before completing an unassigned
+ * group task so the engine records *who* acted: the assignee is copied onto
+ * the HistoricActivityInstance, which is what ProcessTimeline shows as
+ * "Completed by …". Without it, group tasks complete with a null assignee and
+ * the timeline can only say the step was completed, not by whom.
+ */
+export function setTaskAssignee(id: string, userId: string): Promise<void> {
+  return request(`/task/${id}/assignee`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
 /** An open incident as returned by `GET /incident`. */
 export interface Incident {
   id: string;

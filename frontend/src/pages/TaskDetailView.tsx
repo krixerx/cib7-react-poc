@@ -5,9 +5,11 @@ import {
   getTask,
   getTaskVariables,
   completeTask,
+  setTaskAssignee,
   type CamundaTask,
   type CamundaVariables,
 } from '../api/camundaClient';
+import { useAuth } from '../auth/AuthProvider';
 import { parseProcessName } from '../api/bpmn';
 import { formRegistry, parseFormId } from '../forms/registry';
 import { translateBackendName } from '../i18n/backendNames';
@@ -58,6 +60,7 @@ export default function TaskDetailView({
   onLoaded,
 }: TaskDetailViewProps) {
   const { t } = useTranslation('task-detail');
+  const { username } = useAuth();
   const [task, setTask] = useState<CamundaTask | null>(null);
   const [data, setData] = useState<Record<string, unknown>>({});
   const [serviceName, setServiceName] = useState<string | null>(null);
@@ -112,6 +115,19 @@ export default function TaskDetailView({
     setSubmitting(true);
     setError(null);
     try {
+      // Record who acted before completing: an unassigned group task (e.g. a
+      // review step) otherwise lands in history with a null assignee, so the
+      // timeline can't show who approved/rejected. Skip when already assigned
+      // (applicant tasks are pre-assigned via Keycloak identity prefill) so we
+      // never clobber an existing owner. Best-effort — never block the
+      // complete on it.
+      if (task && !task.assignee && username) {
+        try {
+          await setTaskAssignee(taskId, username);
+        } catch {
+          // ignore — completing still proceeds
+        }
+      }
       await completeTask(taskId, variables);
       onCompleted();
     } catch (e) {
