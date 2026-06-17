@@ -31,6 +31,6 @@ Thumbs.db
 # out-of-band (scp), never committed, so the public bundle stays generic.
 deploy/.env
 deploy/docker-compose.override.yml
-deploy/traefik/dynamic/tls.yml
+deploy/traefik/dynamic/*.yml
 deploy/traefik/certs/*.crt
 deploy/traefik/certs/*.key
