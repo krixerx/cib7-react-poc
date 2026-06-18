@@ -20,7 +20,7 @@ class ApplicantApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ROP Applicant (POC)',
+      title: 'eRegistrations Applicant (POC)',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF1F6F43),
@@ -53,7 +53,7 @@ class LoginScreen extends StatelessWidget {
               const Icon(Icons.local_police_outlined, size: 64),
               const SizedBox(height: 16),
               Text(
-                'ROP Applicant',
+                'eRegistrations',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
@@ -105,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ROP Services'),
+        title: const Text('Services'),
         actions: [
           if (widget.auth.username != null)
             Center(

@@ -1,5 +1,5 @@
 name: cib7_applicant
-description: "ROP applicant mobile app (Flutter) — CIB seven POC. Proves the RFP's proposed Flutter stack against the existing engine."
+description: "eRegistrations applicant mobile app (Flutter) — CIB seven POC. Proves the RFP's proposed Flutter stack against the existing engine."
 publish_to: "none"
 version: 0.1.0+1
 

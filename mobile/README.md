@@ -1,7 +1,7 @@
 # mobile — Flutter applicant app (POC)
 
 A Flutter applicant app that validates the **Flutter** mobile stack proposed in
-the ROP ITS RFP, running against this repo's existing CIB seven engine. It is
+the ITS RFP, running against this repo's existing CIB seven engine. It is
 built and shipped exactly like the other components — **no local Flutter
 install required** — and tested in a browser, including on a real phone.
 
@@ -42,7 +42,7 @@ docker compose up -d cib7 backend      # if not already running
 docker compose up -d --build mobile
 ```
 
-Then open **http://localhost:3001/mobile/**. You should see the **ROP Services**
+Then open **http://localhost:3001/mobile/**. You should see the **Services**
 list loaded live from the engine. The mobile container's nginx proxies
 `/engine-rest` to `cib7:8080`, so this works without Traefik.
 

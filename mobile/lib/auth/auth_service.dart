@@ -77,7 +77,11 @@ class AuthService extends ChangeNotifier {
       queryParameters: {
         'client_id': AuthConfig.clientId,
         'response_type': 'code',
-        'scope': 'openid profile',
+        // Just 'openid' — the cib7-mobile client (like cib7-frontend) only has
+        // the cib7-claims scope assigned, not the built-in 'profile' scope, so
+        // requesting 'profile' yields invalid_scope. preferred_username still
+        // rides along in the access token.
+        'scope': 'openid',
         'redirect_uri': _redirectUri,
         'state': state,
         'code_challenge': _codeChallenge(verifier),
