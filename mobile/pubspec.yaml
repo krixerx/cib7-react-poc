@@ -12,6 +12,7 @@ dependencies:
   http: ^1.2.0
   crypto: ^3.0.3 # SHA-256 for the PKCE code challenge
   web: ^1.1.0 # browser APIs (location/sessionStorage/history) for the OIDC redirect
+  qr_flutter: ^4.1.0 # renders the certificate verification QR (RFP FR 2.6)
 
 dev_dependencies:
   flutter_lints: ^4.0.0

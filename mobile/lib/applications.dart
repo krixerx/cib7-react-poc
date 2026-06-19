@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'application_detail.dart';
 import 'auth/auth_service.dart';
 
 /// "My applications" — the applicant's process instances, with a coarse status
@@ -56,7 +57,8 @@ class MyApplicationsScreenState extends State<MyApplicationsScreen> {
           child: ListView.separated(
             itemCount: apps.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) => _ApplicationTile(app: apps[i]),
+            itemBuilder: (context, i) =>
+                _ApplicationTile(app: apps[i], auth: widget.auth),
           ),
         );
       },
@@ -65,9 +67,10 @@ class MyApplicationsScreenState extends State<MyApplicationsScreen> {
 }
 
 class _ApplicationTile extends StatelessWidget {
-  const _ApplicationTile({required this.app});
+  const _ApplicationTile({required this.app, required this.auth});
 
   final Application app;
+  final AuthService auth;
 
   @override
   Widget build(BuildContext context) {
@@ -80,8 +83,11 @@ class _ApplicationTile extends StatelessWidget {
       title: Text(app.serviceName),
       subtitle: Text(whenLabel),
       trailing: _StatusChip(status: pi.status),
-      // The per-application detail (with the certificate + QR) lands next step.
-      onTap: () {},
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ApplicationDetailScreen(app: app, auth: auth),
+        ),
+      ),
     );
   }
 }
