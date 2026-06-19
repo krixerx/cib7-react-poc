@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'applications.dart';
 import 'auth/auth_service.dart';
+import 'wallet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,13 +10,18 @@ Future<void> main() async {
   // Completes a returning login redirect or restores a saved session before
   // the first frame, so we don't briefly flash the login screen.
   await auth.init();
-  runApp(ApplicantApp(auth: auth));
+  final wallet = WalletStore();
+  // Login is a full-page redirect, so by here the session is settled: load the
+  // signed-in user's saved cards before the first frame.
+  if (auth.userId != null) wallet.load(auth.userId!);
+  runApp(ApplicantApp(auth: auth, wallet: wallet));
 }
 
 class ApplicantApp extends StatelessWidget {
-  const ApplicantApp({super.key, required this.auth});
+  const ApplicantApp({super.key, required this.auth, required this.wallet});
 
   final AuthService auth;
+  final WalletStore wallet;
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +35,9 @@ class ApplicantApp extends StatelessWidget {
       // Rebuild the gate whenever auth state changes (login/logout/refresh).
       home: ListenableBuilder(
         listenable: auth,
-        builder: (context, _) =>
-            auth.isAuthenticated ? HomeScreen(auth: auth) : LoginScreen(auth: auth),
+        builder: (context, _) => auth.isAuthenticated
+            ? HomeScreen(auth: auth, wallet: wallet)
+            : LoginScreen(auth: auth),
       ),
     );
   }
@@ -80,9 +87,10 @@ class LoginScreen extends StatelessWidget {
 /// and their **Wallet**. Applications is live now; the wallet (certificate QR
 /// cards collected from approved applications) lands in a later step.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.auth});
+  const HomeScreen({super.key, required this.auth, required this.wallet});
 
   final AuthService auth;
+  final WalletStore wallet;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -123,8 +131,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: IndexedStack(
         index: _tab,
         children: [
-          MyApplicationsScreen(key: _applicationsKey, auth: widget.auth),
-          const _WalletPlaceholder(),
+          MyApplicationsScreen(
+            key: _applicationsKey,
+            auth: widget.auth,
+            walletStore: widget.wallet,
+          ),
+          WalletScreen(store: widget.wallet, auth: widget.auth),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -147,32 +159,3 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _WalletPlaceholder extends StatelessWidget {
-  const _WalletPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.account_balance_wallet_outlined, size: 48),
-            const SizedBox(height: 12),
-            Text(
-              'Your wallet',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Approved certificates you add will appear here as scannable '
-              'cards.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -3,15 +3,21 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'application_detail.dart';
 import 'auth/auth_service.dart';
+import 'wallet.dart';
 
 /// "My applications" — the applicant's process instances, with a coarse status
 /// per row. This is the mobile counterpart of the SPA's `MyProcessesPage`; the
 /// next step turns each row into a detail view surfacing the generated
 /// certificate (with a QR code) ready to drop into the in-app wallet.
 class MyApplicationsScreen extends StatefulWidget {
-  const MyApplicationsScreen({super.key, required this.auth});
+  const MyApplicationsScreen({
+    super.key,
+    required this.auth,
+    required this.walletStore,
+  });
 
   final AuthService auth;
+  final WalletStore walletStore;
 
   @override
   State<MyApplicationsScreen> createState() => MyApplicationsScreenState();
@@ -57,8 +63,11 @@ class MyApplicationsScreenState extends State<MyApplicationsScreen> {
           child: ListView.separated(
             itemCount: apps.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) =>
-                _ApplicationTile(app: apps[i], auth: widget.auth),
+            itemBuilder: (context, i) => _ApplicationTile(
+              app: apps[i],
+              auth: widget.auth,
+              walletStore: widget.walletStore,
+            ),
           ),
         );
       },
@@ -67,10 +76,15 @@ class MyApplicationsScreenState extends State<MyApplicationsScreen> {
 }
 
 class _ApplicationTile extends StatelessWidget {
-  const _ApplicationTile({required this.app, required this.auth});
+  const _ApplicationTile({
+    required this.app,
+    required this.auth,
+    required this.walletStore,
+  });
 
   final Application app;
   final AuthService auth;
+  final WalletStore walletStore;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +99,11 @@ class _ApplicationTile extends StatelessWidget {
       trailing: _StatusChip(status: pi.status),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => ApplicationDetailScreen(app: app, auth: auth),
+          builder: (_) => ApplicationDetailScreen(
+            app: app,
+            auth: auth,
+            walletStore: walletStore,
+          ),
         ),
       ),
     );

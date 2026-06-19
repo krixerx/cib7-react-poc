@@ -13,11 +13,17 @@ install required** — and tested in a browser, including on a real phone.
   (`GET /engine-rest/history/process-instance?startedBy=…`, bearer-authed),
   each with a coarse status (In progress / Approved / Closed). Mirrors the
   SPA's `MyProcessesPage`.
-- **Wallet** tab — placeholder for the next steps: each approved application's
-  generated certificate, surfaced with a QR code and collected into an in-app
-  wallet of scannable cards.
+- **Application detail** — tap an application to see its documents
+  (`GET /api/documents/{piId}`). When the case produced a
+  `generated-certificate`, it shows as a wallet-style card: a verification QR
+  (RFP FR 2.6), a **Download PDF** (presigned URL), and **Add to wallet**.
+- **Wallet** tab — the certificates you saved, as scannable QR cards. Stored in
+  `localStorage` namespaced per user, so a card renders offline; downloads
+  still mint a fresh presigned URL. The card is shaped to map onto a real
+  Apple/Google wallet pass later (the QR payload is the pass barcode).
 
-The per-application **certificate + QR** detail and the **wallet** land next.
+Native iOS/Android builds (the `ios/`+`android/` targets exist in scaffolding)
+land later; today only the `web` target is built.
 
 ## Why source-only (no committed `web/`, `android/`, `ios/`)
 
