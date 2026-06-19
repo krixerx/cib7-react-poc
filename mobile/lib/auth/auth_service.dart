@@ -34,9 +34,17 @@ class AuthService extends ChangeNotifier {
   String? _refreshToken;
   DateTime? _expiresAt;
   String? _username;
+  String? _userId;
 
   bool get isAuthenticated => _accessToken != null;
+
+  /// Display name for the UI — the token's `name` if set, else the login name.
   String? get username => _username;
+
+  /// The Keycloak login name (`preferred_username`, falling back to `sub`).
+  /// This — not [username] — is what the engine records as a process
+  /// instance's initiator, so it is the value to query `startedBy` with.
+  String? get userId => _userId;
 
   /// The app's own URL used as the OIDC redirect target — current origin +
   /// path, query/fragment stripped. With the app served under `/mobile/` this
@@ -165,7 +173,9 @@ class AuthService extends ChangeNotifier {
     _refreshToken = (json['refresh_token'] as String?) ?? _refreshToken;
     final expiresIn = (json['expires_in'] as num?)?.toInt() ?? 60;
     _expiresAt = DateTime.now().add(Duration(seconds: expiresIn));
-    _username = _usernameFromJwt(_accessToken);
+    final claims = _claimsFromJwt(_accessToken);
+    _username = (claims?['name'] ?? claims?['preferred_username']) as String?;
+    _userId = (claims?['preferred_username'] ?? claims?['sub']) as String?;
     if (_refreshToken != null) {
       web.window.sessionStorage.setItem(_kRefresh, _refreshToken!);
     }
@@ -177,6 +187,7 @@ class AuthService extends ChangeNotifier {
     _refreshToken = null;
     _expiresAt = null;
     _username = null;
+    _userId = null;
     web.window.sessionStorage.removeItem(_kRefresh);
   }
 
@@ -186,15 +197,16 @@ class AuthService extends ChangeNotifier {
         .replaceState(null, '', '${loc.origin}${loc.pathname}');
   }
 
-  static String? _usernameFromJwt(String? jwt) {
+  /// Decodes the (unverified) access-token payload. Used only to read display
+  /// claims — the token is verified server-side on every API call.
+  static Map<String, dynamic>? _claimsFromJwt(String? jwt) {
     if (jwt == null) return null;
     final parts = jwt.split('.');
     if (parts.length != 3) return null;
     try {
-      final payload = jsonDecode(
+      return jsonDecode(
         utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
       ) as Map<String, dynamic>;
-      return (payload['name'] ?? payload['preferred_username']) as String?;
     } catch (_) {
       return null;
     }

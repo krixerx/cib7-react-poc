@@ -7,13 +7,17 @@ install required** — and tested in a browser, including on a real phone.
 
 ## What it does (current step)
 
-- Loads the list of available **services** from the engine
-  (`GET /engine-rest/process-definition`, the one anonymous endpoint) and shows
-  them in a Material 3 list.
-- This single Flutter → Traefik → `/engine-rest` → CIB seven call is the
-  end-to-end proof that the stack works.
+- **Sign in** with Keycloak (Authorization Code + PKCE) via the `cib7-mobile`
+  public client.
+- **My Applications** — lists the signed-in applicant's process instances
+  (`GET /engine-rest/history/process-instance?startedBy=…`, bearer-authed),
+  each with a coarse status (In progress / Approved / Closed). Mirrors the
+  SPA's `MyProcessesPage`.
+- **Wallet** tab — placeholder for the next steps: each approved application's
+  generated certificate, surfaced with a QR code and collected into an in-app
+  wallet of scannable cards.
 
-Login (Keycloak PKCE), starting a service, and "my tasks" land in later steps.
+The per-application **certificate + QR** detail and the **wallet** land next.
 
 ## Why source-only (no committed `web/`, `android/`, `ios/`)
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'api.dart';
+import 'applications.dart';
 import 'auth/auth_service.dart';
 
 Future<void> main() async {
@@ -76,9 +76,9 @@ class LoginScreen extends StatelessWidget {
   }
 }
 
-/// Authenticated home. For this step it shows the service list (now sending the
-/// bearer token) plus who is signed in and a logout action — proving the OIDC
-/// round-trip. My-applications, certificates and the wallet land next.
+/// Authenticated home: a bottom-nav shell over the applicant's **Applications**
+/// and their **Wallet**. Applications is live now; the wallet (certificate QR
+/// cards collected from approved applications) lands in a later step.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.auth});
 
@@ -89,23 +89,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final EngineClient _client =
-      EngineClient(tokenProvider: widget.auth.token);
-  late Future<List<ServiceDefinition>> _services;
+  int _tab = 0;
+  final _applicationsKey = GlobalKey<MyApplicationsScreenState>();
 
-  @override
-  void initState() {
-    super.initState();
-    _services = _client.listServices();
-  }
-
-  void _reload() => setState(() => _services = _client.listServices());
+  static const _titles = ['Applications', 'Wallet'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Services'),
+        title: Text(_titles[_tab]),
         actions: [
           if (widget.auth.username != null)
             Center(
@@ -114,11 +107,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(widget.auth.username!),
               ),
             ),
-          IconButton(
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Reload',
-          ),
+          if (_tab == 0)
+            IconButton(
+              onPressed: () => _applicationsKey.currentState?.reload(),
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Reload',
+            ),
           IconButton(
             onPressed: widget.auth.logout,
             icon: const Icon(Icons.logout),
@@ -126,66 +120,55 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<ServiceDefinition>>(
-        future: _services,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return _ErrorView(message: '${snapshot.error}', onRetry: _reload);
-          }
-          final services = snapshot.data ?? const <ServiceDefinition>[];
-          if (services.isEmpty) {
-            return const Center(child: Text('No services available.'));
-          }
-          return ListView.separated(
-            itemCount: services.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final s = services[i];
-              return ListTile(
-                leading: const Icon(Icons.assignment_outlined),
-                title: Text(s.name),
-                subtitle: Text('${s.key} · v${s.version}'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {}, // start-service flow arrives in a later step
-              );
-            },
-          );
-        },
+      body: IndexedStack(
+        index: _tab,
+        children: [
+          MyApplicationsScreen(key: _applicationsKey, auth: widget.auth),
+          const _WalletPlaceholder(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.folder_outlined),
+            selectedIcon: Icon(Icons.folder),
+            label: 'Applications',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: Icon(Icons.account_balance_wallet),
+            label: 'Wallet',
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
+class _WalletPlaceholder extends StatelessWidget {
+  const _WalletPlaceholder();
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off, size: 48),
+            const Icon(Icons.account_balance_wallet_outlined, size: 48),
             const SizedBox(height: 12),
             Text(
-              'Could not load services',
+              'Your wallet',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+            const Text(
+              'Approved certificates you add will appear here as scannable '
+              'cards.',
+              textAlign: TextAlign.center,
             ),
           ],
         ),
