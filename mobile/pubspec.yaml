@@ -1,0 +1,21 @@
+name: cib7_applicant
+description: "eRegistrations applicant mobile app (Flutter) — CIB seven POC. Proves the RFP's proposed Flutter stack against the existing engine."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  crypto: ^3.0.3 # SHA-256 for the PKCE code challenge
+  web: ^1.1.0 # browser APIs (location/sessionStorage/history) for the OIDC redirect
+  qr_flutter: ^4.1.0 # renders the certificate verification QR (RFP FR 2.6)
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

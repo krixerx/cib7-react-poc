@@ -468,3 +468,33 @@ services:
       - cib7
       - backend
       - mcp
+
+  mobile:
+    build: ./mobile
+    container_name: cib7-poc-mobile
+    # Flutter-web applicant app (POC). nginx serves the build physically under
+    # /mobile/ (the web build uses --base-href /mobile/), so no prefix stripping
+    # is needed. Priority 10 beats the frontend's catch-all PathPrefix(`/`)
+    # (priority 1). Published on 3001 for direct local access the same way
+    # frontend uses 3000 — open http://localhost:3001/mobile/.
+    ports:
+      - "3001:80"
+    expose:
+      - "80"
+    environment:
+      # Injected into /mobile/env.js at container start (mobile/docker/
+      # 40-runtime-env.sh) and read by the Flutter app as window.__ENV__. This
+      # is the *browser-reachable* Keycloak URL — Keycloak is published on host
+      # port 8180 for local dev.
+      KEYCLOAK_URL: http://localhost:8180
+      KEYCLOAK_REALM: cib7-poc
+      KEYCLOAK_CLIENT_ID: cib7-mobile
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.mobile.rule: "PathPrefix(`/mobile`)"
+      traefik.http.routers.mobile.entrypoints: "web"
+      traefik.http.routers.mobile.priority: "10"
+      traefik.http.services.mobile.loadbalancer.server.port: "80"
+    depends_on:
+      - cib7
+      - backend
