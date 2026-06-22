@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'config.dart';
+import 'documents.dart';
 
 /// A deployed process definition — surfaced to the applicant as a "service".
 /// Mirrors the React SPA's `ProcessDefinition`
@@ -48,7 +49,6 @@ class ProcessInstance {
     required this.processDefinitionKey,
     required this.startTime,
     required this.endTime,
-    required this.endActivityId,
   });
 
   final String id;
@@ -59,18 +59,7 @@ class ProcessInstance {
   /// Null while the instance is still running.
   final DateTime? endTime;
 
-  /// BPMN id of the end event it terminated at (null while running). Both
-  /// shipped BPMNs use `EndEvent_Approved` for the happy path.
-  final String? endActivityId;
-
   bool get isEnded => endTime != null;
-
-  ApplicationStatus get status {
-    if (!isEnded) return ApplicationStatus.inProgress;
-    return endActivityId == 'EndEvent_Approved'
-        ? ApplicationStatus.approved
-        : ApplicationStatus.ended;
-  }
 
   factory ProcessInstance.fromJson(Map<String, dynamic> json) => ProcessInstance(
         id: json['id'] as String,
@@ -80,16 +69,33 @@ class ProcessInstance {
         endTime: (json['endTime'] as String?) != null
             ? DateTime.parse(json['endTime'] as String)
             : null,
-        endActivityId: json['endActivityId'] as String?,
       );
 }
 
 /// An applicant's application joined with its service name, ready for the list.
 class Application {
-  Application({required this.instance, required this.serviceName});
+  Application({
+    required this.instance,
+    required this.serviceName,
+    required this.hasCertificate,
+  });
 
   final ProcessInstance instance;
   final String serviceName;
+
+  /// Whether the case issued a certificate — a `generated-certificate`
+  /// document. This is the approval signal: the engine's history API doesn't
+  /// populate `endActivityId`, so the issued certificate (the same credential
+  /// the wallet holds) is what distinguishes an approved case from one that
+  /// ended without one.
+  final bool hasCertificate;
+
+  ApplicationStatus get status {
+    if (!instance.isEnded) return ApplicationStatus.inProgress;
+    return hasCertificate
+        ? ApplicationStatus.approved
+        : ApplicationStatus.ended;
+  }
 }
 
 /// Thin client for the CIB seven REST API (`/engine-rest`).
@@ -104,6 +110,10 @@ class EngineClient {
       : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  /// Used to detect the issued certificate that marks an application approved.
+  late final DocumentsClient _documents =
+      DocumentsClient(client: _client, tokenProvider: tokenProvider);
 
   /// Returns a fresh access token, or null when signed out (then the request
   /// goes anonymous — fine for the public services list).
@@ -153,9 +163,30 @@ class EngineClient {
         nameByKey[pi.processDefinitionKey] ??
         pi.processDefinitionKey;
 
-    return instances
-        .map((pi) => Application(instance: pi, serviceName: nameFor(pi)))
-        .toList();
+    // Approval signal: the engine's history API doesn't expose the end event
+    // id, so an ended instance counts as approved only if it issued a
+    // `generated-certificate`. Looked up per ended instance (concurrently) and
+    // degraded to false on error, so a documents hiccup never fails the list.
+    final hasCert = await Future.wait(
+      instances.map((pi) async {
+        if (!pi.isEnded) return false;
+        try {
+          final docs = await _documents.listAttachments(pi.id);
+          return docs.any((d) => d.isCertificate);
+        } catch (_) {
+          return false;
+        }
+      }),
+    );
+
+    return [
+      for (var i = 0; i < instances.length; i++)
+        Application(
+          instance: instances[i],
+          serviceName: nameFor(instances[i]),
+          hasCertificate: hasCert[i],
+        ),
+    ];
   }
 
   Future<List<ProcessInstance>> _listMyInstances(String userId) async {

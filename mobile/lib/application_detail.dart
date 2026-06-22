@@ -93,7 +93,7 @@ class _ApplicationDetailScreenState extends State<ApplicationDetailScreen> {
                     ],
                   )
                 else
-                  _NoCertificateNote(status: widget.app.instance.status),
+                  _NoCertificateNote(status: widget.app.status),
                 if (others.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   Text(
@@ -176,8 +176,7 @@ class _StatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pi = app.instance;
-    final (icon, text) = switch (pi.status) {
+    final (icon, text) = switch (app.status) {
       ApplicationStatus.approved => (Icons.check_circle, 'Approved'),
       ApplicationStatus.inProgress => (Icons.hourglass_top, 'In progress'),
       ApplicationStatus.ended => (Icons.cancel, 'Closed'),

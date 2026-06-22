@@ -96,7 +96,7 @@ class _ApplicationTile extends StatelessWidget {
       leading: const Icon(Icons.folder_outlined),
       title: Text(app.serviceName),
       subtitle: Text(whenLabel),
-      trailing: _StatusChip(status: pi.status),
+      trailing: _StatusChip(status: app.status),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ApplicationDetailScreen(
