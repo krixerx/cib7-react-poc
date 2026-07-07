@@ -143,6 +143,7 @@ surfaces as `{ retryable: true }`.
 | `complete_task(taskId, variables)` | (auto-claim if needed) + `POST /task/<id>/complete` | Ajv-validates against per-task schema → engine. Auto-claims candidate-group tasks. |
 | `list_my_processes(processInstanceId?)` | `GET /history/process-instance?startedBy=<me>&sortBy=startTime&sortOrder=desc` | Decorated with state (ACTIVE / COMPLETED / ...). |
 | `query_user_history(variableName)` | Two-step: instances → variable-instance with `processInstanceIdIn` | Most recent value the user ever entered for that variable. Used for autofill (decision A3 / T15). |
+| `search_documents(query)` | `GET /api/documents/search?q=<query>` (backend, not engine) | Semantic search over the extracted text of stored documents (Spring AI vector index in the backend; Tika extracts on upload, in-process ONNX embeddings). Hits are post-filtered through the backend's per-case access rule, so results only cover cases the caller may see. |
 
 **Identity tools** (Keycloak instead of the engine — see [User registration and onboarding](#user-registration-and-onboarding)):
 

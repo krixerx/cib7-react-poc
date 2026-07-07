@@ -104,6 +104,8 @@ const SERVER_INSTRUCTIONS = [
   '',
   'WHEN THE USER ASKS WHAT THEY CAN DO HERE: start with `list_services`.',
   'WHEN STARTING ANY UNFAMILIAR SERVICE: call `describe_service` first.',
+  'WHEN THE USER ASKS ABOUT THE CONTENT OF THEIR DOCUMENTS (e.g. "what does my',
+  'certificate say?", "find my invoice amount"): call `search_documents`.',
 ].join('\n');
 
 interface RequestContext {
@@ -484,6 +486,49 @@ async function handleUploadDocument(args: unknown): Promise<ToolResult> {
     contentType: result.data?.contentType,
     nextStep:
       "Pass this whole object verbatim as `pendingIdDocument` (or whatever `writeTo` field the task's requiredDocuments entry names) when you call complete_task.",
+  });
+}
+
+interface DocumentSearchHit {
+  attachmentId: string;
+  processInstanceId: string;
+  category: string;
+  filename: string;
+  snippet: string;
+  score: number | null;
+}
+
+async function handleSearchDocuments(args: unknown): Promise<ToolResult> {
+  const query = (args as { query?: string })?.query;
+  if (typeof query !== 'string' || !query.trim()) {
+    return textResult(
+      { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "query" is required.' },
+      true,
+    );
+  }
+
+  // The backend embeds the query, searches its vector index over the
+  // extracted text of stored documents, and post-filters every hit through
+  // the same per-case access rule as the rest of the documents API — so
+  // the results only ever cover cases this user may see.
+  const result = await businessRequest<{
+    query: string;
+    count: number;
+    results: DocumentSearchHit[];
+  }>('/api/documents/search', {
+    bearer: currentBearer(),
+    query: { q: query.trim() },
+  });
+  if (!result.ok) return engineErrorResult(result);
+
+  return textResult({
+    ok: true,
+    count: result.data?.count ?? 0,
+    results: result.data?.results ?? [],
+    note:
+      (result.data?.count ?? 0) === 0
+        ? 'No matching document text. Scanned images (JPEG/PNG) are not indexed — only documents with extractable text (PDFs). The document may also still be indexing if it was uploaded seconds ago.'
+        : 'Snippets are chunk previews of the stored documents. Cite the filename when answering; the SPA Documents sidebar of the case can download the full file.',
   });
 }
 
@@ -1055,6 +1100,23 @@ function createMcpServer(): Server {
         },
       },
       {
+        name: 'search_documents',
+        description:
+          'Semantic search over the text of documents stored in the user\'s cases — uploaded PDFs and engine-generated certificates, approvals, and invoices. Results are scoped to cases the authenticated user may access (applicants: own cases; reviewers: all). Returns snippets with attachmentId, processInstanceId, category, and filename. Use when the user asks what a document says, e.g. "what does my certificate say?" or "find the invoice amount". Scanned images without a text layer are not indexed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description:
+                'Natural-language search query, e.g. "vehicle registration certificate plate number".',
+            },
+          },
+          required: ['query'],
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'list_my_processes',
         description:
           'List process instances started by the authenticated user, newest first. Each entry includes its key, name, start/end timestamps, and state (ACTIVE, COMPLETED, INTERNALLY_TERMINATED, etc.). Use to report status when the user asks "where is my registration?". Pass an optional processInstanceId to retrieve a single instance.',
@@ -1135,6 +1197,8 @@ function createMcpServer(): Server {
         return handleCompleteTask(req.params.arguments);
       case 'upload_document':
         return handleUploadDocument(req.params.arguments);
+      case 'search_documents':
+        return handleSearchDocuments(req.params.arguments);
       case 'list_my_processes':
         return handleListMyProcesses(req.params.arguments);
       case 'query_user_history':

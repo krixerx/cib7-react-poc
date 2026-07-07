@@ -12,6 +12,19 @@ spring:
   jpa:
     open-in-view: false
 
+  # In-process ONNX embeddings for the document search index. The URIs below
+  # restate the library defaults (all-MiniLM-L6-v2 from HuggingFace, cached
+  # under java.io.tmpdir after the first download) so the Dockerfile can flip
+  # them to file: URIs pointing at model files baked into the image — startup
+  # in containers is then deterministic and offline-safe.
+  ai:
+    embedding:
+      transformer:
+        onnx:
+          model-uri: ${EMBEDDING_ONNX_MODEL_URI:https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx}
+        tokenizer:
+          uri: ${EMBEDDING_TOKENIZER_URI:https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json}
+
   security:
     oauth2:
       # Resource server: validates the SPA's Bearer JWTs on /api/documents/**.
