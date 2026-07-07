@@ -12,6 +12,29 @@ spring:
   jpa:
     open-in-view: false
 
+  # Embeddings for the document search index come from the local TEI
+  # container (`embeddings` in compose): HuggingFace text-embeddings-inference
+  # serving all-MiniLM-L6-v2 over the OpenAI-compatible /v1/embeddings API.
+  # Spring AI's OpenAI starter is only the wire protocol here — no external
+  # AI service is involved and TEI ignores the api-key. The localhost default
+  # matches the published port in docker-compose.yml so a bare
+  # `mvn spring-boot:run` next to a running compose stack works.
+  ai:
+    # The OpenAI starter would also auto-configure chat/image/audio/moderation
+    # clients against the same base-url; this module only embeds.
+    model:
+      chat: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      base-url: ${EMBEDDINGS_URL:http://localhost:8088}
+      api-key: unused
+      embedding:
+        model: ${EMBEDDINGS_MODEL:sentence-transformers/all-MiniLM-L6-v2}
+
   security:
     oauth2:
       # Resource server: validates the SPA's Bearer JWTs on /api/documents/**.

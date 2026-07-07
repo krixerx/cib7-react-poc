@@ -1,5 +1,6 @@
 package com.poc.backend.documents;
 
+import com.poc.backend.search.DocumentIndexer;
 import com.poc.backend.security.CaseAccessService;
 import com.poc.backend.storage.S3Properties;
 import java.time.Duration;
@@ -85,18 +86,21 @@ public class DocumentsController {
   private final S3Properties props;
   private final DocumentRepository documents;
   private final CaseAccessService caseAccess;
+  private final DocumentIndexer indexer;
 
   public DocumentsController(
       S3Client s3,
       S3Presigner presigner,
       S3Properties props,
       DocumentRepository documents,
-      CaseAccessService caseAccess) {
+      CaseAccessService caseAccess,
+      DocumentIndexer indexer) {
     this.s3 = s3;
     this.presigner = presigner;
     this.props = props;
     this.documents = documents;
     this.caseAccess = caseAccess;
+    this.indexer = indexer;
   }
 
   // ----------------- JWT-authenticated endpoints (SPA) -----------------
@@ -246,6 +250,7 @@ public class DocumentsController {
                 req.contentType(),
                 req.key(),
                 currentUserId()));
+    indexer.index(doc);
     return ResponseEntity.ok(new AttachmentResponse(doc.getId(), req.key()));
   }
 
@@ -347,6 +352,7 @@ public class DocumentsController {
                 req.contentType(),
                 destKey,
                 uploaderFromPendingKey(req.pendingKey())));
+    indexer.index(doc);
     return ResponseEntity.ok(new AttachmentResponse(doc.getId(), destKey));
   }
 
@@ -402,6 +408,7 @@ public class DocumentsController {
                 req.contentType(),
                 key,
                 null));
+    indexer.index(doc);
     return ResponseEntity.ok(new AttachmentResponse(doc.getId(), key));
   }
 

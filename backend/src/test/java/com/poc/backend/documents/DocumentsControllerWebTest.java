@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.poc.backend.search.DocumentIndexer;
 import com.poc.backend.security.CaseAccessService;
 import com.poc.backend.storage.S3Properties;
 import java.net.URI;
@@ -89,6 +90,7 @@ class DocumentsControllerWebTest {
   @MockitoBean S3Presigner presigner;
   @MockitoBean DocumentRepository documents;
   @MockitoBean CaseAccessService caseAccess;
+  @MockitoBean DocumentIndexer indexer;
 
   @BeforeEach
   void authenticateAsLisa() {
