@@ -72,6 +72,13 @@ services:
       traefik.http.routers.backend-api.tls: "true"
     restart: unless-stopped
 
+  embeddings:
+    # The base file publishes TEI on :8088 for a bare `mvn spring-boot:run`
+    # backend during dev. In prod only the backend talks to it, over the
+    # docker network — no published port.
+    ports: !override []
+    restart: unless-stopped
+
   frontend:
     environment:
       # Injected at container start via /env.js (see

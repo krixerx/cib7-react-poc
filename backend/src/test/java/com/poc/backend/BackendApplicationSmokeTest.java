@@ -18,11 +18,12 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
  *
  * <p>The two AWS SDK beans from S3Config are replaced with mocks so {@link
  * com.poc.backend.storage.BucketBootstrap} (which runs on ApplicationReadyEvent) no-ops instead of
- * dialing RustFS. The EmbeddingModel is mocked for the same reason: the real
- * TransformersEmbeddingModel downloads its ONNX model files at bean init, which would make this
- * test network-dependent. Nothing else needs the network at startup: the OAuth2 client registration
- * only declares a token-uri (no OIDC discovery), the resource-server JwtDecoder is built lazily
- * from the configured jwk-set-uri, and EngineClient is just a RestClient wrapper.
+ * dialing RustFS. The EmbeddingModel is mocked for the same reason: the real OpenAiEmbeddingModel
+ * points at the TEI embeddings container, which isn't running here — the bean itself starts
+ * offline, but mocking keeps any embedding call from dialing out. Nothing else needs the network at
+ * startup: the OAuth2 client registration only declares a token-uri (no OIDC discovery), the
+ * resource-server JwtDecoder is built lazily from the configured jwk-set-uri, and EngineClient is
+ * just a RestClient wrapper.
  */
 @SpringBootTest
 class BackendApplicationSmokeTest {

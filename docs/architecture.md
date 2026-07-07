@@ -52,7 +52,9 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
                           │  public confirmations / payments / vehicle registry,
                           │  documents (JPA metadata + S3 presigned URLs)
                           ├──▶ /engine-rest  (cib7-business service account)
-                          └──▶ RustFS (S3)   ◀── browser presigned PUT/GET
+                          ├──▶ RustFS (S3)   ◀── browser presigned PUT/GET
+                          └──▶ embeddings — TEI, all-MiniLM-L6-v2 (document
+                                             search index, local inference)
 
                        mcp sidecar ◀── Claude Desktop / Cursor / Codex
                        (Bearer-proxy → /engine-rest, documents → backend /api)
@@ -134,7 +136,7 @@ The runtime pieces:
 | HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA. Cross-service routing has moved to Traefik; this nginx only does the SPA fallback (`try_files $uri /index.html`). |
 | Dev server | Vite | `frontend/vite.config.ts` | Serves SPA in dev, proxies `/engine-rest` to `localhost:8080`. (Vite-dev does not use Traefik; the engine still binds 8080 when run via `mvn spring-boot:run`.) |
 | Engine app | Spring Boot 3.5, CIB seven 2.2 starter | `cib7/` | Embedded engine + REST API; no business endpoints |
-| Business microservice | Spring Boot 4 (webmvc + data-jpa + security) | `backend/` | All `/api/**`: public confirmation/payment links, vehicle registry, documents (JPA `Document` metadata + S3 presigner), semantic document search (Spring AI 2.0: Tika extraction on upload, in-process ONNX embeddings, in-memory `SimpleVectorStore` — swaps for pgvector when the stack gets Postgres); engine access via `/engine-rest` with the `cib7-business` service account |
+| Business microservice | Spring Boot 4 (webmvc + data-jpa + security) | `backend/` | All `/api/**`: public confirmation/payment links, vehicle registry, documents (JPA `Document` metadata + S3 presigner), semantic document search (Spring AI 2.0: Tika extraction on upload, embeddings via the `embeddings` TEI container — all-MiniLM-L6-v2 over an OpenAI-compatible API, fully local — in-memory `SimpleVectorStore` — swaps for pgvector when the stack gets Postgres); engine access via `/engine-rest` with the `cib7-business` service account |
 | Object storage | RustFS (S3-compatible) | compose service | Applicant uploads + generated PDFs under `process/{piId}/…`; presigned URLs minted by the backend |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | wired in `ConnectorConfiguration.java` | Enables `<camunda:connector>` service tasks |
@@ -151,7 +153,7 @@ The runtime pieces:
 | MCP sidecar | `mcp/` (Node + TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`) | local module, compose service | Streamable HTTP MCP transport at `/mcp`; OAuth2 PKCE-loopback against Keycloak; JOSE jwtVerify at the door; Bearer-forwards to `/engine-rest`; Ajv-validates inputs against per-service manifests; uses `cib7-backend` service account for invitation emails |
 | Per-service MCP manifests | `docs/business/services/<svc>/build/mcp-service.json` (generated) | `/service-builder` skill | Variable schemas + audience metadata; loaded by the MCP sidecar at startup |
 | Aggregated MCP index | `docs/business/services/build/services.json` (generated) | `/service-builder` skill | Top-level catalog of MCP-callable services |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Eleven services + ingress: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `esb` |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Twelve services + ingress: `traefik`, `keycloak`, `cib7`, `backend`, `embeddings`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `esb` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
@@ -243,6 +245,13 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `INTERNAL_TASK_TOKEN` with the integration bus (`esb`), which injects the
   `X-Internal-Token` header on the two BPMN-called document endpoints
   (`move-pending`, `server-upload`) — the engine no longer holds that secret.
+- **embeddings** — `ghcr.io/huggingface/text-embeddings-inference` (TEI,
+  CPU image). Serves `all-MiniLM-L6-v2` over an OpenAI-compatible
+  `/v1/embeddings` API for the backend's document-search index — the model
+  runs entirely in this container, no external AI API. Dev-published on
+  `:8088` so a bare `mvn spring-boot:run` backend can reach it; the prod
+  overlay unpublishes the port. Model weights (~90 MB) download once on
+  first start into the `tei-models` volume.
 - **rustfs** — S3-compatible object storage, host-published on `:9000` (the
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
