@@ -42,6 +42,12 @@
         -> (Email: service evaluation request)      demo service-path step 6
         -> end (Vehicle registered)
 
+    Case-index milestones (not shown above): after submit, on send-back, on
+    both reject paths, and after the certificate is stored, an "Index case"
+    service task POSTs a case summary card to ${busBaseUrl}/api/documents/
+    index-case for the backend's case-card store (search_cases MCP
+    tool). Best-effort; response ignored.
+
     Process variables: see docs/business/services/transport-vehicle-registration/README.md.
       certificatePdfBytes is bytes-typed — stored bytes to spill to
       ACT_GE_BYTEARRAY instead of the 4000-char ACT_HI_VARINST.TEXT_ column.
@@ -66,12 +72,46 @@
                    camunda:formKey="react:transport-vehicle-application"
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start</bpmn:incoming>
-      <bpmn:incoming>Flow_SendbackEmail_Application</bpmn:incoming>
-      <bpmn:outgoing>Flow_Application_Clearance</bpmn:outgoing>
+      <bpmn:incoming>Flow_IndexSendback_Application</bpmn:incoming>
+      <bpmn:outgoing>Flow_Application_IndexSubmitted</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:sequenceFlow id="Flow_Application_Clearance"
-                       sourceRef="Task_TransportVehicleApplication" targetRef="Task_TransportClearanceCheck" />
+    <bpmn:sequenceFlow id="Flow_Application_IndexSubmitted"
+                       sourceRef="Task_TransportVehicleApplication" targetRef="Task_TransportVehicleIndexSubmitted" />
+
+    <!--
+      Case summary card -> the backend's case-card store (surfaced by
+      the search_cases MCP tool). Every milestone task re-posts the card with
+      the same processInstanceId, so the index holds exactly one card per
+      case reflecting its latest status. Indexing is best-effort on the
+      backend; the response is ignored. The bus injects X-Internal-Token on
+      /api/documents/** — never set it here.
+    -->
+    <bpmn:serviceTask id="Task_TransportVehicleIndexSubmitted" name="Index case: submitted"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-index-submitted.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Application_IndexSubmitted</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexSubmitted_Clearance</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexSubmitted_Clearance"
+                       sourceRef="Task_TransportVehicleIndexSubmitted" targetRef="Task_TransportClearanceCheck" />
 
     <!--
       Clearance registry stand-in for three demo linkages: technical
@@ -99,7 +139,7 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Application_Clearance</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexSubmitted_Clearance</bpmn:incoming>
       <bpmn:outgoing>Flow_Clearance_Eligibility</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -201,11 +241,38 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Officer_SendBack</bpmn:incoming>
-      <bpmn:outgoing>Flow_SendbackEmail_Application</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SendbackEmail_IndexSendback</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_SendbackEmail_Application"
-                       sourceRef="Task_TransportVehicleSendbackEmail" targetRef="Task_TransportVehicleApplication" />
+    <bpmn:sequenceFlow id="Flow_SendbackEmail_IndexSendback"
+                       sourceRef="Task_TransportVehicleSendbackEmail" targetRef="Task_TransportVehicleIndexSendback" />
+
+    <!-- Case card refresh: sent back for corrections (see index-submitted note). -->
+    <bpmn:serviceTask id="Task_TransportVehicleIndexSendback" name="Index case: sent back"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-index-sendback.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SendbackEmail_IndexSendback</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexSendback_Application</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexSendback_Application"
+                       sourceRef="Task_TransportVehicleIndexSendback" targetRef="Task_TransportVehicleApplication" />
 
     <!--
       Shared rejection notice — two incoming flows: system rejection (the
@@ -233,14 +300,45 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_ConditionsMet_Rejected</bpmn:incoming>
       <bpmn:incoming>Flow_Officer_Rejected</bpmn:incoming>
-      <bpmn:outgoing>Flow_RejectionEmail_Rejected</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejectionEmail_IndexRejected</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_RejectionEmail_Rejected"
-                       sourceRef="Task_TransportVehicleRejectionEmail" targetRef="EndEvent_Rejected" />
+    <bpmn:sequenceFlow id="Flow_RejectionEmail_IndexRejected"
+                       sourceRef="Task_TransportVehicleRejectionEmail" targetRef="Task_TransportVehicleIndexRejected" />
+
+    <!--
+      Case card refresh: rejected — covers BOTH reject paths (system DMN and
+      officer), which converge on the rejection email upstream. The template
+      defaults the reason when rejectionReason is absent (system path).
+    -->
+    <bpmn:serviceTask id="Task_TransportVehicleIndexRejected" name="Index case: rejected"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-index-rejected.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_RejectionEmail_IndexRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexRejected_Rejected</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexRejected_Rejected"
+                       sourceRef="Task_TransportVehicleIndexRejected" targetRef="EndEvent_Rejected" />
 
     <bpmn:endEvent id="EndEvent_Rejected" name="Application rejected">
-      <bpmn:incoming>Flow_RejectionEmail_Rejected</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexRejected_Rejected</bpmn:incoming>
     </bpmn:endEvent>
 
     <bpmn:serviceTask id="Task_TransportVehiclePaymentEmail" name="Email: pay registration fee"
@@ -368,11 +466,42 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_CertificatePdf_Store</bpmn:incoming>
-      <bpmn:outgoing>Flow_Store_CertificateEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Store_IndexRegistered</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_Store_CertificateEmail"
-                       sourceRef="Task_TransportStoreCertificate" targetRef="Task_TransportCertificateEmail" />
+    <bpmn:sequenceFlow id="Flow_Store_IndexRegistered"
+                       sourceRef="Task_TransportStoreCertificate" targetRef="Task_TransportVehicleIndexRegistered" />
+
+    <!--
+      Case card refresh: registered (terminal happy-path card). Placed after
+      the certificate is stored so the card can truthfully say it was issued,
+      before the notification emails.
+    -->
+    <bpmn:serviceTask id="Task_TransportVehicleIndexRegistered" name="Index case: registered"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-vehicle-index-registered.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Store_IndexRegistered</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexRegistered_CertificateEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexRegistered_CertificateEmail"
+                       sourceRef="Task_TransportVehicleIndexRegistered" targetRef="Task_TransportCertificateEmail" />
 
     <bpmn:serviceTask id="Task_TransportCertificateEmail" name="Email: certificate &amp; plate collection"
                       camunda:asyncBefore="true">
@@ -393,7 +522,7 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Store_CertificateEmail</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexRegistered_CertificateEmail</bpmn:incoming>
       <bpmn:outgoing>Flow_CertificateEmail_Evaluation</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -505,17 +634,34 @@
       <bpmndi:BPMNShape id="Task_TransportVehicleRejectionEmail_di" bpmnElement="Task_TransportVehicleRejectionEmail">
         <dc:Bounds x="700" y="640" width="150" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleIndexRejected_di" bpmnElement="Task_TransportVehicleIndexRejected">
+        <dc:Bounds x="890" y="640" width="140" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
-        <dc:Bounds x="920" y="662" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="895" y="705" width="92" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1080" y="662" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1055" y="705" width="92" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Case-index tasks (off-band placements; reflow in modeller if needed) -->
+      <bpmndi:BPMNShape id="Task_TransportVehicleIndexSubmitted_di" bpmnElement="Task_TransportVehicleIndexSubmitted">
+        <dc:Bounds x="420" y="20" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleIndexSendback_di" bpmnElement="Task_TransportVehicleIndexSendback">
+        <dc:Bounds x="60" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportVehicleIndexRegistered_di" bpmnElement="Task_TransportVehicleIndexRegistered">
+        <dc:Bounds x="1040" y="520" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Edges: main row -->
       <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
         <di:waypoint x="196" y="200" /><di:waypoint x="240" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Application_Clearance_di" bpmnElement="Flow_Application_Clearance">
-        <di:waypoint x="380" y="200" /><di:waypoint x="420" y="200" />
+      <bpmndi:BPMNEdge id="Flow_Application_IndexSubmitted_di" bpmnElement="Flow_Application_IndexSubmitted">
+        <di:waypoint x="310" y="160" /><di:waypoint x="310" y="60" /><di:waypoint x="420" y="60" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexSubmitted_Clearance_di" bpmnElement="Flow_IndexSubmitted_Clearance">
+        <di:waypoint x="495" y="100" /><di:waypoint x="495" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Clearance_Eligibility_di" bpmnElement="Flow_Clearance_Eligibility">
         <di:waypoint x="570" y="200" /><di:waypoint x="610" y="200" />
@@ -551,11 +697,17 @@
         <di:waypoint x="1265" y="175" /><di:waypoint x="1265" y="100" /><di:waypoint x="180" y="100" /><di:waypoint x="180" y="680" /><di:waypoint x="240" y="680" />
         <bpmndi:BPMNLabel><dc:Bounds x="700" y="82" width="46" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_SendbackEmail_Application_di" bpmnElement="Flow_SendbackEmail_Application">
-        <di:waypoint x="315" y="640" /><di:waypoint x="315" y="240" />
+      <bpmndi:BPMNEdge id="Flow_SendbackEmail_IndexSendback_di" bpmnElement="Flow_SendbackEmail_IndexSendback">
+        <di:waypoint x="240" y="680" /><di:waypoint x="130" y="680" /><di:waypoint x="130" y="480" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_RejectionEmail_Rejected_di" bpmnElement="Flow_RejectionEmail_Rejected">
-        <di:waypoint x="850" y="680" /><di:waypoint x="920" y="680" />
+      <bpmndi:BPMNEdge id="Flow_IndexSendback_Application_di" bpmnElement="Flow_IndexSendback_Application">
+        <di:waypoint x="130" y="400" /><di:waypoint x="130" y="270" /><di:waypoint x="280" y="270" /><di:waypoint x="280" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_RejectionEmail_IndexRejected_di" bpmnElement="Flow_RejectionEmail_IndexRejected">
+        <di:waypoint x="850" y="680" /><di:waypoint x="890" y="680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexRejected_Rejected_di" bpmnElement="Flow_IndexRejected_Rejected">
+        <di:waypoint x="1030" y="680" /><di:waypoint x="1080" y="680" />
       </bpmndi:BPMNEdge>
 
       <!-- Edges: payment + certificate pipeline -->
@@ -571,8 +723,11 @@
       <bpmndi:BPMNEdge id="Flow_CertificatePdf_Store_di" bpmnElement="Flow_CertificatePdf_Store">
         <di:waypoint x="930" y="440" /><di:waypoint x="970" y="440" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Store_CertificateEmail_di" bpmnElement="Flow_Store_CertificateEmail">
-        <di:waypoint x="1110" y="440" /><di:waypoint x="1150" y="440" />
+      <bpmndi:BPMNEdge id="Flow_Store_IndexRegistered_di" bpmnElement="Flow_Store_IndexRegistered">
+        <di:waypoint x="1040" y="480" /><di:waypoint x="1040" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexRegistered_CertificateEmail_di" bpmnElement="Flow_IndexRegistered_CertificateEmail">
+        <di:waypoint x="1180" y="560" /><di:waypoint x="1225" y="560" /><di:waypoint x="1225" y="480" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_CertificateEmail_Evaluation_di" bpmnElement="Flow_CertificateEmail_Evaluation">
         <di:waypoint x="1300" y="440" /><di:waypoint x="1340" y="440" />

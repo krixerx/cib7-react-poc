@@ -41,6 +41,7 @@ scenario's service path.
 ```
 start              started "Application submitted"          initiator=initiator
 user-task          transport-vehicle-application "Submit vehicle registration application"  form=transport-vehicle-application role=initiator
+service-task       transport-vehicle-index-submitted "Index case: submitted"                (see service-tasks/transport-vehicle-index-submitted.md)
 service-task       transport-clearance-check "Check inspection, insurance & restrictions"   (see service-tasks/transport-clearance-check.md)
 business-rule-task transport-vehicle-eligibility "Validate registration conditions"  decision=transport-vehicle-eligibility result=eligibilityDecision
 gateway-exclusive  conditions-met "Conditions met?"          default=system-rejected
@@ -48,19 +49,23 @@ business-rule-task transport-vehicle-fee "Determine registration fee"  decision=
 user-task          transport-vehicle-officer-review "Traffic officer review"  form=transport-vehicle-officer-review group=civil-servant
 gateway-exclusive  officer-decision "Officer decision?"      default=officer-sendback
 service-task       transport-vehicle-sendback-email "Email: returned for corrections"  (see service-tasks/transport-vehicle-sendback-email.md)
+service-task       transport-vehicle-index-sendback "Index case: sent back"            (see service-tasks/transport-vehicle-index-sendback.md)
 service-task       transport-vehicle-rejection-email "Email: application rejected"     (see service-tasks/transport-vehicle-rejection-email.md)
+service-task       transport-vehicle-index-rejected "Index case: rejected"             (see service-tasks/transport-vehicle-index-rejected.md)
 service-task       transport-vehicle-payment-email "Email: pay registration fee"       (see service-tasks/transport-vehicle-payment-email.md)
 receive-task       transport-wait-fee-payment "Wait for fee payment"  message=PaymentReceived
 service-task       transport-allocate-plate "Allocate plate number"                    (see service-tasks/transport-allocate-plate.md)
 service-task       transport-certificate-pdf "Generate registration certificate (PDF)" (see service-tasks/transport-certificate-pdf.md)
 service-task       transport-store-certificate "Store certificate"                     (see service-tasks/transport-store-certificate.md)
+service-task       transport-vehicle-index-registered "Index case: registered"         (see service-tasks/transport-vehicle-index-registered.md)
 service-task       transport-certificate-email "Email: certificate & plate collection" (see service-tasks/transport-certificate-email.md)
 service-task       transport-evaluation-email "Email: service evaluation request"      (see service-tasks/transport-evaluation-email.md)
 end                registered "Vehicle registered"
 end                rejected "Application rejected"
 
 flow               start -> transport-vehicle-application
-flow               transport-vehicle-application -> transport-clearance-check
+flow               transport-vehicle-application -> transport-vehicle-index-submitted
+flow               transport-vehicle-index-submitted -> transport-clearance-check
 flow               transport-clearance-check -> transport-vehicle-eligibility
 flow               transport-vehicle-eligibility -> conditions-met
 flow               conditions-met -> transport-vehicle-fee            label="conditions met" if=${eligibilityDecision == "ok"}
@@ -70,13 +75,16 @@ flow               transport-vehicle-officer-review -> officer-decision
 flow               officer-decision -> transport-vehicle-payment-email   label="approved" if=${decision == "approve"}
 flow               officer-decision -> transport-vehicle-rejection-email label="rejected" if=${decision == "reject"}
 flow               officer-decision -> transport-vehicle-sendback-email  label="officer-sendback (default)"
-flow               transport-vehicle-sendback-email -> transport-vehicle-application
-flow               transport-vehicle-rejection-email -> rejected
+flow               transport-vehicle-sendback-email -> transport-vehicle-index-sendback
+flow               transport-vehicle-index-sendback -> transport-vehicle-application
+flow               transport-vehicle-rejection-email -> transport-vehicle-index-rejected
+flow               transport-vehicle-index-rejected -> rejected
 flow               transport-vehicle-payment-email -> transport-wait-fee-payment
 flow               transport-wait-fee-payment -> transport-allocate-plate
 flow               transport-allocate-plate -> transport-certificate-pdf
 flow               transport-certificate-pdf -> transport-store-certificate
-flow               transport-store-certificate -> transport-certificate-email
+flow               transport-store-certificate -> transport-vehicle-index-registered
+flow               transport-vehicle-index-registered -> transport-certificate-email
 flow               transport-certificate-email -> transport-evaluation-email
 flow               transport-evaluation-email -> registered
 ```
@@ -99,13 +107,17 @@ the reason — see the service-task spec).
 
 | BPMN task | Kind | Spec |
 |---|---|---|
+| `Task_TransportVehicleIndexSubmitted` | http-connector → backend documents | [`service-tasks/transport-vehicle-index-submitted.md`](service-tasks/transport-vehicle-index-submitted.md) |
 | `Task_TransportClearanceCheck` | http-connector → backend | [`service-tasks/transport-clearance-check.md`](service-tasks/transport-clearance-check.md) |
 | `Task_TransportVehicleSendbackEmail` | http-connector → Mailpit | [`service-tasks/transport-vehicle-sendback-email.md`](service-tasks/transport-vehicle-sendback-email.md) |
+| `Task_TransportVehicleIndexSendback` | http-connector → backend documents | [`service-tasks/transport-vehicle-index-sendback.md`](service-tasks/transport-vehicle-index-sendback.md) |
 | `Task_TransportVehicleRejectionEmail` | http-connector → Mailpit | [`service-tasks/transport-vehicle-rejection-email.md`](service-tasks/transport-vehicle-rejection-email.md) |
+| `Task_TransportVehicleIndexRejected` | http-connector → backend documents | [`service-tasks/transport-vehicle-index-rejected.md`](service-tasks/transport-vehicle-index-rejected.md) |
 | `Task_TransportVehiclePaymentEmail` | http-connector → Mailpit | [`service-tasks/transport-vehicle-payment-email.md`](service-tasks/transport-vehicle-payment-email.md) |
 | `Task_TransportAllocatePlate` | http-connector → backend | [`service-tasks/transport-allocate-plate.md`](service-tasks/transport-allocate-plate.md) |
 | `Task_TransportCertificatePdf` | http-connector → pdf-renderer | [`service-tasks/transport-certificate-pdf.md`](service-tasks/transport-certificate-pdf.md) |
 | `Task_TransportStoreCertificate` | http-connector → backend documents | [`service-tasks/transport-store-certificate.md`](service-tasks/transport-store-certificate.md) |
+| `Task_TransportVehicleIndexRegistered` | http-connector → backend documents | [`service-tasks/transport-vehicle-index-registered.md`](service-tasks/transport-vehicle-index-registered.md) |
 | `Task_TransportCertificateEmail` | http-connector → Mailpit | [`service-tasks/transport-certificate-email.md`](service-tasks/transport-certificate-email.md) |
 | `Task_TransportEvaluationEmail` | http-connector → Mailpit | [`service-tasks/transport-evaluation-email.md`](service-tasks/transport-evaluation-email.md) |
 
@@ -229,13 +241,17 @@ flowchart LR
   StartEvent_1(("Application submitted"))
   Task_TransportVehicleApplication["👤 Submit vehicle registration application"]
   Task_TransportVehicleOfficerReview["👤 Traffic officer review"]
+  Task_TransportVehicleIndexSubmitted[["🔌 Index case: submitted"]]
   Task_TransportClearanceCheck[["🔌 Check inspection, insurance & restrictions"]]
   Task_TransportVehicleSendbackEmail[["🔌 Email: returned for corrections"]]
+  Task_TransportVehicleIndexSendback[["🔌 Index case: sent back"]]
   Task_TransportVehicleRejectionEmail[["🔌 Email: application rejected"]]
+  Task_TransportVehicleIndexRejected[["🔌 Index case: rejected"]]
   Task_TransportVehiclePaymentEmail[["🔌 Email: pay registration fee"]]
   Task_TransportAllocatePlate[["🔌 Allocate plate number"]]
   Task_TransportCertificatePdf[["🔌 Generate registration certificate (PDF)"]]
   Task_TransportStoreCertificate[["🔌 Store certificate"]]
+  Task_TransportVehicleIndexRegistered[["🔌 Index case: registered"]]
   Task_TransportCertificateEmail[["🔌 Email: certificate & plate collection"]]
   Task_TransportEvaluationEmail[["🔌 Email: service evaluation request"]]
   Task_TransportVehicleEligibility[/"📋 Validate registration conditions"/]
@@ -246,7 +262,8 @@ flowchart LR
   EndEvent_Registered((("Vehicle registered")))
   Task_TransportWaitFeePayment[["📥 Wait for fee payment"]]
   StartEvent_1 --> Task_TransportVehicleApplication
-  Task_TransportVehicleApplication --> Task_TransportClearanceCheck
+  Task_TransportVehicleApplication --> Task_TransportVehicleIndexSubmitted
+  Task_TransportVehicleIndexSubmitted --> Task_TransportClearanceCheck
   Task_TransportClearanceCheck --> Task_TransportVehicleEligibility
   Task_TransportVehicleEligibility --> Gateway_ConditionsMet
   Gateway_ConditionsMet -- "conditions met" --> Task_TransportVehicleFee
@@ -256,13 +273,16 @@ flowchart LR
   Gateway_OfficerDecision -- "approved" --> Task_TransportVehiclePaymentEmail
   Gateway_OfficerDecision -- "rejected" --> Task_TransportVehicleRejectionEmail
   Gateway_OfficerDecision -. "returned (default)" .-> Task_TransportVehicleSendbackEmail
-  Task_TransportVehicleSendbackEmail --> Task_TransportVehicleApplication
-  Task_TransportVehicleRejectionEmail --> EndEvent_Rejected
+  Task_TransportVehicleSendbackEmail --> Task_TransportVehicleIndexSendback
+  Task_TransportVehicleIndexSendback --> Task_TransportVehicleApplication
+  Task_TransportVehicleRejectionEmail --> Task_TransportVehicleIndexRejected
+  Task_TransportVehicleIndexRejected --> EndEvent_Rejected
   Task_TransportVehiclePaymentEmail --> Task_TransportWaitFeePayment
   Task_TransportWaitFeePayment --> Task_TransportAllocatePlate
   Task_TransportAllocatePlate --> Task_TransportCertificatePdf
   Task_TransportCertificatePdf --> Task_TransportStoreCertificate
-  Task_TransportStoreCertificate --> Task_TransportCertificateEmail
+  Task_TransportStoreCertificate --> Task_TransportVehicleIndexRegistered
+  Task_TransportVehicleIndexRegistered --> Task_TransportCertificateEmail
   Task_TransportCertificateEmail --> Task_TransportEvaluationEmail
   Task_TransportEvaluationEmail --> EndEvent_Registered
 ```

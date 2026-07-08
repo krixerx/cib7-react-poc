@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   listProcessDefinitions,
   startProcess,
@@ -127,6 +128,7 @@ export default function ServicesPage() {
               </svg>
               {t('hero.trust')}
             </p>
+            <MobileAppCard />
           </div>
           <div className="hero-art" aria-hidden="true">
             <HeroIllustration />
@@ -259,6 +261,31 @@ export default function ServicesPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * "Try it on your phone" hero card — a scannable QR plus a direct link to the
+ * Flutter mobile applicant app, which is served at `/mobile` outside the SPA
+ * router (own container, Traefik PathPrefix). The QR encodes the app's
+ * absolute URL on the current host, so it works on localhost and on
+ * companylab.ai alike without hardcoding. The whole card is the link, so a
+ * phone visitor can tap it and a desktop visitor can scan the code.
+ */
+function MobileAppCard() {
+  const { t } = useTranslation('services');
+  const mobileUrl = `${window.location.origin}/mobile`;
+  return (
+    <a className="mobile-app-card" href="/mobile" aria-label={t('mobile.ariaLabel')}>
+      <span className="mobile-app-qr">
+        <QRCodeSVG value={mobileUrl} size={84} bgColor="#ffffff" fgColor="#0a221c" />
+      </span>
+      <span className="mobile-app-text">
+        <strong className="mobile-app-title">{t('mobile.title')}</strong>
+        <span className="mobile-app-sub">{t('mobile.sub')}</span>
+        <span className="mobile-app-link">{t('mobile.open')}</span>
+      </span>
+    </a>
   );
 }
 

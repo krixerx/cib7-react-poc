@@ -8,7 +8,8 @@
 #   /api/public/**     → backend:8085   (vehicle/driver clearance, registry,
 #                                         plate allocation, permit issue) — public,
 #                                         no internal token. GET + POST.
-#   /api/documents/**  → backend:8085   (move-pending, server-upload) — internal.
+#   /api/documents/**  → backend:8085   (move-pending, server-upload,
+#                                         index-case) — internal.
 #                                         The bus INJECTS X-Internal-Token here
 #                                         (from its INTERNAL_TASK_TOKEN env): the
 #                                         BPMN document tasks no longer set it, so

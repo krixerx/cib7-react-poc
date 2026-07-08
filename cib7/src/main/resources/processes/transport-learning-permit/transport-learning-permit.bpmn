@@ -40,6 +40,12 @@
         -> (Email: service evaluation request)
         -> end (Learning permit issued)
 
+    Case-index milestones (not shown above): after submit, on the medical
+    branch, on both reject paths, and after the license is stored, an
+    "Index case" service task POSTs a case summary card to
+    ${busBaseUrl}/api/documents/index-case for the backend's case-card
+    index (search_cases MCP tool). Best-effort; response ignored.
+
     No send-back loop — the demo scenario has none; rejected applicants
     start a new case. Process variables: see
     docs/business/services/transport-learning-permit/README.md. permitPdfBytes is
@@ -65,11 +71,45 @@
                    camunda:formKey="react:transport-permit-application"
                    camunda:assignee="${initiator}">
       <bpmn:incoming>Flow_Start</bpmn:incoming>
-      <bpmn:outgoing>Flow_Application_Clearance</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Application_IndexSubmitted</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:sequenceFlow id="Flow_Application_Clearance"
-                       sourceRef="Task_TransportPermitApplication" targetRef="Task_TransportDriverClearance" />
+    <bpmn:sequenceFlow id="Flow_Application_IndexSubmitted"
+                       sourceRef="Task_TransportPermitApplication" targetRef="Task_TransportPermitIndexSubmitted" />
+
+    <!--
+      Case summary card -> the backend's case-card store (surfaced by
+      the search_cases MCP tool). Every milestone task re-posts the card with
+      the same processInstanceId, so the index holds exactly one card per
+      case reflecting its latest status. Indexing is best-effort on the
+      backend; the response is ignored. The bus injects X-Internal-Token on
+      /api/documents/** — never set it here.
+    -->
+    <bpmn:serviceTask id="Task_TransportPermitIndexSubmitted" name="Index case: submitted"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-permit-index-submitted.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Application_IndexSubmitted</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexSubmitted_Clearance</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexSubmitted_Clearance"
+                       sourceRef="Task_TransportPermitIndexSubmitted" targetRef="Task_TransportDriverClearance" />
 
     <!--
       Driver clearance stand-in: approved-opticians eye test, existing
@@ -97,7 +137,7 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Application_Clearance</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexSubmitted_Clearance</bpmn:incoming>
       <bpmn:outgoing>Flow_Clearance_Eligibility</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -162,11 +202,42 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Conditions_Medical</bpmn:incoming>
-      <bpmn:outgoing>Flow_HospitalNotice_Assessment</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HospitalNotice_IndexMedical</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_HospitalNotice_Assessment"
-                       sourceRef="Task_TransportHospitalNoticeEmail" targetRef="Task_TransportHospitalAssessment" />
+    <bpmn:sequenceFlow id="Flow_HospitalNotice_IndexMedical"
+                       sourceRef="Task_TransportHospitalNoticeEmail" targetRef="Task_TransportPermitIndexMedical" />
+
+    <!--
+      Case card refresh: awaiting medical assessment — placed before the
+      human task so the card is fresh during the wait (the classic "why is
+      my case stuck?" state this index exists for).
+    -->
+    <bpmn:serviceTask id="Task_TransportPermitIndexMedical" name="Index case: awaiting medical"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-permit-index-medical.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HospitalNotice_IndexMedical</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexMedical_Assessment</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexMedical_Assessment"
+                       sourceRef="Task_TransportPermitIndexMedical" targetRef="Task_TransportHospitalAssessment" />
 
     <!--
       The civil-servant group plays the Police Hospital medical board —
@@ -176,7 +247,7 @@
     <bpmn:userTask id="Task_TransportHospitalAssessment" name="Police Hospital medical assessment"
                    camunda:formKey="react:transport-hospital-assessment"
                    camunda:candidateGroups="civil-servant">
-      <bpmn:incoming>Flow_HospitalNotice_Assessment</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexMedical_Assessment</bpmn:incoming>
       <bpmn:outgoing>Flow_Assessment_MedicalResult</bpmn:outgoing>
     </bpmn:userTask>
 
@@ -224,14 +295,46 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Conditions_Rejected</bpmn:incoming>
       <bpmn:incoming>Flow_Medical_Rejected</bpmn:incoming>
-      <bpmn:outgoing>Flow_RejectionEmail_Rejected</bpmn:outgoing>
+      <bpmn:outgoing>Flow_RejectionEmail_IndexRejected</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_RejectionEmail_Rejected"
-                       sourceRef="Task_TransportPermitRejectionEmail" targetRef="EndEvent_Rejected" />
+    <bpmn:sequenceFlow id="Flow_RejectionEmail_IndexRejected"
+                       sourceRef="Task_TransportPermitRejectionEmail" targetRef="Task_TransportPermitIndexRejected" />
+
+    <!--
+      Case card refresh: rejected — covers BOTH reject paths (DMN terms of
+      service and negative medical assessment), which converge on the
+      rejection email upstream. The template defaults the reason when
+      rejectionReason is absent (DMN path).
+    -->
+    <bpmn:serviceTask id="Task_TransportPermitIndexRejected" name="Index case: rejected"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-permit-index-rejected.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_RejectionEmail_IndexRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexRejected_Rejected</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexRejected_Rejected"
+                       sourceRef="Task_TransportPermitIndexRejected" targetRef="EndEvent_Rejected" />
 
     <bpmn:endEvent id="EndEvent_Rejected" name="Application rejected">
-      <bpmn:incoming>Flow_RejectionEmail_Rejected</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexRejected_Rejected</bpmn:incoming>
     </bpmn:endEvent>
 
     <!--
@@ -360,11 +463,42 @@
         </camunda:connector>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Pdf_Store</bpmn:incoming>
-      <bpmn:outgoing>Flow_Store_PermitEmail</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Store_IndexIssued</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <bpmn:sequenceFlow id="Flow_Store_PermitEmail"
-                       sourceRef="Task_TransportStorePermit" targetRef="Task_TransportPermitEmail" />
+    <bpmn:sequenceFlow id="Flow_Store_IndexIssued"
+                       sourceRef="Task_TransportStorePermit" targetRef="Task_TransportPermitIndexIssued" />
+
+    <!--
+      Case card refresh: issued (terminal happy-path card). Placed after the
+      license is stored so the card can truthfully say it was issued, before
+      the notification emails.
+    -->
+    <bpmn:serviceTask id="Task_TransportPermitIndexIssued" name="Index case: issued"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/transport-permit-index-issued.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Store_IndexIssued</bpmn:incoming>
+      <bpmn:outgoing>Flow_IndexIssued_PermitEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_IndexIssued_PermitEmail"
+                       sourceRef="Task_TransportPermitIndexIssued" targetRef="Task_TransportPermitEmail" />
 
     <bpmn:serviceTask id="Task_TransportPermitEmail" name="Email: electronic license &amp; receipt"
                       camunda:asyncBefore="true">
@@ -385,7 +519,7 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Store_PermitEmail</bpmn:incoming>
+      <bpmn:incoming>Flow_IndexIssued_PermitEmail</bpmn:incoming>
       <bpmn:outgoing>Flow_PermitEmail_Evaluation</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -495,17 +629,34 @@
       <bpmndi:BPMNShape id="Task_TransportPermitRejectionEmail_di" bpmnElement="Task_TransportPermitRejectionEmail">
         <dc:Bounds x="700" y="680" width="150" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportPermitIndexRejected_di" bpmnElement="Task_TransportPermitIndexRejected">
+        <dc:Bounds x="890" y="680" width="140" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
-        <dc:Bounds x="920" y="702" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="895" y="745" width="92" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1080" y="702" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1055" y="745" width="92" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Case-index tasks (off-band placements; reflow in modeller if needed) -->
+      <bpmndi:BPMNShape id="Task_TransportPermitIndexSubmitted_di" bpmnElement="Task_TransportPermitIndexSubmitted">
+        <dc:Bounds x="420" y="20" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportPermitIndexMedical_di" bpmnElement="Task_TransportPermitIndexMedical">
+        <dc:Bounds x="950" y="20" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_TransportPermitIndexIssued_di" bpmnElement="Task_TransportPermitIndexIssued">
+        <dc:Bounds x="1050" y="520" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <!-- Edges: main row -->
       <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
         <di:waypoint x="196" y="200" /><di:waypoint x="240" y="200" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Application_Clearance_di" bpmnElement="Flow_Application_Clearance">
-        <di:waypoint x="380" y="200" /><di:waypoint x="420" y="200" />
+      <bpmndi:BPMNEdge id="Flow_Application_IndexSubmitted_di" bpmnElement="Flow_Application_IndexSubmitted">
+        <di:waypoint x="310" y="160" /><di:waypoint x="310" y="60" /><di:waypoint x="420" y="60" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexSubmitted_Clearance_di" bpmnElement="Flow_IndexSubmitted_Clearance">
+        <di:waypoint x="490" y="100" /><di:waypoint x="490" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Clearance_Eligibility_di" bpmnElement="Flow_Clearance_Eligibility">
         <di:waypoint x="580" y="200" /><di:waypoint x="620" y="200" />
@@ -527,8 +678,11 @@
         <di:waypoint x="825" y="225" /><di:waypoint x="825" y="720" /><di:waypoint x="850" y="720" />
         <bpmndi:BPMNLabel><dc:Bounds x="780" y="460" width="44" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_HospitalNotice_Assessment_di" bpmnElement="Flow_HospitalNotice_Assessment">
-        <di:waypoint x="1050" y="200" /><di:waypoint x="1090" y="200" />
+      <bpmndi:BPMNEdge id="Flow_HospitalNotice_IndexMedical_di" bpmnElement="Flow_HospitalNotice_IndexMedical">
+        <di:waypoint x="975" y="160" /><di:waypoint x="975" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexMedical_Assessment_di" bpmnElement="Flow_IndexMedical_Assessment">
+        <di:waypoint x="1090" y="60" /><di:waypoint x="1165" y="60" /><di:waypoint x="1165" y="160" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Assessment_MedicalResult_di" bpmnElement="Flow_Assessment_MedicalResult">
         <di:waypoint x="1240" y="200" /><di:waypoint x="1290" y="200" />
@@ -541,8 +695,11 @@
         <di:waypoint x="1315" y="225" /><di:waypoint x="1315" y="720" /><di:waypoint x="850" y="720" />
         <bpmndi:BPMNLabel><dc:Bounds x="1320" y="460" width="40" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_RejectionEmail_Rejected_di" bpmnElement="Flow_RejectionEmail_Rejected">
-        <di:waypoint x="850" y="720" /><di:waypoint x="920" y="720" />
+      <bpmndi:BPMNEdge id="Flow_RejectionEmail_IndexRejected_di" bpmnElement="Flow_RejectionEmail_IndexRejected">
+        <di:waypoint x="850" y="720" /><di:waypoint x="890" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexRejected_Rejected_di" bpmnElement="Flow_IndexRejected_Rejected">
+        <di:waypoint x="1030" y="720" /><di:waypoint x="1080" y="720" />
       </bpmndi:BPMNEdge>
 
       <!-- Edges: payment + issuance pipeline -->
@@ -558,8 +715,11 @@
       <bpmndi:BPMNEdge id="Flow_Pdf_Store_di" bpmnElement="Flow_Pdf_Store">
         <di:waypoint x="940" y="440" /><di:waypoint x="980" y="440" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_Store_PermitEmail_di" bpmnElement="Flow_Store_PermitEmail">
-        <di:waypoint x="1120" y="440" /><di:waypoint x="1160" y="440" />
+      <bpmndi:BPMNEdge id="Flow_Store_IndexIssued_di" bpmnElement="Flow_Store_IndexIssued">
+        <di:waypoint x="1050" y="480" /><di:waypoint x="1050" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IndexIssued_PermitEmail_di" bpmnElement="Flow_IndexIssued_PermitEmail">
+        <di:waypoint x="1190" y="560" /><di:waypoint x="1235" y="560" /><di:waypoint x="1235" y="480" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_PermitEmail_Evaluation_di" bpmnElement="Flow_PermitEmail_Evaluation">
         <di:waypoint x="1310" y="440" /><di:waypoint x="1350" y="440" />

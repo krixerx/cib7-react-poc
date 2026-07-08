@@ -310,27 +310,6 @@ services:
       retries: 60
       start_period: 20s
 
-  embeddings:
-    # Embedding server for the backend's semantic document search —
-    # HuggingFace text-embeddings-inference (TEI) serving all-MiniLM-L6-v2
-    # over an OpenAI-compatible /v1/embeddings API. Runs the model in its own
-    # container so the backend image stays model-free; everything is local,
-    # no external AI API. The model (~90 MB) downloads from HuggingFace once
-    # on first start and is cached in the tei-models volume, so later starts
-    # are offline-safe.
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.3
-    container_name: cib7-poc-embeddings
-    # --auto-truncate: the backend's TokenTextSplitter chunks (~800 tokens)
-    # exceed the model's 512-token window; without the flag TEI rejects such
-    # requests (413) instead of truncating like the old in-process runtime.
-    command: --model-id sentence-transformers/all-MiniLM-L6-v2 --auto-truncate
-    expose:
-      - "80"
-    ports:
-      - "8088:80"     # published for a bare `mvn spring-boot:run` backend
-    volumes:
-      - tei-models:/data
-
   backend:
     # Business microservice (Spring Boot 4). Owns every /api/** surface:
     # public owner-confirmation / founder-signature / payment endpoints,
@@ -381,18 +360,12 @@ services:
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
       # SPA origin allowed in the bucket's CORS policy.
       FRONTEND_BASE_URL: http://localhost:3000
-      # TEI embedding server (docker-network URL). Indexing is best-effort
-      # (failures are logged, uploads succeed regardless), so plain startup
-      # ordering is enough — no healthcheck needed while TEI warms up.
-      EMBEDDINGS_URL: http://embeddings:80
     depends_on:
       keycloak:
         condition: service_healthy
       rustfs:
         condition: service_healthy
       cib7:
-        condition: service_started
-      embeddings:
         condition: service_started
 
   cib7:
@@ -525,8 +498,3 @@ services:
     depends_on:
       - cib7
       - backend
-
-volumes:
-  # TEI embedding-model cache — all-MiniLM-L6-v2 downloads here on the
-  # first start of the embeddings service; later starts are offline.
-  tei-models:

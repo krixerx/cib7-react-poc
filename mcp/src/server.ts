@@ -104,8 +104,15 @@ const SERVER_INSTRUCTIONS = [
   '',
   'WHEN THE USER ASKS WHAT THEY CAN DO HERE: start with `list_services`.',
   'WHEN STARTING ANY UNFAMILIAR SERVICE: call `describe_service` first.',
-  'WHEN THE USER ASKS ABOUT THE CONTENT OF THEIR DOCUMENTS (e.g. "what does my',
-  'certificate say?", "find my invoice amount"): call `search_documents`.',
+  '',
+  'WHEN THE USER ASKS ABOUT THEIR CASES IN THEIR OWN WORDS (e.g. "did anything',
+  'get rejected?", "which of my cases is stuck?", "what happened to the permit',
+  'for my son?"): call `search_cases`. It returns prose status cards; YOU do the',
+  'semantic matching over the returned summaries and answer from them.',
+  '',
+  'BEFORE ASKING THE USER FOR PERSONAL DETAILS A FORM NEEDS (name, civil id,',
+  'email, address, ...): call `get_my_profile` first. Pre-fill everything it',
+  'already knows and only ask the user to confirm or fill the gaps.',
 ].join('\n');
 
 interface RequestContext {
@@ -489,35 +496,34 @@ async function handleUploadDocument(args: unknown): Promise<ToolResult> {
   });
 }
 
-interface DocumentSearchHit {
-  attachmentId: string;
+interface CaseSearchHit {
   processInstanceId: string;
-  category: string;
-  filename: string;
-  snippet: string;
-  score: number | null;
+  service: string;
+  status: string;
+  summary: string;
+  updatedAt: string;
 }
 
-async function handleSearchDocuments(args: unknown): Promise<ToolResult> {
-  const query = (args as { query?: string })?.query;
-  if (typeof query !== 'string' || !query.trim()) {
-    return textResult(
-      { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "query" is required.' },
-      true,
-    );
-  }
+async function handleSearchCases(args: unknown): Promise<ToolResult> {
+  const a = (args ?? {}) as { query?: string; service?: string; status?: string };
 
-  // The backend embeds the query, searches its vector index over the
-  // extracted text of stored documents, and post-filters every hit through
-  // the same per-case access rule as the rest of the documents API — so
-  // the results only ever cover cases this user may see.
+  // The backend keeps one prose status card per case, re-posted by the BPMN
+  // at every milestone (submitted / sent back / awaiting medical / rejected /
+  // completed), and post-filters every hit through the same per-case access
+  // rule as the documents API — results only ever cover cases this user may
+  // see. Retrieval is keyword-ranked, not semantic: the LLM reading the
+  // returned summaries is the semantic layer.
   const result = await businessRequest<{
-    query: string;
+    query: string | null;
     count: number;
-    results: DocumentSearchHit[];
-  }>('/api/documents/search', {
+    results: CaseSearchHit[];
+  }>('/api/cases/search', {
     bearer: currentBearer(),
-    query: { q: query.trim() },
+    query: {
+      q: a.query?.trim() || undefined,
+      service: a.service?.trim() || undefined,
+      status: a.status?.trim() || undefined,
+    },
   });
   if (!result.ok) return engineErrorResult(result);
 
@@ -527,8 +533,112 @@ async function handleSearchDocuments(args: unknown): Promise<ToolResult> {
     results: result.data?.results ?? [],
     note:
       (result.data?.count ?? 0) === 0
-        ? 'No matching document text. Scanned images (JPEG/PNG) are not indexed — only documents with extractable text (PDFs). The document may also still be indexing if it was uploaded seconds ago.'
-        : 'Snippets are chunk previews of the stored documents. Cite the filename when answering; the SPA Documents sidebar of the case can download the full file.',
+        ? 'No matching case cards. Cases are indexed at process milestones — a case started before this feature was deployed has no card yet, and keyword retrieval can miss synonyms: retry with different words or without a query to get all cards. list_my_processes gives the exhaustive list.'
+        : 'Each result is the latest status card of one case — read the summaries and match them to what the user asked yourself. For exact, current state use list_my_processes / list_my_tasks with the processInstanceId.',
+  });
+}
+
+async function handleGetMyProfile(): Promise<ToolResult> {
+  const me = currentUsername();
+  if (!me) {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_TOKEN',
+        message: 'Could not decode preferred_username from the Bearer token.',
+      },
+      true,
+    );
+  }
+
+  const claims = currentClaims() as
+    | (JWTPayload & {
+        given_name?: string;
+        family_name?: string;
+        name?: string;
+        email?: string;
+      })
+    | undefined;
+  const identity = {
+    username: me,
+    firstName: claims?.given_name,
+    lastName: claims?.family_name,
+    fullName: claims?.name,
+    email: claims?.email,
+  };
+
+  const instances = await engineRequest<HistoricProcessInstance[]>(
+    '/engine-rest/history/process-instance',
+    {
+      bearer: currentBearer(),
+      query: { startedBy: me, sortBy: 'startTime', sortOrder: 'desc' },
+    },
+  );
+  if (!instances.ok) return engineErrorResult(instances);
+
+  const instanceList = instances.data ?? [];
+  if (instanceList.length === 0) {
+    return textResult({ ok: true, identity, recentVariables: {}, casesSeen: 0 });
+  }
+
+  const vars = await engineRequest<HistoricVariableInstance[]>(
+    '/engine-rest/history/variable-instance',
+    {
+      bearer: currentBearer(),
+      query: { processInstanceIdIn: instanceList.map((i) => i.id).join(',') },
+    },
+  );
+  if (!vars.ok) return engineErrorResult(vars);
+
+  const instanceOrder = new Map<string, number>();
+  const serviceByInstance = new Map<string, string>();
+  instanceList.forEach((i, idx) => {
+    instanceOrder.set(i.id, idx);
+    serviceByInstance.set(i.id, i.processDefinitionKey);
+  });
+
+  // Profile = the most recent scalar value per variable name across every
+  // process the user ever started. Documents, JSON blobs, and engine
+  // plumbing are excluded — this is for pre-filling forms, not auditing.
+  const SCALAR_TYPES = new Set(['String', 'Integer', 'Long', 'Short', 'Double', 'Boolean', 'Date']);
+  const MAX_VALUE_LENGTH = 300;
+  const MAX_VARIABLES = 50;
+  const EXCLUDED_NAMES = new Set(['initiator']);
+
+  const sorted = (vars.data ?? [])
+    .filter((v) => {
+      if (!SCALAR_TYPES.has(v.type)) return false;
+      if (EXCLUDED_NAMES.has(v.name) || v.name.startsWith('pending')) return false;
+      if (v.value === null || v.value === undefined) return false;
+      return !(typeof v.value === 'string' && v.value.length > MAX_VALUE_LENGTH);
+    })
+    .sort((a, b) => {
+      const ai = instanceOrder.get(a.processInstanceId) ?? Number.MAX_SAFE_INTEGER;
+      const bi = instanceOrder.get(b.processInstanceId) ?? Number.MAX_SAFE_INTEGER;
+      return ai - bi;
+    });
+
+  const recentVariables: Record<
+    string,
+    { value: unknown; type: string; sourceProcessInstanceId: string; sourceService?: string }
+  > = {};
+  for (const v of sorted) {
+    if (Object.keys(recentVariables).length >= MAX_VARIABLES) break;
+    if (recentVariables[v.name]) continue; // earlier = more recent instance
+    recentVariables[v.name] = {
+      value: v.value,
+      type: v.type,
+      sourceProcessInstanceId: v.processInstanceId,
+      sourceService: serviceByInstance.get(v.processInstanceId),
+    };
+  }
+
+  return textResult({
+    ok: true,
+    identity,
+    recentVariables,
+    casesSeen: instanceList.length,
+    note: 'Values are what the user last entered in previous applications — pre-fill with them but let the user confirm before submitting.',
   });
 }
 
@@ -1100,21 +1210,35 @@ function createMcpServer(): Server {
         },
       },
       {
-        name: 'search_documents',
+        name: 'search_cases',
         description:
-          'Semantic search over the text of documents stored in the user\'s cases — uploaded PDFs and engine-generated certificates, approvals, and invoices. Results are scoped to cases the authenticated user may access (applicants: own cases; reviewers: all). Returns snippets with attachmentId, processInstanceId, category, and filename. Use when the user asks what a document says, e.g. "what does my certificate say?" or "find the invoice amount". Scanned images without a text layer are not indexed.',
+          'Retrieve the status cards of the user\'s cases — one prose card per case (service, latest status, human-readable summary), refreshed by the process itself at every milestone: submitted, sent back for corrections, awaiting medical assessment, rejected (with reason), completed. Results are scoped to cases the authenticated user may access (applicants: own cases; reviewers: all). Retrieval is keyword-ranked, NOT semantic — YOU are the semantic layer: when the user asks in their own words ("which of my cases got stuck?", "was anything rejected because of insurance?"), fetch cards (optionally narrowed by keywords or status/service filters), read the summaries, and match meaning yourself. Call it with no arguments to get all the user\'s cards, newest first. For the exhaustive list or exact current state, use list_my_processes.',
         inputSchema: {
           type: 'object',
           properties: {
             query: {
               type: 'string',
               description:
-                'Natural-language search query, e.g. "vehicle registration certificate plate number".',
+                'Optional keywords ranked against card text, e.g. "rejected insurance". Plain distinctive words work best; if results look incomplete, retry without a query and read all cards.',
+            },
+            service: {
+              type: 'string',
+              description: 'Optional exact service key filter, e.g. "transport-learning-permit".',
+            },
+            status: {
+              type: 'string',
+              description:
+                'Optional exact status filter, e.g. "submitted", "sent-back", "rejected".',
             },
           },
-          required: ['query'],
           additionalProperties: false,
         },
+      },
+      {
+        name: 'get_my_profile',
+        description:
+          'One-shot autofill data for the authenticated user: identity from their sign-in (username, name, email when present) plus the most recent value of every scalar variable they entered across all their previous applications (civil id, phone, address, last-used VIN, ...). Call this BEFORE asking the user for personal details any form needs — pre-fill what it returns and only ask the user to confirm or supply what is missing. Replaces calling query_user_history once per field.',
+        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       },
       {
         name: 'list_my_processes',
@@ -1197,8 +1321,10 @@ function createMcpServer(): Server {
         return handleCompleteTask(req.params.arguments);
       case 'upload_document':
         return handleUploadDocument(req.params.arguments);
-      case 'search_documents':
-        return handleSearchDocuments(req.params.arguments);
+      case 'search_cases':
+        return handleSearchCases(req.params.arguments);
+      case 'get_my_profile':
+        return handleGetMyProfile();
       case 'list_my_processes':
         return handleListMyProcesses(req.params.arguments);
       case 'query_user_history':

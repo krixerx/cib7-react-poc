@@ -38,40 +38,48 @@ request — mirroring the demo's service path steps 1–6.
 ```
 start              started "Application submitted"          initiator=initiator
 user-task          transport-permit-application "Apply for a learning permit"  form=transport-permit-application role=initiator
+service-task       transport-permit-index-submitted "Index case: submitted"    (see service-tasks/transport-permit-index-submitted.md)
 service-task       transport-driver-clearance "Fetch eye test, license & restrictions status"  (see service-tasks/transport-driver-clearance.md)
 business-rule-task transport-permit-eligibility "Check terms of service"  decision=transport-permit-eligibility result=permitDecision
 gateway-exclusive  permit-conditions "Conditions met?"       default=permit-rejected
 service-task       transport-hospital-notice-email "Email: visit the Police Hospital"  (see service-tasks/transport-hospital-notice-email.md)
+service-task       transport-permit-index-medical "Index case: awaiting medical"       (see service-tasks/transport-permit-index-medical.md)
 user-task          transport-hospital-assessment "Police Hospital medical assessment"  form=transport-hospital-assessment group=civil-servant
 gateway-exclusive  medical-result "Medical result?"          default=medical-negative
 service-task       transport-permit-rejection-email "Email: application rejected"  (see service-tasks/transport-permit-rejection-email.md)
+service-task       transport-permit-index-rejected "Index case: rejected"          (see service-tasks/transport-permit-index-rejected.md)
 service-task       transport-permit-payment-email "Email: pay the service fee"     (see service-tasks/transport-permit-payment-email.md)
 receive-task       transport-wait-permit-payment "Wait for fee payment"  message=PaymentReceived
 service-task       transport-issue-permit "Issue learning permit"                  (see service-tasks/transport-issue-permit.md)
 service-task       transport-permit-pdf "Generate electronic learning license (PDF)"  (see service-tasks/transport-permit-pdf.md)
 service-task       transport-store-permit "Store learning license"                 (see service-tasks/transport-store-permit.md)
+service-task       transport-permit-index-issued "Index case: issued"              (see service-tasks/transport-permit-index-issued.md)
 service-task       transport-permit-email "Email: electronic license & receipt"    (see service-tasks/transport-permit-email.md)
 service-task       transport-permit-evaluation-email "Email: service evaluation request"  (see service-tasks/transport-permit-evaluation-email.md)
 end                issued "Learning permit issued"
 end                rejected "Application rejected"
 
 flow               start -> transport-permit-application
-flow               transport-permit-application -> transport-driver-clearance
+flow               transport-permit-application -> transport-permit-index-submitted
+flow               transport-permit-index-submitted -> transport-driver-clearance
 flow               transport-driver-clearance -> transport-permit-eligibility
 flow               transport-permit-eligibility -> permit-conditions
 flow               permit-conditions -> transport-permit-payment-email    label="conditions met" if=${permitDecision == "ok"}
 flow               permit-conditions -> transport-hospital-notice-email   label="weak vision" if=${permitDecision == "medical"}
 flow               permit-conditions -> transport-permit-rejection-email  label="permit-rejected (default)"
-flow               transport-hospital-notice-email -> transport-hospital-assessment
+flow               transport-hospital-notice-email -> transport-permit-index-medical
+flow               transport-permit-index-medical -> transport-hospital-assessment
 flow               transport-hospital-assessment -> medical-result
 flow               medical-result -> transport-permit-payment-email       label="fit to drive" if=${medicalResult == "positive"}
 flow               medical-result -> transport-permit-rejection-email     label="medical-negative (default)"
-flow               transport-permit-rejection-email -> rejected
+flow               transport-permit-rejection-email -> transport-permit-index-rejected
+flow               transport-permit-index-rejected -> rejected
 flow               transport-permit-payment-email -> transport-wait-permit-payment
 flow               transport-wait-permit-payment -> transport-issue-permit
 flow               transport-issue-permit -> transport-permit-pdf
 flow               transport-permit-pdf -> transport-store-permit
-flow               transport-store-permit -> transport-permit-email
+flow               transport-store-permit -> transport-permit-index-issued
+flow               transport-permit-index-issued -> transport-permit-email
 flow               transport-permit-email -> transport-permit-evaluation-email
 flow               transport-permit-evaluation-email -> issued
 ```
@@ -93,13 +101,17 @@ none); a rejected applicant starts a new case.
 
 | BPMN task | Kind | Spec |
 |---|---|---|
+| `Task_TransportPermitIndexSubmitted` | http-connector → backend documents | [`service-tasks/transport-permit-index-submitted.md`](service-tasks/transport-permit-index-submitted.md) |
 | `Task_TransportDriverClearance` | http-connector → backend | [`service-tasks/transport-driver-clearance.md`](service-tasks/transport-driver-clearance.md) |
 | `Task_TransportHospitalNoticeEmail` | http-connector → Mailpit | [`service-tasks/transport-hospital-notice-email.md`](service-tasks/transport-hospital-notice-email.md) |
+| `Task_TransportPermitIndexMedical` | http-connector → backend documents | [`service-tasks/transport-permit-index-medical.md`](service-tasks/transport-permit-index-medical.md) |
 | `Task_TransportPermitRejectionEmail` | http-connector → Mailpit | [`service-tasks/transport-permit-rejection-email.md`](service-tasks/transport-permit-rejection-email.md) |
+| `Task_TransportPermitIndexRejected` | http-connector → backend documents | [`service-tasks/transport-permit-index-rejected.md`](service-tasks/transport-permit-index-rejected.md) |
 | `Task_TransportPermitPaymentEmail` | http-connector → Mailpit | [`service-tasks/transport-permit-payment-email.md`](service-tasks/transport-permit-payment-email.md) |
 | `Task_TransportIssuePermit` | http-connector → backend | [`service-tasks/transport-issue-permit.md`](service-tasks/transport-issue-permit.md) |
 | `Task_TransportPermitPdf` | http-connector → pdf-renderer | [`service-tasks/transport-permit-pdf.md`](service-tasks/transport-permit-pdf.md) |
 | `Task_TransportStorePermit` | http-connector → backend documents | [`service-tasks/transport-store-permit.md`](service-tasks/transport-store-permit.md) |
+| `Task_TransportPermitIndexIssued` | http-connector → backend documents | [`service-tasks/transport-permit-index-issued.md`](service-tasks/transport-permit-index-issued.md) |
 | `Task_TransportPermitEmail` | http-connector → Mailpit | [`service-tasks/transport-permit-email.md`](service-tasks/transport-permit-email.md) |
 | `Task_TransportPermitEvaluationEmail` | http-connector → Mailpit | [`service-tasks/transport-permit-evaluation-email.md`](service-tasks/transport-permit-evaluation-email.md) |
 
@@ -211,13 +223,17 @@ flowchart LR
   StartEvent_1(("Application submitted"))
   Task_TransportPermitApplication["👤 Apply for a learning permit"]
   Task_TransportHospitalAssessment["👤 Police Hospital medical assessment"]
+  Task_TransportPermitIndexSubmitted[["🔌 Index case: submitted"]]
   Task_TransportDriverClearance[["🔌 Fetch eye test, license & restrictions status"]]
   Task_TransportHospitalNoticeEmail[["🔌 Email: visit the Police Hospital"]]
+  Task_TransportPermitIndexMedical[["🔌 Index case: awaiting medical"]]
   Task_TransportPermitRejectionEmail[["🔌 Email: application rejected"]]
+  Task_TransportPermitIndexRejected[["🔌 Index case: rejected"]]
   Task_TransportPermitPaymentEmail[["🔌 Email: pay the service fee"]]
   Task_TransportIssuePermit[["🔌 Issue learning permit"]]
   Task_TransportPermitPdf[["🔌 Generate electronic learning license (PDF)"]]
   Task_TransportStorePermit[["🔌 Store learning license"]]
+  Task_TransportPermitIndexIssued[["🔌 Index case: issued"]]
   Task_TransportPermitEmail[["🔌 Email: electronic license & receipt"]]
   Task_TransportPermitEvaluationEmail[["🔌 Email: service evaluation request"]]
   Task_TransportPermitEligibility[/"📋 Check terms of service"/]
@@ -227,22 +243,26 @@ flowchart LR
   EndEvent_Issued((("Learning permit issued")))
   Task_TransportWaitPermitPayment[["📥 Wait for fee payment"]]
   StartEvent_1 --> Task_TransportPermitApplication
-  Task_TransportPermitApplication --> Task_TransportDriverClearance
+  Task_TransportPermitApplication --> Task_TransportPermitIndexSubmitted
+  Task_TransportPermitIndexSubmitted --> Task_TransportDriverClearance
   Task_TransportDriverClearance --> Task_TransportPermitEligibility
   Task_TransportPermitEligibility --> Gateway_PermitConditions
   Gateway_PermitConditions -- "conditions met" --> Task_TransportPermitPaymentEmail
   Gateway_PermitConditions -- "weak vision" --> Task_TransportHospitalNoticeEmail
   Gateway_PermitConditions -. "rejected (default)" .-> Task_TransportPermitRejectionEmail
-  Task_TransportHospitalNoticeEmail --> Task_TransportHospitalAssessment
+  Task_TransportHospitalNoticeEmail --> Task_TransportPermitIndexMedical
+  Task_TransportPermitIndexMedical --> Task_TransportHospitalAssessment
   Task_TransportHospitalAssessment --> Gateway_MedicalResult
   Gateway_MedicalResult -- "fit to drive" --> Task_TransportPermitPaymentEmail
   Gateway_MedicalResult -. "not fit (default)" .-> Task_TransportPermitRejectionEmail
-  Task_TransportPermitRejectionEmail --> EndEvent_Rejected
+  Task_TransportPermitRejectionEmail --> Task_TransportPermitIndexRejected
+  Task_TransportPermitIndexRejected --> EndEvent_Rejected
   Task_TransportPermitPaymentEmail --> Task_TransportWaitPermitPayment
   Task_TransportWaitPermitPayment --> Task_TransportIssuePermit
   Task_TransportIssuePermit --> Task_TransportPermitPdf
   Task_TransportPermitPdf --> Task_TransportStorePermit
-  Task_TransportStorePermit --> Task_TransportPermitEmail
+  Task_TransportStorePermit --> Task_TransportPermitIndexIssued
+  Task_TransportPermitIndexIssued --> Task_TransportPermitEmail
   Task_TransportPermitEmail --> Task_TransportPermitEvaluationEmail
   Task_TransportPermitEvaluationEmail --> EndEvent_Issued
 ```
