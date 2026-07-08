@@ -214,6 +214,7 @@ export function validateVariables(
 export function validateTaskVariables(
   formKey: string,
   variables: unknown,
+  opts?: { partial?: boolean },
 ):
   | { ok: true; data: Record<string, unknown>; serviceKey: string; task: CompiledUserTask }
   | { ok: false; issues: ValidationFailure[] } {
@@ -230,7 +231,15 @@ export function validateTaskVariables(
     };
   }
   const valid = hit.task.validate(variables);
-  if (!valid) return { ok: false, issues: toIssues(hit.task.validate.errors ?? []) };
+  if (!valid) {
+    let issues = toIssues(hit.task.validate.errors ?? []);
+    // Partial mode (drafts): the payload may be incomplete, so drop
+    // missing-required complaints but keep everything else — wrong types and
+    // unknown fields must fail even in a draft, or the SPA form would choke
+    // on them later.
+    if (opts?.partial) issues = issues.filter((i) => i.keyword !== 'required');
+    if (issues.length > 0) return { ok: false, issues };
+  }
   return {
     ok: true,
     data: variables as Record<string, unknown>,

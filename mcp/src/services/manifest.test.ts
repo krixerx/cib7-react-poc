@@ -191,6 +191,44 @@ describe('validateTaskVariables', () => {
       expect(result.issues[0].message).toContain('no-such-form');
     }
   });
+
+  describe('partial mode (drafts)', () => {
+    it('accepts variables that miss required fields', () => {
+      const result = manifest.validateTaskVariables('toy-details', { fragile: true }, {
+        partial: true,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toEqual({ fragile: true });
+        expect(result.serviceKey).toBe('toyRegistration');
+      }
+    });
+
+    it('still rejects wrong types', () => {
+      const result = manifest.validateTaskVariables('toy-details', { fragile: 'yes' }, {
+        partial: true,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.issues.map((i) => i.keyword)).toContain('type');
+      }
+    });
+
+    it('still rejects extra properties (additionalProperties: false)', () => {
+      const result = manifest.validateTaskVariables('toy-details', { smuggled: true }, {
+        partial: true,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.issues.map((i) => i.keyword)).toContain('additionalProperties');
+      }
+    });
+
+    it('flags an unknown formKey even in partial mode', () => {
+      const result = manifest.validateTaskVariables('no-such-form', {}, { partial: true });
+      expect(result.ok).toBe(false);
+    });
+  });
 });
 
 describe('findServiceByFormKey', () => {
