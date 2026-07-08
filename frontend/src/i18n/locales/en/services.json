@@ -44,5 +44,11 @@
       "empty": "No services in this category yet.",
       "rowMeta": "key: {{key}} · version {{version}}"
     }
+  },
+  "mobile": {
+    "title": "Try it on your phone",
+    "sub": "Scan to open the mobile app — track your applications and keep certificates in your wallet.",
+    "open": "Open the mobile app →",
+    "ariaLabel": "Open the mobile applicant app"
   }
 }
