@@ -45,12 +45,15 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
    │                     ├──▶ Mailpit /api/v1/send       (email + attachments)
    │                     ├──▶ pdf-renderer /render ──▶ Gotenberg (Chromium → PDF)
    │                     └──▶ backend /api/...           (vehicle lookup, document
-   │                                                      move-pending/server-upload;
+   │                                                      move-pending/server-upload,
+   │                                                      case-card index-case;
    │                                                      bus injects X-Internal-Token)
    │
    └─ /api/... ───────▶  backend — business microservice  (backend/, Spring Boot 4)
                           │  public confirmations / payments / vehicle registry,
-                          │  documents (JPA metadata + S3 presigned URLs)
+                          │  documents (JPA metadata + S3 presigned URLs),
+                          │  case cards (JPA; BPMN milestone tasks POST prose
+                          │  status summaries, MCP search_cases reads them)
                           ├──▶ /engine-rest  (cib7-business service account)
                           └──▶ RustFS (S3)   ◀── browser presigned PUT/GET
 
@@ -134,7 +137,7 @@ The runtime pieces:
 | HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA. Cross-service routing has moved to Traefik; this nginx only does the SPA fallback (`try_files $uri /index.html`). |
 | Dev server | Vite | `frontend/vite.config.ts` | Serves SPA in dev, proxies `/engine-rest` to `localhost:8080`. (Vite-dev does not use Traefik; the engine still binds 8080 when run via `mvn spring-boot:run`.) |
 | Engine app | Spring Boot 3.5, CIB seven 2.2 starter | `cib7/` | Embedded engine + REST API; no business endpoints |
-| Business microservice | Spring Boot 4 (webmvc + data-jpa + security) | `backend/` | All `/api/**`: public confirmation/payment links, vehicle registry, documents (JPA `Document` metadata + S3 presigner); engine access via `/engine-rest` with the `cib7-business` service account |
+| Business microservice | Spring Boot 4 (webmvc + data-jpa + security) | `backend/` | All `/api/**`: public confirmation/payment links, vehicle registry, documents (JPA `Document` metadata + S3 presigner), case cards (JPA `CaseCard`, one prose status summary per case re-posted by BPMN "Index case" milestone tasks; keyword/filter retrieval for the `search_cases` MCP tool — the AI client does the semantic matching, no embeddings); engine access via `/engine-rest` with the `cib7-business` service account |
 | Object storage | RustFS (S3-compatible) | compose service | Applicant uploads + generated PDFs under `process/{piId}/…`; presigned URLs minted by the backend |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | wired in `ConnectorConfiguration.java` | Enables `<camunda:connector>` service tasks |
@@ -241,8 +244,9 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `rustfs` (healthy), and `cib7` (started). Authenticates its
   `/engine-rest` calls with the `cib7-business` service account and shares
   `INTERNAL_TASK_TOKEN` with the integration bus (`esb`), which injects the
-  `X-Internal-Token` header on the two BPMN-called document endpoints
-  (`move-pending`, `server-upload`) — the engine no longer holds that secret.
+  `X-Internal-Token` header on the BPMN-called document endpoints
+  (`move-pending`, `server-upload`, `index-case`) — the engine no longer
+  holds that secret.
 - **rustfs** — S3-compatible object storage, host-published on `:9000` (the
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
