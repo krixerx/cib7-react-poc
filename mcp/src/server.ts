@@ -102,6 +102,13 @@ const SERVER_INSTRUCTIONS = [
   'NEVER ask the user for their password and never accept one in chat — if they',
   'volunteer it, tell them not to share it and point them at the reset URL.',
   '',
+  'WHEN THE USER WANTS TO SEE OR REVIEW THEIR APPLICATION IN THE WEB PORTAL',
+  'BEFORE SUBMITTING (e.g. "can I see the form first?", "send me a link to',
+  'check my data"): call `save_draft` with the task id and everything you have',
+  'collected so far, then share the `portalUrl` it returns. NEVER construct or',
+  'share a portal task link yourself — without `save_draft` the form opens',
+  'empty because your collected data lives only in this conversation.',
+  '',
   'WHEN THE USER ASKS WHAT THEY CAN DO HERE: start with `list_services`.',
   'WHEN STARTING ANY UNFAMILIAR SERVICE: call `describe_service` first.',
   '',
@@ -774,6 +781,96 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
   });
 }
 
+async function handleSaveDraft(args: unknown): Promise<ToolResult> {
+  const a = (args ?? {}) as { taskId?: string; variables?: Record<string, unknown> };
+  if (typeof a.taskId !== 'string' || !a.taskId) {
+    return textResult(
+      { ok: false, code: 'INVALID_ARGUMENT', message: 'Tool argument "taskId" is required.' },
+      true,
+    );
+  }
+  if (a.variables === undefined || a.variables === null || typeof a.variables !== 'object') {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_ARGUMENT',
+        message: 'Tool argument "variables" is required and must be an object.',
+      },
+      true,
+    );
+  }
+
+  const taskResult = await engineRequest<EngineTask>(
+    `/engine-rest/task/${encodeURIComponent(a.taskId)}`,
+    { bearer: currentBearer() },
+  );
+  if (!taskResult.ok) return engineErrorResult(taskResult);
+
+  const formKey = stripFormKeyPrefix(taskResult.data?.formKey);
+  if (!formKey) {
+    return textResult(
+      {
+        ok: false,
+        code: 'no_form_key',
+        message: 'Task has no formKey — cannot validate draft variables against a schema.',
+      },
+      true,
+    );
+  }
+
+  // Drafts are allowed to be incomplete (partial: true skips missing-required
+  // errors) but not wrong: type mismatches and unknown fields still fail so
+  // the portal form never receives values it cannot render.
+  const validated = validateTaskVariables(formKey, a.variables, { partial: true });
+  if (!validated.ok) {
+    return textResult(
+      {
+        ok: false,
+        code: 'INVALID_VARIABLES',
+        message: `Draft variables for task with formKey "${formKey}" failed schema validation.`,
+        issues: validated.issues,
+      },
+      true,
+    );
+  }
+
+  const camundaVars = toCamundaVariables(
+    validated.data,
+    validated.task.descriptor.schema as JsonSchema,
+  );
+
+  // Task-LOCAL variables, deliberately: /task/{id}/form-variables resolves
+  // the local scope first, so the SPA form prefills from the draft — but the
+  // values never enter the process scope, so an unreviewed half-draft cannot
+  // drive gateways, DMN inputs, or listeners. When the user submits in the
+  // portal, the SPA writes the real process variables via its normal complete
+  // path and the draft dies with the task.
+  const saveResult = await engineRequest<unknown>(
+    `/engine-rest/task/${encodeURIComponent(a.taskId)}/localVariables`,
+    {
+      bearer: currentBearer(),
+      method: 'POST',
+      body: { modifications: camundaVars },
+    },
+  );
+  if (!saveResult.ok) return engineErrorResult(saveResult);
+
+  return textResult({
+    ok: true,
+    taskId: a.taskId,
+    service: validated.serviceKey,
+    formKey,
+    savedFields: Object.keys(camundaVars),
+    portalUrl: `${APPLICANT_PORTAL_URL}/tasks/${encodeURIComponent(a.taskId)}`,
+    notes: [
+      'Share portalUrl with the user — the form there is now prefilled with the draft.',
+      'This saved a DRAFT only; nothing was submitted and the process has not advanced.',
+      'The user can review, edit, and submit directly in the portal. If they submit there, the task disappears from list_my_tasks.',
+      'The portal has no draft-save of its own: if the user edits fields there WITHOUT submitting, those edits are not sent back to you — re-confirm values with the user before calling complete_task.',
+    ],
+  });
+}
+
 async function handleListMyProcesses(args: unknown): Promise<ToolResult> {
   const a = (args ?? {}) as { processInstanceId?: string };
   const me = currentUsername();
@@ -1180,6 +1277,25 @@ function createMcpServer(): Server {
         },
       },
       {
+        name: 'save_draft',
+        description:
+          'Save the form data collected so far as a DRAFT on a user task and return a portal link where the user can review it in the real web form before submitting. Writes the variables as task-local variables in the engine, so the portal form at the returned `portalUrl` opens prefilled; nothing is submitted and the process does not advance. Variables may be incomplete (missing required fields are fine for a draft) but provided fields are still type-checked against the task schema. ALWAYS use this tool when the user asks to see, review, or check their application in the portal before submitting — NEVER hand out a portal task link without calling this first, otherwise the user sees an empty form. The user can finish and submit in the portal, or come back to chat and you call complete_task as usual.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Engine task id (from list_my_tasks).' },
+            variables: {
+              type: 'object',
+              description:
+                'The form variables collected so far. Shape comes from get_form_schema for this task; a partial subset is allowed.',
+              additionalProperties: true,
+            },
+          },
+          required: ['taskId', 'variables'],
+          additionalProperties: false,
+        },
+      },
+      {
         name: 'upload_document',
         description:
           "Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine's pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task's requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for vehicleRegistration's personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.",
@@ -1319,6 +1435,8 @@ function createMcpServer(): Server {
         return handleGetFormSchema(req.params.arguments);
       case 'complete_task':
         return handleCompleteTask(req.params.arguments);
+      case 'save_draft':
+        return handleSaveDraft(req.params.arguments);
       case 'upload_document':
         return handleUploadDocument(req.params.arguments);
       case 'search_cases':
