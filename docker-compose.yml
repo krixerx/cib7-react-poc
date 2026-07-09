@@ -468,6 +468,8 @@ services:
       - cib7
       - backend
       - mcp
+      # nginx proxies /mobile — the upstream name must resolve at startup.
+      - mobile
 
   mobile:
     build: ./mobile

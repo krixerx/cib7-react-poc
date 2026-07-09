@@ -2,7 +2,7 @@
 
 This guide is for the **administrator deploying the application**. You do
 not need the source code, a Java/Node toolchain, or any build step — all
-six application images are pre-built and published to
+seven application images are pre-built and published to
 [Docker Hub](https://hub.docker.com/u/krixerx) on every change. Everything
 you need is in this `deploy/` folder:
 
@@ -32,9 +32,9 @@ deploy/
 - **Docker ≥ 24 with the Compose plugin** — `docker compose version` must
   work (the standalone `docker-compose` binary is not tested).
 - ~4 GB free RAM for the stack (two JVMs, Keycloak, headless Chromium).
-- Free host ports — single-machine mode: **3000** (app), **8180**
-  (Keycloak), **9000** (object storage), optionally 8025 (mail inbox).
-  TLS mode additionally: **80** and **443**.
+- Free host ports — single-machine mode: **3000** (app), **3001** (mobile
+  app direct door), **8180** (Keycloak), **9000** (object storage),
+  optionally 8025 (mail inbox). TLS mode additionally: **80** and **443**.
 
 No git, no JDK, no Node.
 
@@ -71,6 +71,7 @@ with `docker compose logs -f` until things go quiet, then open
 |---|---|---|
 | Applicant (citizen) | <http://localhost:3000> | `bart` / `bart` |
 | Civil servant (case worker) | <http://localhost:3000> | `homer` / `homer` |
+| Mobile applicant app (Flutter, POC) | <http://localhost:3000/mobile/> | `bart` / `bart` |
 | CIB seven Cockpit / Tasklist / Admin | <http://localhost:3000/camunda/> | `admin` / `admin` |
 | Keycloak admin console | <http://localhost:8180/admin/> | `admin` / `admin` |
 | Process-sent emails (Mailpit) | <http://localhost:8025> — needs `docker compose --profile mail up -d mailpit-ui` | — |
@@ -109,6 +110,7 @@ docker compose up -d        # recreates only the affected containers
 | `PUBLIC_S3_URL` | `http://localhost:9000` | Browser-visible object-storage URL (presigned upload/download links). |
 | `MCP_RESOURCE_URL` | `${PUBLIC_FRONTEND_URL}/mcp` | Where AI clients reach the MCP sidecar. |
 | `FRONTEND_HTTP_PORT` | `3000` | Host port (or `ip:port` binding) for the plain-HTTP front door. |
+| `MOBILE_HTTP_PORT` | `3001` | Same, for the mobile app's direct door (it is also served at `/mobile` through the front door and Traefik). |
 | `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` | `admin` / `admin` | Keycloak bootstrap admin (first start only). |
 | `KEYCLOAK_BACKEND_CLIENT_SECRET` | dev value | OAuth client secret, must mirror `keycloak/realm-export.json`. |
 | `KEYCLOAK_WEBAPPS_CLIENT_SECRET` | dev value | Same, for the Cockpit/Tasklist SSO client. |
@@ -157,6 +159,11 @@ Replace localhost URLs and dev secrets in three clients:
 "webOrigins": ["https://app.example.com"],
 "attributes": { "post.logout.redirect.uris": "https://app.example.com/*" }
 
+// cib7-mobile (the Flutter applicant app, served under /mobile)
+"redirectUris": ["https://app.example.com/mobile/*"],
+"webOrigins":   ["https://app.example.com"],
+"attributes": { ..., "post.logout.redirect.uris": "https://app.example.com/mobile/*" }
+
 // cib7-backend          → "secret": "<your KEYCLOAK_BACKEND_CLIENT_SECRET>"
 // cib7-business         → "secret": "<your KEYCLOAK_BUSINESS_CLIENT_SECRET>"
 ```
@@ -203,7 +210,7 @@ docker compose --profile tls up -d
 ```
 
 Traefik terminates TLS on :443 ( :80 just redirects) and routes the app,
-the engine APIs, the Camunda webapps, and `/mcp` under
+the engine APIs, the Camunda webapps, `/mobile`, and `/mcp` under
 `https://app.example.com`.
 
 **Keycloak and object storage need their own TLS.** They are *not* behind
@@ -327,6 +334,7 @@ remote server this needs the `s3.` hostname + TLS terminator described
 above; check the browser dev-tools network tab for the failing presigned
 URL.
 
-**Port already in use.** Single-machine mode binds 3000, 8180, 9000 (+
-8025 with the `mail` profile); TLS mode adds 80/443. Move the app port
-with `FRONTEND_HTTP_PORT`; the others are fixed in `docker-compose.yml`.
+**Port already in use.** Single-machine mode binds 3000, 3001, 8180, 9000
+(+ 8025 with the `mail` profile); TLS mode adds 80/443. Move the app ports
+with `FRONTEND_HTTP_PORT` / `MOBILE_HTTP_PORT`; the others are fixed in
+`docker-compose.yml`.

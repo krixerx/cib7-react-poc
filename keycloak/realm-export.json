@@ -190,14 +190,16 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:3001/*"
+        "http://localhost:3001/*",
+        "http://localhost:3000/mobile/*"
       ],
       "webOrigins": [
-        "http://localhost:3001"
+        "http://localhost:3001",
+        "http://localhost:3000"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3001/*"
+        "post.logout.redirect.uris": "http://localhost:3001/*##http://localhost:3000/mobile/*"
       },
       "defaultClientScopes": [
         "cib7-claims"
