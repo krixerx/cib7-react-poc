@@ -9,6 +9,7 @@ you need is in this `deploy/` folder:
 ```
 deploy/
 ├── docker-compose.yml                 the whole stack, pull-only
+├── deploy.sh                          one-command upgrade + smoke test
 ├── .env.example                       configuration template
 ├── keycloak/realm-export.json         users, roles, OAuth clients
 └── traefik/dynamic/tls.yml.example    TLS config (only for the HTTPS setup)
@@ -248,7 +249,33 @@ docker compose logs -f mcp            # AI sidecar
 tail -F traefik/logs/access.log       # ingress access log (TLS mode)
 ```
 
-### Upgrading to new images
+### Upgrading — the deploy script
+
+`deploy.sh` runs the whole upgrade on the host in one command: refreshes
+the bundle from git (when it is a clone), backs up the document volume,
+pulls images, restarts what changed, and smoke-tests the public endpoints:
+
+```bash
+./deploy.sh                  # interactive confirmation
+./deploy.sh --yes            # non-interactive (cron / ssh one-liner)
+./deploy.sh --realm          # also recreate Keycloak to re-import an
+                             # edited realm-export.json (drops runtime users)
+```
+
+Set `COMPOSE_PROFILES=tls` in `.env` once and every compose command —
+including the script's — picks the TLS profile up automatically;
+otherwise pass `--profile tls`. From an admin PC the upgrade is then:
+
+```bash
+ssh root@your-server /opt/…/deploy/deploy.sh --yes
+```
+
+If you hold per-host edits on tracked files via `git update-index
+--skip-worktree`, the script refuses to pull when upstream changed those
+files and asks for a hand-merge — it will never silently clobber or
+silently keep stale config.
+
+Manual equivalent:
 
 ```bash
 docker compose pull
