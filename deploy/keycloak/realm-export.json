@@ -182,6 +182,41 @@
 
   "clients": [
     {
+      "clientId": "cib7-mobile",
+      "name": "CIB seven Flutter applicant app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3001/*",
+        "http://localhost:3000/mobile/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3001",
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3001/*##http://localhost:3000/mobile/*"
+      },
+      "defaultClientScopes": ["cib7-claims"],
+      "protocolMappers": [
+        {
+          "name": "audience-cib7-rest-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "cib7-rest-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "cib7-frontend",
       "name": "CIB seven React SPA",
       "enabled": true,
