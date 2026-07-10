@@ -1,0 +1,81 @@
+# Traefik routing for the TLS profile — copy to routes.yml and adjust.
+#
+#   cp routes.yml.example routes.yml
+#
+# Traefik discovers backends through this file-provider config only (the
+# Docker provider can't talk to Docker Engine >= 29, so container labels are
+# not used). Backends are reached by compose service name on the shared
+# network. Changes are hot-reloaded; no Traefik restart needed.
+#
+# TLS — pick per router:
+#   * Admin-supplied certificates: keep `tls: true` (as below) and provide
+#     the cert files via traefik/certs/ + a tls.yml (see tls.yml.example).
+#   * Automatic Let's Encrypt: replace `tls: true` with
+#         tls:
+#           certResolver: le
+#     and set ACME_EMAIL in .env. Port 443 must be reachable from the
+#     internet for the TLS-ALPN-01 challenge.
+#
+# The rules below are path-only, so they answer on any hostname pointing at
+# this box. To serve several hostnames (or use Let's Encrypt, which needs a
+# hostname to put on the certificate), scope each rule with
+# Host(`app.example.com`) && (...).
+
+http:
+  routers:
+    frontend:
+      # Catch-all SPA router; every other router outranks it (longer rule or
+      # explicit priority), so keep its priority at 1.
+      rule: "PathPrefix(`/`)"
+      entryPoints: ["websecure"]
+      service: frontend
+      priority: 1
+      tls: true
+
+    mobile:
+      # Beats the frontend catch-all (priority 1).
+      rule: "PathPrefix(`/mobile`)"
+      entryPoints: ["websecure"]
+      service: mobile
+      priority: 10
+      tls: true
+
+    cib7-engine:
+      rule: "PathPrefix(`/engine-rest`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)"
+      entryPoints: ["websecure"]
+      service: cib7
+      tls: true
+
+    backend-api:
+      rule: "PathPrefix(`/api`)"
+      entryPoints: ["websecure"]
+      service: backend
+      tls: true
+
+    mcp:
+      rule: "PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`) || Path(`/.well-known/mcp.json`) || Path(`/.well-known/mcp/services.json`) || Path(`/llms.txt`)"
+      entryPoints: ["websecure"]
+      service: mcp
+      tls: true
+
+  services:
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:80"
+    mobile:
+      loadBalancer:
+        servers:
+          - url: "http://mobile:80"
+    cib7:
+      loadBalancer:
+        servers:
+          - url: "http://cib7:8080"
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8085"
+    mcp:
+      loadBalancer:
+        servers:
+          - url: "http://mcp:8090"

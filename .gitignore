@@ -34,3 +34,5 @@ deploy/docker-compose.override.yml
 deploy/traefik/dynamic/*.yml
 deploy/traefik/certs/*.crt
 deploy/traefik/certs/*.key
+# Let's Encrypt state (acme.json holds the ACME account private key)
+deploy/traefik/acme/

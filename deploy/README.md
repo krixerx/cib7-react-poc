@@ -12,7 +12,8 @@ deploy/
 ├── deploy.sh                          one-command upgrade + smoke test
 ├── .env.example                       configuration template
 ├── keycloak/realm-export.json         users, roles, OAuth clients
-└── traefik/dynamic/tls.yml.example    TLS config (only for the HTTPS setup)
+├── traefik/dynamic/routes.yml.example ingress routing (only for the HTTPS setup)
+└── traefik/dynamic/tls.yml.example    supplied-cert TLS config (optional)
 ```
 
 **Contents**
@@ -136,10 +137,11 @@ You need:
 - **DNS**: three names pointing at the host — the app
   (`app.example.com`), Keycloak (`kc.example.com`), and object storage
   (`s3.example.com`).
-- **TLS certificate + key** covering the app hostname (a SAN cert or
-  separate certs; see `traefik/dynamic/tls.yml.example` for multi-cert
-  setup). The bundled Traefik does **not** do Let's Encrypt — certs are
-  files you supply.
+- **TLS certificates**, one of:
+  - **automatic Let's Encrypt** — nothing to supply; needs port 443
+    reachable from the internet and `ACME_EMAIL` in `.env`, or
+  - **your own certificate + key** covering the app hostname (a SAN cert
+    or separate certs; see `traefik/dynamic/tls.yml.example`).
 
 ### 1. Edit `keycloak/realm-export.json` (before first start!)
 
@@ -169,7 +171,9 @@ Replace localhost URLs and dev secrets in three clients:
 // cib7-business         → "secret": "<your KEYCLOAK_BUSINESS_CLIENT_SECRET>"
 ```
 
-Generate secrets with `openssl rand -base64 36`. Consider removing the
+Generate secrets with `openssl rand -hex 32` (hex only — a `+`/`/`/`=`
+from base64 inside a Keycloak client secret breaks the form-encoded token
+request with `401 invalid_client`). Consider removing the
 demo users (`bart`, `homer` — username equals password) before exposing
 the host.
 
@@ -189,7 +193,36 @@ to loopback so only Traefik is internet-facing:
 FRONTEND_HTTP_PORT=127.0.0.1:3000
 ```
 
-### 3. Drop in the TLS certificate
+### 3. Write the routing file
+
+Traefik routes via a file-provider config (container labels are not used —
+Traefik's Docker provider cannot talk to Docker Engine ≥ 29):
+
+```bash
+cp traefik/dynamic/routes.yml.example traefik/dynamic/routes.yml
+$EDITOR traefik/dynamic/routes.yml
+```
+
+The example routes everything by path on any hostname. Scope the rules
+with `` Host(`app.example.com`) `` if the box serves multiple names.
+Changes to files in `traefik/dynamic/` are hot-reloaded — no restart.
+
+### 4. Set up TLS certificates
+
+**Option A — automatic Let's Encrypt.** Set `ACME_EMAIL=you@example.com`
+in `.env`, and in `routes.yml` replace each router's `tls: true` with:
+
+```yaml
+      tls:
+        certResolver: le
+```
+
+Routers must use `` Host(`…`) `` rules so Traefik knows which hostname to
+put on the certificate. Issued certs are stored in `traefik/acme/` — keep
+that directory across redeploys, or re-issuance will hit Let's Encrypt
+rate limits (5 identical certs per week).
+
+**Option B — supply your own certificate.**
 
 ```bash
 cp traefik/dynamic/tls.yml.example traefik/dynamic/tls.yml
@@ -204,7 +237,7 @@ chmod 600 traefik/certs/*.key
 Cert rotation later is hot-reload: replace the files, Traefik picks them
 up in seconds — no restart.
 
-### 4. Start
+### 5. Start
 
 ```bash
 docker compose --profile tls up -d
@@ -225,7 +258,7 @@ the bundled Traefik:
   is deliberately not proxied through Traefik (S3 request signatures
   break if a proxy rewrites the host or path).
 
-### 5. Verify
+### 6. Verify
 
 | Check | Expected |
 |---|---|

@@ -76,7 +76,9 @@ services:
     container_name: cib7-poc-rustfs
     restart: unless-stopped
     ports:
-      - "9000:9000"
+      # Bind to loopback (127.0.0.1:9000) in TLS mode when object storage is
+      # served through Traefik or another terminator on its own hostname.
+      - "${RUSTFS_HTTP_PORT:-9000}:9000"
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-cib7admin}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
@@ -118,7 +120,9 @@ services:
       # Keycloak (the recommended setup for real hostnames).
       KC_PROXY_HEADERS: xforwarded
     ports:
-      - "8180:8080"
+      # Bind to loopback (127.0.0.1:8180) in TLS mode when Keycloak is served
+      # through Traefik or another terminator on its own hostname.
+      - "${KEYCLOAK_HTTP_PORT:-8180}:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
       # Branded login theme (cib7), selected via the realm loginTheme attribute.
@@ -186,13 +190,6 @@ services:
     restart: unless-stopped
     expose:
       - "8080"
-    labels:
-      # Read only when the `tls` profile's Traefik is running; inert otherwise.
-      traefik.enable: "true"
-      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/engine-rest`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
-      traefik.http.routers.cib7-engine.entrypoints: "websecure"
-      traefik.http.routers.cib7-engine.tls: "true"
-      traefik.http.services.cib7-engine.loadbalancer.server.port: "8080"
     environment:
       # Internal URL for server-to-server calls (Admin REST + JWKS fetch).
       KEYCLOAK_URL: http://keycloak:8080
@@ -229,12 +226,6 @@ services:
     restart: unless-stopped
     expose:
       - "8085"
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.backend-api.rule: 'PathPrefix(`/api`)'
-      traefik.http.routers.backend-api.entrypoints: "websecure"
-      traefik.http.routers.backend-api.tls: "true"
-      traefik.http.services.backend-api.loadbalancer.server.port: "8085"
     environment:
       KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
@@ -282,12 +273,6 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
     expose:
       - "8090"
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.mcp.rule: 'PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`)'
-      traefik.http.routers.mcp.entrypoints: "websecure"
-      traefik.http.routers.mcp.tls: "true"
-      traefik.http.services.mcp.loadbalancer.server.port: "8090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/health > /dev/null || exit 1"]
       interval: 10s
@@ -320,13 +305,6 @@ services:
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-}
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-frontend
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.frontend.rule: "PathPrefix(`/`)"
-      traefik.http.routers.frontend.entrypoints: "websecure"
-      traefik.http.routers.frontend.tls: "true"
-      traefik.http.routers.frontend.priority: "1"
-      traefik.http.services.frontend.loadbalancer.server.port: "80"
     depends_on:
       - cib7
       - backend
@@ -354,14 +332,6 @@ services:
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-mobile
-    labels:
-      traefik.enable: "true"
-      traefik.http.routers.mobile.rule: "PathPrefix(`/mobile`)"
-      traefik.http.routers.mobile.entrypoints: "websecure"
-      traefik.http.routers.mobile.tls: "true"
-      # Beats the frontend's catch-all PathPrefix(`/`) (priority 1).
-      traefik.http.routers.mobile.priority: "10"
-      traefik.http.services.mobile.loadbalancer.server.port: "80"
     depends_on:
       - cib7
       - backend
@@ -370,18 +340,23 @@ services:
 
   traefik:
     # TLS-terminating ingress for real-hostname deployments. Binds :80
-    # (permanent redirect to https) and :443 (static, admin-supplied certs —
-    # no ACME). Certs and routing config live in ./traefik/ next to this
-    # file; cert rotation is hot-reload, no restart needed.
+    # (permanent redirect to https) and :443. Routing comes from the FILE
+    # provider only — copy traefik/dynamic/routes.yml.example to routes.yml.
+    # (Docker-label routing was dropped: Traefik's Docker provider cannot
+    # negotiate with Docker Engine >= 29, which rejects its API version.)
+    # Certificates, either flavor per router in routes.yml:
+    #   a) admin-supplied files in ./traefik/certs/ + a tls.yml (see
+    #      tls.yml.example); rotation is hot-reload, no restart, or
+    #   b) automatic Let's Encrypt via the `le` resolver below (TLS-ALPN-01,
+    #      needs ACME_EMAIL in .env and port 443 reachable from the internet).
+    #      Issued certs persist in ./traefik/acme/ — losing that directory
+    #      forces re-issuance and burns LE rate limits (5 identical certs/week).
     # Not used in single-machine mode — the frontend nginx covers everything.
     image: traefik:v3.4
     container_name: cib7-poc-traefik
     profiles: ["tls"]
     restart: unless-stopped
     command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --providers.docker.endpoint=unix:///var/run/docker.sock
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
@@ -393,6 +368,16 @@ services:
       - --accesslog.filepath=/logs/access.log
       - --log.filepath=/logs/traefik.log
       - --api.dashboard=false
+      # Optional ACME resolver — inert until a routes.yml router says
+      # `certResolver: le`. The placeholder default keeps Traefik booting for
+      # supplied-cert setups; Let's Encrypt rejects it, so real ACME use
+      # requires ACME_EMAIL to be set.
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:-noreply@example.com}
+      - --certificatesresolvers.le.acme.tlschallenge=true
+      - --certificatesresolvers.le.acme.storage=/acme/acme.json
+      # Staging CA — uncomment while debugging issuance to avoid the
+      # production failed-auth rate limit (5/hour/hostname):
+      # - --certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
     ports:
       - "80:80"
       - "443:443"
@@ -400,7 +385,7 @@ services:
       - ./traefik/certs:/certs:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ./traefik/logs:/logs
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/acme:/acme
     depends_on:
       - cib7
       - backend
