@@ -32,7 +32,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22 — must match the npm major.minor devs run locally: npm 10.8
+          # (node 20) and 10.9 (node 22) hoist TEDI's date-fns differently,
+          # so a lock written on one fails `npm ci` on the other.
+          node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
