@@ -627,6 +627,39 @@ keeps `git log` readable from the analyst's perspective.
 
 ---
 
+## UI component libraries — TEDI + MUI
+
+The SPA is built on **TEDI** ([`@tedi-design-system/react`](https://www.npmjs.com/package/@tedi-design-system/react)
+v18 — TEHIK's open-source design system, WCAG 2.2 AA) as the base component
+library, complemented by **MUI** for the complex data components TEDI doesn't
+cover. This mirrors the common public-sector tender requirement "TEDI as the
+base, MUI for data grids / calendars / wizards".
+
+- **Package choice.** `@tedi-design-system/react` is the current package —
+  the older `@tehik-ee/tedi-react` (13.x) it superseded is what tender texts
+  usually still name. MUI is pinned to **v5** (`@mui/material`,
+  `@mui/x-data-grid`) deliberately: TEDI bundles MUI v5 internally, so
+  matching it keeps a single MUI/Emotion tree instead of two.
+- **Wiring** ([`frontend/src/main.tsx`](frontend/src/main.tsx)): TEDI's
+  stylesheet is imported before `styles.css` (portal overrides win), and the
+  tree is wrapped in TEDI's `StyleProvider` + `LabelProvider` and an MUI
+  `ThemeProvider` ([`frontend/src/theme/mui.ts`](frontend/src/theme/mui.ts)
+  maps MUI's palette to the portal brand). TEDI ships its fonts (Roboto,
+  Material Symbols) inside the package — no CDN calls, works offline.
+- **Reference implementations.**
+  [`TransportPermitApplicationForm`](frontend/src/forms/transport-permit-application/TransportPermitApplicationForm.tsx)
+  is the TEDI reference form (`TextField`, `NumberField`, `Select`,
+  `Checkbox`, `Alert`, `Button` — validation and the typed-variable payload
+  unchanged), the template for converting the remaining forms.
+  [`IncidentsPage`](frontend/src/pages/IncidentsPage.tsx) is the MUI
+  reference: a sortable, paginated `DataGrid` with a TEDI Button rendered
+  inside the actions cell — the "TEDI base + MUI for complex tables"
+  composition in one screen.
+- **Locale caveat.** TEDI's internal labels exist only in Estonian, English,
+  and Russian, so `LabelProvider` is pinned to `en` — under the Arabic UI the
+  app's own i18n switches normally while TEDI-internal microcopy stays
+  English.
+
 ## How the form wiring works
 
 Each BPMN user task carries a `camunda:formKey`:

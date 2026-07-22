@@ -26,21 +26,36 @@ adding a new form, page, or REST call; when changing how a user task is rendered
 | Framework | React 18 |
 | Router | React Router 6 |
 | Build / dev server | Vite 5 |
-| Styling | Plain CSS in `src/styles.css` |
+| UI components | **TEDI** (`@tedi-design-system/react` v18, base library) + **MUI v5** (`@mui/material`, `@mui/x-data-grid` — complex data components) |
+| Styling | TEDI base CSS + plain CSS in `src/styles.css` |
 | HTTP | `fetch` (no axios / SWR / React Query) |
 | Auth | `keycloak-js` (OIDC PKCE against Keycloak) |
 
-There are no UI / form / state libraries. Forms are hand-written; state is local
-React state. Keep it that way unless there is a concrete reason to add a
-dependency.
+**TEDI is the base component library; MUI fills the gaps** (data grids,
+calendars, wizards). MUI stays at v5 on purpose — TEDI bundles MUI v5
+internally, and matching it keeps one MUI/Emotion tree. Providers are wired
+in `main.tsx` (`StyleProvider` + `LabelProvider locale="en"` — TEDI ships
+only et/en/ru labels — + MUI `ThemeProvider` from `src/theme/mui.ts`), with
+TEDI's stylesheet imported **before** `styles.css` so portal overrides win.
+Reference implementations: `forms/transport-permit-application/` (TEDI form
+controls; note the `singleValue()` helper for TEDI's multi-select-typed
+`Select` onChange, and that the prop is `disabled`, not `isDisabled`) and
+`pages/IncidentsPage.tsx` (MUI `DataGrid` hosting a TEDI Button via
+`renderCell`). TEDI forms use `<form className="form form-tedi">` for
+flex-gap spacing. Older forms still use the hand-rolled `.field` markup —
+convert them to TEDI when touched.
+
+There are no state libraries; state is local React state.
 
 ## File layout
 
 ```
 frontend/src/
-├── main.tsx                       — bootstraps React + Router + AuthProvider
+├── main.tsx                       — bootstraps React + Router + AuthProvider + TEDI/MUI providers
 ├── App.tsx                        — layout shell, role-based nav + routes
 ├── styles.css
+├── theme/
+│   └── mui.ts                     — MUI theme (brand palette for the components TEDI doesn't cover)
 ├── vite-env.d.ts                  — Vite client types + VITE_KEYCLOAK_* env vars
 ├── auth/
 │   ├── keycloak.ts                — keycloak-js singleton + ensureFreshToken()

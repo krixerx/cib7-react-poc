@@ -675,6 +675,14 @@ body {
   margin-top: 8px;
 }
 
+/* Forms built from TEDI components bring no field margins of their own —
+   the flex gap replaces the .field margin-bottom of hand-rolled forms. */
+.form-tedi {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .form-intro {
   color: var(--muted);
   margin: 4px 0 20px;

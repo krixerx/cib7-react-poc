@@ -11,5 +11,14 @@
   "types": {
     "failedJob": "Failed job",
     "failedExternalTask": "Failed external task"
+  },
+  "table": {
+    "service": "Service",
+    "activity": "Activity",
+    "type": "Type",
+    "process": "Process",
+    "time": "Time",
+    "message": "Error message",
+    "actions": "Actions"
   }
 }

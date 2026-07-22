@@ -11,5 +11,14 @@
   "types": {
     "failedJob": "فشل في تنفيذ المهمة",
     "failedExternalTask": "فشل في تنفيذ مهمة خارجية"
+  },
+  "table": {
+    "service": "الخدمة",
+    "activity": "النشاط",
+    "type": "النوع",
+    "process": "المعاملة",
+    "time": "الوقت",
+    "message": "رسالة الخطأ",
+    "actions": "الإجراءات"
   }
 }

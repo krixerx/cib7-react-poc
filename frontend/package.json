@@ -14,6 +14,12 @@
     "test": "vitest --passWithNoTests"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^5.18.0",
+    "@mui/x-data-grid": "^5.17.26",
+    "@tedi-design-system/react": "^18.0.0",
+    "dayjs": "^1.11.21",
     "i18next": "^26.3.1",
     "i18next-browser-languagedetector": "^8.2.1",
     "keycloak-js": "^26.2.4",
