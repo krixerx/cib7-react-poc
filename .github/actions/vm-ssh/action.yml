@@ -21,7 +21,8 @@ inputs:
     required: true
   known-hosts:
     description: >
-      known_hosts lines for the VM, i.e. the output of `ssh-keyscan -H <host>`.
+      known_hosts lines for the VM, i.e. the output of `ssh-keyscan <host>`.
+      Unhashed, so the name each line pins is readable and checkable.
       Left empty, host keys are accepted on first sight and printed for you to
       paste into the secret — acceptable for a diagnostic run, never for a
       deploy: docker group membership on the target is root-equivalent, so an
@@ -153,7 +154,7 @@ runs:
           : > ~/.ssh/known_hosts
           echo "::warning::VM_KNOWN_HOSTS is empty — accepting the host key on first sight."
           echo "--- paste these lines into the VM_KNOWN_HOSTS secret to pin the host ---"
-          ssh-keyscan -H -T 10 "$VM_HOST" 2>/dev/null || echo "(keyscan got nothing back)"
+          ssh-keyscan -T 10 "$VM_HOST" 2>/dev/null | grep -v '^#' || echo "(keyscan got nothing back)"
           echo "-----------------------------------------------------------------------"
         fi
         chmod 644 ~/.ssh/known_hosts
@@ -167,6 +168,13 @@ runs:
           echo "FATAL: VM_KNOWN_HOSTS has no entry matching '$VM_HOST'."
           echo "  It holds $(grep -c '[^[:space:]]' ~/.ssh/known_hosts) line(s), naming:"
           awk '!/^#/ && NF {print "    " $1}' ~/.ssh/known_hosts | sort -u
+          if grep -q '^|1|' ~/.ssh/known_hosts; then
+            echo "  A |1|... entry is HASHED, the shape ssh-keyscan -H and your own"
+            echo "  known_hosts use. It still matches, but only the one name it was made"
+            echo "  for, and that name cannot be read back out of it — so a hashed line"
+            echo "  copied from elsewhere is unverifiable as well as wrong. Take the"
+            echo "  lines from ssh-keyscan WITHOUT -H, which name the host in clear."
+          fi
           echo "  The first field of a line must be EXACTLY the VM_HOST value, or a"
           echo "  comma-separated list containing it. A line still naming a"
           echo "  placeholder, or naming the hostname while VM_HOST is the IP,"

@@ -103,7 +103,7 @@ Repository **secrets**:
 | Name | How to get it |
 |---|---|
 | `VM_SSH_PRIVATE_KEY` | The private half of a key whose public half is in `~/$VM_USER/.ssh/authorized_keys` on the VM. Paste it whole, or as one base64 line — the workflow accepts either and strips CRs. |
-| `VM_KNOWN_HOSTS` | `ssh-keyscan -H <VM_HOST>`. Run `deploy.yml` with `preflight_only` once and it prints the exact lines. |
+| `VM_KNOWN_HOSTS` | `ssh-keyscan <VM_HOST>` (without `-H`, so each line names the host in clear and can be checked). The first field must be exactly the `VM_HOST` value, or a comma-separated list containing it — a pin written for the hostname does not match when `VM_HOST` is the IP. Run `deploy.yml` with `preflight_only` once and it prints the lines for you. |
 | `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | Already set for `docker-publish.yml`. The deploy uses them only so its tag check does not spend the shared runner's anonymous pull quota. |
 
 The deploy job declares `environment: vm`, so GitHub records a
