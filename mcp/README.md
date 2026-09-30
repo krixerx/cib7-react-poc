@@ -158,7 +158,7 @@ automatically. If the connector looks wedged in Claude Desktop:
 ## Logging
 
 Every tool call logs one line — the tool name plus the caller's Keycloak
-username — to the console *and* to Graylog as structured GELF. That makes "who
+username — to the console _and_ to Graylog as structured GELF. That makes "who
 asked the assistant to do what, and did it work" one search rather than a grep
 through container output:
 
