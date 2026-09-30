@@ -50,6 +50,10 @@ runs:
         # as a truncated key. $(...) eats trailing newlines, so a non-empty
         # result means the file does not end in one.
         if [ -n "$(tail -c1 ~/.ssh/id_deploy)" ]; then echo >> ~/.ssh/id_deploy; fi
+        # A UTF-8 BOM in front of the first line is invisible in every editor
+        # and turns "-----BEGIN ..." into a line OpenSSH does not recognise.
+        # A secret that went through Notepad or an Office clipboard carries one.
+        sed -i '1s/^\xEF\xBB\xBF//' ~/.ssh/id_deploy
         chmod 600 ~/.ssh/id_deploy
 
         # `ssh-keygen -y` derives the public half FROM a private key, so it is
@@ -107,7 +111,7 @@ runs:
             echo "This key is passphrase-protected, and nothing in CI can type one."
             echo "Generate a key for CI alone, with an empty passphrase:"
             echo "    ssh-keygen -t ed25519 -f ~/.ssh/cib7_deploy -N ''"
-          elif head -n1 ~/.ssh/id_deploy | grep -q '^PuTTY-User-Key-File'; then
+          elif grep -q 'PuTTY-User-Key-File' ~/.ssh/id_deploy; then
             echo
             echo "This is a PuTTY .ppk, which OpenSSH cannot read. In PuTTYgen:"
             echo "  Conversions -> Export OpenSSH key, then paste THAT file."
@@ -119,6 +123,14 @@ runs:
           else
             echo
             echo "Neither marker anywhere means this is not an OpenSSH private key at all."
+            # With no BEGIN marker this file is not an OpenSSH private key, so
+            # its first characters are a format header, not key material — and
+            # they are the only thing that says WHICH format arrived. The line
+            # lengths alone identify most of them (a ppk is short-short-long, a
+            # .pub is one long line, a PEM body is a column of 70s).
+            echo "  line lengths: $(awk '{printf "%d ", length($0)} END {print ""}' ~/.ssh/id_deploy)"
+            echo "  first 24 characters: $(head -n1 ~/.ssh/id_deploy | cut -c1-24)"
+            echo
             echo "If the markers are both there and it still fails, the middle was"
             echo "reflowed — store it as one base64 line instead, which survives any"
             echo "terminal and clipboard:"
