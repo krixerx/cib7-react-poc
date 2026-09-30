@@ -29,6 +29,7 @@ import { decodeBearerUsername } from './auth/identity.js';
 import { audiencesOf, hasInviterAccess, realmRolesOf } from './auth/inviterRole.js';
 import { verifyBearer } from './auth/verify.js';
 import { adminRequest } from './keycloak/admin.js';
+import { log, setUserIdResolver } from './logging/gelf.js';
 import {
   findServiceByFormKey,
   getManifest,
@@ -140,6 +141,12 @@ function currentUsername(): string {
 function currentClaims(): JWTPayload | undefined {
   return requestStorage.getStore()?.claims;
 }
+
+// Every log line emitted while a tool call is in flight gets the caller's
+// Keycloak username attached as the GELF `user_id` field. The logger cannot read
+// requestStorage itself without importing this module, so the dependency is
+// inverted here instead.
+setUserIdResolver(() => currentUsername() || undefined);
 
 // -------------------------------------------------------------------------
 // Engine response shapes
@@ -1011,9 +1018,12 @@ function handleGetSignupUrl(): ToolResult {
 function requireInviterRole(): ToolResult | null {
   const claims = currentClaims();
   if (hasInviterAccess(claims)) return null;
-  console.warn(
-    `[send_account_invitation] denied: sub=${claims?.sub ?? '(none)'} aud=[${audiencesOf(claims).join(',')}] roles=[${realmRolesOf(claims).join(',')}]`,
-  );
+  log.warn('send_account_invitation denied', {
+    tool: 'send_account_invitation',
+    sub: String(claims?.sub ?? '(none)'),
+    audiences: audiencesOf(claims).join(','),
+    realm_roles: realmRolesOf(claims).join(','),
+  });
   return textResult(
     {
       ok: false,
@@ -1144,9 +1154,10 @@ async function handleSendAccountInvitation(args: unknown): Promise<ToolResult> {
     );
   }
 
-  console.log(
-    `[send_account_invitation] ${currentUsername() || '(unknown)'} invited ${username} <${email}>`,
-  );
+  log.info(`invited ${username} <${email}>`, {
+    tool: 'send_account_invitation',
+    invitee: username,
+  });
 
   return textResult({
     ok: true,
@@ -1421,40 +1432,56 @@ function createMcpServer(): Server {
     ],
   }));
 
-  mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
-    switch (req.params.name) {
+  async function dispatchTool(name: string, args: unknown): Promise<ToolResult> {
+    switch (name) {
       case 'list_services':
         return handleListServices();
       case 'describe_service':
-        return handleDescribeService(req.params.arguments);
+        return handleDescribeService(args);
       case 'start_process':
-        return handleStartProcess(req.params.arguments);
+        return handleStartProcess(args);
       case 'list_my_tasks':
         return handleListMyTasks();
       case 'get_form_schema':
-        return handleGetFormSchema(req.params.arguments);
+        return handleGetFormSchema(args);
       case 'complete_task':
-        return handleCompleteTask(req.params.arguments);
+        return handleCompleteTask(args);
       case 'save_draft':
-        return handleSaveDraft(req.params.arguments);
+        return handleSaveDraft(args);
       case 'upload_document':
-        return handleUploadDocument(req.params.arguments);
+        return handleUploadDocument(args);
       case 'search_cases':
-        return handleSearchCases(req.params.arguments);
+        return handleSearchCases(args);
       case 'get_my_profile':
         return handleGetMyProfile();
       case 'list_my_processes':
-        return handleListMyProcesses(req.params.arguments);
+        return handleListMyProcesses(args);
       case 'query_user_history':
-        return handleQueryUserHistory(req.params.arguments);
+        return handleQueryUserHistory(args);
       case 'get_signup_url':
         return handleGetSignupUrl();
       case 'get_password_reset_url':
         return handleGetPasswordResetUrl();
       case 'send_account_invitation':
-        return handleSendAccountInvitation(req.params.arguments);
+        return handleSendAccountInvitation(args);
       default:
-        throw new Error(`Unknown tool: ${req.params.name}`);
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  }
+
+  mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
+    // One line per tool call, carrying the caller's user_id via the resolver
+    // above. This is what makes Graylog useful for the MCP surface: "who asked
+    // the assistant to do what, and did it work".
+    const tool = req.params.name;
+    log.info(`tool call ${tool}`, { tool });
+    try {
+      return await dispatchTool(tool, req.params.arguments);
+    } catch (err) {
+      log.error(`tool ${tool} failed: ${err instanceof Error ? err.message : String(err)}`, {
+        tool,
+      });
+      throw err;
     }
   });
 
@@ -1626,7 +1653,9 @@ app.all('/mcp', requireBearer, async (req, res) => {
       await transport.handleRequest(req, res, req.body);
     });
   } catch (err) {
-    console.error('[/mcp] handler error:', err);
+    log.error(`/mcp handler error: ${err instanceof Error ? err.message : String(err)}`, {
+      stack: err instanceof Error ? (err.stack ?? '') : '',
+    });
     if (!res.headersSent) {
       res.status(500).json({
         error: 'internal_error',
@@ -1640,6 +1669,6 @@ app.listen(PORT, () => {
   const loaded = listManifests().map((e) => e.manifest.key);
 
   console.log(
-    `cib7-mcp listening on :${PORT}\n  resource:        ${RESOURCE_URL}\n  auth server:     ${KEYCLOAK_ISSUER}\n  engine:          ${engineBaseUrl()}\n  metadata:        /.well-known/oauth-protected-resource\n  mcp endpoint:    /mcp\n  manifests:       ${loaded.length > 0 ? loaded.join(', ') : '(none — start_process / complete_task will fail)'}`,
+    `cib7-mcp listening on :${PORT}\n  resource:        ${RESOURCE_URL}\n  auth server:     ${KEYCLOAK_ISSUER}\n  engine:          ${engineBaseUrl()}\n  metadata:        /.well-known/oauth-protected-resource\n  mcp endpoint:    /mcp\n  graylog:         ${log.target}\n  manifests:       ${loaded.length > 0 ? loaded.join(', ') : '(none — start_process / complete_task will fail)'}`,
   );
 });

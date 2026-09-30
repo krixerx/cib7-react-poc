@@ -86,6 +86,8 @@ cib7 engine ──all outbound HTTP──▶ esb/ (Apache Camel JBang, YAML rout
                                      ├─▶ mailpit  (notification emails)
                                      ├─▶ pdf-renderer/ ──▶ gotenberg (HTML → PDF)
                                      └─▶ backend  (registry, documents; bus injects X-Internal-Token)
+
+cib7 · backend · esb · mcp · pdf-renderer ──GELF 12201──▶ graylog (+ opensearch, mongodb)
 ```
 
 Module responsibilities are strict and worth preserving:
@@ -102,6 +104,11 @@ Module responsibilities are strict and worth preserving:
   `BusConfiguration.java` exposes `${busBaseUrl}` (`http://esb:8080`) to BPMN;
   per-system addresses and the internal token live in `esb/routes/*.yaml`. A new
   integration is a new YAML route file, not a new config class in the engine.
+- **Logs go to Graylog, not just stdout.** All five services we write ship
+  structured GELF to `graylog:12201`; see `docs/logging.md`. Graylog is bound to
+  `127.0.0.1:9900` on the host (SSH tunnel to reach it on a server) and its GELF
+  inputs are unpublished. The field contract is `service`, `level` +
+  `level_name`, and `user_id` where a Keycloak user is attributable.
 - **`mcp/` forwards the caller's own Bearer** to `/engine-rest`. There is no AI
   service account, so everything an agent does is attributable to a real
   Keycloak user. Its per-service schemas come from the generated
@@ -167,6 +174,16 @@ If a spec is missing a required field, stop and ask rather than guessing.
   `TransportPermitApplicationForm.tsx` is the TEDI reference form,
   `IncidentsPage.tsx` the MUI DataGrid reference. TEDI's `LabelProvider` is pinned
   to `en` since its internal microcopy has no Arabic.
+- **The `graylog` Spring profile is what turns GELF on.** `cib7` and `backend`
+  define their GELF appender inside `<springProfile name="graylog">` in
+  `logback-spring.xml`, and docker-compose sets `SPRING_PROFILES_ACTIVE=graylog`.
+  A bare `mvn spring-boot:run` logs to the console only, on purpose — the
+  `graylog` hostname does not resolve outside the compose network. Adding a
+  second profile to a service means listing `graylog` alongside it.
+- **`user_id` in logs comes from the MDC, set after Spring Security.**
+  `MdcUserFilter` is registered at servlet order `-99`, one step after Spring
+  Security's chain at `-100`. Move it earlier and it silently sees an empty
+  `SecurityContext` and logs no user at all.
 - **Cockpit is the debugger.** Connector, DMN and FreeMarker failures surface as
   engine incidents at `/camunda/app/cockpit/`; an incident usually means the spec
   did not cover a case.

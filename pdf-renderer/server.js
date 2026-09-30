@@ -8,6 +8,7 @@
 // Response: 200 { "filename": "x.pdf", "base64": "JVBERi0x..." }
 
 const express = require('express');
+const { log } = require('./gelf');
 
 const GOTENBERG_URL = process.env.GOTENBERG_URL || 'http://gotenberg:3000';
 const PORT = Number(process.env.PORT || 8088);
@@ -37,17 +38,20 @@ app.post('/render', async (req, res) => {
       body: form,
     });
   } catch (err) {
+    log.error(`gotenberg unreachable: ${String(err)}`, { filename: outName });
     return res.status(502).json({ error: 'gotenberg unreachable', detail: String(err) });
   }
   if (!upstream.ok) {
     const text = await upstream.text().catch(() => '');
+    log.error(`gotenberg returned ${upstream.status}`, { filename: outName, detail: text });
     return res.status(502).json({ error: 'gotenberg failed', status: upstream.status, detail: text });
   }
 
   const pdfBytes = Buffer.from(await upstream.arrayBuffer());
+  log.info(`rendered ${outName}`, { filename: outName, bytes: pdfBytes.length });
   res.json({ filename: outName, base64: pdfBytes.toString('base64') });
 });
 
 app.listen(PORT, () => {
-  console.log(`pdf-renderer listening on :${PORT}, gotenberg=${GOTENBERG_URL}`);
+  log.info(`pdf-renderer listening on :${PORT}`, { gotenberg: GOTENBERG_URL, graylog: log.target });
 });

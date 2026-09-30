@@ -53,6 +53,16 @@ app:
   # (move-pending + server-upload). The BPMN http-connector sends it as
   # X-Internal-Token; SecurityConfig's internal chain compares it.
   internal-task-token: ${INTERNAL_TASK_TOKEN:internal-task-token-change-me}
+  # Centralised logging (Graylog). Only consumed by logback-spring.xml, and only
+  # when the `graylog` Spring profile is active — docker-compose.yml turns that
+  # on, a bare `mvn spring-boot:run` leaves it off and logs to the console only.
+  logging:
+    # Value of the GELF `service` field: which microservice a message came from.
+    service-name: ${LOG_SERVICE_NAME:backend}
+    graylog:
+      # Docker-network address of the GELF UDP input; see docs/logging.md.
+      host: ${GRAYLOG_HOST:graylog}
+      port: ${GRAYLOG_GELF_UDP_PORT:12201}
   # RustFS / S3 storage settings — moved verbatim from the engine module.
   # endpoint = internal docker network, public-endpoint = what presigned
   # URLs embed so the browser can reach RustFS directly.

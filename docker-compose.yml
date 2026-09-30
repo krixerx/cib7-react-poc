@@ -74,6 +74,11 @@ services:
       # served at the root; the deploy bundle overrides this with the /mailpit
       # webroot form. No placeholder default in the route — set it here.
       MAILPIT_SEND_URL: http://mailpit:8025/api/v1/send
+      # Central logging. The bus ships GELF over TCP because Log4j2's GelfLayout
+      # cannot chunk UDP datagrams — see esb/log4j2-graylog.xml.
+      GRAYLOG_HOST: graylog
+      GRAYLOG_GELF_TCP_PORT: "12201"
+      LOG_SERVICE_NAME: esb
     expose:
       - "8080" # platform-http (network-internal; cib7 reaches it at http://esb:8080)
     depends_on:
@@ -152,6 +157,10 @@ services:
     container_name: cib7-poc-pdf-renderer
     environment:
       GOTENBERG_URL: http://gotenberg:3000
+      # Central logging (see pdf-renderer/gelf.js).
+      GRAYLOG_HOST: graylog
+      GRAYLOG_GELF_UDP_PORT: "12201"
+      LOG_SERVICE_NAME: pdf-renderer
     expose:
       - "8088"
     depends_on:
@@ -242,6 +251,11 @@ services:
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_ADMIN_CLIENT_ID: cib7-backend
       KEYCLOAK_ADMIN_CLIENT_SECRET: cib7-backend-secret
+      # Central logging (see mcp/src/logging/gelf.ts). Every tool call is logged
+      # with the caller's Keycloak username as user_id.
+      GRAYLOG_HOST: graylog
+      GRAYLOG_GELF_UDP_PORT: "12201"
+      LOG_SERVICE_NAME: mcp
     expose:
       - "8090"
     # MCP serves Streamable HTTP (SSE). Traefik passes SSE through cleanly
@@ -367,6 +381,13 @@ services:
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
       # SPA origin allowed in the bucket's CORS policy.
       FRONTEND_BASE_URL: http://localhost:3000
+      # Central logging. The `graylog` profile is what activates the GELF
+      # appender in logback-spring.xml; without it the service logs to the
+      # console only (which is what a local `mvn spring-boot:run` wants).
+      SPRING_PROFILES_ACTIVE: graylog
+      GRAYLOG_HOST: graylog
+      GRAYLOG_GELF_UDP_PORT: "12201"
+      LOG_SERVICE_NAME: backend
     depends_on:
       keycloak:
         condition: service_healthy
@@ -434,6 +455,13 @@ services:
       # internal alias. Exposed via FrontendConfiguration as
       # ${frontendBaseUrl} in BPMN/FreeMarker.
       FRONTEND_BASE_URL: http://localhost:3000
+      # Central logging. The `graylog` profile is what activates the GELF
+      # appender in logback-spring.xml; without it the service logs to the
+      # console only (which is what a local `mvn spring-boot:run` wants).
+      SPRING_PROFILES_ACTIVE: graylog
+      GRAYLOG_HOST: graylog
+      GRAYLOG_GELF_UDP_PORT: "12201"
+      LOG_SERVICE_NAME: cib7
       # NB: the engine no longer carries MAIL_API_URL / PDF_API_URL /
       # BACKEND_API_URL / INTERNAL_TASK_TOKEN — all outbound integration goes
       # through BUS_URL above, and the X-Internal-Token secret moved to the esb
@@ -507,3 +535,133 @@ services:
     depends_on:
       - cib7
       - backend
+
+  # ---------------------------------------------------------------------------
+  # Centralised logging — Graylog + its two stores.
+  #
+  # Every service we write ships structured GELF straight to graylog:12201 over
+  # the docker network: cib7 and backend via a logback GELF appender, esb via a
+  # log4j2 GELF socket appender, mcp and pdf-renderer via a small GELF module.
+  # Each message carries `service`, `level` + `level_name`, and `user_id` when a
+  # request is attributable to a Keycloak user. See docs/logging.md.
+  #
+  # NOTHING here is published on a routable interface. The web UI is bound to
+  # 127.0.0.1 only and the GELF inputs are not published at all — they live on
+  # the docker network, so only sibling containers can reach them. Access the UI
+  # through an SSH tunnel:
+  #     ssh -N -L 9900:127.0.0.1:9900 <user>@<host>
+  # then open http://localhost:9900 (admin / GRAYLOG_ROOT_PASSWORD).
+  # ---------------------------------------------------------------------------
+  graylog-mongodb:
+    # Graylog's own configuration store (users, streams, inputs, dashboards).
+    # Not a message store — that's OpenSearch below. mongo:7.0 is the version
+    # the upstream Graylog compose example pins.
+    image: mongo:7.0
+    container_name: cib7-poc-graylog-mongodb
+    volumes:
+      - graylog-mongodb-data:/data/db
+      - graylog-mongodb-config:/data/configdb
+    restart: on-failure
+
+  opensearch:
+    # Graylog's message store. We wire Graylog to OpenSearch directly
+    # (GRAYLOG_ELASTICSEARCH_HOSTS below) instead of using Graylog Data Node,
+    # because Data Node boots into an interactive "preflight" setup UI that
+    # somebody has to click through — that would break `docker compose up`
+    # as a one-command story.
+    image: opensearchproject/opensearch:2.19.6
+    container_name: cib7-poc-opensearch
+    environment:
+      discovery.type: single-node
+      # Graylog manages its own index security; the demo security plugin would
+      # only force TLS + a password on the internal 9200 hop.
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      # Memory-mapped directories need vm.max_map_count=262144 on the *host*,
+      # which is a per-machine sysctl we can't set from compose (and which
+      # Docker Desktop resets). Turning mmap off trades a little read
+      # performance for not needing that prerequisite at all.
+      node.store.allow_mmap: "false"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - graylog-opensearch-data:/usr/share/opensearch/data
+    restart: on-failure
+
+  graylog:
+    # Pinned to the 7.1 line. Override GRAYLOG_IMAGE if you need to move it —
+    # the only contract this stack depends on is the GELF UDP/TCP input on
+    # 12201 and the REST API on 9000.
+    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1}
+    container_name: cib7-poc-graylog
+    environment:
+      # Used to encrypt stored secrets (LDAP passwords, lookup-table configs).
+      # Must be at least 16 characters and must not change once data exists.
+      GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET:-cib7-poc-graylog-password-secret-change-me}
+      # SHA-256 of the `admin` web UI password. Default below is sha256("admin")
+      # — fine for a POC on a loopback-only port, replace it in .env for
+      # anything else:  echo -n 'your-password' | sha256sum
+      GRAYLOG_ROOT_PASSWORD_SHA2: ${GRAYLOG_ROOT_PASSWORD_SHA2:-8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918}
+      GRAYLOG_MONGODB_URI: mongodb://graylog-mongodb:27017/graylog
+      GRAYLOG_ELASTICSEARCH_HOSTS: http://opensearch:9200
+      GRAYLOG_HTTP_BIND_ADDRESS: "0.0.0.0:9000"
+      # What the *browser* uses. With the SSH tunnel below that's the local end
+      # of the tunnel, not the server's address. Change both this and the
+      # published port together if 9900 is taken on your machine.
+      GRAYLOG_HTTP_EXTERNAL_URI: ${GRAYLOG_HTTP_EXTERNAL_URI:-http://127.0.0.1:9900/}
+      # We configure OpenSearch by hand (see the opensearch service), so there
+      # is no Data Node to discover and no preflight UI to click through.
+      GRAYLOG_SKIP_PREFLIGHT_CHECKS: "true"
+      GRAYLOG_TIMEZONE: ${GRAYLOG_TIMEZONE:-UTC}
+    ports:
+      # Loopback-only, and on 9900 rather than Graylog's native 9000 because
+      # RustFS already owns host port 9000 in this stack.
+      - "127.0.0.1:9900:9000"
+      # GELF inputs are deliberately NOT published: log shippers are sibling
+      # containers and reach graylog:12201 over the docker network.
+    volumes:
+      - graylog-data:/usr/share/graylog/data
+    depends_on:
+      - graylog-mongodb
+      - opensearch
+    restart: on-failure
+
+  graylog-init:
+    # One-shot provisioning of the two GELF inputs. Graylog stores inputs in
+    # MongoDB, so a fresh volume comes up with no input at all and every
+    # shipper would silently talk to a closed port. Idempotent: it checks the
+    # existing inputs by title before creating anything, so it is safe on
+    # every `docker compose up`. Watch it with:
+    #     docker compose logs graylog-init
+    image: curlimages/curl:8.11.1
+    container_name: cib7-poc-graylog-init
+    entrypoint: ["/bin/sh"]
+    command: ["/provision-inputs.sh"]
+    environment:
+      GRAYLOG_API: http://graylog:9000/api
+      GRAYLOG_USER: admin
+      # The plaintext of GRAYLOG_ROOT_PASSWORD_SHA2 above — the REST API takes
+      # the password, not its hash.
+      GRAYLOG_PASSWORD: ${GRAYLOG_ROOT_PASSWORD:-admin}
+    volumes:
+      - ./graylog/provision-inputs.sh:/provision-inputs.sh:ro
+    depends_on:
+      - graylog
+    restart: on-failure
+
+volumes:
+  # Named volumes rather than bind mounts under ./.data (which is what RustFS
+  # uses): OpenSearch and MongoDB both run as non-root and are strict about
+  # data-directory ownership, which host bind mounts get wrong on Windows and
+  # macOS. Wipe the whole log store with:
+  #     docker compose down -v
+  graylog-mongodb-data:
+  graylog-mongodb-config:
+  graylog-opensearch-data:
+  graylog-data:

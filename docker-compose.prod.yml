@@ -154,6 +154,34 @@ services:
   mailpit:
     restart: unless-stopped
 
+  # --- Centralised logging ---------------------------------------------------
+  # The Graylog stack keeps the same shape in prod; only the secrets and the
+  # browser-facing URI come from .env. The web UI stays bound to 127.0.0.1 on
+  # the deployment host — reach it over an SSH tunnel, never through Traefik:
+  #     ssh -N -L 9900:127.0.0.1:9900 <user>@<host>
+  graylog-mongodb:
+    restart: unless-stopped
+
+  opensearch:
+    restart: unless-stopped
+
+  graylog:
+    environment:
+      # No dev defaults in prod: both of these must be set in .env, and
+      # GRAYLOG_PASSWORD_SECRET must not change once messages exist.
+      GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET}
+      GRAYLOG_ROOT_PASSWORD_SHA2: ${GRAYLOG_ROOT_PASSWORD_SHA2}
+      # Local end of your SSH tunnel, not the server's public hostname.
+      GRAYLOG_HTTP_EXTERNAL_URI: ${GRAYLOG_HTTP_EXTERNAL_URI:-http://127.0.0.1:9900/}
+    restart: unless-stopped
+
+  graylog-init:
+    environment:
+      GRAYLOG_PASSWORD: ${GRAYLOG_ROOT_PASSWORD}
+    # One-shot job: it exits 0 once the inputs exist, so it must not be
+    # restarted forever like the long-running services.
+    restart: on-failure
+
   traefik:
     restart: unless-stopped
     # Production Traefik: terminates TLS itself, no host-level Caddy/nginx

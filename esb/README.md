@@ -57,6 +57,31 @@ for a fixed-path forward, `removeHeader CamelHttpPath` before the `to` (else the
 inbound platform-http path is appended and the downstream 404s); for a
 path-preserving prefix proxy, use `matchOnUriPrefix=true` and keep the header.
 
+## Logging
+
+The bus logs to the console and to Graylog. Camel JBang owns its own Log4j2
+setup, so the configuration comes in through the supported flag rather than a
+classpath file:
+
+```
+camel run --source-dir=/routes --logging-config-path=/etc/camel/log4j2-graylog.xml
+```
+
+`log4j2-graylog.xml` keeps the console appender — `docker compose logs -f esb`
+must stay useful — and adds a `Socket` appender with `GelfLayout` pointing at
+`graylog:12201`. Both classes ship inside `log4j-core`, so nothing has to be
+added to a JBang classpath.
+
+This is the only service in the stack that ships GELF over **TCP**: Log4j2's
+`GelfLayout` does not implement GELF's UDP chunking protocol, so a large message
+would be silently lost on UDP. `ignoreExceptions="true"` on the appender is what
+keeps a route running when Graylog is down — the failure is printed to the
+console and the event is dropped.
+
+Messages carry `service:esb` and `level_name`, but no `user_id`: the bus forwards
+machine-to-machine integration calls, so there is no Keycloak user behind them.
+See [`../docs/logging.md`](../docs/logging.md).
+
 ## Roadmap (not yet implemented)
 
 - A canonical message envelope + transformation (so apps speak one neutral

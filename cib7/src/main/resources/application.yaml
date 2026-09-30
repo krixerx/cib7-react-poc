@@ -75,6 +75,16 @@ app:
     # can't reach localhost:8180.
     jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
     user-name-attribute: preferred_username
+  # Centralised logging (Graylog). Only consumed by logback-spring.xml, and only
+  # when the `graylog` Spring profile is active — docker-compose.yml turns that
+  # on, a bare `mvn spring-boot:run` leaves it off and logs to the console only.
+  logging:
+    # Value of the GELF `service` field: which microservice a message came from.
+    service-name: ${LOG_SERVICE_NAME:cib7}
+    graylog:
+      # Docker-network address of the GELF UDP input; see docs/logging.md.
+      host: ${GRAYLOG_HOST:graylog}
+      port: ${GRAYLOG_GELF_UDP_PORT:12201}
   # Document storage, public confirmation/payment endpoints, and the vehicle
   # registry all moved to the `backend` business microservice. The engine
   # only keeps the connector wiring to reach it — see BackendConfiguration

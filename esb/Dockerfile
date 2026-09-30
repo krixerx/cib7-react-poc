@@ -16,10 +16,16 @@ FROM apache/camel-jbang:4.20.0-21-jdk
 # Declarative route definitions (Camel YAML DSL).
 COPY routes/ /routes/
 
+# Log4j2 configuration that adds a GELF appender next to the console one, so the
+# bus's own logs land in Graylog along with every other service's. Camel JBang
+# owns the Log4j2 setup itself, and --logging-config-path (see CMD) is the
+# supported way to replace it.
+COPY log4j2-graylog.xml /etc/camel/log4j2-graylog.xml
+
 # platform-http serves the routes on 0.0.0.0:8080 (Camel's default embedded
 # server). The engine reaches the bus at http://esb:8080 (see docker-compose.yml).
 EXPOSE 8080
 
 # First start may resolve a few component jars (platform-http, http) before the
 # HTTP server is ready — give it a moment after `docker compose up`.
-CMD ["run", "--source-dir=/routes"]
+CMD ["run", "--source-dir=/routes", "--logging-config-path=/etc/camel/log4j2-graylog.xml"]

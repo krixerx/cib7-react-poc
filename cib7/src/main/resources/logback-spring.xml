@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Engine logging: console always, Graylog on top when the `graylog` Spring
+  profile is active (docker-compose.yml sets SPRING_PROFILES_ACTIVE=graylog).
+
+  Why the profile guard: the GELF appender resolves `graylog` as a hostname at
+  startup, which only exists on the docker network. Gating the whole appender
+  behind the profile keeps `cd cib7 && mvn spring-boot:run` on a laptop silent
+  instead of logging a resolution failure per event.
+
+  Why UDP rather than TCP: logback-gelf chunks and gzips UDP datagrams itself,
+  so a long stack trace survives, and a fire-and-forget socket can't stall a
+  request thread if Graylog is wedged. Dropped packets are acceptable — the
+  console copy is still in `docker compose logs`.
+
+  Field contract (kept identical across all five services, see docs/logging.md):
+    service     static, the microservice name
+    level       GELF numeric syslog severity (set by the encoder)
+    level_name  human-readable level, e.g. INFO
+    user_id     Keycloak username of the caller, when the request has one
+                (put into the MDC by com.poc.cib7.logging.MdcUserFilter)
+-->
+<configuration>
+  <!-- Boot's own console setup: conversion rules (%clr, %wEx) plus the CONSOLE
+       appender and the third-party logger levels Boot normally applies. Taking
+       these two and not base.xml avoids base.xml's FILE appender, which would
+       also start writing spring.log to the container's temp dir. -->
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+  <springProfile name="graylog">
+    <springProperty scope="context" name="LOG_SERVICE_NAME"
+                    source="app.logging.service-name" defaultValue="cib7"/>
+    <springProperty scope="context" name="GRAYLOG_HOST"
+                    source="app.logging.graylog.host" defaultValue="graylog"/>
+    <springProperty scope="context" name="GRAYLOG_PORT"
+                    source="app.logging.graylog.port" defaultValue="12201"/>
+
+    <appender name="GELF" class="de.siegmar.logbackgelf.GelfUdpAppender">
+      <graylogHost>${GRAYLOG_HOST}</graylogHost>
+      <graylogPort>${GRAYLOG_PORT}</graylogPort>
+      <encoder class="de.siegmar.logbackgelf.GelfEncoder">
+        <!-- GELF only carries the numeric syslog severity; this adds the name
+             alongside it so a Graylog search can say level_name:ERROR. -->
+        <includeLevelName>true</includeLevelName>
+        <!-- Carries user_id (MdcUserFilter) into the message as an additional
+             field. This is the whole reason the MDC filter exists. -->
+        <includeMdcData>true</includeMdcData>
+        <includeRootCauseData>true</includeRootCauseData>
+        <staticField>service:${LOG_SERVICE_NAME}</staticField>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+      <appender-ref ref="GELF"/>
+    </root>
+  </springProfile>
+
+  <springProfile name="!graylog">
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+  </springProfile>
+</configuration>
