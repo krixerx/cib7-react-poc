@@ -132,6 +132,16 @@ Then run the workflow with `preflight_only=true`. It prints the
 `ssh-keyscan` lines for `VM_KNOWN_HOSTS`; paste them into the secret and
 run it again for real.
 
+**If the key is rejected.** The secret is accepted raw, with stray blank
+lines around it, or as one base64 line
+(`base64 -w0 ~/.ssh/cib7_deploy`, the shape that survives any terminal
+and clipboard). Three things get pasted by mistake, and the run names
+each rather than failing as "Permission denied" later: the **public**
+half (a `.pub` file — that one belongs in `authorized_keys` on the VM), a
+PuTTY **`.ppk`** (PuTTYgen → Conversions → Export OpenSSH key, then paste
+that file), and a **passphrase-protected** key, which cannot work because
+nothing in CI can type the passphrase.
+
 On a host that has never been deployed to, the first run also ships
 `keycloak/realm-export.json` — it has to, because compose bind-mounts
 that path and Docker would otherwise create a *directory* there and

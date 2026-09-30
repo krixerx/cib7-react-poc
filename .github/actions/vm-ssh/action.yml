@@ -50,34 +50,86 @@ runs:
         # as a truncated key. $(...) eats trailing newlines, so a non-empty
         # result means the file does not end in one.
         if [ -n "$(tail -c1 ~/.ssh/id_deploy)" ]; then echo >> ~/.ssh/id_deploy; fi
-        if ! ssh-keygen -l -f ~/.ssh/id_deploy >/dev/null 2>&1; then
-          if base64 -d < ~/.ssh/id_deploy > ~/.ssh/id_deploy.dec 2>/dev/null \
-             && ssh-keygen -l -f ~/.ssh/id_deploy.dec >/dev/null 2>&1; then
+        chmod 600 ~/.ssh/id_deploy
+
+        # `ssh-keygen -y` derives the public half FROM a private key, so it is
+        # the only cheap test that means "usable here". `-l` would not do:
+        # it happily fingerprints a .pub file, so pasting the public half by
+        # mistake would pass this step and fail later as a bare
+        # "Permission denied" with nothing pointing at the cause.
+        usable() { ssh-keygen -y -P "" -f "$1" >/dev/null 2>&1; }
+
+        # Three shapes are accepted, tried in order, because all three are what
+        # a hand-pasted secret actually arrives as.
+        if ! usable ~/.ssh/id_deploy; then
+          # 2. The key with something around it: a blank first line, a shell
+          #    prompt the copy caught, an editor's trailing newlines. Keep only
+          #    the PEM block and drop whatever bracketed it.
+          if sed -n '/-----BEGIN .*PRIVATE KEY-----/,/-----END .*PRIVATE KEY-----/p' \
+               ~/.ssh/id_deploy > ~/.ssh/id_deploy.pem 2>/dev/null \
+             && [ -s ~/.ssh/id_deploy.pem ] && chmod 600 ~/.ssh/id_deploy.pem \
+             && usable ~/.ssh/id_deploy.pem; then
+            mv ~/.ssh/id_deploy.pem ~/.ssh/id_deploy
+            echo "note: the secret had extra lines around the key; kept the key itself"
+          # 3. One base64 line, which is the shape that survives any terminal.
+          elif base64 -d < ~/.ssh/id_deploy > ~/.ssh/id_deploy.dec 2>/dev/null \
+             && chmod 600 ~/.ssh/id_deploy.dec && usable ~/.ssh/id_deploy.dec; then
             mv ~/.ssh/id_deploy.dec ~/.ssh/id_deploy
             echo "note: the key secret was base64-encoded; decoded it"
           fi
         fi
-        rm -f ~/.ssh/id_deploy.dec
+        rm -f ~/.ssh/id_deploy.dec ~/.ssh/id_deploy.pem
         chmod 600 ~/.ssh/id_deploy
 
-        if ! ssh-keygen -l -f ~/.ssh/id_deploy; then
+        if ! usable ~/.ssh/id_deploy; then
           echo "FATAL: VM_SSH_PRIVATE_KEY is not a usable private key."
           echo "Shape of what arrived (no key material is printed):"
           echo "  bytes=$(wc -c < ~/.ssh/id_deploy) lines=$(wc -l < ~/.ssh/id_deploy)"
-          if head -n1 ~/.ssh/id_deploy | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
-            echo "  BEGIN marker: present"
+          # WHERE the marker is matters more than whether it is on line 1: found
+          # but displaced means the paste is fine and something bracketed it,
+          # which the extraction above would already have salvaged, so at this
+          # point its absence anywhere is the real signal.
+          BLINE=$(grep -n -- '-----BEGIN .*PRIVATE KEY-----' ~/.ssh/id_deploy | head -1 | cut -d: -f1 || true)
+          if [ -n "$BLINE" ]; then
+            echo "  BEGIN marker: on line $BLINE"
           else
-            echo "  BEGIN marker: MISSING — the paste lost its first line"
+            echo "  BEGIN marker: not present on ANY line"
           fi
-          if tail -n1 ~/.ssh/id_deploy | grep -q -- '-----END .*PRIVATE KEY-----'; then
+          if grep -q -- '-----END .*PRIVATE KEY-----' ~/.ssh/id_deploy; then
             echo "  END marker: present"
           else
-            echo "  END marker: MISSING — the paste was cut short"
+            echo "  END marker: not present on ANY line"
           fi
-          echo "Both markers present but still unparseable means the middle was reflowed;"
-          echo "store it as one base64 line instead:  base64 -w0 ~/.ssh/cib7_deploy"
+          # The three wrong-file mistakes, all of which look like "a key" to the
+          # eye and none of which works here.
+          if ssh-keygen -y -P "" -f ~/.ssh/id_deploy 2>&1 | grep -qi passphrase; then
+            echo
+            echo "This key is passphrase-protected, and nothing in CI can type one."
+            echo "Generate a key for CI alone, with an empty passphrase:"
+            echo "    ssh-keygen -t ed25519 -f ~/.ssh/cib7_deploy -N ''"
+          elif head -n1 ~/.ssh/id_deploy | grep -q '^PuTTY-User-Key-File'; then
+            echo
+            echo "This is a PuTTY .ppk, which OpenSSH cannot read. In PuTTYgen:"
+            echo "  Conversions -> Export OpenSSH key, then paste THAT file."
+          elif head -n1 ~/.ssh/id_deploy | grep -qE '^(ssh-(rsa|ed25519|dss)|ecdsa-sha2-) '; then
+            echo
+            echo "This is the PUBLIC half (a .pub file). The public half belongs in"
+            echo "~/.ssh/authorized_keys ON THE VM; this secret takes the private half,"
+            echo "the file WITHOUT the .pub extension."
+          else
+            echo
+            echo "Neither marker anywhere means this is not an OpenSSH private key at all."
+            echo "If the markers are both there and it still fails, the middle was"
+            echo "reflowed — store it as one base64 line instead, which survives any"
+            echo "terminal and clipboard:"
+            echo "    base64 -w0 ~/.ssh/cib7_deploy"
+          fi
           exit 1
         fi
+        # Printed so it can be matched against `ssh-keygen -lf ~/.ssh/authorized_keys`
+        # on the VM when a login is refused: same fingerprint means the key is
+        # right and the problem is elsewhere.
+        echo "key OK, fingerprint: $(ssh-keygen -l -f ~/.ssh/id_deploy)"
 
         # known_hosts gets the same CR treatment: one stray \r voids the whole
         # pin, and that would only surface after the deploy had begun.
