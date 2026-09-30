@@ -158,6 +158,25 @@ runs:
         fi
         chmod 644 ~/.ssh/known_hosts
 
+        # A pin written for another name is no pin at all, and ssh reports that
+        # only when it connects, as "No ED25519 host key is known for <host>" --
+        # which reads like a missing secret rather than a mismatched one. Asserted
+        # here instead, naming both sides. The host patterns are public.
+        if [ "$STRICT" = yes ] \
+           && ! ssh-keygen -F "$VM_HOST" -f ~/.ssh/known_hosts >/dev/null 2>&1; then
+          echo "FATAL: VM_KNOWN_HOSTS has no entry matching '$VM_HOST'."
+          echo "  It holds $(grep -c '[^[:space:]]' ~/.ssh/known_hosts) line(s), naming:"
+          awk '!/^#/ && NF {print "    " $1}' ~/.ssh/known_hosts | sort -u
+          echo "  The first field of a line must be EXACTLY the VM_HOST value, or a"
+          echo "  comma-separated list containing it. A line still naming a"
+          echo "  placeholder, or naming the hostname while VM_HOST is the IP,"
+          echo "  matches nothing. Regenerate with:"
+          echo "      ssh-keyscan -T 10 $VM_HOST"
+          echo "  and check the fingerprints against the VM's own files:"
+          echo "      ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"
+          exit 1
+        fi
+
         cat > ~/.ssh/config <<CFG
         Host vm
           HostName $VM_HOST
