@@ -172,6 +172,14 @@ If a spec is missing a required field, stop and ask rather than guessing.
   options ... are still in use`, so the setting is `KC_HOSTNAME`, and the old
   spelling looks correct in `docker inspect` while configuring nothing. Both are
   import-time, so changing either needs Keycloak recreated, not restarted.
+- **The realm export holds no secrets, only placeholders.** The three
+  confidential clients carry `${KEYCLOAK_BACKEND_CLIENT_SECRET}` and friends,
+  resolved from the Keycloak container's environment at import time, so `.env`
+  is the single source and every compose file must pass those variables to
+  Keycloak. They were literals, which put each value in two files that had to
+  agree; a mismatch takes the engine down at startup with
+  `unauthorized_client / Invalid client credentials` from the token endpoint,
+  naming neither file.
 - **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
 - **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
   namespace.

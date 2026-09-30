@@ -116,7 +116,7 @@ docker compose up -d        # recreates only the affected containers
 | `FRONTEND_HTTP_PORT` | `3000` | Host port (or `ip:port` binding) for the plain-HTTP front door. |
 | `MOBILE_HTTP_PORT` | `3001` | Same, for the mobile app's direct door (it is also served at `/mobile` through the front door and Traefik). |
 | `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` | `admin` / `admin` | Keycloak bootstrap admin (first start only). |
-| `KEYCLOAK_BACKEND_CLIENT_SECRET` | dev value | OAuth client secret, must mirror `keycloak/realm-export.json`. |
+| `KEYCLOAK_BACKEND_CLIENT_SECRET` | dev value | OAuth client secret. Written into the realm at import time, so this file is its only home. |
 | `KEYCLOAK_WEBAPPS_CLIENT_SECRET` | dev value | Same, for the Cockpit/Tasklist SSO client. |
 | `KEYCLOAK_BUSINESS_CLIENT_SECRET` | dev value | Same, for the backend's service account. |
 | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` | dev values | Object-storage root credentials. |
@@ -127,11 +127,13 @@ docker compose up -d        # recreates only the affected containers
 | `GRAYLOG_HTTP_EXTERNAL_URI` | `http://127.0.0.1:9900/` | What the browser types once the SSH tunnel is up. Change it if you tunnel to a different local port. |
 | `GRAYLOG_IMAGE` | `graylog/graylog:7.1` | Pin a different Graylog line without editing the compose file. |
 
-> **Rule of thumb:** the three `KEYCLOAK_*_CLIENT_SECRET` values and the
-> demo users live in **two places** — `.env` *and*
-> `keycloak/realm-export.json`. They must agree, and the realm file is
-> only read on the **first** start (see
-> [Re-importing the realm](#re-importing-the-realm)).
+> **Rule of thumb:** `.env` is the only place the three
+> `KEYCLOAK_*_CLIENT_SECRET` values live. `keycloak/realm-export.json`
+> carries `${KEYCLOAK_..._CLIENT_SECRET}` placeholders that Keycloak
+> resolves from the environment at import time, so there is nothing to
+> keep in sync. The realm file is read only on the **first** start of a
+> fresh Keycloak container, so changing a secret needs Keycloak recreated
+> — see [Re-importing the realm](#re-importing-the-realm).
 
 ## Deploying with real hostnames + TLS
 
@@ -150,9 +152,10 @@ You need:
   - **your own certificate + key** covering the app hostname (a SAN cert
     or separate certs; see `traefik/dynamic/tls.yml.example`).
 
-### 1. Edit `keycloak/realm-export.json` (before first start!)
+### 1. Nothing to edit in `keycloak/realm-export.json`
 
-**Only the secrets.** The browser-facing clients (`cib7-frontend`,
+**Not even the secrets, as of the placeholder change.** The
+browser-facing clients (`cib7-frontend`,
 `cib7-webapps`, `cib7-mobile`) already carry `${PUBLIC_FRONTEND_URL}`
 placeholders for their redirect URIs, web origins and post-logout URLs,
 and the realm's own `frontendUrl` attribute carries
@@ -167,13 +170,21 @@ URL Keycloak writes into a login page for this realm and **overrides**
 public host, that attribute is what to look at — and because it is read
 at import time, fixing it needs Keycloak recreated, not restarted.
 
+The three confidential clients read theirs from the environment too:
+
 ```jsonc
 // cib7-webapps (Cockpit/Tasklist/Admin SSO)
-"secret": "<your KEYCLOAK_WEBAPPS_CLIENT_SECRET>"
+"secret": "${KEYCLOAK_WEBAPPS_CLIENT_SECRET}"
 
-// cib7-backend          → "secret": "<your KEYCLOAK_BACKEND_CLIENT_SECRET>"
-// cib7-business         → "secret": "<your KEYCLOAK_BUSINESS_CLIENT_SECRET>"
+// cib7-backend          → "secret": "${KEYCLOAK_BACKEND_CLIENT_SECRET}"
+// cib7-business         → "secret": "${KEYCLOAK_BUSINESS_CLIENT_SECRET}"
 ```
+
+Put the values in `.env` (step 2) and they reach the realm at import
+time. When they disagreed — which was easy while the same value had to be
+written in two files — the engine died on startup with
+`unauthorized_client / Invalid client credentials` from the token
+endpoint, an error that names neither file.
 
 The localhost entries stay in the file next to the placeholders. They are
 what single-machine evaluation runs on, and they are harmless on a real
@@ -193,7 +204,7 @@ cp .env.example .env
 
 Set **all** of: `PUBLIC_KEYCLOAK_URL`, `PUBLIC_FRONTEND_URL`,
 `PUBLIC_S3_URL`, `KEYCLOAK_ADMIN_PASSWORD`, the three
-`KEYCLOAK_*_CLIENT_SECRET` values (same as step 1), `RUSTFS_ACCESS_KEY`,
+`KEYCLOAK_*_CLIENT_SECRET` values, `RUSTFS_ACCESS_KEY`,
 `RUSTFS_SECRET_KEY`, `INTERNAL_TASK_TOKEN`. Also bind the plain-HTTP port
 to loopback so only Traefik is internet-facing:
 

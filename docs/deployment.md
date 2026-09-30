@@ -71,7 +71,7 @@ below are POSIX; Windows hosts need a different mount path):
 | File | Purpose |
 |---|---|
 | `.env` | Per-deploy hostnames + secrets. Copy from `.env.example`. |
-| `keycloak/realm-export.json` | Client secrets. Edit **before first boot** — Keycloak's `--import-realm` runs once (see project memory: realm import is one-shot). Redirect URIs, web origins and post-logout URLs need no editing: they carry `${PUBLIC_FRONTEND_URL}` placeholders resolved at import time. ⚠ Developers: `deploy/keycloak/realm-export.json` is a copy for the pull-only bundle — keep the two in sync when changing clients/roles/users. |
+| `keycloak/realm-export.json` | **Nothing to edit for a deployment.** Client secrets, redirect URIs, web origins, post-logout URLs and the realm's `frontendUrl` all carry `${...}` placeholders that Keycloak resolves from the environment while importing, so `.env` is the single source. The import runs only on the first boot of a fresh container, so any change here needs Keycloak recreated. ⚠ Developers: `deploy/keycloak/realm-export.json` is a copy for the pull-only bundle — keep the two in sync when changing clients/roles/users. |
 | `/opt/volumes/traefik/certs/*.{crt,key}` | TLS certificate + private key. Read by Traefik via the file provider. |
 | `/opt/volumes/traefik/dynamic/tls.yml` | Tells Traefik which cert files to load. Copied from `traefik/dynamic/tls.yml.example`. Hot-reloaded (no restart on cert rotation). |
 | `docker-compose.prod.yml` | Overlay that reads `.env`. Don't normally edit. |
@@ -109,24 +109,27 @@ hostname:
                  "${PUBLIC_FRONTEND_URL}/mobile/*"]
 ```
 
-**Secrets are not.** Before the very first `docker compose up`, open
-`keycloak/realm-export.json` and replace the three dev client secrets:
+**Neither are the secrets.** The three confidential clients carry
+placeholders as well, so they come from `.env` alone:
 
 ```jsonc
 // cib7-webapps  (Cockpit/Tasklist/Admin SSO)
-"secret": "<paste KEYCLOAK_WEBAPPS_CLIENT_SECRET>"
+"secret": "${KEYCLOAK_WEBAPPS_CLIENT_SECRET}"
 
 // cib7-backend  (engine's identity-plugin service account)
-"secret": "<paste KEYCLOAK_BACKEND_CLIENT_SECRET>"
+"secret": "${KEYCLOAK_BACKEND_CLIENT_SECRET}"
 
 // cib7-business (business microservice's /engine-rest service account)
-"secret": "<paste KEYCLOAK_BUSINESS_CLIENT_SECRET>"
+"secret": "${KEYCLOAK_BUSINESS_CLIENT_SECRET}"
 ```
 
 Generate them with `openssl rand -hex 32`. Hex only: a `+`, `/` or `=`
 from base64 inside a Keycloak client secret breaks the form-encoded token
-request with `401 invalid_client`. Use the **same values** in `.env`
-(next step).
+request with `401 invalid_client`. Set them in `.env` (next step) and
+nothing else needs touching — when the same value had to be written into
+both files, a mismatch took the engine down at startup with
+`unauthorized_client / Invalid client credentials`, an error that names
+neither file.
 
 Both the placeholders and the secrets are read once, on the first start.
 If `PUBLIC_FRONTEND_URL` changes later, the running realm keeps the old

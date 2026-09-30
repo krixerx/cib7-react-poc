@@ -37,6 +37,14 @@ services:
       # here on purpose: prod must state its own public URLs.
       PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL}
       PUBLIC_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
+      # The three confidential clients' secrets go into the realm the same way,
+      # so .env is their only home. Previously they were literals in the realm
+      # JSON as well, and a value that agreed with .env in one file and not the
+      # other took the engine down at startup with "unauthorized_client /
+      # Invalid client credentials" — an error that names neither file.
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+      KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET}
     restart: unless-stopped
 
   cib7:

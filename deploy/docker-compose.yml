@@ -135,6 +135,16 @@ services:
       # a public deployment whose every container was configured correctly.
       PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
       PUBLIC_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
+      # The three confidential clients' secrets, likewise resolved into the
+      # realm at import time. They used to be literals in the JSON, which meant
+      # every value existed in two files that had to agree: change one and the
+      # engine dies at startup with "unauthorized_client / Invalid client
+      # credentials" from the token endpoint, naming neither file. Now .env is
+      # the only place they live, and the defaults are the published dev values
+      # so a bare `docker compose up` still works.
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
+      KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:-cib7-webapps-secret}
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET:-cib7-business-secret}
     ports:
       # Bind to loopback (127.0.0.1:8180) in TLS mode when Keycloak is served
       # through Traefik or another terminator on its own hostname.

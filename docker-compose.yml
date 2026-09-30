@@ -250,7 +250,7 @@ services:
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_ADMIN_CLIENT_ID: cib7-backend
-      KEYCLOAK_ADMIN_CLIENT_SECRET: cib7-backend-secret
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
       # Central logging (see mcp/src/logging/gelf.ts). Every tool call is logged
       # with the caller's Keycloak username as user_id.
       GRAYLOG_HOST: graylog
@@ -315,6 +315,15 @@ services:
       # docker-compose.prod.yml passes the real public URLs from .env.
       PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
       PUBLIC_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
+      # The three confidential clients' secrets, resolved into the realm at
+      # import time. They were literals in the JSON, so every value lived in two
+      # files that had to agree; changing one left the engine failing at startup
+      # with "unauthorized_client / Invalid client credentials" from the token
+      # endpoint, which names neither file. The defaults below are the dev
+      # values, so a bare `docker compose up` is unchanged.
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
+      KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:-cib7-webapps-secret}
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET:-cib7-business-secret}
     ports:
       - "8180:8080"
     volumes:
@@ -365,7 +374,7 @@ services:
       # The realm export puts service-account-cib7-business in /cib7-admin so
       # the engine treats it as an admin.
       KEYCLOAK_BUSINESS_CLIENT_ID: cib7-business
-      KEYCLOAK_BUSINESS_CLIENT_SECRET: cib7-business-secret
+      KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET:-cib7-business-secret}
       # Engine REST base — the only channel to the engine.
       ENGINE_URL: http://cib7:8080
       # RustFS / S3 settings. Two URLs, same split-brain pattern as Keycloak:
@@ -447,7 +456,7 @@ services:
       KEYCLOAK_ISSUER_URL: http://localhost:8180
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_BACKEND_CLIENT_ID: cib7-backend
-      KEYCLOAK_BACKEND_CLIENT_SECRET: cib7-backend-secret
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
       KEYCLOAK_REST_AUDIENCE: cib7-rest-api
       # Single integration-bus address (${busBaseUrl} via BusConfiguration). The
       # engine sends ALL outbound HTTP here — email, PDF, and backend calls — and

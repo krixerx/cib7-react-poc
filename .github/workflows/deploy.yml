@@ -16,8 +16,8 @@
 #   * touch deploy/.env, traefik/dynamic/*.yml, traefik/certs/ or traefik/acme/
 #     on the host. Hostnames, client secrets and certificates are that host's
 #     own state; nothing secret has to reach GitHub for a deploy to work;
-#   * overwrite keycloak/realm-export.json unless you ask (ship_realm) — the
-#     host's copy carries that deployment's real client secrets.
+#   * overwrite keycloak/realm-export.json unless you ask (ship_realm) — a
+#     host may have customised its realm, and re-importing it is disruptive.
 #
 # Setup, including how to reach a VM that GitHub's runners cannot:
 # docs/ci-cd.md.
@@ -31,7 +31,7 @@ on:
         required: false
         type: string
       ship_realm:
-        description: "Also overwrite keycloak/realm-export.json on the host. Replaces that deployment's client secrets with the committed ones."
+        description: "Also overwrite keycloak/realm-export.json on the host. Only needed when the realm itself changed (clients, roles, users) - the secrets in it are placeholders filled from the host's .env."
         type: boolean
         default: false
       recreate_keycloak:
@@ -259,15 +259,17 @@ jobs:
           # nothing like "the realm is missing".
           if ssh vm "test -f '$DEPLOY_DIR/$REALM'"; then HAS_REALM=yes; else HAS_REALM=no; fi
           if [ "$SHIP_REALM" != "true" ] && [ "$HAS_REALM" = yes ]; then
-            # The host's copy carries that deployment's real client secrets; the
-            # committed one carries the published dev values. Never swap the
-            # first for the second by accident.
+            # A host may have customised its realm — extra clients, roles or
+            # users — and the re-import that follows is disruptive, so its copy
+            # stays unless asked for. The client secrets in it are placeholders
+            # filled from the host's own .env, so they no longer argue for
+            # holding it back.
             sed -i "\\,^$REALM\$,d" "$LST"
             echo "keeping the host's $REALM (pass ship_realm to replace it)"
           elif [ "$HAS_REALM" = no ]; then
-            echo "::warning::First deploy: shipping $REALM with the DEV client secrets committed in this repo. Replace them on the host and re-run with recreate_keycloak=true before anyone but you can reach the box."
+            echo "::warning::First deploy: shipping $REALM. Its client secrets are placeholders resolved from the host's .env at import time, so set the three KEYCLOAK_*_CLIENT_SECRET values there before Keycloak first boots, or it imports the published dev defaults."
           else
-            echo "::warning::ship_realm: the host's keycloak/realm-export.json is being replaced with the committed copy, client secrets included. It only takes effect with recreate_keycloak=true, because the import is one-shot."
+            echo "::warning::ship_realm: the host's keycloak/realm-export.json is being replaced with the committed copy, dropping any realm customisation made there. It only takes effect with recreate_keycloak=true, because the import is one-shot."
           fi
           echo "shipping $(wc -l < "$LST") files to $VM_HOST:$DEPLOY_DIR"
           # acme/ is gitignored (it holds the ACME account key), so it never
