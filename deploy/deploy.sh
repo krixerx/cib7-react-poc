@@ -108,9 +108,17 @@ docker compose "${PROFILES[@]}" up -d --remove-orphans
 base=$(grep -E '^PUBLIC_FRONTEND_URL=' .env 2>/dev/null | tail -1 | cut -d= -f2- || true)
 base=${base:-http://localhost:3000}
 say "waiting for the engine at $base (first boot takes a minute — it waits for Keycloak)"
+#
+# Probe GET /engine-rest/process-definition, not /engine-rest/engine. Only the
+# former is anonymous (PublicEngineRestSecurityConfig, order 0, GET + that exact
+# path); everything else under /engine-rest/** needs a Bearer JWT and answers an
+# unauthenticated probe with 401, which `curl -f` reports as failure no matter
+# how healthy the engine is. It is also the better readiness signal: a non-empty
+# list proves ServiceDeployments finished deploying the BPMN, not merely that the
+# port is open.
 ok=0
 for _ in $(seq 1 60); do
-  if curl -fsS --max-time 5 "$base/engine-rest/engine" 2>/dev/null | grep -q default; then
+  if curl -fsS --max-time 5 "$base/engine-rest/process-definition" 2>/dev/null | grep -q businessRegistration; then
     ok=1; break
   fi
   sleep 5
@@ -124,7 +132,7 @@ check() { # check <label> <url> [<expected-substring>]
     && echo "PASS  $1" \
     || { echo "FAIL  $1  ($2)"; fail=1; }
 }
-check "engine          " "$base/engine-rest/engine" "default"
+check "engine          " "$base/engine-rest/process-definition" "businessRegistration"
 check "backend API     " "$base/api/public/vehicle-registry/vehicles"
 check "frontend        " "$base/"
 check "mobile app      " "$base/mobile/"

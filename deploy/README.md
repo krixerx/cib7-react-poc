@@ -88,7 +88,7 @@ Mailpit inbox above. Enable it for any end-to-end walkthrough.
 ### Smoke test
 
 ```bash
-curl -s  http://localhost:3000/engine-rest/engine          # → [{"name":"default"}]
+curl -s  http://localhost:3000/engine-rest/process-definition | head -c 200  # → JSON array
 curl -s  http://localhost:3000/api/public/vehicle-registry/vehicles | head -c 200   # → JSON
 curl -sI http://localhost:8180/realms/cib7-poc/.well-known/openid-configuration     # → 200
 ```
@@ -283,7 +283,7 @@ the bundled Traefik:
 |---|---|
 | `curl -sI http://app.example.com/` | `308` redirect to `https://…` |
 | `curl -sI https://app.example.com/` | `200` |
-| `curl -s https://app.example.com/engine-rest/engine` | `[{"name":"default"}]` |
+| `curl -s https://app.example.com/engine-rest/process-definition` | JSON array naming the four process keys |
 | `curl -sI https://kc.example.com/realms/cib7-poc/.well-known/openid-configuration` | `200`, issuer = `https://kc.example.com/realms/cib7-poc` |
 | Browser: `https://app.example.com` | Redirects to Keycloak login, then back into the app |
 | AI client at `https://app.example.com/mcp` | OAuth pop, then tools list |

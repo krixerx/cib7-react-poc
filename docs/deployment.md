@@ -215,7 +215,7 @@ docker compose logs -f
 | `openssl s_client -connect app.example.com:443 -servername app.example.com </dev/null 2>/dev/null \| openssl x509 -noout -subject -dates` | Your cert's subject + validity window |
 | Open `https://app.example.com/` in a browser | Redirects to `https://kc.example.com/realms/cib7-poc/...` |
 | Log in with a Keycloak user | Lands on the SPA |
-| `curl -sI https://app.example.com/engine-rest/engine` | `200`, JSON array (Traefik routes `/engine-rest` to `cib7:8080`) |
+| `curl -s https://app.example.com/engine-rest/process-definition` | `200`, JSON array naming the four process keys (Traefik routes `/engine-rest` to `cib7:8080`). This is the one anonymous engine route — every other `/engine-rest/**` path answers an unauthenticated curl with `401`. |
 | `curl -s https://app.example.com/api/public/vehicle-registry/vehicles` | `200`, JSON array of ten vehicles (Traefik routes `/api` to `backend:8085`) |
 | Open `https://app.example.com/camunda/app/cockpit/` | Cockpit login page (OAuth2 round-trip through Keycloak) |
 | `curl -sI https://kc.example.com/realms/cib7-poc/.well-known/openid-configuration` | `200`, `issuer: https://kc.example.com/realms/cib7-poc` |
