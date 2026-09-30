@@ -343,6 +343,17 @@ Graylog is **not** a replacement for Cockpit: a failed connector, DMN or
 FreeMarker template still shows up as a retryable engine incident at
 `/camunda/app/cockpit/`.
 
+### Upgrading — from GitHub Actions
+
+If you have push access to the repository, you do not need to log in to
+the host at all. **Actions → Deploy to VM → Run workflow** ships this
+bundle from the commit you pick, pins the image tag to it and runs
+`deploy.sh` on the host for you; the run log is the deployment record.
+Setup, inputs and how to roll back: [`../docs/ci-cd.md`](../docs/ci-cd.md).
+
+The manual path below stays valid and is what that workflow drives, so
+neither replaces the other.
+
 ### Upgrading — the deploy script
 
 `deploy.sh` runs the whole upgrade on the host in one command: refreshes
@@ -354,6 +365,8 @@ pulls images, restarts what changed, and smoke-tests the public endpoints:
 ./deploy.sh --yes            # non-interactive (cron / ssh one-liner)
 ./deploy.sh --realm          # also recreate Keycloak to re-import an
                              # edited realm-export.json (drops runtime users)
+./deploy.sh --no-git         # skip the git refresh — for a bundle that
+                             # arrived some other way (what CI passes)
 ```
 
 Set `COMPOSE_PROFILES=tls` in `.env` once and every compose command —

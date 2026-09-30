@@ -30,6 +30,7 @@ The docs are split into two layers:
 |---|---|
 | Understand the runtime topology, request flow, deployment model | [`architecture.md`](architecture.md) |
 | Deploy this stack to a server (admin-facing) | [`deployment.md`](deployment.md) |
+| Deploy from GitHub Actions, or work out why a CI run failed | [`ci-cd.md`](ci-cd.md) |
 | Find a service's logs, add a log statement, reach Graylog | [`logging.md`](logging.md) |
 | Touch React code: pages, forms, the form registry, the REST client, auth | [`frontend.md`](frontend.md) |
 | Touch Java code: Spring Boot wiring, engine config, BPMN auto-deploy, the connector, Keycloak | [`cib7.md`](cib7.md) |

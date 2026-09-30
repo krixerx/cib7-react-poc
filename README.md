@@ -454,7 +454,8 @@ cib7-react-poc/
 > **Just deploying, not developing?** You don't need this repository or a
 > build at all — pre-built images are on Docker Hub. See
 > [`deploy/README.md`](deploy/README.md) for the pull-only administrator
-> guide (single-machine and TLS setups).
+> guide (single-machine and TLS setups). To push a deploy to a server from
+> GitHub instead of logging in to it, see [`docs/ci-cd.md`](docs/ci-cd.md).
 
 Requires Docker with Compose.
 

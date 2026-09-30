@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Update-in-place for the pull-only bundle. Run ON the deployment host, from
-# anywhere:   /path/to/deploy/deploy.sh [--realm] [--yes] [--no-backup] [--profile <p>]...
+# anywhere:   /path/to/deploy/deploy.sh [--realm] [--yes] [--no-backup] [--no-git] [--profile <p>]...
 #
 # What it does, in order:
-#   1. git pull (only when the bundle lives in a git clone) — but refuses to
-#      proceed if upstream changed a file you hold skip-worktree'd per-host
-#      edits on; those need a hand-merge first.
+#   1. git pull — only when the bundle lives in a git clone and --no-git was
+#      not passed. It refuses to proceed if upstream changed a file you hold
+#      skip-worktree'd per-host edits on; those need a hand-merge first.
+#      The GitHub Actions deploy passes --no-git: it ships these files over
+#      ssh itself, from the commit being deployed, so there is nothing to pull.
 #   2. tars the rustfs volume (documents/PDFs — the only persistent data)
 #      into this directory. Skip with --no-backup.
 #   3. docker compose pull + up -d. If the engine image changed this
@@ -23,6 +25,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 PROFILES=()
+DO_GIT=1
 DO_REALM=0
 ASSUME_YES=0
 DO_BACKUP=1
@@ -32,14 +35,18 @@ while [ $# -gt 0 ]; do
     --realm)     DO_REALM=1; shift ;;
     --yes|-y)    ASSUME_YES=1; shift ;;
     --no-backup) DO_BACKUP=0; shift ;;
-    *) echo "usage: deploy.sh [--realm] [--yes] [--no-backup] [--profile <p>]" >&2; exit 2 ;;
+    --no-git)    DO_GIT=0; shift ;;
+    *) echo "usage: deploy.sh [--realm] [--yes] [--no-backup] [--no-git] [--profile <p>]" >&2; exit 2 ;;
   esac
 done
 
 say() { printf '\n==> %s\n' "$*"; }
 
 # --- 1. refresh the bundle from git (when it is a clone, not a tarball) ----
-if git -C .. rev-parse --git-dir >/dev/null 2>&1; then
+# --no-git is for a bundle that arrives by other means — the GitHub Actions
+# deploy ships these exact files over ssh before calling this script, so pulling
+# here would either be a no-op or fight what CI just placed.
+if [ "$DO_GIT" = 1 ] && git -C .. rev-parse --git-dir >/dev/null 2>&1; then
   say "git fetch"
   git -C .. fetch
   upstream=$(git -C .. rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo "")

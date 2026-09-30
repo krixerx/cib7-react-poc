@@ -1,0 +1,382 @@
+# Manual push-deploy to the POC VM.
+#
+# Replaces the old routine of ssh'ing into the host, `git pull`ing the deploy/
+# bundle there and running deploy.sh by hand. That kept a git clone plus
+# per-host `skip-worktree` edits on the server, which made "which commit is
+# deployed" a question only the server could answer, and answered it wrong as
+# soon as someone edited a tracked file in place.
+#
+# What this does instead: ships the bundle FROM the commit you dispatch, pins
+# the image tag to that commit, and runs the host's deploy.sh non-interactively.
+# The run log is the deployment record.
+#
+# What it deliberately does not do:
+#   * build anything — docker-publish.yml already published krixerx/cib7-poc-*
+#     for this commit, and this job refuses to start if those tags are missing;
+#   * touch deploy/.env, traefik/dynamic/*.yml, traefik/certs/ or traefik/acme/
+#     on the host. Hostnames, client secrets and certificates are that host's
+#     own state; nothing secret has to reach GitHub for a deploy to work;
+#   * overwrite keycloak/realm-export.json unless you ask (ship_realm) — the
+#     host's copy carries that deployment's real client secrets.
+#
+# Setup, including how to reach a VM that GitHub's runners cannot:
+# docs/ci-cd.md.
+name: Deploy to VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy. Blank = the 7-char SHA of the ref this run uses (roll back by dispatching an older ref, or by naming its tag here)."
+        required: false
+        type: string
+      ship_realm:
+        description: "Also overwrite keycloak/realm-export.json on the host. Replaces that deployment's client secrets with the committed ones."
+        type: boolean
+        default: false
+      recreate_keycloak:
+        description: "Recreate Keycloak so an edited realm is re-imported. Drops every session and every runtime-registered user."
+        type: boolean
+        default: false
+      skip_backup:
+        description: "Skip the rustfs volume backup (uploaded documents + generated PDFs)."
+        type: boolean
+        default: false
+      preflight_only:
+        description: "Only diagnose whether this runner can reach the VM. Deploys nothing."
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# One pipeline drives the host at a time, and a deploy in flight is never
+# cancelled: a half-applied compose file is worse than a queued run.
+concurrency:
+  group: deploy-vm
+  cancel-in-progress: false
+
+jobs:
+  # Runs before every deploy, and on its own via preflight_only. Cheap, and it
+  # answers the one question with no other source: whether a GitHub-hosted
+  # runner can open port 22 on that host at all.
+  preflight:
+    name: VM reachability
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VM_HOST: ${{ vars.VM_HOST || secrets.VM_HOST }}
+      VM_USER: ${{ vars.VM_USER || secrets.VM_USER }}
+      VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+      DEPLOY_DIR: ${{ vars.VM_DEPLOY_DIR || '/opt/cib7-poc/deploy' }}
+    steps:
+      # Only here for ./.github/actions/vm-ssh below — a local action has to be
+      # on disk before it can be used.
+      - uses: actions/checkout@v4
+
+      - name: Network path to the host
+        run: |
+          echo "--- this runner's egress IP (allowlist THIS if the VM's firewall is closed) ---"
+          curl -s --max-time 10 https://api.ipify.org || echo "(no outbound HTTP either)"
+          echo
+          if [ -z "$VM_HOST" ]; then
+            echo "FATAL: neither the VM_HOST variable nor the VM_HOST secret is set."
+            echo "See docs/ci-cd.md, section 'What to configure'."
+            exit 1
+          fi
+          echo "--- name resolution ---"
+          getent hosts "$VM_HOST" || echo "$VM_HOST does not resolve from this runner"
+          echo "--- TCP 22 ---"
+          if nc -z -w 8 "$VM_HOST" 22; then
+            echo "22 OPEN - a push deploy over SSH works from GitHub-hosted runners."
+          else
+            echo "22 BLOCKED from this runner."
+            echo "Three ways out, in docs/ci-cd.md, 'Reaching a VM the runners cannot':"
+            echo "  1. allowlist GitHub's Actions egress ranges (api.github.com/meta, key 'actions')"
+            echo "  2. run a self-hosted runner on the VM or inside its network"
+            echo "  3. join the VM's network inside the job (Tailscale / WireGuard / bastion)"
+            exit 1
+          fi
+          echo "--- SSH banner (proves sshd is what answers, not an appliance) ---"
+          timeout 8 nc "$VM_HOST" 22 </dev/null | head -1 || true
+
+      - name: Prepare SSH
+        if: env.VM_SSH_PRIVATE_KEY != ''
+        uses: ./.github/actions/vm-ssh
+        with:
+          host: ${{ env.VM_HOST }}
+          user: ${{ env.VM_USER }}
+          private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          # Unpinned here on purpose: a diagnostic run is how you obtain the
+          # value for the secret. The deploy job refuses to run without it.
+          known-hosts: ${{ secrets.VM_KNOWN_HOSTS }}
+
+      - name: What a deploy would find on the host
+        if: env.VM_SSH_PRIVATE_KEY != ''
+        run: |
+          ssh vm 'echo "login OK as $(id -un); groups: $(id -Gn)"'
+          # Docker over SSH is the whole deploy, so a missing compose plugin or a
+          # login outside the docker group has to fail here, not mid-deploy.
+          ssh vm 'docker version --format "docker {{.Server.Version}}" && docker compose version'
+          ssh vm "ls -la '$DEPLOY_DIR' 2>/dev/null || echo 'DEPLOY_DIR $DEPLOY_DIR does not exist yet - the first deploy creates it'"
+          ssh vm "test -f '$DEPLOY_DIR/.env' \
+            && echo '.env present (this workflow never overwrites it)' \
+            || echo 'no .env - the stack would come up on the localhost defaults; write one before deploying to a real hostname'"
+
+      - name: No key configured
+        if: env.VM_SSH_PRIVATE_KEY == ''
+        run: |
+          echo "VM_SSH_PRIVATE_KEY is not set, so the SSH login was not tested."
+          echo "The reachability result above is still the useful half: it says whether"
+          echo "setting the key up is worth doing from a GitHub-hosted runner at all."
+          echo "Next: docs/ci-cd.md, section 'What to configure'."
+
+  deploy:
+    name: Deploy to VM
+    needs: preflight
+    if: ${{ !inputs.preflight_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Gives GitHub a deployment history per commit, and somewhere to hang a
+    # required-reviewer rule later without touching this file.
+    environment: vm
+    env:
+      VM_HOST: ${{ vars.VM_HOST || secrets.VM_HOST }}
+      VM_USER: ${{ vars.VM_USER || secrets.VM_USER }}
+      DEPLOY_DIR: ${{ vars.VM_DEPLOY_DIR || '/opt/cib7-poc/deploy' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the image tag
+        id: tag
+        # Through the environment rather than interpolated into the script: an
+        # input is free text, and free text spliced into a shell line is a shell
+        # line somebody else gets to finish.
+        env:
+          INPUT_TAG: ${{ inputs.image_tag }}
+        run: |
+          TAG="$INPUT_TAG"
+          if [ -z "$TAG" ]; then
+            # docker-publish.yml tags every image `latest` plus the 7-char SHA
+            # (type=sha,format=short,prefix=). The SHA is the one worth
+            # deploying: `latest` moves under a running deployment.
+            TAG="${GITHUB_SHA::7}"
+            echo "expect_revision=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          elif [ "$TAG" = "${GITHUB_SHA::7}" ]; then
+            echo "expect_revision=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            # A hand-named tag belongs to some other commit, so this run cannot
+            # say which revision to expect on the host.
+            echo "expect_revision=" >> "$GITHUB_OUTPUT"
+            echo "note: '$TAG' was named by hand; the post-deploy revision check is skipped."
+          fi
+          # Docker's own tag grammar, which also happens to exclude every
+          # character that could end a quote in the remote commands below.
+          case "$TAG" in
+            *[!A-Za-z0-9._-]*)
+              echo "FATAL: '$TAG' is not a valid image tag (letters, digits, . _ - only)."
+              exit 1 ;;
+          esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "deploying tag $TAG (ref $GITHUB_REF_NAME, commit $GITHUB_SHA)"
+
+      - name: Verify those images exist on Docker Hub
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          # Read the image names out of the compose file the host will actually
+          # run, so this check cannot drift from what compose pulls.
+          IMAGES=$(grep -oE 'image: docker\.io/[^:]+:\$\{IMAGE_TAG' deploy/docker-compose.yml \
+                   | sed -E 's/^image: //; s/:\$\{IMAGE_TAG$//' | sort -u)
+          if [ -z "$IMAGES" ]; then
+            echo "FATAL: found no pinned images in deploy/docker-compose.yml - did the"
+            echo "image: line format change? This check exists so compose never"
+            echo "silently falls back to a tag nobody built."
+            exit 1
+          fi
+          # Anonymous pulls are rate-limited per IP, and a shared runner's IP is
+          # not ours alone. Log in when the credentials are there.
+          if [ -n "$DH_USER" ] && [ -n "$DH_TOKEN" ]; then
+            echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin >/dev/null
+          fi
+          miss=0
+          for img in $IMAGES; do
+            if docker buildx imagetools inspect "$img:$TAG" >/dev/null 2>&1; then
+              echo "  ok       $img:$TAG"
+            else
+              echo "  MISSING  $img:$TAG"
+              miss=1
+            fi
+          done
+          if [ "$miss" = 1 ]; then
+            echo
+            echo "FATAL: at least one image is not published under tag '$TAG'."
+            echo "Compose on the host would either fail mid-deploy or start a stale mix."
+            echo "Run 'Build and push Docker images' for this commit first, then dispatch"
+            echo "this workflow again."
+            exit 1
+          fi
+
+      - name: Require a pinned host key
+        env:
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$VM_KNOWN_HOSTS" ]; then
+            echo "FATAL: VM_KNOWN_HOSTS is not set, so the host key cannot be pinned."
+            echo "  This job hands commands to a docker-group account, which is"
+            echo "  root-equivalent on the target. Unpinned, whoever answers on port 22"
+            echo "  gets them."
+            echo "  Run this workflow once with preflight_only=true: it prints the exact"
+            echo "  ssh-keyscan lines to paste into the secret."
+            exit 1
+          fi
+
+      - name: Prepare SSH
+        uses: ./.github/actions/vm-ssh
+        with:
+          host: ${{ env.VM_HOST }}
+          user: ${{ env.VM_USER }}
+          private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          known-hosts: ${{ secrets.VM_KNOWN_HOSTS }}
+
+      - name: Ship the bundle
+        env:
+          SHIP_REALM: ${{ inputs.ship_realm }}
+        run: |
+          # The shipping list is `git ls-files deploy`, which beats an explicit
+          # list on two counts: a new tracked file under deploy/ ships without
+          # anyone remembering to add it here, and everything per-host is
+          # gitignored (deploy/.env, traefik/dynamic/*.yml, traefik/certs/*,
+          # traefik/acme/), so it cannot be clobbered by construction.
+          LST="$RUNNER_TEMP/ship.lst"
+          git ls-files -- deploy | sed 's,^deploy/,,' > "$LST"
+          REALM="keycloak/realm-export.json"
+          # A host that has no realm file yet is a first deploy, and it must get
+          # one: compose bind-mounts that path, so Docker would otherwise create
+          # a DIRECTORY there and Keycloak would fail on something that reads
+          # nothing like "the realm is missing".
+          if ssh vm "test -f '$DEPLOY_DIR/$REALM'"; then HAS_REALM=yes; else HAS_REALM=no; fi
+          if [ "$SHIP_REALM" != "true" ] && [ "$HAS_REALM" = yes ]; then
+            # The host's copy carries that deployment's real client secrets; the
+            # committed one carries the published dev values. Never swap the
+            # first for the second by accident.
+            sed -i "\\,^$REALM\$,d" "$LST"
+            echo "keeping the host's $REALM (pass ship_realm to replace it)"
+          elif [ "$HAS_REALM" = no ]; then
+            echo "::warning::First deploy: shipping $REALM with the DEV client secrets committed in this repo. Replace them on the host and re-run with recreate_keycloak=true before anyone but you can reach the box."
+          else
+            echo "::warning::ship_realm: the host's keycloak/realm-export.json is being replaced with the committed copy, client secrets included. It only takes effect with recreate_keycloak=true, because the import is one-shot."
+          fi
+          echo "shipping $(wc -l < "$LST") files to $VM_HOST:$DEPLOY_DIR"
+          # acme/ is gitignored (it holds the ACME account key), so it never
+          # arrives in the tar. Created here rather than by Docker, which would
+          # make it root-owned on a host where nothing else in the tree is.
+          ssh vm "mkdir -p '$DEPLOY_DIR/traefik/acme'"
+          # pipefail: without it a tar that dies mid-stream is invisible as long
+          # as the remote tar exits 0, and the deploy continues on a half-shipped
+          # compose file.
+          set -o pipefail
+          # --no-same-owner: a tar carries the runner's uid/owner name, and GNU
+          # tar extracting AS ROOT would honour it, leaving the bundle owned by
+          # a uid that means nothing on this host.
+          tar czf - -C deploy -T "$LST" | ssh vm "tar xzf - --no-same-owner -C '$DEPLOY_DIR'"
+
+      - name: Pin the tag in the host's .env
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          # The tag also rides the deploy.sh invocation below, and compose lets
+          # the process environment win over .env - so this line is not what
+          # decides this deploy. It decides the NEXT plain `docker compose up -d`
+          # someone types on the host: without it, that command would quietly
+          # swap the whole stack to `latest`, which is a different build.
+          # It is the only line of .env this workflow ever writes.
+          ssh vm "bash -s -- '$DEPLOY_DIR' '$TAG'" <<'EOS'
+          set -euo pipefail
+          cd "$1"; TAG="$2"
+          if [ ! -f .env ]; then
+            echo "no .env on the host - nothing to pin; this deploy passes IMAGE_TAG directly"
+            exit 0
+          fi
+          if grep -q '^IMAGE_TAG=' .env; then
+            sed -i.bak "s|^IMAGE_TAG=.*|IMAGE_TAG=$TAG|" .env
+          else
+            printf '\n# Pinned by the Deploy to VM workflow.\nIMAGE_TAG=%s\n' "$TAG" >> .env
+          fi
+          grep '^IMAGE_TAG=' .env
+          EOS
+
+      - name: Deploy
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          FLAGS="--yes --no-git"
+          if [ "${{ inputs.recreate_keycloak }}" = "true" ]; then FLAGS="$FLAGS --realm"; fi
+          if [ "${{ inputs.skip_backup }}" = "true" ]; then FLAGS="$FLAGS --no-backup"; fi
+          echo "running on the host: IMAGE_TAG=$TAG ./deploy.sh $FLAGS"
+          # deploy.sh is the single tested upgrade path: volume backup, compose
+          # pull, up -d --remove-orphans, then the public smoke tests. Those
+          # tests run ON the host on purpose - the runner's only route here is
+          # port 22, so checking from the runner would fail a good deploy.
+          ssh vm "cd '$DEPLOY_DIR' && IMAGE_TAG='$TAG' ./deploy.sh $FLAGS"
+
+      - name: Assert the host is running this commit
+        env:
+          EXPECT_REV: ${{ steps.tag.outputs.expect_revision }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          ssh vm "cd '$DEPLOY_DIR' && docker compose ps --format 'table {{.Service}}\t{{.Image}}\t{{.Status}}'"
+          if [ -z "$EXPECT_REV" ]; then
+            echo "revision check skipped: tag '$TAG' was named by hand, so no commit is expected."
+            exit 0
+          fi
+          # Identity is checked by the OCI revision label, not the image ID:
+          # docker/metadata-action stamps org.opencontainers.image.revision with
+          # the building commit, the label survives a pull unchanged, and it
+          # reads the same in both image stores - whereas an image ID is the
+          # config digest in the classic store and the manifest digest in the
+          # containerd one, so comparing IDs fails a perfectly good deploy.
+          IMAGES=$(grep -oE 'image: docker\.io/[^:]+:\$\{IMAGE_TAG' deploy/docker-compose.yml \
+                   | sed -E 's/^image: //; s/:\$\{IMAGE_TAG$//' | sort -u)
+          bad=0
+          for img in $IMAGES; do
+            REV=$(ssh vm "docker image inspect -f '{{index .Config.Labels \"org.opencontainers.image.revision\"}}' '$img:$TAG' 2>/dev/null" || true)
+            if [ "$REV" = "$EXPECT_REV" ]; then
+              echo "  ok   ${img##*/}:$TAG"
+            else
+              echo "  BAD  ${img##*/}:$TAG carries revision '${REV:-<none>}'"
+              bad=1
+            fi
+          done
+          if [ "$bad" = 1 ]; then
+            echo "FATAL: the host holds an image that was not built from $EXPECT_REV."
+            echo "The likeliest cause is that tag being rebuilt from another commit."
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          {
+            echo "### Deploy to \`$VM_HOST\`"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image tag | \`$TAG\` |"
+            echo "| Commit | \`$GITHUB_SHA\` (\`$GITHUB_REF_NAME\`) |"
+            echo "| Deploy dir | \`$DEPLOY_DIR\` |"
+            echo "| Realm shipped | ${{ inputs.ship_realm }} |"
+            echo "| Keycloak recreated | ${{ inputs.recreate_keycloak }} |"
+            echo "| Volume backup | ${{ inputs.skip_backup && 'skipped' || 'taken on the host' }} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Logs from the host (on failure)
+        if: failure()
+        run: |
+          ssh vm "cd '$DEPLOY_DIR' && docker compose ps -a" || true
+          ssh vm "cd '$DEPLOY_DIR' && docker compose logs --tail=80 --no-color" || true

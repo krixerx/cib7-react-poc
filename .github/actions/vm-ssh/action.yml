@@ -1,0 +1,110 @@
+name: Prepare SSH access to the deployment VM
+description: >
+  Writes the deploy key, the pinned host keys and an ssh_config alias, so every
+  later step is a plain `ssh vm "..."` instead of a line of -o options. Fails
+  with a diagnosis of the key's shape rather than letting "invalid format"
+  surface three steps later, mid-transfer.
+
+inputs:
+  host:
+    description: Hostname or IP of the VM.
+    required: true
+  user:
+    description: SSH login on the VM.
+    required: true
+  private-key:
+    description: >
+      The deploy key's PRIVATE half. A raw OpenSSH key or a single base64 line
+      of one are both accepted; CRs are stripped either way, because a key
+      pasted through a Windows terminal carries them and OpenSSH then rejects
+      an otherwise perfect key.
+    required: true
+  known-hosts:
+    description: >
+      known_hosts lines for the VM, i.e. the output of `ssh-keyscan -H <host>`.
+      Left empty, host keys are accepted on first sight and printed for you to
+      paste into the secret — acceptable for a diagnostic run, never for a
+      deploy: docker group membership on the target is root-equivalent, so an
+      unpinned host key means handing that to whoever answers on port 22.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        VM_HOST: ${{ inputs.host }}
+        VM_USER: ${{ inputs.user }}
+        VM_SSH_PRIVATE_KEY: ${{ inputs.private-key }}
+        VM_KNOWN_HOSTS: ${{ inputs.known-hosts }}
+      run: |
+        set -euo pipefail
+        if [ -z "$VM_HOST" ] || [ -z "$VM_USER" ]; then
+          echo "FATAL: host and user are both required (see docs/ci-cd.md for the names)."
+          exit 1
+        fi
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        printf '%s' "$VM_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_deploy
+        # OpenSSH wants the trailing newline; a secret pasted without one parses
+        # as a truncated key. $(...) eats trailing newlines, so a non-empty
+        # result means the file does not end in one.
+        if [ -n "$(tail -c1 ~/.ssh/id_deploy)" ]; then echo >> ~/.ssh/id_deploy; fi
+        if ! ssh-keygen -l -f ~/.ssh/id_deploy >/dev/null 2>&1; then
+          if base64 -d < ~/.ssh/id_deploy > ~/.ssh/id_deploy.dec 2>/dev/null \
+             && ssh-keygen -l -f ~/.ssh/id_deploy.dec >/dev/null 2>&1; then
+            mv ~/.ssh/id_deploy.dec ~/.ssh/id_deploy
+            echo "note: the key secret was base64-encoded; decoded it"
+          fi
+        fi
+        rm -f ~/.ssh/id_deploy.dec
+        chmod 600 ~/.ssh/id_deploy
+
+        if ! ssh-keygen -l -f ~/.ssh/id_deploy; then
+          echo "FATAL: VM_SSH_PRIVATE_KEY is not a usable private key."
+          echo "Shape of what arrived (no key material is printed):"
+          echo "  bytes=$(wc -c < ~/.ssh/id_deploy) lines=$(wc -l < ~/.ssh/id_deploy)"
+          if head -n1 ~/.ssh/id_deploy | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
+            echo "  BEGIN marker: present"
+          else
+            echo "  BEGIN marker: MISSING — the paste lost its first line"
+          fi
+          if tail -n1 ~/.ssh/id_deploy | grep -q -- '-----END .*PRIVATE KEY-----'; then
+            echo "  END marker: present"
+          else
+            echo "  END marker: MISSING — the paste was cut short"
+          fi
+          echo "Both markers present but still unparseable means the middle was reflowed;"
+          echo "store it as one base64 line instead:  base64 -w0 ~/.ssh/cib7_deploy"
+          exit 1
+        fi
+
+        # known_hosts gets the same CR treatment: one stray \r voids the whole
+        # pin, and that would only surface after the deploy had begun.
+        STRICT=yes
+        if [ -n "$VM_KNOWN_HOSTS" ]; then
+          printf '%s\n' "$VM_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+        else
+          STRICT=accept-new
+          : > ~/.ssh/known_hosts
+          echo "::warning::VM_KNOWN_HOSTS is empty — accepting the host key on first sight."
+          echo "--- paste these lines into the VM_KNOWN_HOSTS secret to pin the host ---"
+          ssh-keyscan -H -T 10 "$VM_HOST" 2>/dev/null || echo "(keyscan got nothing back)"
+          echo "-----------------------------------------------------------------------"
+        fi
+        chmod 644 ~/.ssh/known_hosts
+
+        cat > ~/.ssh/config <<CFG
+        Host vm
+          HostName $VM_HOST
+          User $VM_USER
+          IdentityFile ~/.ssh/id_deploy
+          IdentitiesOnly yes
+          BatchMode yes
+          ConnectTimeout 15
+          ServerAliveInterval 30
+          StrictHostKeyChecking $STRICT
+          UserKnownHostsFile ~/.ssh/known_hosts
+        CFG
+        chmod 600 ~/.ssh/config
+        echo "ssh alias 'vm' ready ($VM_USER@$VM_HOST, host key checking: $STRICT)"
