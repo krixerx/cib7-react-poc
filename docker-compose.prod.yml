@@ -11,8 +11,10 @@
 #   - H2 → Postgres migration for the engine (process state still wipes
 #     on restart)
 #   - TLS termination (run Caddy / Traefik / nginx on the host in front)
-#   - Realm-export redirectUris / webOrigins (edit the JSON before first
-#     boot — Keycloak's --import-realm runs once)
+#   - Realm-export client secrets (edit the JSON before first boot —
+#     Keycloak's --import-realm runs once). The redirectUris / webOrigins
+#     are handled: they carry ${PUBLIC_FRONTEND_URL} placeholders that
+#     Keycloak resolves at import time.
 #   - Mailpit replacement (the BPMN uses Mailpit's /api/v1/send wire
 #     format — pointing MAIL_API_URL elsewhere requires a compatible API)
 services:
@@ -26,6 +28,10 @@ services:
       KC_HOSTNAME_STRICT: "true"
       KC_HOSTNAME_STRICT_HTTPS: "true"
       KC_PROXY_HEADERS: xforwarded
+      # Fills the PUBLIC_FRONTEND_URL placeholders in the realm export
+      # (redirect URIs, web origins, post-logout URLs) at import time. No
+      # default here on purpose: prod must state its own public URL.
+      PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL}
     restart: unless-stopped
 
   cib7:

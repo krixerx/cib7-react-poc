@@ -119,6 +119,12 @@ services:
       # Trust X-Forwarded-* when an admin-supplied TLS terminator fronts
       # Keycloak (the recommended setup for real hostnames).
       KC_PROXY_HEADERS: xforwarded
+      # Resolves the PUBLIC_FRONTEND_URL placeholders in
+      # keycloak/realm-export.json (redirect URIs, web origins, post-logout
+      # URLs) while the realm is imported — this is what makes the OAuth
+      # clients work on a real hostname without hand-editing the JSON.
+      # Always set, so the placeholders never survive into the realm.
+      PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
     ports:
       # Bind to loopback (127.0.0.1:8180) in TLS mode when Keycloak is served
       # through Traefik or another terminator on its own hostname.
