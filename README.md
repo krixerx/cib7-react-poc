@@ -57,6 +57,7 @@ same logins, just swap `localhost:3000` for `companylab.ai`.
 | **Mailpit inbox** (process-sent emails) | <http://localhost:8025> (needs `docker compose --profile dev up -d mailpit-ui`) | — | — |
 | **Keycloak admin console** (realm / users / clients) | <http://localhost:8180/admin/> | `admin` | `admin` |
 | **Traefik dashboard** (inspect ingress routes) | <http://localhost:8081/dashboard/> | — | — |
+| **Graylog** (centralised logs from every service) | <http://localhost:9900> (SSH tunnel on a server — see [Centralised logging](#centralised-logging-graylog)) | `admin` | `admin` |
 | **MCP endpoint** (Claude Desktop, Cursor, Codex, …) | <http://localhost:3000/mcp> | OAuth2 PKCE via Keycloak | (browser pops, log in as `bart` / `homer`) |
 | &nbsp;&nbsp;↳ OAuth resource metadata | <http://localhost:3000/.well-known/oauth-protected-resource> | — | — |
 
@@ -254,6 +255,11 @@ run the builder, how to test — see
   `ContainerBasedAuthenticationProvider` recipe.
 - Both Java modules run **in-memory H2** — process state and document
   metadata are lost together when the containers stop.
+- Every service we write also ships its logs to **Graylog** as structured
+  GELF, tagged with the service name, the log level and the Keycloak user id
+  behind the request. Graylog is not published on any routable interface —
+  see [Centralised logging](#centralised-logging-graylog) and
+  [`docs/logging.md`](docs/logging.md).
 
 ## Talk to it from Claude Desktop (or any MCP client)
 
@@ -400,8 +406,15 @@ cib7-react-poc/
 │       └── resources/application.yaml
 ├── pdf-renderer/                   Node sidecar (JSON-in/JSON-out over Gotenberg)
 │   ├── server.js                   ~25 LOC Express wrapper
+│   ├── gelf.js                     GELF UDP logger (service / level / no user)
 │   ├── package.json
 │   └── Dockerfile
+├── esb/                            Integration bus (Apache Camel JBang, YAML routes)
+│   ├── routes/*.yaml               one file per integration
+│   ├── log4j2-graylog.xml          console + GELF TCP appender
+│   └── Dockerfile
+├── graylog/
+│   └── provision-inputs.sh         creates the GELF UDP + TCP inputs, once
 ├── mcp/                            MCP sidecar — AI-callable surface (see docs/mcp.md)
 │   ├── src/
 │   │   ├── server.ts               Express + per-request MCP server/transport + 11 tools + LLM instructions
@@ -410,6 +423,7 @@ cib7-react-poc/
 │   │   ├── engine/client.ts        Bearer-forward fetch wrapper to /engine-rest
 │   │   ├── engine/variables.ts     plain JSON → Camunda { value, type } envelope
 │   │   ├── keycloak/admin.ts       cib7-backend service-account token + admin REST wrapper
+│   │   ├── logging/gelf.ts         GELF UDP logger (service / level / user_id)
 │   │   └── services/manifest.ts    walks /app/services-spec, Ajv-compiles schemas
 │   ├── cib7-bridge.mjs             stdio↔HTTP launcher for Claude Desktop on Windows
 │   ├── package.json                @modelcontextprotocol/sdk, express, ajv, jose, tsx
@@ -837,6 +851,82 @@ Log in at <http://localhost:3000/camunda> as `admin` / `admin` for the
 Cockpit / Tasklist / Admin webapps (the `/cib7-admin` group is the one
 authorized for those webapps; `homer` and `bart` are intentionally
 locked out).
+
+## Centralised logging (Graylog)
+
+Every service in this stack logs twice: to stdout, so `docker compose logs -f
+<service>` keeps working, and to **Graylog** as a structured **GELF** message.
+Each message carries the **service name**, the **log level** (both GELF's
+numeric syslog severity and a readable `level_name`), and the **Keycloak user
+id** of the person whose request produced it, where there is one. Full detail —
+the field contract, the per-runtime wiring, troubleshooting — is in
+[`docs/logging.md`](docs/logging.md).
+
+```
+cib7          ──GELF/UDP 12201──┐
+backend       ──GELF/UDP 12201──┤
+mcp           ──GELF/UDP 12201──┼──▶ graylog ──▶ opensearch       (message store)
+pdf-renderer  ──GELF/UDP 12201──┤        └─────▶ graylog-mongodb  (config store)
+esb           ──GELF/TCP 12201──┘
+```
+
+### Access is loopback + SSH tunnel, never public
+
+Nothing in the Graylog stack is published on a routable interface. The web UI is
+bound to `127.0.0.1:9900` on the host, the GELF inputs are not published at all
+(shippers are sibling containers reaching `graylog:12201` over the docker
+network), and Traefik has no route to it. On a server:
+
+```bash
+ssh -N -L 9900:127.0.0.1:9900 <user>@<host>
+```
+
+then open <http://localhost:9900> and log in as `admin` / `admin` (the dev
+default; set `GRAYLOG_ROOT_PASSWORD` + `GRAYLOG_ROOT_PASSWORD_SHA2` in `.env`
+for anything real). Running the stack on your own laptop needs no tunnel —
+<http://localhost:9900> is already the bound address.
+
+Port 9900 rather than Graylog's native 9000 because RustFS already owns host
+port 9000 here. If you tunnel to a different local port, set
+`GRAYLOG_HTTP_EXTERNAL_URI` to match, or the UI will load and then fail every
+request.
+
+### What you get
+
+Searches worth knowing, once you are in:
+
+```
+service:cib7 AND level_name:ERROR
+user_id:bart
+service:mcp AND _tool:start_process
+```
+
+`user_id` is deliberately **absent** rather than empty when no user is
+attributable: the `esb` bus and `pdf-renderer` handle machine-to-machine calls,
+the backend's `/api/public/**` token links have no session, and engine→backend
+calls authenticate with a shared header. For a service-account token the value
+is the client id.
+
+### First start
+
+The two GELF inputs are created automatically by a one-shot `curl` sidecar
+(`graylog/provision-inputs.sh`), because Graylog keeps inputs in MongoDB and a
+fresh volume has nothing listening on 12201. It is idempotent. If no messages
+ever show up, that is the first place to look:
+
+```bash
+docker compose logs graylog-init     # echoes every API response
+docker compose logs graylog          # cold start takes a couple of minutes
+```
+
+The Graylog stack adds roughly 2 GB of memory on top of the rest of the POC
+(OpenSearch, Graylog and MongoDB together). `docker compose down -v` wipes the
+message store, Graylog's configuration and the provisioned inputs.
+
+**Graylog is not a replacement for Cockpit.** A failed connector, DMN or
+FreeMarker template still surfaces as an engine incident at
+`/camunda/app/cockpit/` with the variables and the retryable job attached.
+Graylog has the log line; Cockpit has the thing you can retry.
 
 ## REST endpoints used
 

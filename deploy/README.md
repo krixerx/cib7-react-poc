@@ -12,6 +12,7 @@ deploy/
 ├── deploy.sh                          one-command upgrade + smoke test
 ├── .env.example                       configuration template
 ├── keycloak/realm-export.json         users, roles, OAuth clients
+├── graylog/provision-inputs.sh        creates the GELF inputs on first start
 ├── traefik/dynamic/routes.yml.example ingress routing (only for the HTTPS setup)
 └── traefik/dynamic/tls.yml.example    supplied-cert TLS config (optional)
 ```
@@ -78,6 +79,7 @@ with `docker compose logs -f` until things go quiet, then open
 | Keycloak admin console | <http://localhost:8180/admin/> | `admin` / `admin` |
 | Process-sent emails (Mailpit) | <http://localhost:8025> — needs `docker compose --profile mail up -d mailpit-ui` | — |
 | MCP endpoint for AI clients | `http://localhost:3000/mcp` | OAuth2 (browser pops; log in as `bart`) |
+| Graylog (logs from every service) | <http://localhost:9900> — loopback only; SSH-tunnel it on a real server | `admin` / `admin` |
 
 The emails the processes send (approvals, owner confirmations with
 clickable links, reminders) never leave the machine — they land in the
@@ -119,6 +121,11 @@ docker compose up -d        # recreates only the affected containers
 | `KEYCLOAK_BUSINESS_CLIENT_SECRET` | dev value | Same, for the backend's service account. |
 | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` | dev values | Object-storage root credentials. |
 | `INTERNAL_TASK_TOKEN` | dev value | Shared secret for the internal document-write calls; the integration bus (`esb`) injects it as `X-Internal-Token`, the backend verifies it. |
+| `GRAYLOG_PASSWORD_SECRET` | dev value | Encrypts secrets Graylog stores in MongoDB. At least 16 characters; must NOT change once there is data. |
+| `GRAYLOG_ROOT_PASSWORD` | `admin` | Graylog web UI password for `admin`, in plaintext. Used by the `graylog-init` sidecar, which calls the REST API. |
+| `GRAYLOG_ROOT_PASSWORD_SHA2` | sha256 of `admin` | The same password as a SHA-256 hash, which is the only form Graylog itself takes. |
+| `GRAYLOG_HTTP_EXTERNAL_URI` | `http://127.0.0.1:9900/` | What the browser types once the SSH tunnel is up. Change it if you tunnel to a different local port. |
+| `GRAYLOG_IMAGE` | `graylog/graylog:7.1` | Pin a different Graylog line without editing the compose file. |
 
 > **Rule of thumb:** the three `KEYCLOAK_*_CLIENT_SECRET` values and the
 > demo users live in **two places** — `.env` *and*
@@ -275,6 +282,67 @@ docker compose logs -f mcp            # AI sidecar
 tail -F traefik/logs/access.log       # ingress access log (TLS mode)
 ```
 
+Every application service also ships structured logs to **Graylog**, which is
+the tool for anything spanning more than one container — see
+[Centralised logging (Graylog)](#centralised-logging-graylog) below.
+
+### Centralised logging (Graylog)
+
+`cib7`, `backend`, `esb`, `mcp` and `pdf-renderer` all send their logs to a
+Graylog instance inside the stack, as structured GELF. Each message carries the
+**service name**, the **log level** (`level` as a numeric syslog severity plus a
+readable `level_name`), and the **Keycloak user id** of whoever's request
+produced it, where there is one. That makes questions like "what failed for
+`bart` this morning, across all services" a single search instead of five
+`docker compose logs` invocations.
+
+**Access is loopback plus an SSH tunnel — never public.** The web UI is
+published on `127.0.0.1:9900` on this host, the GELF inputs are not published at
+all, and Traefik has no route to Graylog. From your workstation:
+
+```bash
+ssh -N -L 9900:127.0.0.1:9900 <user>@<host>
+```
+
+Then open <http://localhost:9900> and log in as `admin` with
+`GRAYLOG_ROOT_PASSWORD`. If you tunnel to a different local port, set
+`GRAYLOG_HTTP_EXTERNAL_URI` in `.env` to match — Graylog hands that URI to the
+browser for its own API calls, so a mismatch shows up as a UI that loads and
+then fails every request.
+
+Searches worth knowing:
+
+```
+service:cib7 AND level_name:ERROR
+user_id:bart
+service:mcp AND _tool:start_process
+```
+
+Before first use, set real values for `GRAYLOG_PASSWORD_SECRET`,
+`GRAYLOG_ROOT_PASSWORD` and `GRAYLOG_ROOT_PASSWORD_SHA2` in `.env`:
+
+```bash
+head -c 96 /dev/urandom | base64 | tr -d '\n=+/' | head -c 96   # PASSWORD_SECRET
+echo -n 'your-password' | sha256sum                             # ROOT_PASSWORD_SHA2
+```
+
+The two GELF inputs are created automatically on first start by the one-shot
+`graylog-init` sidecar (Graylog keeps inputs in MongoDB, so a fresh volume has
+nothing listening on 12201). If no messages ever appear, that is the first place
+to look:
+
+```bash
+docker compose logs graylog-init      # echoes every API response
+docker compose logs graylog           # cold start takes a couple of minutes
+```
+
+Budget roughly **2 GB of extra memory** for the three Graylog containers
+(Graylog, OpenSearch, MongoDB) on top of the rest of the stack.
+
+Graylog is **not** a replacement for Cockpit: a failed connector, DMN or
+FreeMarker template still shows up as a retryable engine incident at
+`/camunda/app/cockpit/`.
+
 ### Upgrading — the deploy script
 
 `deploy.sh` runs the whole upgrade on the host in one command: refreshes
@@ -330,6 +398,7 @@ docker compose up -d
 | Process instances, tasks, history | engine's in-memory H2 | **no** |
 | Keycloak users created at runtime | Keycloak's dev H2 | **no** (realm re-imported from JSON) |
 | Emails | Mailpit (in-memory) | no |
+| Logs | named volumes `graylog-data`, `graylog-opensearch-data`, `graylog-mongodb-data` | **yes** (wiped by `docker compose down -v`) |
 
 To back up the one persistent piece:
 `docker run --rm -v deploy_rustfs-data:/data -v "$PWD":/backup alpine tar czf /backup/rustfs-backup.tgz /data`

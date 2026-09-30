@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging configuration for the bus, handed to Camel JBang with
+  the `logging-config-path` run flag (see Dockerfile). Camel JBang logs
+  through Log4j2, and that flag makes it use this file verbatim instead of the
+  log4j2.properties baked into the camel-jbang jar.
+
+  Two appenders:
+    console  keeps `docker compose logs -f esb` working — the README leans on
+             watching `[ESB] …` lines cross the bus, so this must not go away.
+    graylog  GelfLayout on a plain TCP socket. Both classes ship inside
+             log4j-core, so this needs no extra jar on a JBang classpath we
+             cannot easily extend.
+
+  TCP, not UDP, because Log4j2's GelfLayout does not implement GELF's UDP
+  chunking protocol: a message larger than one datagram would simply be lost.
+  A null-delimited TCP stream has no size ceiling, which is why the
+  `GELF TCP` input exists alongside the UDP one (graylog/provision-inputs.sh).
+
+  ignoreExceptions="true" is what keeps the bus running when Graylog is down or
+  still starting: the socket appender logs its own failure to the console and
+  drops the event rather than propagating an exception into a Camel route.
+-->
+<Configuration status="WARN">
+  <Properties>
+    <!-- Env lookups with defaults, so the bus is also runnable outside this
+         compose stack (`camel run` locally just fails to connect and says so). -->
+    <Property name="graylogHost">${env:GRAYLOG_HOST:-graylog}</Property>
+    <Property name="graylogPort">${env:GRAYLOG_GELF_TCP_PORT:-12201}</Property>
+    <Property name="serviceName">${env:LOG_SERVICE_NAME:-esb}</Property>
+  </Properties>
+
+  <Appenders>
+    <Console name="console" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5level %-40.40logger{1.} : %msg%n"/>
+    </Console>
+
+    <Socket name="graylog" host="${graylogHost}" port="${graylogPort}" protocol="TCP"
+            reconnectionDelayMillis="10000" ignoreExceptions="true">
+      <!-- includeNullDelimiter matches the input's use_null_delimiter=true:
+           one JSON object per NUL byte on the stream.
+           compressionType must be OFF — the GELF TCP input does not accept
+           compressed frames (only the UDP one does). -->
+      <GelfLayout includeNullDelimiter="true" compressionType="OFF" includeStacktrace="true"
+                  includeThreadContext="true">
+        <!-- The two fields every service in this stack sends. There is no
+             user_id here: the bus forwards machine-to-machine integration
+             calls, so no Keycloak user is attributable to them. -->
+        <KeyValuePair key="service" value="${serviceName}"/>
+        <KeyValuePair key="level_name" value="$${event:Level}"/>
+      </GelfLayout>
+    </Socket>
+  </Appenders>
+
+  <Loggers>
+    <Root level="INFO">
+      <AppenderRef ref="console"/>
+      <AppenderRef ref="graylog"/>
+    </Root>
+  </Loggers>
+</Configuration>

@@ -155,6 +155,24 @@ automatically. If the connector looks wedged in Claude Desktop:
 3. Reopen Claude Desktop. Next chat message triggers a clean OAuth dance.
 ```
 
+## Logging
+
+Every tool call logs one line — the tool name plus the caller's Keycloak
+username — to the console *and* to Graylog as structured GELF. That makes "who
+asked the assistant to do what, and did it work" one search rather than a grep
+through container output:
+
+```
+service:mcp AND _tool:start_process
+service:mcp AND level_name:ERROR
+user_id:bart
+```
+
+Graylog is reachable over an SSH tunnel only (`ssh -N -L 9900:127.0.0.1:9900
+<user>@<host>`, then <http://localhost:9900>). Set `GRAYLOG_HOST` to turn
+shipping on; unset, the sidecar logs to the console only and says so in its
+startup banner. Details in [`../docs/logging.md`](../docs/logging.md).
+
 ## Troubleshooting
 
 | Symptom                                                                                                             | Likely cause                                                                                                                                                                                                                                                                                          |
@@ -186,3 +204,4 @@ automatically. If the connector looks wedged in Claude Desktop:
 - `src/engine/variables.ts` — Plain JSON → Camunda `{ value, type }` envelope, schema-driven.
 - `src/keycloak/admin.ts` — `cib7-backend` service-account token (client_credentials, 5-min in-process cache) + admin REST wrapper. Used by `send_account_invitation`.
 - `src/services/manifest.ts` — Walks `/app/services-spec`, Ajv-compiles every schema, indexes by `formKey`.
+- `src/logging/gelf.ts` — GELF UDP logger. One datagram per log call to `graylog:12201`, mirrored to the console. Every message carries `service`, `level` + `level_name`, and `user_id` from the per-request bearer context. Hand-rolled to keep the dependency list short — this sidecar forwards user Bearers, so every package sits in the trust path. See [`../docs/logging.md`](../docs/logging.md).

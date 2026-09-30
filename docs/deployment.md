@@ -285,6 +285,24 @@ tail -F /opt/volumes/traefik/logs/access.log
 tail -F /opt/volumes/traefik/logs/traefik.log
 ```
 
+**Centralised logs.** `cib7`, `backend`, `esb`, `mcp` and `pdf-renderer`
+all ship structured GELF to the in-stack Graylog, tagged with the service
+name, the log level and the Keycloak user id behind the request. Graylog is
+published on `127.0.0.1:9900` on the host only, and its GELF inputs are not
+published at all — reach the UI over an SSH tunnel, never through Traefik:
+
+```bash
+ssh -N -L 9900:127.0.0.1:9900 <user>@<host>
+# then open http://localhost:9900 — admin / GRAYLOG_ROOT_PASSWORD
+```
+
+Set `GRAYLOG_PASSWORD_SECRET`, `GRAYLOG_ROOT_PASSWORD` and
+`GRAYLOG_ROOT_PASSWORD_SHA2` in `.env` before first start (the prod overlay
+has no defaults for the first two on purpose). If the UI loads but every
+request fails, `GRAYLOG_HTTP_EXTERNAL_URI` does not match the URL in your
+address bar. Full detail, including the field contract and troubleshooting,
+is in [`logging.md`](logging.md).
+
 **Rotate a TLS certificate.** Replace the files in
 `/opt/volumes/traefik/certs/` (keep the filenames pointed at by
 `dynamic/tls.yml`, or update `tls.yml` to match). Traefik's file

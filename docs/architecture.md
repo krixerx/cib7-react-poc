@@ -59,6 +59,10 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
 
                        mcp sidecar ◀── Claude Desktop / Cursor / Codex
                        (Bearer-proxy → /engine-rest, documents → backend /api)
+
+  cib7 · backend · esb · mcp · pdf-renderer ──GELF 12201──▶ graylog
+                                                            (loopback-only UI,
+                                                             SSH tunnel to reach it)
 ```
 
 The runtime pieces:
@@ -154,7 +158,9 @@ The runtime pieces:
 | MCP sidecar | `mcp/` (Node + TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`) | local module, compose service | Streamable HTTP MCP transport at `/mcp`; OAuth2 PKCE-loopback against Keycloak; JOSE jwtVerify at the door; Bearer-forwards to `/engine-rest`; Ajv-validates inputs against per-service manifests; uses `cib7-backend` service account for invitation emails |
 | Per-service MCP manifests | `docs/business/services/<svc>/build/mcp-service.json` (generated) | `/service-builder` skill | Variable schemas + audience metadata; loaded by the MCP sidecar at startup |
 | Aggregated MCP index | `docs/business/services/build/services.json` (generated) | `/service-builder` skill | Top-level catalog of MCP-callable services |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Eleven services + ingress: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `esb` |
+| Centralised logging | Graylog 7.1 + OpenSearch 2.19 + MongoDB 7 | `docker-compose.yml` (`graylog`, `opensearch`, `graylog-mongodb`, `graylog-init`) | GELF sink for every service we write. Each message carries `service`, `level` + `level_name`, and `user_id` where a Keycloak user is attributable. Web UI bound to `127.0.0.1:9900` only (SSH tunnel); GELF inputs unpublished. Inputs are provisioned by the one-shot `graylog-init` curl sidecar. See [`logging.md`](logging.md) |
+| Log shippers | `logback-gelf` (cib7, backend) · Log4j2 `GelfLayout` (esb) · hand-rolled GELF UDP module (mcp, pdf-renderer) | `*/logback-spring.xml`, `esb/log4j2-graylog.xml`, `mcp/src/logging/gelf.ts`, `pdf-renderer/gelf.js` | Three mechanisms because the three runtimes differ; one field contract. JVM services carry `user_id` from the SLF4J MDC, populated by `MdcUserFilter` after Spring Security's chain |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Application services: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mobile`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `esb`. Observability: `graylog`, `opensearch`, `graylog-mongodb`, `graylog-init` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
@@ -216,10 +222,19 @@ crosses origins: document uploads/downloads go directly to RustFS on
 `localhost:9000` with presigned URLs; the backend's `BucketBootstrap` sets
 the bucket's CORS policy to the SPA origin for exactly that.)
 
+### Deliberately not published
+
+| Surface | Why | How to reach it |
+|---|---|---|
+| Graylog web UI | central log store; holds user ids and message content | published on `127.0.0.1:9900` only — `ssh -N -L 9900:127.0.0.1:9900 <user>@<host>` |
+| Graylog GELF inputs (`12201` UDP + TCP) | shippers are sibling containers | docker network only, no host port |
+| Mailpit web UI | unauthenticated inbox | opt-in `dev` compose profile |
+| Traefik dashboard | auth-free | `127.0.0.1:8081` only |
+
 ## Deployment topology
 
-`docker-compose.yml` defines eleven services (plus the `dev`-profile
-`mailpit-ui` sidecar):
+`docker-compose.yml` defines the application services below, plus the
+`dev`-profile `mailpit-ui` sidecar and the four-container Graylog group:
 
 - **keycloak** — `quay.io/keycloak/keycloak:26.1` in `start-dev --import-realm`
   mode. Mounts `keycloak/realm-export.json` so the realm boots pre-seeded
@@ -286,8 +301,23 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `ENGINE_URL`, `SERVICES_SPEC_DIR`) so the same image works in dev and
   CI without
   rebuilds.
+- **graylog / opensearch / graylog-mongodb / graylog-init** — the centralised
+  log store. `graylog` publishes its web UI on `127.0.0.1:9900` only
+  (Graylog's native 9000 is taken by RustFS on the host) and keeps its GELF
+  UDP + TCP inputs on port 12201 **unpublished**, because every shipper is a
+  sibling container. OpenSearch is wired directly via
+  `GRAYLOG_ELASTICSEARCH_HOSTS` with `GRAYLOG_SKIP_PREFLIGHT_CHECKS=true`, so
+  no Data Node and no interactive preflight UI stands between
+  `docker compose up` and a working stack. `graylog-init` is a one-shot
+  `curlimages/curl` sidecar that creates the two inputs through the REST API —
+  Graylog keeps inputs in MongoDB, so a fresh volume would otherwise have
+  nothing listening. Unlike every other service here these four use **named
+  volumes** (`graylog-data`, `graylog-opensearch-data`,
+  `graylog-mongodb-data`, `graylog-mongodb-config`): OpenSearch and MongoDB run
+  non-root and are strict about data-directory ownership, which host bind
+  mounts get wrong on Windows and macOS. Details in [`logging.md`](logging.md).
 
-There is no shared volume between services; neither Java module has a
+There is no shared volume between the application services; neither Java module has a
 persistent volume because both databases are in-memory (the engine's process
 state and the backend's `Document` metadata reset together on restart —
 TODOS T1 tracks the shared move to Postgres). Keycloak uses its built-in dev
