@@ -82,9 +82,11 @@ below are POSIX; Windows hosts need a different mount path):
 ### 1. Edit the realm export
 
 **URLs are automatic.** The three browser-facing clients carry
-`${PUBLIC_FRONTEND_URL}` placeholders that Keycloak resolves from the
-environment while it imports the realm, and the compose files pass that
-variable to the Keycloak container. Nothing to edit for a new hostname:
+`${PUBLIC_FRONTEND_URL}` placeholders, and the realm's own `frontendUrl`
+attribute carries `${PUBLIC_KEYCLOAK_URL}`; Keycloak resolves both from
+the environment while it imports the realm, and the compose files pass
+those two variables to the Keycloak container. Nothing to edit for a new
+hostname:
 
 ```jsonc
 // cib7-frontend (public SPA)

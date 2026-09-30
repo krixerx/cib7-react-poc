@@ -20,18 +20,23 @@
 services:
   keycloak:
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       # Pin issuer to the public URL so the `iss` claim in every JWT
-      # matches what browsers see during login.
-      KC_HOSTNAME_URL: ${PUBLIC_KEYCLOAK_URL}
+      # matches what browsers see during login. `KC_HOSTNAME`, not
+      # `KC_HOSTNAME_URL`: Keycloak 26 ignores the v1 hostname options after
+      # logging that they are in use, so the old spelling configured nothing.
+      KC_HOSTNAME: ${PUBLIC_KEYCLOAK_URL}
       KC_HOSTNAME_STRICT: "true"
-      KC_HOSTNAME_STRICT_HTTPS: "true"
       KC_PROXY_HEADERS: xforwarded
-      # Fills the PUBLIC_FRONTEND_URL placeholders in the realm export
-      # (redirect URIs, web origins, post-logout URLs) at import time. No
-      # default here on purpose: prod must state its own public URL.
+      # Fills the realm export's placeholders at import time: the clients'
+      # redirect URIs, web origins and post-logout URLs from
+      # PUBLIC_FRONTEND_URL, and the realm's own `frontendUrl` attribute from
+      # PUBLIC_KEYCLOAK_URL. That attribute overrides KC_HOSTNAME for this
+      # realm, so it is what decides the URLs in the login pages. No defaults
+      # here on purpose: prod must state its own public URLs.
       PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL}
+      PUBLIC_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
     restart: unless-stopped
 
   cib7:

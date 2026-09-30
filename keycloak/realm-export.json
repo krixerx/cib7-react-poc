@@ -36,7 +36,7 @@
   },
 
   "attributes": {
-    "frontendUrl": "http://localhost:8180"
+    "frontendUrl": "${PUBLIC_KEYCLOAK_URL}"
   },
 
   "roles": {

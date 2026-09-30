@@ -290,25 +290,31 @@ services:
     container_name: cib7-poc-keycloak
     command: ["start-dev", "--import-realm"]
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       # Pin a single canonical issuer URL so tokens carry the same `iss`
       # whether they're inspected by the browser (at localhost:8180) or by
       # the backend container (which reaches the same URL via
       # host.docker.internal). This is the standard fix for the
       # docker-internal vs browser hostname mismatch on JWT validation.
-      KC_HOSTNAME_URL: http://localhost:8180
+      #
+      # `KC_HOSTNAME`, not `KC_HOSTNAME_URL`: Keycloak 26 dropped the v1
+      # hostname options and only logs "Hostname v1 options [hostname-url,
+      # hostname-strict-https] are still in use" before ignoring them.
+      KC_HOSTNAME: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
       KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
-      # Resolves the PUBLIC_FRONTEND_URL placeholders in
-      # keycloak/realm-export.json (redirect URIs, web origins, post-logout
-      # URLs) while the realm is imported. Always set, so the placeholders
-      # never survive into the realm; the default keeps a bare
-      # `docker compose up` on localhost, docker-compose.prod.yml passes the
-      # real public URL from .env.
+      # Resolves the placeholders in keycloak/realm-export.json while the realm
+      # is imported: PUBLIC_FRONTEND_URL for the OAuth clients (redirect URIs,
+      # web origins, post-logout URLs) and PUBLIC_KEYCLOAK_URL for the realm's
+      # `frontendUrl` attribute, which overrides KC_HOSTNAME for this realm and
+      # is therefore what actually decides the URLs in Keycloak's login pages.
+      # Both always set, so no placeholder survives into the realm; the
+      # defaults keep a bare `docker compose up` on localhost, and
+      # docker-compose.prod.yml passes the real public URLs from .env.
       PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
+      PUBLIC_KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
     ports:
       - "8180:8080"
     volumes:

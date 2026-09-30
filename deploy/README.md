@@ -154,10 +154,18 @@ You need:
 
 **Only the secrets.** The browser-facing clients (`cib7-frontend`,
 `cib7-webapps`, `cib7-mobile`) already carry `${PUBLIC_FRONTEND_URL}`
-placeholders for their redirect URIs, web origins and post-logout URLs.
-Keycloak resolves them from the environment while it imports the realm,
-and `docker-compose.yml` passes `PUBLIC_FRONTEND_URL` from your `.env`,
-so a real hostname needs no JSON editing at all.
+placeholders for their redirect URIs, web origins and post-logout URLs,
+and the realm's own `frontendUrl` attribute carries
+`${PUBLIC_KEYCLOAK_URL}`. Keycloak resolves both from the environment
+while it imports the realm, and `docker-compose.yml` passes those two
+variables from your `.env`, so a real hostname needs no JSON editing at
+all.
+
+That `frontendUrl` attribute is worth knowing about: it decides every
+URL Keycloak writes into a login page for this realm and **overrides**
+`KC_HOSTNAME`. If your login form posts to `http://localhost:8180` on a
+public host, that attribute is what to look at — and because it is read
+at import time, fixing it needs Keycloak recreated, not restarted.
 
 ```jsonc
 // cib7-webapps (Cockpit/Tasklist/Admin SSO)

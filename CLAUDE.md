@@ -161,6 +161,17 @@ If a spec is missing a required field, stop and ask rather than guessing.
   and similar payloads are decoded to `byte[]` with the `pdf` helper bean
   (`PdfHelper.java`) so they spill to `ACT_GE_BYTEARRAY`, and re-encoded to base64
   in the FreeMarker payload at send time.
+- **The realm's `frontendUrl` outranks every `KC_HOSTNAME*` setting.** The
+  `attributes.frontendUrl` in `keycloak/realm-export.json` decides every URL
+  Keycloak writes into a login page for the `cib7-poc` realm, so it carries the
+  `${PUBLIC_KEYCLOAK_URL}` placeholder and must never be hardcoded: pinned to
+  localhost it produced a login form posting to `http://localhost:8180` on a
+  public deployment whose containers were all configured correctly, with nothing
+  in any log to say so. Related: Keycloak 26 **ignores** the v1 hostname options
+  (`KC_HOSTNAME_URL`, `KC_HOSTNAME_STRICT_HTTPS`) after logging `Hostname v1
+  options ... are still in use`, so the setting is `KC_HOSTNAME`, and the old
+  spelling looks correct in `docker inspect` while configuring nothing. Both are
+  import-time, so changing either needs Keycloak recreated, not restarted.
 - **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
 - **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
   namespace.
