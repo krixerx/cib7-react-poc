@@ -180,6 +180,14 @@ If a spec is missing a required field, stop and ask rather than guessing.
   agree; a mismatch takes the engine down at startup with
   `unauthorized_client / Invalid client credentials` from the token endpoint,
   naming neither file.
+- **Realm placeholders are `${VAR}`, never `${env.VAR}`.** Measured on Keycloak
+  26.1: a client whose secret is `${PROBE_SECRET}` imports as the environment's
+  value, and one written `${env.PROBE_SECRET}` imports as that literal string,
+  silently. An unresolved placeholder becomes the credential, so the symptom is
+  a 401 from the token endpoint rather than any import error. Applies to every
+  placeholder in the realm file — the client secrets, the clients'
+  `${PUBLIC_FRONTEND_URL}` redirect URIs and the realm's `${PUBLIC_KEYCLOAK_URL}`
+  `frontendUrl` alike.
 - **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
 - **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
   namespace.
