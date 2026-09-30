@@ -288,6 +288,13 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      # Resolves the PUBLIC_FRONTEND_URL placeholders in
+      # keycloak/realm-export.json (redirect URIs, web origins, post-logout
+      # URLs) while the realm is imported. Always set, so the placeholders
+      # never survive into the realm; the default keeps a bare
+      # `docker compose up` on localhost, docker-compose.prod.yml passes the
+      # real public URL from .env.
+      PUBLIC_FRONTEND_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
     ports:
       - "8180:8080"
     volumes:

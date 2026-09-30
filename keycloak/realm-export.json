@@ -191,15 +191,17 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost:3001/*",
-        "http://localhost:3000/mobile/*"
+        "http://localhost:3000/mobile/*",
+        "${PUBLIC_FRONTEND_URL}/mobile/*"
       ],
       "webOrigins": [
         "http://localhost:3001",
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "${PUBLIC_FRONTEND_URL}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3001/*##http://localhost:3000/mobile/*"
+        "post.logout.redirect.uris": "http://localhost:3001/*##http://localhost:3000/mobile/*##${PUBLIC_FRONTEND_URL}/mobile/*"
       },
       "defaultClientScopes": [
         "cib7-claims"
@@ -228,15 +230,17 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost:3000/*",
-        "http://localhost:5173/*"
+        "http://localhost:5173/*",
+        "${PUBLIC_FRONTEND_URL}/*"
       ],
       "webOrigins": [
         "http://localhost:3000",
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "${PUBLIC_FRONTEND_URL}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*##${PUBLIC_FRONTEND_URL}/*"
       },
       "defaultClientScopes": ["cib7-claims"],
       "protocolMappers": [
@@ -291,13 +295,19 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://localhost:3000/login/oauth2/code/keycloak",
-        "http://localhost:3000/camunda/*"
+        "http://localhost:3000/camunda/*",
+        "http://localhost:8080/login/oauth2/code/keycloak",
+        "http://localhost:8080/camunda/*",
+        "${PUBLIC_FRONTEND_URL}/login/oauth2/code/keycloak",
+        "${PUBLIC_FRONTEND_URL}/camunda/*"
       ],
       "webOrigins": [
-        "http://localhost:3000"
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "${PUBLIC_FRONTEND_URL}"
       ],
       "attributes": {
-        "post.logout.redirect.uris": "http://localhost:3000/*"
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:8080/*##${PUBLIC_FRONTEND_URL}/*"
       },
       "defaultClientScopes": ["cib7-claims"]
     },

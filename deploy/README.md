@@ -145,31 +145,24 @@ You need:
 
 ### 1. Edit `keycloak/realm-export.json` (before first start!)
 
-Replace localhost URLs and dev secrets in three clients:
+**Only the secrets.** The browser-facing clients (`cib7-frontend`,
+`cib7-webapps`, `cib7-mobile`) already carry `${PUBLIC_FRONTEND_URL}`
+placeholders for their redirect URIs, web origins and post-logout URLs.
+Keycloak resolves them from the environment while it imports the realm,
+and `docker-compose.yml` passes `PUBLIC_FRONTEND_URL` from your `.env`,
+so a real hostname needs no JSON editing at all.
 
 ```jsonc
-// cib7-frontend (the SPA)
-"redirectUris": ["https://app.example.com/*"],
-"webOrigins":   ["https://app.example.com"],
-"attributes": { "post.logout.redirect.uris": "https://app.example.com/*" }
-
 // cib7-webapps (Cockpit/Tasklist/Admin SSO)
-"secret": "<your KEYCLOAK_WEBAPPS_CLIENT_SECRET>",
-"redirectUris": [
-  "https://app.example.com/login/oauth2/code/keycloak",
-  "https://app.example.com/camunda/*"
-],
-"webOrigins": ["https://app.example.com"],
-"attributes": { "post.logout.redirect.uris": "https://app.example.com/*" }
-
-// cib7-mobile (the Flutter applicant app, served under /mobile)
-"redirectUris": ["https://app.example.com/mobile/*"],
-"webOrigins":   ["https://app.example.com"],
-"attributes": { ..., "post.logout.redirect.uris": "https://app.example.com/mobile/*" }
+"secret": "<your KEYCLOAK_WEBAPPS_CLIENT_SECRET>"
 
 // cib7-backend          → "secret": "<your KEYCLOAK_BACKEND_CLIENT_SECRET>"
 // cib7-business         → "secret": "<your KEYCLOAK_BUSINESS_CLIENT_SECRET>"
 ```
+
+The localhost entries stay in the file next to the placeholders. They are
+what single-machine evaluation runs on, and they are harmless on a real
+deployment because nothing can reach them.
 
 Generate secrets with `openssl rand -hex 32` (hex only — a `+`/`/`/`=`
 from base64 inside a Keycloak client secret breaks the form-encoded token

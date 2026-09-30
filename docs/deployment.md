@@ -71,7 +71,7 @@ below are POSIX; Windows hosts need a different mount path):
 | File | Purpose |
 |---|---|
 | `.env` | Per-deploy hostnames + secrets. Copy from `.env.example`. |
-| `keycloak/realm-export.json` | Redirect URIs, web origins, and client secrets. Edit **before first boot** — Keycloak's `--import-realm` runs once (see project memory: realm import is one-shot). ⚠ Developers: `deploy/keycloak/realm-export.json` is a copy for the pull-only bundle — keep the two in sync when changing clients/roles/users. |
+| `keycloak/realm-export.json` | Client secrets. Edit **before first boot** — Keycloak's `--import-realm` runs once (see project memory: realm import is one-shot). Redirect URIs, web origins and post-logout URLs need no editing: they carry `${PUBLIC_FRONTEND_URL}` placeholders resolved at import time. ⚠ Developers: `deploy/keycloak/realm-export.json` is a copy for the pull-only bundle — keep the two in sync when changing clients/roles/users. |
 | `/opt/volumes/traefik/certs/*.{crt,key}` | TLS certificate + private key. Read by Traefik via the file provider. |
 | `/opt/volumes/traefik/dynamic/tls.yml` | Tells Traefik which cert files to load. Copied from `traefik/dynamic/tls.yml.example`. Hot-reloaded (no restart on cert rotation). |
 | `docker-compose.prod.yml` | Overlay that reads `.env`. Don't normally edit. |
@@ -81,41 +81,56 @@ below are POSIX; Windows hosts need a different mount path):
 
 ### 1. Edit the realm export
 
-Before the very first `docker compose up`, open
-`keycloak/realm-export.json` and replace localhost URLs and dev
-secrets. Three clients need attention:
+**URLs are automatic.** The three browser-facing clients carry
+`${PUBLIC_FRONTEND_URL}` placeholders that Keycloak resolves from the
+environment while it imports the realm, and the compose files pass that
+variable to the Keycloak container. Nothing to edit for a new hostname:
 
 ```jsonc
 // cib7-frontend (public SPA)
-"redirectUris": ["https://app.example.com/*"],
-"webOrigins":   ["https://app.example.com"],
-"attributes": {
-  "post.logout.redirect.uris": "https://app.example.com/*"
-}
+"redirectUris": ["http://localhost:3000/*", "http://localhost:5173/*",
+                 "${PUBLIC_FRONTEND_URL}/*"]
 
-// cib7-webapps (Cockpit/Tasklist/Admin SSO)
-// NOTE: Traefik now routes /camunda + /login + /oauth2 through the SPA
-// host, so the redirect URIs live on app.example.com, not a separate
-// engine.example.com.
-"secret": "<paste KEYCLOAK_WEBAPPS_CLIENT_SECRET>",
-"redirectUris": [
-  "https://app.example.com/login/oauth2/code/keycloak",
-  "https://app.example.com/camunda/*"
-],
-"webOrigins": ["https://app.example.com"],
-"attributes": {
-  "post.logout.redirect.uris": "https://app.example.com/*"
-}
+// cib7-webapps (Cockpit/Tasklist/Admin SSO). Traefik routes /camunda,
+// /login and /oauth2 through the SPA host, so these live on the SPA URL,
+// not a separate engine hostname. The :8080 pair covers the engine run
+// standalone with `mvn spring-boot:run`.
+"redirectUris": ["http://localhost:3000/login/oauth2/code/keycloak",
+                 "http://localhost:3000/camunda/*",
+                 "http://localhost:8080/login/oauth2/code/keycloak",
+                 "http://localhost:8080/camunda/*",
+                 "${PUBLIC_FRONTEND_URL}/login/oauth2/code/keycloak",
+                 "${PUBLIC_FRONTEND_URL}/camunda/*"]
 
-// cib7-backend (engine's identity-plugin service account)
+// cib7-mobile (Flutter app, served under /mobile on the SPA host)
+"redirectUris": ["http://localhost:3001/*", "http://localhost:3000/mobile/*",
+                 "${PUBLIC_FRONTEND_URL}/mobile/*"]
+```
+
+**Secrets are not.** Before the very first `docker compose up`, open
+`keycloak/realm-export.json` and replace the three dev client secrets:
+
+```jsonc
+// cib7-webapps  (Cockpit/Tasklist/Admin SSO)
+"secret": "<paste KEYCLOAK_WEBAPPS_CLIENT_SECRET>"
+
+// cib7-backend  (engine's identity-plugin service account)
 "secret": "<paste KEYCLOAK_BACKEND_CLIENT_SECRET>"
 
 // cib7-business (business microservice's /engine-rest service account)
 "secret": "<paste KEYCLOAK_BUSINESS_CLIENT_SECRET>"
 ```
 
-Generate strong secrets — e.g. `openssl rand -base64 36`. Use the
-**same values** in `.env` (next step).
+Generate them with `openssl rand -hex 32`. Hex only: a `+`, `/` or `=`
+from base64 inside a Keycloak client secret breaks the form-encoded token
+request with `401 invalid_client`. Use the **same values** in `.env`
+(next step).
+
+Both the placeholders and the secrets are read once, on the first start.
+If `PUBLIC_FRONTEND_URL` changes later, the running realm keeps the old
+URIs until the realm is re-imported (see
+[Day-2 operations](#day-2-operations)) or the clients are edited in the
+Keycloak admin console.
 
 Also consider removing or renaming the seeded `bart`/`homer` users —
 they exist for demo logins.
