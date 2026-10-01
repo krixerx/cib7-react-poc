@@ -6,7 +6,7 @@
 # `camel run --source-dir=/routes`, loading every *.yaml route in the directory).
 # Adding an integration in a later stage is just dropping a new route file in
 # esb/routes/ — no Dockerfile change.
-FROM apache/camel-jbang:4.20.0-21-jdk
+FROM apache/camel-jbang:4.22.1-21-jdk
 
 # NOTE: startup logs one benign warning — "Failed to create working directory:
 # /.camel-jbang" — because the base image's user has OS home "/" (not writable).
