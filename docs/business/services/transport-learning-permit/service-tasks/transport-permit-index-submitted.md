@@ -19,7 +19,7 @@ Between `Task_TransportPermitApplication` (application user task) and
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/documents/index-case` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/internal/cases/index` | `Content-Type: application/json` |
 
 ## Payload
 
@@ -47,7 +47,7 @@ on it.
 
 - Goes through the **internal** chain (`X-Internal-Token`) — the call crosses
   the integration bus (`esb`), which injects the token on the
-  `/api/documents` route. No token header in the BPMN —
+  `/api/internal` route. No token header in the BPMN —
   `/service-builder` must not re-add it.
 - The `summary` is written for an LLM reader: natural language,
   information-dense, phrased the way an applicant would ask about their case.

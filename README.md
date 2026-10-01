@@ -121,7 +121,7 @@ Vehicle Registration (BPMN + DMN)
     │    names, age, email, ID-document upload, a vehicle picked from the
     │    curated registry, optional co-owners — assignee = ${initiator}
     │  ◀───────────────────────────────────────────────────────────────────┐
-    ▼  Attach owner ID document   service task → backend /api/documents    │
+    ▼  Attach owner ID document   service task → backend /api/internal     │
     ▼  Co-owner signatures        multi-instance subprocess (email links,  │
     │    public /confirm-owner/{token} pages, message correlation)         │
     ▼  Look up vehicle in registry  service task (http-connector)          │
@@ -134,7 +134,8 @@ Vehicle Registration (BPMN + DMN)
     │                                      ⏱ PT2M reminder · Accept /      │
     │                                      Send back ───────────────────────┘
     ▼  Generate + store state-fee invoice PDF  (pdf-renderer → backend S3)
-    ▼  Wait for state fee payment   receive task — public /pay/{piId} page
+    ▼  Wait for state fee payment   receive task — public /pay/{token} page,
+    │    paid only on the provider's signed callback (demo bank)
     ▼  Generate + store registration certificate
     ▼  end — "Vehicle registered"
 ```
@@ -246,7 +247,7 @@ run the builder, how to test — see
   tasks reuse the same connector against Mailpit's `/api/v1/send` JSON
   endpoint; the PDF tasks call a tiny Node sidecar (`pdf-renderer/`) that
   fronts Gotenberg, then store the result through the backend's
-  `/api/documents/server-upload`.
+  `/api/internal/documents/server-upload`.
 - The **CIB seven webapps** (Cockpit / Tasklist / Admin) live under
   `/camunda/*` on the engine. A second `SecurityFilterChain` drives the
   Spring Security OAuth2 Authorization Code flow against the
@@ -260,6 +261,31 @@ run the builder, how to test — see
   behind the request. Graylog is not published on any routable interface —
   see [Centralised logging](#centralised-logging-graylog) and
   [`docs/logging.md`](docs/logging.md).
+
+## Security
+
+The stack follows a written set of mandatory rules,
+[`docs/security.md`](docs/security.md), each backed by negative tests. The
+table maps the main controls to the
+[OWASP Top 10 (2021)](https://owasp.org/Top10/). This is a design mapping,
+not a certification. No external penetration test has been done.
+
+| OWASP risk | Controls |
+|---|---|
+| A01 Broken access control | Least-privilege engine grants: applicants reach only the cases they started, through per-instance grants. Civil servants work only tasks routed to their group. Every document key and case id is checked against the caller. `/api` paths fall into public, internal or JWT classes, and anything unmatched is denied. |
+| A02 Cryptographic failures | Co-owner, founder and payment links are HMAC-SHA256 signed and bound to case, party, round and expiry. They are never stored and are compared in constant time. HSTS sits on the TLS routers. |
+| A03 Injection | Every form has a variable allowlist (`variable-policy.json`), so clients can't set system variables. Config beans can't be shadowed by process variables. FreeMarker output is escaped with `?json_string`/`?html`, and the MCP tools frame applicant text as untrusted for the LLM. |
+| A04 Insecure design | Payment counts only on a provider callback signed with HMAC that matches the server-computed amount; the demo uses a mock bank. Capability links are minted server-side, never in the browser. |
+| A05 Security misconfiguration | CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`. Rate limits on public endpoints and MCP. Engine-only endpoints return 404 at the edge. `DefaultSecretsGuard` refuses dev-default secrets when `APP_REQUIRE_REAL_SECRETS=true`. |
+| A06 Vulnerable components | Pinned images, Dependabot, `npm audit` and Trivy scans. Images are published only after the quality workflow passes. |
+| A07 Authentication failures | Keycloak OIDC with PKCE. Tokens are kept in memory. JWT signature, issuer and audience are checked by the engine, the backend and MCP. |
+| A08 Integrity failures | Internal calls need `X-Bus-Token` at the ESB and `X-Internal-Token` at the backend. CI deploys pin the image tag to the commit SHA. |
+| A09 Logging and monitoring | Structured GELF logs with the acting user id go to Graylog, which is loopback-only. The engine history records who did what. |
+| A10 SSRF | Every connector URL is built on a reserved `busBaseUrl` bean. Separate Docker networks isolate the services, and Gotenberg renders with JavaScript off and internal hosts on a deny list. |
+
+**Demo exemptions:** the seeded users and passwords, dev-default secrets,
+self-signed TLS, Keycloak `start-dev` and in-memory H2 are accepted for the
+demo and listed in `docs/security.md`. Replace them before real use.
 
 ## Talk to it from Claude Desktop (or any MCP client)
 

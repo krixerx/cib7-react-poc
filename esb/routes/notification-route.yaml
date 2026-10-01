@@ -28,12 +28,15 @@
 # the esb service. We read it via toD + the simple language (${env.X}); Camel
 # JBang's {{env:...}} property-placeholder function does not resolve env vars
 # here, but the simple-language env lookup does.
+#
+# Callers authenticate with X-Bus-Token first (direct:bus-auth, bus-auth.yaml).
 # ─────────────────────────────────────────────────────────────────────────────
 - route:
     id: notification-bus
     from:
       uri: "platform-http:/api/v1/send?httpMethodRestrict=POST"
       steps:
+        - to: "direct:bus-auth"
         - log:
             message: "[ESB] notification crossing the bus correlationId=${exchangeId} -> mailpit"
         - removeHeader:

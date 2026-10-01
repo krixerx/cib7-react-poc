@@ -76,7 +76,7 @@ if [ "$DO_BACKUP" = 1 ]; then
   if [ -n "$vol" ]; then
     stamp=$(date +%Y%m%d-%H%M%S)
     say "backing up $vol -> rustfs-backup-$stamp.tgz"
-    docker run --rm -v "$vol":/data:ro -v "$PWD":/backup alpine \
+    docker run --rm -v "$vol":/data:ro -v "$PWD":/backup alpine:3.24\
       tar czf "/backup/rustfs-backup-$stamp.tgz" -C / data
   else
     echo "no rustfs-data volume found yet — nothing to back up"
@@ -91,6 +91,18 @@ if [ "$ASSUME_YES" != 1 ]; then
   printf 'Continue? [y/N] '
   read -r answer
   case "$answer" in y|Y|yes|YES) ;; *) echo "aborted"; exit 1 ;; esac
+fi
+
+# The frontend and mobile images run nginx unprivileged on 8080 (they used to
+# listen on 80). routes.yml is host-owned and never shipped, so a copy made
+# from the old example would leave every TLS route answering 502 while the
+# localhost smoke tests below still pass.
+if [ -f traefik/dynamic/routes.yml ] \
+   && grep -qE 'https?://(frontend|mobile):80"' traefik/dynamic/routes.yml; then
+  echo "REFUSING to deploy: traefik/dynamic/routes.yml still points at frontend:80 / mobile:80." >&2
+  echo "Both now listen on 8080. Re-copy routes.yml.example (it also adds the security" >&2
+  echo "headers and rate limits) or change the two URLs to :8080, then re-run." >&2
+  exit 1
 fi
 
 say "docker compose pull"

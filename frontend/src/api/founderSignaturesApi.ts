@@ -2,13 +2,13 @@
  * Typed client for the public co-founder signing endpoints.
  *
  * Mirror of {@link ./ownerConfirmationsApi.ts} — same pattern (per-founder
- * UUID token in the URL, no bearer header), OÜ semantics swapped in.
+ * capability token in the URL, no bearer header), OÜ semantics swapped in.
  *
  * The endpoints under `/api/public/founder-signatures/**` are
- * unauthenticated (see PublicApiSecurityConfig on the backend). Each call
- * carries only the per-founder UUID token in the URL. That's deliberate:
- * co-founders receive these links by email and don't have Keycloak
- * accounts.
+ * unauthenticated. Each call carries only the founder's capability token
+ * in the URL: co-founders receive these links by email and don't have
+ * Keycloak accounts. The token is signed by the engine and opaque to the
+ * SPA (docs/security.md rule 3).
  *
  * Same-origin path: the Vite dev server (vite.config.ts) and nginx
  * (nginx.conf) proxy `/api/**` to the backend.
@@ -16,10 +16,14 @@
 
 const BASE = '/api/public/founder-signatures';
 
+/**
+ * One founder as any link holder may see it: display name and signing state.
+ * The backend never returns another party's email or link token.
+ */
 export interface FounderEntry {
+  /** Server-assigned party id ("applicant", "p1", ...); stable within a round. */
+  partyId: string;
   name: string;
-  email: string;
-  token: string;
   isApplicant: boolean;
   /** "pending" | "approved" | "rejected" */
   status: string;

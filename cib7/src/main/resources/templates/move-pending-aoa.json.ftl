@@ -1,5 +1,5 @@
 <#--
-  /api/documents/move-pending payload for Task_AttachAoaDocument in
+  /api/internal/documents/move-pending payload for Task_AttachAoaDocument in
   business-registration.bpmn. Mirror of move-pending.json.ftl — same
   shape, different source variable + category.
 

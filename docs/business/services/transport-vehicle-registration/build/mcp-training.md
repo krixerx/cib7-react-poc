@@ -21,9 +21,9 @@ plate-collection instructions, followed by a service evaluation request.
 - `residencyStatus` = `visitor` is always rejected (demo rule: visitors
   must hold a residence card). Residents cannot register `commercial`
   vehicles. Warn the user instead of submitting a doomed application.
-- After officer approval the case waits on the fee payment — surface the
-  `/pay/{processInstanceId}` link when the user asks why nothing is
-  happening.
+- After officer approval the case waits on the fee payment — when the user
+  asks why nothing is happening, surface that the pay link is in the applicant's approval email and behind "Pay" in the web portal's My processes; there is no MCP payment tool and no
+  link the agent can build.
 - If the case is returned for corrections, `query_user_history('sendBackReason')`
   has the officer's notes; offer to fix and resubmit the same case.
 
@@ -80,7 +80,7 @@ same task to correct and resubmit. The officer's notes surface via
 - Process `running`, "Traffic officer review" open → with the back
   office.
 - Process `running`, "Wait for fee payment" active → approved; the
-  applicant must pay at `/pay/{processInstanceId}` (amount in EUR).
+  applicant must pay from the pay link in their approval email (amount in EUR).
 - Process `completed` via "Vehicle registered" → plate allocated and
   certificate emailed.
 - Process `completed` via "Application rejected" → see the rejection

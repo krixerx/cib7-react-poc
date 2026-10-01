@@ -1,5 +1,5 @@
 <#--
-  /api/documents/server-upload payload for Task_TransportStorePermit in
+  /api/internal/documents/server-upload payload for Task_TransportStorePermit in
   transport-learning-permit.bpmn. category generated-certificate is the existing
   allowed category for generated official documents.
 -->

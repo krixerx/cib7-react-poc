@@ -5,9 +5,14 @@
 
   Scope: this template runs inside one multi-instance subprocess iteration.
   The per-iteration element variable `founder` is a SpinJsonNode with prop()
-  accessors for name / email / token. Process-scope variables
-  (applicantFirstName, applicantLastName, companyName, frontendBaseUrl) are
-  also in scope.
+  accessors for partyId / name / email (ConsentPartiesListener wrote it).
+  Process-scope variables (applicantFirstName, applicantLastName,
+  companyName) and the reserved beans frontendBaseUrl and links are also in
+  scope.
+
+  The signing token is minted here by links.founder(execution, partyId) and
+  never stored: an HMAC over case, party, consentRound and expiry
+  (docs/security.md rule 3).
 
   ?json_string escapes embedded quotes / backslashes / newlines so the
   emitted payload is always valid JSON regardless of what the applicant
@@ -15,7 +20,7 @@
 -->
 <#assign founderName = founder.prop("name").stringValue()>
 <#assign founderEmail = founder.prop("email").stringValue()>
-<#assign founderToken = founder.prop("token").stringValue()>
+<#assign founderToken = links.founder(execution, founder.prop("partyId").stringValue())>
 <#assign applicantName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 <#assign signUrl = frontendBaseUrl + "/sign-founder/" + founderToken>
 <#assign body>Tere ${founderName},

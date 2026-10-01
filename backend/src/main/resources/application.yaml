@@ -14,7 +14,7 @@ spring:
 
   security:
     oauth2:
-      # Resource server: validates the SPA's Bearer JWTs on /api/documents/**.
+      # Resource server: validates the SPA's Bearer JWTs on /api/documents/** and /api/cases/**.
       # Same internal/external Keycloak URL split as the engine:
       #   jwk-set-uri — internal docker-network URL (the container can't
       #                 reach the browser-visible localhost:8180),
@@ -49,10 +49,22 @@ app:
   # Engine REST base URL (docker-network alias in compose, localhost for a
   # bare `mvn spring-boot:run` next to a locally running engine).
   engine-url: ${ENGINE_URL:http://localhost:8080}
-  # Shared secret for engine→backend calls from BPMN service tasks
-  # (move-pending + server-upload). The BPMN http-connector sends it as
-  # X-Internal-Token; SecurityConfig's internal chain compares it.
+  # Shared secret for every /api/internal/** endpoint (engine calls via the
+  # ESB). The ESB injects it as X-Internal-Token after checking the engine's
+  # X-Bus-Token; SecurityConfig's internal chain compares it.
   internal-task-token: ${INTERNAL_TASK_TOKEN:internal-task-token-change-me}
+  # Verifies the capability links the engine signs into emails (co-owner
+  # confirmation, founder signature, payment); must equal the engine's
+  # LINK_SIGNING_SECRET. See CapabilityLinkVerifier and docs/security.md rule 3.
+  links:
+    secret: ${LINK_SIGNING_SECRET:link-signing-secret-change-me}
+  payment:
+    # Key the payment provider signs its callbacks with (docs/security.md
+    # rule 4). The demo's MockPaymentProvider signs with the same value.
+    provider-secret: ${PAYMENT_PROVIDER_SECRET:payment-provider-secret-change-me}
+    # Where the mock provider delivers its signed callback: this backend's
+    # own public callback endpoint, reached over HTTP like a real provider.
+    callback-url: ${PAYMENT_CALLBACK_URL:http://localhost:8085/api/public/payments/callback}
   # Centralised logging (Graylog). Only consumed by logback-spring.xml, and only
   # when the `graylog` Spring profile is active — docker-compose.yml turns that
   # on, a bare `mvn spring-boot:run` leaves it off and logs to the console only.

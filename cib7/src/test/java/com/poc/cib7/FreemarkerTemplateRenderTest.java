@@ -1,11 +1,15 @@
 package com.poc.cib7;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.poc.cib7.links.CapabilityLinks;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import java.io.IOException;
@@ -13,11 +17,16 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.cibseven.bpm.engine.delegate.DelegateExecution;
 import org.cibseven.spin.Spin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -56,11 +65,19 @@ class FreemarkerTemplateRenderTest {
   }
 
   /** Stand-in for the DelegateExecution the connector exposes as {@code execution}. */
-  public static class FakeExecution {
-    public String getProcessInstanceId() {
-      return PI;
-    }
+  static DelegateExecution fakeExecution() {
+    DelegateExecution execution = mock(DelegateExecution.class);
+    when(execution.getProcessInstanceId()).thenReturn(PI);
+    when(execution.getVariable(CapabilityLinks.ROUND_VARIABLE)).thenReturn(1_700_000_000_000L);
+    return execution;
   }
+
+  static final CapabilityLinks LINKS =
+      new CapabilityLinks(
+          "test-secret",
+          Duration.ofDays(14),
+          Duration.ofDays(30),
+          Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
 
   private static Object spinJson(Object value) {
     try {
@@ -73,11 +90,11 @@ class FreemarkerTemplateRenderTest {
   /** Variables shared by both models — ids, URLs, helper beans, PDF bytes. */
   private static Map<String, Object> baseModel() {
     Map<String, Object> m = new HashMap<>();
-    m.put("execution", new FakeExecution());
+    m.put("execution", fakeExecution());
     m.put("pdf", new PdfHelper());
+    m.put("links", LINKS);
     m.put("frontendBaseUrl", "http://localhost:3000");
     m.put("initiator", "lisa");
-    m.put("applicantToken", "tok-applicant-1");
     m.put("applicantEmail", "ants@example.com");
     m.put("autoDecision", "approve");
     m.put("decision", "approve");
@@ -106,14 +123,12 @@ class FreemarkerTemplateRenderTest {
     m.put(
         "additionalOwners",
         spinJson(
-            List.of(
-                Map.of("name", "Olga Omanik", "email", "olga@example.com", "token", "tok-o1"))));
+            List.of(Map.of("name", "Olga Omanik", "email", "olga@example.com", "partyId", "p1"))));
     m.put(
         "additionalFounders",
         spinJson(
             List.of(
-                Map.of(
-                    "name", "Karl Kaasasutaja", "email", "karl@example.com", "token", "tok-f1"))));
+                Map.of("name", "Karl Kaasasutaja", "email", "karl@example.com", "partyId", "p1"))));
     m.put(
         "boardMembers",
         spinJson(
@@ -122,11 +137,10 @@ class FreemarkerTemplateRenderTest {
                     "firstName", "Mari", "lastName", "Maasikas", "personalCode", "48001010000"))));
     m.put(
         "owner",
-        spinJson(Map.of("name", "Olga Omanik", "email", "olga@example.com", "token", "tok-o1")));
+        spinJson(Map.of("name", "Olga Omanik", "email", "olga@example.com", "partyId", "p1")));
     m.put(
         "founder",
-        spinJson(
-            Map.of("name", "Karl Kaasasutaja", "email", "karl@example.com", "token", "tok-f1")));
+        spinJson(Map.of("name", "Karl Kaasasutaja", "email", "karl@example.com", "partyId", "p1")));
     m.put(
         "pendingIdDocument",
         spinJson(
@@ -169,11 +183,11 @@ class FreemarkerTemplateRenderTest {
     m.put(
         "additionalOwners",
         spinJson(
-            List.of(Map.of("name", HOSTILE_NAME, "email", "olga@example.com", "token", "tok-o1"))));
+            List.of(Map.of("name", HOSTILE_NAME, "email", "olga@example.com", "partyId", "p1"))));
     m.put(
         "additionalFounders",
         spinJson(
-            List.of(Map.of("name", HOSTILE_NAME, "email", "karl@example.com", "token", "tok-f1"))));
+            List.of(Map.of("name", HOSTILE_NAME, "email", "karl@example.com", "partyId", "p1"))));
     m.put(
         "boardMembers",
         spinJson(
@@ -187,10 +201,10 @@ class FreemarkerTemplateRenderTest {
                     "48001010000"))));
     m.put(
         "owner",
-        spinJson(Map.of("name", HOSTILE_NAME, "email", "olga@example.com", "token", "tok-o1")));
+        spinJson(Map.of("name", HOSTILE_NAME, "email", "olga@example.com", "partyId", "p1")));
     m.put(
         "founder",
-        spinJson(Map.of("name", HOSTILE_NAME, "email", "karl@example.com", "token", "tok-f1")));
+        spinJson(Map.of("name", HOSTILE_NAME, "email", "karl@example.com", "partyId", "p1")));
     m.put(
         "pendingIdDocument",
         spinJson(
@@ -279,6 +293,41 @@ class FreemarkerTemplateRenderTest {
     assertTrue(
         json.path("html").asText().contains("2500.00"),
         "share capital \"2,500\" should render as 2500.00");
+  }
+
+  /**
+   * Consent and payment links carry a minted capability token, not a stored id: the confirmation
+   * link is the one {@code links.owner} signs for the party, and the pay link does not expose the
+   * bare process instance id (docs/security.md rules 3 and 4).
+   */
+  @Test
+  void emailLinksCarryMintedCapabilityTokens() throws Exception {
+    String owner =
+        MAPPER
+            .readTree(render("owner-confirmation-email.json.ftl", cleanModel()))
+            .path("Text")
+            .asText();
+    String ownerToken = LINKS.owner(fakeExecution(), "p1");
+    assertTrue(owner.contains("/confirm-owner/" + ownerToken), owner);
+
+    String tracking =
+        MAPPER
+            .readTree(render("applicant-tracking-email.json.ftl", cleanModel()))
+            .path("Text")
+            .asText();
+    String applicantToken = LINKS.owner(fakeExecution(), "applicant");
+    assertTrue(tracking.contains("/confirm-owner/" + applicantToken), tracking);
+
+    for (String template :
+        List.of(
+            "approval-email.json.ftl",
+            "business-approval-email.json.ftl",
+            "transport-permit-payment-email.json.ftl",
+            "transport-vehicle-payment-email.json.ftl")) {
+      String text = MAPPER.readTree(render(template, cleanModel())).path("Text").asText();
+      assertFalse(text.contains("/pay/" + PI), template + " still links the bare instance id");
+      assertTrue(text.matches("(?s).*/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+.*"), template);
+    }
   }
 
   @Test

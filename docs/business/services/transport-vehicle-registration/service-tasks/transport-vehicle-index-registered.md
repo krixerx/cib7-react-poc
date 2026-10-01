@@ -20,7 +20,7 @@ can truthfully say it was issued), before the notification emails.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/documents/index-case` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/internal/cases/index` | `Content-Type: application/json` |
 
 ## Payload
 

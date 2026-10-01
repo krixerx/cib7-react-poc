@@ -2,8 +2,6 @@ package com.poc.backend.documents;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -24,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -41,13 +38,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -57,7 +51,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 /**
  * Web-slice tests for the documents API: request validation, the 404-not-403 case-access contract
  * (no existence probing), object-key shaping (pending/ vs process/, filename sanitization), the
- * byte caps on both base64 endpoints, and the S3 call choreography.
+ * byte cap on the staging endpoint, storage-key ownership, and the S3 call choreography.
  *
  * <p>Security filters are off ({@code addFilters = false}); the JWT identity is planted straight
  * into {@link SecurityContextHolder} (MockMvc dispatches on the calling thread), because {@code
@@ -383,12 +377,76 @@ class DocumentsControllerWebTest {
                           + "\"contentType\":\"image/png\",\"category\":\"applicant-id-document\"}"))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.attachmentId").isNotEmpty())
-          .andExpect(jsonPath("$.key").value("pending/lisa/u/id.png"));
+          .andExpect(jsonPath("$.key").doesNotExist());
 
       ArgumentCaptor<Document> saved = ArgumentCaptor.forClass(Document.class);
       verify(documents).save(saved.capture());
       assertThat(saved.getValue().getUploaderUserId()).isEqualTo(USER);
       assertThat(saved.getValue().getProcessInstanceId()).isEqualTo(PI);
+    }
+
+    private String registerBody(String key) {
+      return "{\"key\":\""
+          + key
+          + "\",\"filename\":\"id.png\","
+          + "\"contentType\":\"image/png\",\"category\":\"applicant-id-document\"}";
+    }
+
+    @Test
+    void registerRefusesAnotherUsersPendingKey() throws Exception {
+      when(caseAccess.canAccessCase(PI)).thenReturn(true);
+      givenObjectExists();
+
+      mvc.perform(
+              post("/api/documents/{pi}/attachments", PI)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(registerBody("pending/bart/u/id.png")))
+          .andExpect(status().isBadRequest())
+          .andExpect(
+              jsonPath("$.message").value("Object not found in storage. Did the upload complete?"));
+
+      verify(documents, never()).save(any());
+      verify(s3, never()).headObject(any(HeadObjectRequest.class));
+    }
+
+    @Test
+    void registerRefusesAnotherCasesProcessKey() throws Exception {
+      when(caseAccess.canAccessCase(PI)).thenReturn(true);
+      givenObjectExists();
+
+      mvc.perform(
+              post("/api/documents/{pi}/attachments", PI)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(registerBody("process/pi-other/u/id.png")))
+          .andExpect(status().isBadRequest());
+
+      verify(documents, never()).save(any());
+    }
+
+    @Test
+    void registerRefusesTraversalOutOfTheCallersPrefix() throws Exception {
+      when(caseAccess.canAccessCase(PI)).thenReturn(true);
+      givenObjectExists();
+
+      mvc.perform(
+              post("/api/documents/{pi}/attachments", PI)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(registerBody("pending/lisa/../bart/id.png")))
+          .andExpect(status().isBadRequest());
+
+      verify(documents, never()).save(any());
+    }
+
+    @Test
+    void registerAcceptsAKeyAlreadyFiledUnderThisCase() throws Exception {
+      when(caseAccess.canAccessCase(PI)).thenReturn(true);
+      givenObjectExists();
+
+      mvc.perform(
+              post("/api/documents/{pi}/attachments", PI)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(registerBody("process/" + PI + "/u/id.png")))
+          .andExpect(status().isOk());
     }
 
     @Test
@@ -414,7 +472,7 @@ class DocumentsControllerWebTest {
           .andExpect(jsonPath("$[0].id").value(doc.getId()))
           .andExpect(jsonPath("$[0].category").value("applicant-id-document"))
           .andExpect(jsonPath("$[0].uploaderUserId").value(USER))
-          .andExpect(jsonPath("$[0].key").value("process/pi-42/u/id.png"))
+          .andExpect(jsonPath("$[0].key").doesNotExist())
           .andExpect(jsonPath("$[0].createdAt").isNotEmpty());
     }
   }
@@ -474,151 +532,6 @@ class DocumentsControllerWebTest {
           .isEqualTo("attachment; filename=\"naughty_file.png\"");
       assertThat(presign.getValue().getObjectRequest().key())
           .isEqualTo("process/pi-42/u/naughty_file.png");
-    }
-  }
-
-  // =====================================================================
-  // Internal endpoints: /move-pending + /server-upload
-  // =====================================================================
-
-  @Nested
-  class InternalEndpoints {
-
-    @BeforeEach
-    void runOnTheInternalChain() {
-      // These endpoints are called by the engine with X-Internal-Token,
-      // not a JWT — drop the planted user.
-      logout();
-    }
-
-    private String moveBody(String pendingKey) {
-      return "{\"pendingKey\":\""
-          + pendingKey
-          + "\",\"processInstanceId\":\""
-          + PI
-          + "\","
-          + "\"filename\":\"id.png\",\"contentType\":\"image/png\","
-          + "\"category\":\"applicant-id-document\"}";
-    }
-
-    @Test
-    void movePendingRefusesKeysOutsideThePendingPrefix() throws Exception {
-      mvc.perform(
-              post("/api/documents/move-pending")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(moveBody("process/pi-1/u/sneaky.png")))
-          .andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.message").value("pendingKey must live under pending/"));
-    }
-
-    @Test
-    void movePendingWithAMissingObjectIs400() throws Exception {
-      // The other objectExists branch: a plain S3Exception with status 404.
-      when(s3.headObject(any(HeadObjectRequest.class)))
-          .thenThrow(S3Exception.builder().statusCode(404).build());
-
-      mvc.perform(
-              post("/api/documents/move-pending")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(moveBody("pending/lisa/u/id.png")))
-          .andExpect(status().isBadRequest())
-          .andExpect(
-              jsonPath("$.message")
-                  .value("Pending object not found — already migrated or never uploaded?"));
-    }
-
-    @Test
-    void movePendingCopiesThenDeletesAndKeepsTheUploaderFromTheKey() throws Exception {
-      givenObjectExists();
-
-      mvc.perform(
-              post("/api/documents/move-pending")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(moveBody("pending/lisa/some-uuid/id.png")))
-          .andExpect(status().isOk())
-          .andExpect(
-              jsonPath("$.key")
-                  .value(
-                      org.hamcrest.Matchers.matchesPattern(
-                          "process/" + PI + "/" + UUID_RE + "/id\\.png")));
-
-      InOrder order = inOrder(s3);
-      ArgumentCaptor<CopyObjectRequest> copy = ArgumentCaptor.forClass(CopyObjectRequest.class);
-      ArgumentCaptor<DeleteObjectRequest> delete =
-          ArgumentCaptor.forClass(DeleteObjectRequest.class);
-      order.verify(s3).copyObject(copy.capture());
-      order.verify(s3).deleteObject(delete.capture());
-      assertThat(copy.getValue().sourceKey()).isEqualTo("pending/lisa/some-uuid/id.png");
-      assertThat(copy.getValue().destinationKey()).startsWith("process/" + PI + "/");
-      assertThat(delete.getValue().key()).isEqualTo("pending/lisa/some-uuid/id.png");
-
-      ArgumentCaptor<Document> saved = ArgumentCaptor.forClass(Document.class);
-      verify(documents).save(saved.capture());
-      assertThat(saved.getValue().getUploaderUserId()).isEqualTo("lisa");
-    }
-
-    /** Regression for 92cdb08: the byte cap applies to /server-upload, not just /stage. */
-    @Test
-    void serverUploadEnforcesTheSameByteCapAsStage() throws Exception {
-      mvc.perform(
-              post("/api/documents/server-upload")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(
-                      "{\"processInstanceId\":\""
-                          + PI
-                          + "\",\"filename\":\"approval.pdf\","
-                          + "\"contentType\":\"application/pdf\","
-                          + "\"category\":\"generated-approval-pdf\","
-                          + "\"base64\":\""
-                          + base64Of((int) MAX_BYTES + 1)
-                          + "\"}"))
-          .andExpect(status().isBadRequest())
-          .andExpect(jsonPath("$.message").value("decoded size must be between 1 and 1024 bytes."));
-
-      verify(s3, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
-      verify(documents, never()).save(any());
-    }
-
-    @Test
-    void serverUploadStoresEngineGeneratedDocumentsWithoutAnUploader() throws Exception {
-      mvc.perform(
-              post("/api/documents/server-upload")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(
-                      "{\"processInstanceId\":\""
-                          + PI
-                          + "\",\"filename\":\"approval.pdf\","
-                          + "\"contentType\":\"application/pdf\","
-                          + "\"category\":\"generated-approval-pdf\","
-                          + "\"base64\":\""
-                          + base64Of(32)
-                          + "\"}"))
-          .andExpect(status().isOk())
-          .andExpect(
-              jsonPath("$.key")
-                  .value(
-                      org.hamcrest.Matchers.matchesPattern(
-                          "process/" + PI + "/" + UUID_RE + "/approval\\.pdf")));
-
-      ArgumentCaptor<Document> saved = ArgumentCaptor.forClass(Document.class);
-      verify(documents).save(saved.capture());
-      assertThat(saved.getValue().getUploaderUserId()).isNull();
-      assertThat(saved.getValue().getCategory()).isEqualTo("generated-approval-pdf");
-    }
-
-    @Test
-    void caseAccessIsNeverConsultedOnTheInternalChain() throws Exception {
-      givenObjectExists();
-
-      mvc.perform(
-              post("/api/documents/move-pending")
-                  .contentType(MediaType.APPLICATION_JSON)
-                  .content(moveBody("pending/lisa/u/id.png")))
-          .andExpect(status().isOk());
-
-      // Authorization for these endpoints is the X-Internal-Token filter
-      // (tested separately); the per-case JWT check must not interfere.
-      verify(caseAccess, never()).canAccessCase(anyString());
     }
   }
 }

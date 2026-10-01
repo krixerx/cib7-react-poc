@@ -27,6 +27,15 @@ Thumbs.db
 **/.claude/settings.local.json
 .gstack/
 
+# Secrets: every .env file anywhere in the tree (docs/security.md rule 12),
+# including sed backups like .env.bak and per-environment .env.prod. Only the
+# committed templates are exempt.
+.env
+.env.*
+*.env
+!.env.example
+!*.env.example
+
 # Per-host deployment config & secrets — local-only, synced to the server
 # out-of-band (scp), never committed, so the public bundle stays generic.
 deploy/.env

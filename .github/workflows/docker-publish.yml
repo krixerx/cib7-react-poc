@@ -9,28 +9,16 @@ permissions:
   contents: read
 
 jobs:
-  # The only real quality gate the repo has today.
-  # Add `npm test` / `mvn test` steps here once tests exist.
-  frontend-typecheck:
-    name: Frontend typecheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          # 22 — keep in sync with quality.yml: npm 10.8 (node 20) rejects
-          # the lock's date-fns hoisting written by npm 10.9 (node 22).
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-        working-directory: frontend
-      - run: npm run typecheck
-        working-directory: frontend
+  # The full quality workflow (Spotless + tests for both Java modules, lint,
+  # typecheck, tests and build for frontend and mcp), called as a reusable
+  # workflow. Nothing is published unless it passes (docs/security.md rule 11).
+  quality:
+    name: Quality gates
+    uses: ./.github/workflows/quality.yml
 
   build-and-push:
     name: Build & push ${{ matrix.image }}
-    needs: [frontend-typecheck]
+    needs: [quality]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,6 +64,31 @@ jobs:
             type=raw,value=latest
             type=sha,format=short,prefix=
 
+      # Built into the runner's local image store first, so the scan below
+      # looks at exactly what would be pushed and a failed scan pushes nothing.
+      - name: Build for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: scan/${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+
+      # Fails on HIGH/CRITICAL vulnerabilities that have a fix available.
+      # Accepted findings go in .trivyignore with a reason, not in this file.
+      # Pinned to a commit: trivy-action's tags have been re-pointed before.
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: scan/${{ matrix.image }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      # Same inputs and cache as the scanned build, so this is a cache hit.
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}

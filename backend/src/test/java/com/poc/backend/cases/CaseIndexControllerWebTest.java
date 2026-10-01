@@ -42,7 +42,7 @@ class CaseIndexControllerWebTest {
   @Test
   void missingFieldsAreBadRequest() throws Exception {
     mvc.perform(
-            post("/api/documents/index-case")
+            post("/api/internal/cases/index")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"processInstanceId\": \"pi-1\"}"))
         .andExpect(status().isBadRequest())
@@ -52,7 +52,7 @@ class CaseIndexControllerWebTest {
   @Test
   void cardIsStoredWithProcessInstanceIdAsPrimaryKey() throws Exception {
     mvc.perform(
-            post("/api/documents/index-case")
+            post("/api/internal/cases/index")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID))
         .andExpect(status().isOk())
@@ -72,7 +72,7 @@ class CaseIndexControllerWebTest {
   void oversizedSummaryIsTruncatedNotRejected() throws Exception {
     String longSummary = "insurance ".repeat(1000).trim();
     mvc.perform(
-            post("/api/documents/index-case")
+            post("/api/internal/cases/index")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -97,7 +97,7 @@ class CaseIndexControllerWebTest {
     doThrow(new RuntimeException("H2 down")).when(repository).save(any());
 
     mvc.perform(
-            post("/api/documents/index-case")
+            post("/api/internal/cases/index")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(VALID))
         .andExpect(status().isOk())

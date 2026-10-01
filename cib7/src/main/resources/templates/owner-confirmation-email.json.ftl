@@ -5,8 +5,13 @@
 
   Scope: this template runs inside one multi-instance subprocess iteration.
   The per-iteration element variable `owner` is a SpinJsonNode with prop()
-  accessors for name / email / token. Process-scope variables (firstName,
-  lastName, frontendBaseUrl) are also in scope.
+  accessors for partyId / name / email (ConsentPartiesListener wrote it).
+  Process-scope variables (firstName, lastName) and the reserved beans
+  frontendBaseUrl and links are also in scope.
+
+  The confirmation token is minted here by links.owner(execution, partyId)
+  and never stored: an HMAC over case, party, consentRound and expiry
+  (docs/security.md rule 3).
 
   ?json_string escapes embedded quotes / backslashes / newlines so the
   emitted payload is always valid JSON regardless of what the applicant
@@ -14,7 +19,7 @@
 -->
 <#assign ownerName = owner.prop("name").stringValue()>
 <#assign ownerEmail = owner.prop("email").stringValue()>
-<#assign ownerToken = owner.prop("token").stringValue()>
+<#assign ownerToken = links.owner(execution, owner.prop("partyId").stringValue())>
 <#assign applicantName = (firstName!"") + " " + (lastName!"")>
 <#assign confirmUrl = frontendBaseUrl + "/confirm-owner/" + ownerToken>
 <#assign body>Hello ${ownerName},

@@ -35,6 +35,7 @@ The docs are split into two layers:
 | Touch React code: pages, forms, the form registry, the REST client, auth | [`frontend.md`](frontend.md) |
 | Touch Java code: Spring Boot wiring, engine config, BPMN auto-deploy, the connector, Keycloak | [`cib7.md`](cib7.md) |
 | Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture-poc) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
+| Add or change an endpoint, grant, variable, token link, integration or container (mandatory rules) | [`security.md`](security.md) |
 | Reference the form contract between BPMN and React | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
 | Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](business/services/) |
 | Add a new business service | [`business/services/`](business/services/) — copy an existing service folder as a template |

@@ -1,14 +1,19 @@
 # ============================================================================
 # cib7-react-poc — pull-only deployment (no source checkout, no build).
 #
-# All five application images are published to Docker Hub by CI on every
-# push to main:
+# All seven application images are published to Docker Hub by CI on every
+# push to main that passes the quality workflow:
 #
-#   docker.io/krixerx/cib7-poc-frontend       React SPA (nginx)
+#   docker.io/krixerx/cib7-poc-frontend       React SPA (nginx, port 8080)
+#   docker.io/krixerx/cib7-poc-mobile         Flutter web applicant app (nginx, 8080)
 #   docker.io/krixerx/cib7-poc-cib7           CIB seven 2.1 process engine
 #   docker.io/krixerx/cib7-poc-backend        business microservice (/api)
 #   docker.io/krixerx/cib7-poc-mcp            MCP sidecar (AI front door)
 #   docker.io/krixerx/cib7-poc-pdf-renderer   Gotenberg facade
+#   docker.io/krixerx/cib7-poc-esb            integration bus (Apache Camel)
+#
+# Every image runs as a non-root user. Containers share a network only when
+# one calls the other; the map is the `networks:` block at the bottom.
 #
 # Quick start (single machine, browsers on the same host):
 #
@@ -33,9 +38,10 @@ services:
     # /api/v1/send — all process mail (approvals, send-backs, owner
     # confirmations) lands here, nothing leaves the machine. Web UI is
     # opt-in via the `mail` profile (see mailpit-ui below).
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.3
     container_name: cib7-poc-mailpit
     restart: unless-stopped
+    networks: [mail]
     expose:
       - "8025" # Web UI + HTTP API (network-internal)
       - "1025" # SMTP
@@ -47,10 +53,11 @@ services:
     # Publishes Mailpit's web UI on host port 8025, but only when the `mail`
     # profile is active:  docker compose --profile mail up -d mailpit-ui
     # Off by default so the stack never exposes an unauthenticated inbox.
-    image: alpine/socat:latest
+    image: alpine/socat:1.8.1.3
     container_name: cib7-poc-mailpit-ui
     profiles: ["mail"]
     restart: unless-stopped
+    networks: [mail]
     ports:
       - "8025:8025"
     command: ["TCP-LISTEN:8025,fork,reuseaddr", "TCP:mailpit:8025"]
@@ -59,10 +66,20 @@ services:
 
   gotenberg:
     # Headless Chromium REST API — renders the approval-email HTML to PDF.
-    # Only pdf-renderer talks to it.
-    image: gotenberg/gotenberg:8
+    # Only pdf-renderer talks to it: `render` is an internal network shared
+    # with pdf-renderer alone, with no route off the host.
+    image: gotenberg/gotenberg:8.37.0
     container_name: cib7-poc-gotenberg
     restart: unless-stopped
+    networks: [render]
+    # JavaScript off (the templates are static HTML), and a deny list on top
+    # of Gotenberg's default file:// rule: URLs with userinfo, loopback /
+    # private / link-local IPs, IPv6 literals and single-label hosts (every
+    # compose service name). `$$` is compose's escape for a literal `$`.
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - '--chromium-deny-list=^file:(?!//\/tmp/).*|^https?://[^/]*@.*|^https?://(localhost|127\.|0\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|\[|[^./:]+([:/]|$$)).*'
     expose:
       - "3000"
 
@@ -72,9 +89,12 @@ services:
     # presigned URLs, and S3 signature v4 hashes the host header — a proxy
     # that rewrites it breaks the signature. For TLS deployments, front it
     # with your own TLS terminator on its own hostname (PUBLIC_S3_URL).
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.0
     container_name: cib7-poc-rustfs
     restart: unless-stopped
+    # storage: the backend's S3 client. ingress-s3: Traefik, for when the S3
+    # hostname is served through it in TLS mode.
+    networks: [storage, ingress-s3]
     ports:
       # Bind to loopback (127.0.0.1:9000) in TLS mode when object storage is
       # served through Traefik or another terminator on its own hostname.
@@ -102,9 +122,14 @@ services:
     # from ./keycloak/realm-export.json on FIRST start only — edit that file
     # BEFORE the first `up`. To re-import after an edit:
     #   docker compose rm -sf keycloak && docker compose up -d keycloak
-    image: quay.io/keycloak/keycloak:26.1
+    image: quay.io/keycloak/keycloak:26.1.5
     container_name: cib7-poc-keycloak
     restart: unless-stopped
+    # app: cib7, backend and mcp fetch JWKS/tokens at keycloak:8080. The `iss`
+    # claim is string-compared with KEYCLOAK_ISSUER_URL, so no container needs
+    # the public URL. ingress-idp: Traefik, when Keycloak's hostname is served
+    # through it (see the commented keycloak router in routes.yml.example).
+    networks: [app, ingress-idp]
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
@@ -173,6 +198,8 @@ services:
     image: docker.io/krixerx/cib7-poc-pdf-renderer:${IMAGE_TAG:-latest}
     container_name: cib7-poc-pdf-renderer
     restart: unless-stopped
+    # pdf: called by the bus (Graylog sits there too). render: Gotenberg.
+    networks: [pdf, render]
     environment:
       GOTENBERG_URL: http://gotenberg:3000
       # Central logging — see README.md § Centralised logging (Graylog).
@@ -194,7 +221,14 @@ services:
     image: docker.io/krixerx/cib7-poc-esb:${IMAGE_TAG:-latest}
     container_name: cib7-poc-esb
     restart: unless-stopped
+    # bus: the engine, its only caller. mail / pdf / esb-backend: one network
+    # per downstream system, so they cannot reach each other or the engine.
+    networks: [bus, mail, pdf, esb-backend]
     environment:
+      # The engine authenticates to the bus with this (X-Bus-Token); calls
+      # without it are refused, so nothing else can make the bus inject
+      # X-Internal-Token. Must equal cib7's BUS_TOKEN.
+      BUS_TOKEN: ${BUS_TOKEN:-bus-token-change-me}
       # Must match the backend's INTERNAL_TASK_TOKEN — the bus sends it, the
       # backend verifies it.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
@@ -223,6 +257,9 @@ services:
     image: docker.io/krixerx/cib7-poc-cib7:${IMAGE_TAG:-latest}
     container_name: cib7-poc-cib7
     restart: unless-stopped
+    # edge: frontend/mobile nginx and Traefik. app: keycloak, and called by
+    # backend + mcp. bus: the ESB (Graylog sits there for the engine's GELF).
+    networks: [edge, app, bus]
     expose:
       - "8080"
     environment:
@@ -241,6 +278,11 @@ services:
       # path to the real downstream system. The engine no longer carries
       # MAIL_API_URL / PDF_API_URL / BACKEND_API_URL / INTERNAL_TASK_TOKEN.
       BUS_URL: http://esb:8080
+      # Sent as X-Bus-Token on every bus call; must equal esb's BUS_TOKEN.
+      BUS_TOKEN: ${BUS_TOKEN:-bus-token-change-me}
+      # HMAC key for the capability links (co-owner, founder and payment) the engine
+      # mints; the backend verifies them, so both carry the same value.
+      LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET:-link-signing-secret-change-me}
       # Browser-visible SPA URL — embedded in owner-confirmation email links.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
       # Central logging. The `graylog` profile activates the GELF appender
@@ -266,6 +308,9 @@ services:
     image: docker.io/krixerx/cib7-poc-backend:${IMAGE_TAG:-latest}
     container_name: cib7-poc-backend
     restart: unless-stopped
+    # edge: nginx/Traefik. app: engine + keycloak, called by mcp. storage:
+    # RustFS. esb-backend: called by the bus (Graylog sits there too).
+    networks: [edge, app, storage, esb-backend]
     expose:
       - "8085"
     environment:
@@ -285,6 +330,10 @@ services:
       S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:-cib7admin-secret-change-me}
       S3_REGION: us-east-1
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # Verifies the capability links (co-owner, founder and payment) cib7 mints.
+      LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET:-link-signing-secret-change-me}
+      # Verifies the payment provider's signed callbacks.
+      PAYMENT_PROVIDER_SECRET: ${PAYMENT_PROVIDER_SECRET:-payment-provider-secret-change-me}
       # SPA origin allowed in the bucket's CORS policy.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}
       # Central logging. The `graylog` profile activates the GELF appender
@@ -308,6 +357,9 @@ services:
     image: docker.io/krixerx/cib7-poc-mcp:${IMAGE_TAG:-latest}
     container_name: cib7-poc-mcp
     restart: unless-stopped
+    # edge: nginx/Traefik. app: cib7, backend, keycloak. gelf-mcp: its own
+    # line to Graylog.
+    networks: [edge, app, gelf-mcp]
     environment:
       # Where MCP clients reach the sidecar from outside.
       MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-http://localhost:3000/mcp}
@@ -351,14 +403,20 @@ services:
     image: docker.io/krixerx/cib7-poc-frontend:${IMAGE_TAG:-latest}
     container_name: cib7-poc-frontend
     restart: unless-stopped
+    # nginx-unprivileged (uid 101) listens on 8080 inside the container.
     ports:
-      - "${FRONTEND_HTTP_PORT:-3000}:80"
+      - "${FRONTEND_HTTP_PORT:-3000}:8080"
     expose:
-      - "80"
+      - "8080"
+    networks: [edge]
     environment:
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-}
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-frontend
+      # The SPA's Content-Security-Policy allows exactly these two foreign
+      # origins (Keycloak above, RustFS here), so both must be the URLs the
+      # browser uses.
+      S3_PUBLIC_URL: ${PUBLIC_S3_URL:-http://localhost:9000}
     depends_on:
       - cib7
       - backend
@@ -376,16 +434,20 @@ services:
     image: docker.io/krixerx/cib7-poc-mobile:${IMAGE_TAG:-latest}
     container_name: cib7-poc-mobile
     restart: unless-stopped
+    # nginx-unprivileged (uid 101) listens on 8080 inside the container.
     ports:
-      - "${MOBILE_HTTP_PORT:-3001}:80"
+      - "${MOBILE_HTTP_PORT:-3001}:8080"
     expose:
-      - "80"
+      - "8080"
+    networks: [edge]
     environment:
       # Browser-reachable Keycloak URL, read by the Flutter app as
       # window.__ENV__ — same contract as the frontend's env.js.
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-mobile
+      # For the app's Content-Security-Policy.
+      S3_PUBLIC_URL: ${PUBLIC_S3_URL:-http://localhost:9000}
     depends_on:
       - cib7
       - backend
@@ -406,10 +468,13 @@ services:
     #      Issued certs persist in ./traefik/acme/ — losing that directory
     #      forces re-issuance and burns LE rate limits (5 identical certs/week).
     # Not used in single-machine mode — the frontend nginx covers everything.
-    image: traefik:v3.4
+    image: traefik:v3.4.5
     container_name: cib7-poc-traefik
     profiles: ["tls"]
     restart: unless-stopped
+    # edge: the app routers. ingress-idp / ingress-s3: Keycloak and RustFS,
+    # for when their hostnames are routed through Traefik too.
+    networks: [edge, ingress-idp, ingress-s3]
     command:
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
@@ -463,9 +528,10 @@ services:
   # --------------------------------------------------------------------------
   graylog-mongodb:
     # Graylog's own configuration store (users, streams, inputs, dashboards).
-    image: mongo:7.0
+    image: mongo:7.0.43
     container_name: cib7-poc-graylog-mongodb
     restart: unless-stopped
+    networks: [logstore]
     volumes:
       - graylog-mongodb-data:/data/db
       - graylog-mongodb-config:/data/configdb
@@ -478,6 +544,7 @@ services:
     image: opensearchproject/opensearch:2.19.6
     container_name: cib7-poc-opensearch
     restart: unless-stopped
+    networks: [logstore]
     environment:
       discovery.type: single-node
       DISABLE_SECURITY_PLUGIN: "true"
@@ -496,9 +563,13 @@ services:
       - graylog-opensearch-data:/usr/share/opensearch/data
 
   graylog:
-    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1}
+    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1.9}
     container_name: cib7-poc-graylog
     restart: unless-stopped
+    # logstore: its own stores. The rest are the networks its shippers sit on
+    # (bus: cib7 + esb, pdf: pdf-renderer, esb-backend: backend, gelf-mcp:
+    # mcp), so logging does not put the shippers on one shared network.
+    networks: [logstore, bus, pdf, esb-backend, gelf-mcp]
     environment:
       # At least 16 characters, and it must NOT change once there is data.
       GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET:-cib7-poc-graylog-password-secret-change-me}
@@ -533,6 +604,7 @@ services:
     image: curlimages/curl:8.11.1
     container_name: cib7-poc-graylog-init
     restart: on-failure
+    networks: [logstore]
     entrypoint: ["/bin/sh"]
     command: ["/provision-inputs.sh"]
     environment:
@@ -545,6 +617,37 @@ services:
       - ./graylog/provision-inputs.sh:/provision-inputs.sh:ro
     depends_on:
       - graylog
+
+# Containers share a network only when one calls the other (docs/security.md
+# rule 9). Explicit names, so `docker network inspect cib7-poc-<name>` shows
+# the members. `internal` networks have no route off the host.
+networks:
+  edge:         # Traefik / frontend nginx -> frontend, mobile, cib7, backend, mcp
+    name: cib7-poc-edge
+  app:          # cib7, backend, mcp, keycloak
+    name: cib7-poc-app
+  storage:      # backend -> rustfs
+    name: cib7-poc-storage
+  bus:          # cib7 -> esb (+ graylog)
+    name: cib7-poc-bus
+  esb-backend:  # esb -> backend (+ graylog)
+    name: cib7-poc-esb-backend
+  mail:         # esb -> mailpit (+ mailpit-ui)
+    name: cib7-poc-mail
+  pdf:          # esb -> pdf-renderer (+ graylog)
+    name: cib7-poc-pdf
+  render:       # pdf-renderer -> gotenberg
+    name: cib7-poc-render
+    internal: true
+  gelf-mcp:     # mcp -> graylog
+    name: cib7-poc-gelf-mcp
+  logstore:     # graylog <-> mongodb, opensearch; graylog-init
+    name: cib7-poc-logstore
+    internal: true
+  ingress-idp:  # traefik -> keycloak (only used when routes.yml routes it)
+    name: cib7-poc-ingress-idp
+  ingress-s3:   # traefik -> rustfs (only used when routes.yml routes it)
+    name: cib7-poc-ingress-s3
 
 volumes:
   rustfs-data:

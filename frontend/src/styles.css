@@ -3239,6 +3239,103 @@ code {
   color: var(--muted);
 }
 
+/* ---- /mock-bank/:sessionId demo payment provider ---------------------
+   Styled unlike the rest of the SPA on purpose: it stands in for the
+   provider's own site, which in production is another domain. */
+
+.mock-bank {
+  min-height: 100vh;
+  background: #f1f3f0;
+  padding: 0 16px 48px;
+}
+
+.mock-bank-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 28px 0 20px;
+}
+
+.mock-bank-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #1f3d2b;
+  color: #e8f5e9;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.mock-bank-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f3d2b;
+}
+
+.mock-bank-tagline {
+  margin: 0;
+  font-size: 13px;
+  color: #4b5e52;
+}
+
+.mock-bank-card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid #c9d3cc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mock-bank-title {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+.mock-bank-summary {
+  margin: 0 0 20px;
+}
+
+.mock-bank-summary .summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e3e8e4;
+}
+
+.mock-bank-summary dt {
+  color: #4b5e52;
+}
+
+.mock-bank-summary dd {
+  margin: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.mock-bank-amount {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.mock-bank-pay {
+  background: #1f3d2b;
+  border-color: #1f3d2b;
+}
+
+.mock-bank-note {
+  margin: 20px 0 0;
+  font-size: 12px;
+  color: #6b7a70;
+}
+
 /* ---- payment-required alert ------------------------------------------ */
 
 .pay-alert {

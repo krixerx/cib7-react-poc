@@ -1,11 +1,18 @@
 # Quality gates: formatting (Spotless/Prettier), lint, typecheck, tests, build.
-# Companion to docker-publish.yml, which only builds/pushes images.
+#
+# Runs on every pull request, and on main as the first job of
+# docker-publish.yml, which calls it (workflow_call) and publishes images only
+# when it passes (docs/security.md rule 11). No separate push trigger, so a
+# push to main does not run it twice.
 name: quality
 
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   java:

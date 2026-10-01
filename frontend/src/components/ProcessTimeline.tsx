@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { getPaymentLink } from '../api/paymentLinkApi';
 import { formatDateTime } from '../i18n/format';
 import { translateBackendName } from '../i18n/backendNames';
 import {
@@ -139,8 +141,21 @@ function stepTime(iso: string): string {
 
 export default function ProcessTimeline({ processInstanceId }: ProcessTimelineProps) {
   const { t } = useTranslation('components');
+  const navigate = useNavigate();
   const [state, setState] = useState<LoadedState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  // The pay link carries a capability token only the backend can mint, and
+  // only for the user who started the case (docs/security.md rule 3).
+  async function openPayment() {
+    setPayError(null);
+    try {
+      navigate(await getPaymentLink(processInstanceId));
+    } catch {
+      setPayError(t('timeline.paymentLinkUnavailable'));
+    }
+  }
 
   const load = useCallback(async () => {
     setState(null);
@@ -207,16 +222,12 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
             <strong>{t('timeline.paymentRequiredTitle')}</strong>{' '}
             {t('timeline.paymentRequiredBody')}
           </span>
-          <a
-            className="btn btn-primary pay-alert-btn"
-            href={`/pay/${processInstanceId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <button type="button" className="btn btn-primary pay-alert-btn" onClick={openPayment}>
             {t('timeline.openPaymentPage')}
-          </a>
+          </button>
         </div>
       )}
+      {payError && <p className="form-error">{payError}</p>}
 
       {state && <Stepper state={state} />}
 

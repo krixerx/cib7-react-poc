@@ -1,0 +1,62 @@
+# Dependency and secret scanning (docs/security.md rule 11).
+#
+# Separate from quality.yml on purpose: a newly published advisory should turn
+# this red on the weekly run without blocking an unrelated fix from merging.
+# The image scan that does block publishing lives in docker-publish.yml.
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: npm audit (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [frontend, mcp, scripts, pdf-renderer]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # pdf-renderer has no committed lock; npm audit needs one, so resolve it
+      # here (no install, no scripts) from package.json's ranges, which is
+      # what the image build does too.
+      - name: Lock file
+        run: |
+          if [ ! -f package-lock.json ]; then
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          fi
+      - run: npm audit --audit-level=high
+
+  trivy-fs:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Covers the Maven poms and npm lock files, plus committed secrets.
+      # OS packages of the base images are the image scan's job.
+      # Pinned to a commit: trivy-action's tags have been re-pointed before.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          skip-dirs: "**/node_modules,**/target,**/dist"

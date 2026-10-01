@@ -1,18 +1,21 @@
-// Bearer token verification.
+// Bearer token verification at the MCP door.
 //
-// The MCP sidecar is a stateless Bearer-proxy (decision A2) — the engine
-// remains the authoritative validator on every forwarded call. We added a
-// lightweight verification step here ONLY to give MCP clients (mcp-remote
-// in particular) a clean 401 signal when the token is stale, so they trigger
-// their re-auth flow automatically instead of surfacing the engine's 401 as
-// a tool-result error the LLM doesn't know how to recover from.
+// The sidecar forwards the caller's own Bearer to /engine-rest and the
+// backend, both of which validate it again. It verifies here as well for two
+// reasons: MCP clients (mcp-remote in particular) need a clean 401 to trigger
+// their re-auth flow, and send_account_invitation runs against the Keycloak
+// admin API with a service account, so nothing downstream would check the
+// caller for that tool.
 //
-// We verify signature against Keycloak's JWKS (covers realm-rebuild and
-// rotation), expiry, and issuer. We deliberately do NOT validate the
-// audience here — the engine does that, and adding it would double the
-// failure modes the user sees at the same boundary.
+// Checked: signature against Keycloak's JWKS (covers realm rebuild and key
+// rotation), expiry, issuer, and audience. The audience must contain the same
+// value the engine and backend require (KEYCLOAK_REST_AUDIENCE, default
+// cib7-rest-api), so a token Keycloak minted for some other client of the
+// realm is refused here instead of being proxied. A token without `aud` fails.
 
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
+
+import { REQUIRED_AUDIENCE } from './audience.js';
 
 const KEYCLOAK_INTERNAL_URL = process.env.KEYCLOAK_INTERNAL_URL ?? 'http://keycloak:8080';
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM ?? 'cib7-poc';
@@ -31,19 +34,31 @@ export async function verifyBearer(authHeader: string | undefined): Promise<{
   /** Verified claims — only present when ok. Lets non-engine-proxied tools
    *  (send_account_invitation) make their own authorization decisions. */
   payload?: JWTPayload;
-  reason?: 'missing' | 'malformed' | 'invalid_signature' | 'expired' | 'wrong_issuer' | 'other';
+  reason?:
+    | 'missing'
+    | 'malformed'
+    | 'invalid_signature'
+    | 'expired'
+    | 'wrong_issuer'
+    | 'wrong_audience'
+    | 'other';
 }> {
   if (!authHeader) return { ok: false, reason: 'missing' };
   const match = authHeader.match(/^Bearer\s+(\S+)$/i);
   if (!match) return { ok: false, reason: 'malformed' };
   const token = match[1];
   try {
-    const { payload } = await jwtVerify(token, jwks, { issuer: KEYCLOAK_ISSUER_URL });
+    const { payload } = await jwtVerify(token, jwks, {
+      issuer: KEYCLOAK_ISSUER_URL,
+      audience: REQUIRED_AUDIENCE,
+    });
     return { ok: true, payload };
   } catch (err) {
-    const code = (err as { code?: string })?.code;
+    const { code, claim } = (err ?? {}) as { code?: string; claim?: string };
     if (code === 'ERR_JWT_EXPIRED') return { ok: false, reason: 'expired' };
-    if (code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') return { ok: false, reason: 'wrong_issuer' };
+    if (code === 'ERR_JWT_CLAIM_VALIDATION_FAILED') {
+      return { ok: false, reason: claim === 'aud' ? 'wrong_audience' : 'wrong_issuer' };
+    }
     if (code === 'ERR_JWS_SIGNATURE_VERIFICATION_FAILED')
       return { ok: false, reason: 'invalid_signature' };
     return { ok: false, reason: 'other' };

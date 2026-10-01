@@ -20,7 +20,7 @@ Between `Task_TransportVehicleApplication` (application user task) and
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/documents/index-case` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/internal/cases/index` | `Content-Type: application/json` |
 
 ## Payload
 
@@ -48,7 +48,7 @@ best-effort by design and the process never branches on it.
 
 - Goes through the **internal** chain (`X-Internal-Token`) — the call crosses
   the integration bus (`esb`), which injects the token on the
-  `/api/documents` route. The spec table above therefore lists no token
+  `/api/internal` route. The spec table above therefore lists no token
   header — `/service-builder` must not re-add it.
 - The `summary` is written for an LLM reader, not a UI: natural
   language, information-dense, includes the service name, applicant, key

@@ -77,6 +77,23 @@ service-builder generates for the MCP sidecar — write it for both audiences.>
 | `initiator` | start event | String | Login of the user that started the case. |
 | `<varName>` | `<task-id>` | `<String\|Integer\|Long\|Double\|Boolean\|byte[]>` | <Optional notes. byte[] for anything > 4 kB.> |
 
+## Variable write policy
+
+The variables a client (SPA, MCP agent) may write, per start and per form.
+`/service-builder` generates
+`cib7/src/main/resources/processes/<service>/variable-policy.json` from this
+table and `VariableWritePolicyFilter` refuses anything else with 403
+(docs/security.md rule 2). Everything not listed here is system-owned.
+
+| Start / form | Client may write | Notes |
+|---|---|---|
+| start | `<names>` | Same as the MCP start schema; the SPA starts with no variables. |
+| `<applicant-form-id>` | `<names>` | From the form's Actions `complete-with`. Identity fields only if `IdentityFieldRegistry` binds them. List SPA-only fields (not in the MCP schema) here. |
+| `<review-form-id>` | `decision`, `<reason fields>` | A decision is writable only from the reviewer form that owns it. |
+
+System-owned (never listed above): `initiator`, DMN and connector outputs,
+consent and payment state, gateway flags.
+
 ## Roles and authorization
 
 - **<Role name>** — Keycloak group `<group>` (engine sees `<group>`, no

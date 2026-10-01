@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportPermitIndexSubmitted.
+  /api/internal/cases/index payload for Task_TransportPermitIndexSubmitted.
   Case summary card for the backend's case-card store (search_cases
   MCP tool). Same processInstanceId at every milestone -> the index keeps
   one card per case. All vars defensively defaulted.

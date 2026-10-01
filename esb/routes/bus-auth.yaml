@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Integration bus — inbound authentication (docs/security.md rule 9)
+#
+# Every route that accepts calls from the engine starts with
+#   - to: "direct:bus-auth"
+# This sub-route lets a request through only when it carries
+#   X-Bus-Token: <BUS_TOKEN>
+# which the engine adds to every outbound connector call. Without it any
+# container on the bus network could reach the backend's /api/internal/**
+# endpoints, because this bus is what adds X-Internal-Token to them.
+#
+# On a mismatch it answers 401 with a fixed body and ends the exchange:
+# removeHeaders "*" first, so none of the caller's headers are echoed back,
+# and `stop` halts the calling route too (direct: runs in the same exchange),
+# so nothing is forwarded. On a match it strips X-Bus-Token so the token never
+# travels to Mailpit, the PDF renderer or the backend.
+#
+# BUS_TOKEN is read with the simple language's ${env.X}, like MAILPIT_SEND_URL
+# in notification-route.yaml (the {{env:...}} placeholder did not resolve in
+# this Camel JBang setup). There is no default: an unset or empty BUS_TOKEN
+# rejects every call instead of accepting a well-known value.
+#
+# The comparison is a plain string equality, not constant time: the simple
+# language has no constant-time compare, and the bus is reachable only from
+# the internal network (only the engine shares one with it).
+# ─────────────────────────────────────────────────────────────────────────────
+- route:
+    id: bus-auth
+    from:
+      uri: "direct:bus-auth"
+      steps:
+        - choice:
+            when:
+              - simple: "${env.BUS_TOKEN} == null || ${env.BUS_TOKEN} == '' || ${header.X-Bus-Token} != ${env.BUS_TOKEN}"
+                steps:
+                  - log:
+                      loggingLevel: WARN
+                      message: "[ESB] rejected ${header.CamelHttpMethod} ${header.CamelHttpPath}: missing or wrong X-Bus-Token"
+                  - removeHeaders:
+                      pattern: "*"
+                  - setHeader:
+                      name: "CamelHttpResponseCode"
+                      constant: "401"
+                  - setHeader:
+                      name: "Content-Type"
+                      constant: "application/json"
+                  - setBody:
+                      constant: '{"code":"unauthorized","message":"Bus authentication required."}'
+                  - stop: {}
+        - removeHeader:
+            name: "X-Bus-Token"

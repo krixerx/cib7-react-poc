@@ -14,12 +14,15 @@ plus three identity tools (sign-up URL lookup, password-reset URL lookup,
 and an email-invitation flow that creates an invite-pending Keycloak user
 without ever handling a password). The sidecar is a **Bearer-proxy** in
 front of `/engine-rest` — it forwards the caller's token unchanged on
-every process call. It does verify the JWT signature against Keycloak's
-JWKS at the door so stale tokens surface as a clean HTTP 401 and trigger
-the MCP client's re-auth, but it never holds refresh tokens server-side
-and never persists user state. The engine remains the authoritative
-security boundary (issuer + audience + signature + per-user authorization
-on every forwarded call).
+every process call. It verifies the JWT (signature against Keycloak's
+JWKS, expiry, issuer and the `cib7-rest-api` audience) at the door so a
+stale or foreign token surfaces as a clean HTTP 401 and triggers the MCP
+client's re-auth, but it never holds refresh tokens server-side and never
+persists user state. The engine remains the authoritative security
+boundary (issuer + audience + signature + per-user authorization on every
+forwarded call). Security rules for this module are in
+[security.md § 10](security.md#10-mcp-and-llm-agents); how the sidecar
+meets them is in [Security controls](#security-controls).
 
 **Contents**
 1. [Stack](#stack)
@@ -33,7 +36,8 @@ on every forwarded call).
 9. [Discovery surface (`.well-known`, `<meta>` tags)](#discovery-surface-well-known-meta-tags)
 10. [Configuration surface (env vars)](#configuration-surface-env-vars)
 11. [Run, build, package](#run-build-package)
-12. [Conventions and extensions](#conventions-and-extensions)
+12. [Security controls](#security-controls)
+13. [Conventions and extensions](#conventions-and-extensions)
 
 ---
 
@@ -46,7 +50,8 @@ on every forwarded call).
 | Framework | Express 4 |
 | MCP SDK | `@modelcontextprotocol/sdk` 1.18+ (Streamable HTTP transport, per-request server) |
 | Schema validator | Ajv 8 + ajv-formats (JSON Schema draft 2020-12) |
-| JWT verification | `jose` 5 against Keycloak's JWKS (signature + issuer; audience is the engine's job) |
+| JWT verification | `jose` 5 against Keycloak's JWKS (signature + expiry + issuer + audience) |
+| Rate limiting | `express-rate-limit` 8 (per IP before auth, per user after) |
 | Container | `node:20-alpine`, single-stage Dockerfile |
 | Build context | Repo root (so the Dockerfile can COPY both `mcp/` and `docs/business/services/`) |
 | Image footprint | ~120 MB (Alpine base + node_modules) |
@@ -98,15 +103,21 @@ appended to the same file. The load-bearing decisions:
 
 ```
 mcp/
-├── package.json                # @modelcontextprotocol/sdk, express, tsx, ajv, ajv-formats, jose
+├── package.json                # @modelcontextprotocol/sdk, express, express-rate-limit, tsx, ajv, ajv-formats, jose
 ├── tsconfig.json               # strict, noEmit (tsx runs source)
 ├── Dockerfile                  # node:20-alpine, COPYs from repo root
 ├── cib7-bridge.mjs             # stdio↔HTTP bridge for Claude Desktop (see "Connecting Claude Desktop" below)
 └── src/
     ├── server.ts               # Express + per-request MCP server/transport + tool registry + LLM instructions
+    ├── untrusted.ts            # withUntrustedData: frames applicant-written values for the LLM
     ├── auth/
+    │   ├── audience.ts         # REQUIRED_AUDIENCE (KEYCLOAK_REST_AUDIENCE, default cib7-rest-api)
     │   ├── identity.ts         # decodeBearerUsername (parse only — engine validates)
+    │   ├── inviterRole.ts      # send_account_invitation: role + audience predicate, invitation quota
     │   └── verify.ts           # jwtVerify against Keycloak JWKS — 401 + WWW-Authenticate on stale tokens
+    ├── http/
+    │   ├── guards.ts           # Host/Origin (DNS rebinding) guard, per-IP and per-user rate limits
+    │   └── fixedWindow.ts      # in-process counter behind the invitation quota
     ├── engine/
     │   ├── client.ts           # Bearer-forward fetch wrapper; { ok, status, code, message, retryable, data }
     │   └── variables.ts        # plain JSON → Camunda { value, type } envelope, schema-driven
@@ -129,7 +140,10 @@ message, retryable }` on failure. Schema-validation failures surface as
 hitting `/engine-rest`. Stale tokens are caught at the `/mcp` door by JWT
 verification and return HTTP 401 + `WWW-Authenticate: Bearer error="invalid_token"`,
 which mcp-remote treats as "re-run OAuth" automatically. Engine 5xx
-surfaces as `{ retryable: true }`.
+surfaces as `{ retryable: true }`. Tools that return applicant-written
+values (`search_cases`, `get_my_profile`, `query_user_history`) put them
+under `untrustedData` behind a fixed `untrustedDataNote`; see
+[Security controls](#security-controls).
 
 **Process tools** (forward the caller's Bearer to `/engine-rest`):
 
@@ -140,11 +154,11 @@ surfaces as `{ retryable: true }`.
 | `start_process(key, variables)` | `POST /engine-rest/process-definition/key/<k>/start` | Ajv-validates → maps to Camunda `{value, type}` → engine. |
 | `list_my_tasks` | `GET /task?assignee=<me>` + `GET /task?candidateUser=<me>&unassigned=true` (merged, deduped) | Returns tasks the user can act on; `action: 'complete' \| 'claim_then_complete'`. |
 | `get_form_schema(taskId)` | `GET /task/<id>` then look up by formKey | Returns the per-task JSON Schema + audience + description. |
-| `complete_task(taskId, variables)` | (auto-claim if needed) + `POST /task/<id>/complete` | Ajv-validates against per-task schema → engine. Auto-claims candidate-group tasks. |
+| `complete_task(taskId, variables)` | (claim if unassigned and the caller is a candidate) + `POST /task/<id>/complete` | Ajv-validates against per-task schema → engine. Claims only after `GET /task/count?taskId=&candidateUser=<me>` confirms candidacy; a task assigned to someone else returns `TASK_ASSIGNED_TO_OTHER`, a non-candidate gets `NOT_A_CANDIDATE`, and a claim the engine refuses returns `CLAIM_FAILED` with the engine status, all without submitting. The tool description tells the agent to show the values (and for review tasks the approve / reject / send-back decision) to the human and get explicit confirmation first. |
 | `list_my_processes(processInstanceId?)` | `GET /history/process-instance?startedBy=<me>&sortBy=startTime&sortOrder=desc` | Decorated with state (ACTIVE / COMPLETED / ...). |
 | `query_user_history(variableName)` | Two-step: instances → variable-instance with `processInstanceIdIn` | Most recent value the user ever entered for that variable. Used for autofill (decision A3 / T15). |
 | `get_my_profile()` | Token claims + the same two-step history query, unfiltered | One-shot autofill: identity from the Bearer claims plus the most recent value of every scalar variable the user ever entered (documents / JSON blobs / engine plumbing excluded). Supersedes per-field `query_user_history` calls. |
-| `search_cases(query?, service?, status?)` | `GET /api/cases/search` (backend, not engine) | Case status cards — one prose card per process instance, re-posted by BPMN "Index case" milestone tasks (submitted / sent-back / awaiting-medical / rejected / completed) through the ESB to `POST /api/documents/index-case` into a plain JPA table. Retrieval is keyword-ranked + exact service/status filters; the LLM does the semantic matching over the returned summaries (no embeddings). Hits are post-filtered through the backend's per-case access rule, so results only cover cases the caller may see. |
+| `search_cases(query?, service?, status?)` | `GET /api/cases/search` (backend, not engine) | Case status cards — one prose card per process instance, re-posted by BPMN "Index case" milestone tasks (submitted / sent-back / awaiting-medical / rejected / completed) through the ESB to `POST /api/internal/cases/index` into a plain JPA table. Retrieval is keyword-ranked + exact service/status filters; the LLM does the semantic matching over the returned summaries (no embeddings). Hits are post-filtered through the backend's per-case access rule, so results only cover cases the caller may see. |
 
 **Identity tools** (Keycloak instead of the engine — see [User registration and onboarding](#user-registration-and-onboarding)):
 
@@ -152,7 +166,7 @@ surfaces as `{ retryable: true }`.
 |---|---|---|
 | `get_signup_url` | (none — builds the URL locally) | Returns the public hosted Keycloak registration URL plus the steps to relay to the user. Pure URL lookup; performs no action. |
 | `get_password_reset_url` | (none — builds the URL locally) | Returns the public hosted Keycloak `kc_action=reset_credentials` URL plus the steps. Pure URL lookup. |
-| `send_account_invitation(username, email, firstName, lastName)` | `POST /admin/realms/<r>/users` + `PUT /admin/realms/<r>/users/<id>/execute-actions-email` | Creates an invite-pending Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]`, then triggers the magic-link email. The invitee sets their own password in Keycloak — the tool never accepts or returns one. Uses the `cib7-backend` service-account client (client_credentials grant), not the caller's Bearer. |
+| `send_account_invitation(username, email, firstName, lastName)` | `POST /admin/realms/<r>/users` + `PUT /admin/realms/<r>/users/<id>/execute-actions-email` | Creates an invite-pending Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]`, then triggers the magic-link email. The invitee sets their own password in Keycloak — the tool never accepts or returns one. Uses the `cib7-backend` service-account client (client_credentials grant), not the caller's Bearer. Requires the `cib7-rest-api` audience plus the `applicant`, `civil-servant` or `cib7-admin` realm role, and is capped at 5 invitations per user per hour and 50 overall (`RATE_LIMITED`). |
 
 The username `<me>` (for process tools) is decoded from the Bearer's
 `preferred_username` claim locally (parse only — `verifyBearer` already
@@ -338,6 +352,18 @@ All three paths land the user in the `/applicant` group via the realm's
 `defaultGroups: ["/applicant"]`, which grants them `applicant` realm
 role and applicant-scoped engine authorizations.
 
+**Who may invite.** Applicants keep the right to invite on purpose:
+invite-by-email is the onboarding path `SERVER_INSTRUCTIONS` steers agents
+to ("add Lisa to the system"), and an invitee only ever lands in
+`/applicant`, so an applicant can create nothing they could not get by
+self-registering. What an applicant could abuse is Keycloak sending email to
+arbitrary addresses, so every inviter is held to a per-user quota
+(`MCP_INVITES_PER_USER_PER_HOUR`, default 5) and a global one
+(`MCP_INVITES_PER_HOUR`, default 50, so a batch of fresh accounts cannot
+turn the realm into a mail relay either). Attempts count, not just
+successes. The counters are in-process and reset when the container
+restarts.
+
 **Password reset** is symmetric to "self-registration via chat":
 `get_password_reset_url` returns the Keycloak `kc_action=reset_credentials`
 deep link. The user enters their email, gets a reset email at Mailpit,
@@ -437,6 +463,13 @@ misleading `200` of `index.html`.
 | `ENGINE_URL` | `mcp/src/engine/client.ts` | `http://cib7:8080` | Internal `/engine-rest` base URL (docker-network alias). |
 | `BUSINESS_URL` | `mcp/src/engine/client.ts` | `http://backend:8085` | Internal base URL of the business microservice. `upload_document` stages files via its `/api/documents/stage` endpoint (Bearer-proxied, same as engine calls). |
 | `SERVICES_SPEC_DIR` | `mcp/src/services/manifest.ts` | `/app/services-spec` | Where the manifest loader looks for `*/build/mcp-service.json`. |
+| `KEYCLOAK_REST_AUDIENCE` | `mcp/src/auth/audience.ts` | `cib7-rest-api` | Audience every accepted token must carry. Same variable and default as the engine and backend. |
+| `MCP_ALLOWED_HOSTS` | `mcp/src/http/guards.ts` | hostname of `MCP_RESOURCE_URL` + `localhost`, `127.0.0.1`, `[::1]` | Comma-separated hostnames (no ports) `/mcp` answers to; also checked against a browser `Origin`. Replaces the default when set. |
+| `MCP_TRUST_PROXY` | `mcp/src/server.ts` | `loopback, linklocal, uniquelocal` | Express `trust proxy` value: which hops' `X-Forwarded-For` to believe when keying the per-IP limit. |
+| `MCP_RATE_LIMIT_PER_IP_PER_MINUTE` | `mcp/src/server.ts` | `300` | Requests per client IP per minute on `/mcp`, checked before token verification. |
+| `MCP_RATE_LIMIT_PER_USER_PER_MINUTE` | `mcp/src/server.ts` | `120` | Requests per verified `sub` per minute on `/mcp`. |
+| `MCP_INVITES_PER_USER_PER_HOUR` | `mcp/src/auth/inviterRole.ts` | `5` | `send_account_invitation` attempts per user per hour. |
+| `MCP_INVITES_PER_HOUR` | `mcp/src/auth/inviterRole.ts` | `50` | `send_account_invitation` attempts per hour across all users. |
 
 Configured per-service in `docker-compose.yml` under the `mcp` service.
 Internal-vs-browser URL split follows the same pattern as the
@@ -480,6 +513,43 @@ The container exposes only `8090` internally; nginx is the public face on
 port 3000. There's no host port mapping on `mcp` so probing it from the
 host requires going through nginx or `docker exec`.
 
+## Security controls
+
+How the sidecar meets [security.md § 10](security.md#10-mcp-and-llm-agents).
+Every control has a negative test under `mcp/src/`.
+
+- **Token checks.** Signature, expiry, issuer and audience. A token whose
+  `aud` lacks `cib7-rest-api` (or has no `aud` at all) gets 401 with
+  `error_description="wrong_audience"`. Test: `auth/verify.test.ts`.
+- **Request pipeline on `/mcp`**, in this order: Host/Origin guard → per-IP
+  rate limit → token verification → per-user rate limit → MCP transport.
+  - The Host guard is the SDK's `hostHeaderValidation` middleware
+    (port-agnostic hostname match). The SDK's transport options
+    `allowedHosts` / `enableDnsRebindingProtection` are deprecated in SDK
+    1.29 and compare the Host header with its port, so they are not used.
+    The default list (resource URL hostname plus loopback) covers nginx,
+    which forwards `Host: $http_host` (`localhost:3000` locally, the public
+    host in a deployment), Traefik, and the compose healthcheck on
+    `127.0.0.1:8090`. A browser `Origin`, when present, must match the same
+    list; native MCP clients send none.
+  - Rate limits answer HTTP 429 with a JSON-RPC error body and
+    `RateLimit` headers. Counters are in memory, fine for the single
+    replica this stack runs.
+  - Tests: `http/guards.test.ts`.
+- **Applicant data is framed as untrusted.** `search_cases`,
+  `get_my_profile` and `query_user_history` return user-written values only
+  under `untrustedData`, after a fixed `untrustedDataNote` telling the agent
+  to treat them as data, never as instructions. `SERVER_INSTRUCTIONS`
+  repeats the rule. Test: `untrusted.test.ts`.
+- **Human confirmation before `complete_task`.** Its description and
+  `SERVER_INSTRUCTIONS` tell the agent to show the values, and for a review
+  task the decision, to the human and wait for an explicit yes. Engine
+  authorization, not the agent, still decides what the call may do; the
+  sidecar only claims a task after the engine confirms the caller is a
+  candidate, and surfaces a refused claim as `CLAIM_FAILED`.
+- **Invitation quota.** See [Who may invite](#user-registration-and-onboarding).
+  Test: `auth/inviterRole.test.ts`.
+
 ## Conventions and extensions
 
 - **Style.** TypeScript strict mode, ES modules, `node:` prefix on
@@ -501,16 +571,19 @@ host requires going through nginx or `docker exec`.
   `transport.handleRequest` to 500. See `createMcpServer()` in
   `server.ts`. The one cached server-side artifact is the cib7-backend
   service-account token (5-minute TTL, in-process), purely an optimization.
-- **JWT verified for signature + issuer at the door; audience left to the
-  engine.** `auth/verify.ts` runs JOSE `jwtVerify` against Keycloak's
-  JWKS so stale tokens fail-fast with HTTP 401 + `WWW-Authenticate` —
-  that's the signal mcp-remote needs to re-run OAuth. The audience
-  (`cib7-rest-api`) is deliberately NOT checked here; the engine's
-  `RestApiSecurityConfig` validates audience + signature + issuer again
-  on every forwarded call, and surfacing the same failure at two layers
-  doubles the debug surface without buying safety. `auth/identity.ts`
-  reads `preferred_username` for query construction (`assignee=<me>`,
-  `startedBy=<me>`) — parse only, signature already verified.
+- **JWT fully verified at the door.** `auth/verify.ts` runs JOSE
+  `jwtVerify` against Keycloak's JWKS with issuer and audience, so stale
+  or foreign tokens fail fast with HTTP 401 + `WWW-Authenticate`, the
+  signal mcp-remote needs to re-run OAuth. The engine checks the same
+  things again on every forwarded call; the sidecar cannot rely on that
+  alone because `send_account_invitation` never reaches the engine.
+  `auth/identity.ts` reads `preferred_username` for query construction
+  (`assignee=<me>`, `startedBy=<me>`) — parse only, signature already
+  verified.
+- **New tools that return user-written text use `withUntrustedData`.**
+  Anything an applicant or portal user typed (names, reasons, summaries,
+  variable values) goes under `untrustedData`; server guidance stays in
+  the trusted fields.
 - **Adding a new MCP tool that doesn't wrap `/engine-rest`** (e.g., a
   tool that calls `pdf-renderer` directly, or a future
   `document-signer` microservice) is fine — add a new `mcp/src/<area>/client.ts`

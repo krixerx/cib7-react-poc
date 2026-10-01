@@ -13,12 +13,15 @@
 #
 # Same platform-http→http path-duplication fix as the email route: drop the
 # inbound CamelHttpPath header before forwarding.
+#
+# Callers authenticate with X-Bus-Token first (direct:bus-auth, bus-auth.yaml).
 # ─────────────────────────────────────────────────────────────────────────────
 - route:
     id: pdf-bus
     from:
       uri: "platform-http:/render?httpMethodRestrict=POST"
       steps:
+        - to: "direct:bus-auth"
         - log:
             message: "[ESB] PDF render crossing the bus correlationId=${exchangeId} -> pdf-renderer:8088"
         - removeHeader:

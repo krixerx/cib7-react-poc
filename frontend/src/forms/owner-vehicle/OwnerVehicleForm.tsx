@@ -9,15 +9,17 @@ import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
  * vehicle being registered, and an optional list of co-owners that must
  * co-sign the registration before it reaches Transport Authority review.
  *
- * On submit the form generates one UUID token per participant (owner plus
- * each co-owner), seeds `ownerConfirmations` with the owner's signature
- * already recorded, and writes everything as process variables. The BPMN
- * gateway downstream branches on whether `additionalOwners` is non-empty.
+ * On submit the form writes the co-owners as plain `{name, email}` entries.
+ * The engine (ConsentPartiesListener) assigns party ids, records the
+ * owner's own signature, starts a new consent round and signs each
+ * confirmation link into the emails; the browser never sees or mints a
+ * token (docs/security.md rule 3). The BPMN gateway downstream branches on
+ * whether `additionalOwners` is non-empty.
  *
  * If the Transport Authority reviewer or a co-owner sent the case back
  * for corrections, `sendBackReason` is set in process variables and is
- * shown to the owner as a banner. Resubmission regenerates ALL tokens so
- * old confirmation links can't be reused against the new round.
+ * shown to the owner as a banner. Resubmission starts a new consent round
+ * on the server, so old confirmation links stop working.
  */
 export default function OwnerVehicleForm({ data, onComplete, submitting, readOnly }: FormProps) {
   const { t } = useTranslation('owner-vehicle');
@@ -137,19 +139,6 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       }
     }
 
-    // Regenerate every token on every submit. The first round and any
-    // resubmit after a reject both produce fresh links — old emails stop
-    // working as soon as new tokens replace them in the process variables.
-    const applicantToken = crypto.randomUUID();
-    const ownersWithTokens = cleanedOwners.map((o) => ({
-      name: o.name,
-      email: o.email,
-      token: crypto.randomUUID(),
-    }));
-    const initialConfirmations: Record<string, { status: string; signedAt: string }> = {
-      [applicantToken]: { status: 'approved', signedAt: new Date().toISOString() },
-    };
-
     // Always write pendingIdDocument — non-null when there's a fresh upload
     // to migrate, null otherwise. Camunda's complete-task doesn't clear
     // unlisted variables, so a sendback resubmit that omitted this var
@@ -175,13 +164,9 @@ export default function OwnerVehicleForm({ data, onComplete, submitting, readOnl
       objectId: { value: objectId, type: 'String' },
       applicantEmail: { value: trimmedEmail, type: 'String' },
       sendBackReason: { value: '', type: 'String' },
-      applicantToken: { value: applicantToken, type: 'String' },
-      additionalOwners: { value: JSON.stringify(ownersWithTokens), type: 'Json' },
-      ownerConfirmations: { value: JSON.stringify(initialConfirmations), type: 'Json' },
-      // Reset the flags so a previous reject round doesn't bleed into this
-      // submission. The receive task and gateway re-read them fresh.
-      rejectedByOwner: { value: false, type: 'Boolean' },
-      sentToProcess: { value: false, type: 'Boolean' },
+      // Party ids, confirmations and the reject/sent flags are server-owned:
+      // the engine rebuilds them from this list on every submission.
+      additionalOwners: { value: JSON.stringify(cleanedOwners), type: 'Json' },
       pendingIdDocument: pendingIdDocumentVar,
     });
   }

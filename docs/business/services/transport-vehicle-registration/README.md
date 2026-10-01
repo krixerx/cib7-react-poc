@@ -125,7 +125,7 @@ the reason — see the service-task spec).
 
 | BPMN task | Message | Correlation | Triggered by |
 |---|---|---|---|
-| `Task_TransportWaitFeePayment` | `PaymentReceived` | `processInstanceId` | `POST /api/public/payments/{piId}/confirm` (public `/pay/{piId}` page). The shared `PaymentController` resolves the fee from the `registrationFee` process variable and renders amounts in **EUR** for this definition key. |
+| `Task_TransportWaitFeePayment` | `PaymentReceived` | `processInstanceId` | The payment provider's signed callback `POST /api/public/payments/callback` (docs/security.md rule 4), after the applicant pays from the public `/pay/{token}` page. Sets `paymentReceived`, `paymentReference`, `paidAmount`. The backend's `FeeSchedule` takes the fee from the `registrationFee` process variable, in **EUR**, and the callback must report exactly that amount. |
 
 ## Decisions
 
@@ -152,15 +152,34 @@ the reason — see the service-task spec).
 | `insured` | `Task_TransportClearanceCheck` | Boolean | From the clearance registry (insurance companies stand-in). |
 | `restrictionsCleared` | `Task_TransportClearanceCheck` | Boolean | Fines / circulars / expired-vehicle restrictions all fulfilled. |
 | `eligibilityDecision` | `Task_TransportVehicleEligibility` (DMN) | String | `"ok"` or a human-readable rejection sentence (doubles as the rejection-notice reason). |
-| `registrationFee` | `Task_TransportVehicleFee` (DMN) | Double | Fee in EUR from the demo document's fee schedule. Also rendered by `PaymentController` on the pay page. |
+| `registrationFee` | `Task_TransportVehicleFee` (DMN) | Double | Fee in EUR from the demo document's fee schedule. Also the amount the backend's `FeeSchedule` charges at checkout. |
 | `decision` | `Task_TransportVehicleOfficerReview` | String | `"approve"` \| `"reject"` \| `"sendback"`. |
 | `rejectionReason` | `Task_TransportVehicleOfficerReview` | String | Set on officer reject; empty otherwise. Rejection email prefers this over `eligibilityDecision`. |
 | `sendBackReason` | `Task_TransportVehicleOfficerReview` | String | Set on officer return-for-corrections; shown as a banner on the applicant form; cleared on resubmit. |
-| `paymentReceived` | `PaymentReceived` correlation | Boolean | Written by `PaymentController.confirm`. |
+| `paymentReceived`, `paymentReference`, `paidAmount` | `PaymentReceived` correlation (signed provider callback) | Boolean, String, Double | Written only by the backend's payment callback after the provider signature and amount check. |
 | `plateNumber` | `Task_TransportAllocatePlate` | String | Allocated by the backend plate registry (or the reserved number, validated server-side). |
 | `certificatePdfBytes` | `Task_TransportCertificatePdf` | byte[] | Raw certificate PDF — bytes-typed so it spills to `ACT_GE_BYTEARRAY`. |
 | `certificatePdfFilename` | `Task_TransportCertificatePdf` | String | e.g. `transport-registration-certificate-<plateNumber>.pdf`. |
 | `certificateAttachmentId` | `Task_TransportStoreCertificate` | String | Backend document id (Documents card). |
+
+## Variable write policy
+
+The variables a client (SPA, MCP agent) may write, per start and per form.
+`/service-builder` generates
+`cib7/src/main/resources/processes/transport-vehicle-registration/variable-policy.json` from this
+table and `VariableWritePolicyFilter` refuses anything else with 403
+(docs/security.md rule 2). Everything not listed here is system-owned.
+
+| Start / form | Client may write | Notes |
+|---|---|---|
+| start | `civilId`, `residencyStatus`, `registrationType`, `vehicleCategory`, `vin`, `plateOption`, `reservedPlateNumber` | MCP `start_process` prefill; the SPA starts with no variables. |
+| `transport-vehicle-application` | `applicantName`, `applicantEmail`, `civilId`, `residencyStatus`, `registrationType`, `vehicleCategory`, `vin`, `plateOption`, `reservedPlateNumber`, `sendBackReason` | Identity fields re-validated by `IdentityValidationListener` and SPA-only. `sendBackReason` is only cleared. |
+| `transport-vehicle-officer-review` | `decision`, `rejectionReason`, `sendBackReason` | The officer's decision; never on the applicant form. |
+
+System-owned: `initiator`, `eligibilityDecision`, `registrationFee`, the
+clearance results (`inspectionPassed`, `insured`, `restrictionsCleared`),
+payment state (`paymentReceived`, `paymentReference`, `paidAmount`),
+`plateNumber`, certificate and attachment variables.
 
 ## Roles and authorization
 
@@ -215,9 +234,9 @@ needed for this service.
 - `residencyStatus` = `visitor` is always rejected (demo rule: visitors
   must hold a residence card). Residents cannot register `commercial`
   vehicles. Warn the user instead of submitting a doomed application.
-- After officer approval the case waits on the fee payment — surface the
-  `/pay/{processInstanceId}` link when the user asks why nothing is
-  happening.
+- After officer approval the case waits on the fee payment — when the user
+  asks why nothing is happening, surface that the pay link is in the applicant's approval email and behind "Pay" in the web portal's My processes; there is no MCP payment tool and no
+  link the agent can build.
 - If the case is returned for corrections, `query_user_history('sendBackReason')`
   has the officer's notes; offer to fix and resubmit the same case.
 

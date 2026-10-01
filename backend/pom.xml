@@ -67,7 +67,7 @@
       <scope>runtime</scope>
     </dependency>
 
-    <!-- Resource server: validates the SPA's Keycloak JWTs on /api/documents/**.
+    <!-- Resource server: validates the SPA's Keycloak JWTs on /api/documents/** and /api/cases/**.
          Configured purely via spring.security.oauth2.resourceserver.jwt.*
          (jwk-set-uri + issuer-uri + audiences) — no custom decoder code. -->
     <dependency>

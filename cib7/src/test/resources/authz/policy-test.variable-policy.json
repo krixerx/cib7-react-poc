@@ -1,0 +1,8 @@
+{
+  "processDefinitionKey": "policyTest",
+  "start": ["note"],
+  "forms": {
+    "policy-applicant": ["note", "amount"],
+    "policy-review": ["decision", "sendBackReason"]
+  }
+}

@@ -2,10 +2,10 @@
  * Typed client for the public owner-confirmation endpoints.
  *
  * The endpoints under `/api/public/owner-confirmations/**` are
- * unauthenticated (see PublicApiSecurityConfig on the backend). Each call
- * carries only the per-owner UUID token in the URL — no bearer header.
- * That's deliberate: owners receive these links by email and don't have
- * Keycloak accounts.
+ * unauthenticated. Each call carries only the owner's capability token in
+ * the URL, no bearer header: owners receive these links by email and don't
+ * have Keycloak accounts. The token is signed by the engine and opaque to
+ * the SPA (docs/security.md rule 3).
  *
  * Same-origin path: the Vite dev server (vite.config.ts) and nginx
  * (nginx.conf) proxy `/api/**` to the backend just like `/engine-rest/**`.
@@ -13,10 +13,14 @@
 
 const BASE = '/api/public/owner-confirmations';
 
+/**
+ * One owner as any link holder may see it: display name and signing state.
+ * The backend never returns another party's email or link token.
+ */
 export interface OwnerEntry {
+  /** Server-assigned party id ("applicant", "p1", ...); stable within a round. */
+  partyId: string;
   name: string;
-  email: string;
-  token: string;
   isApplicant: boolean;
   /** "pending" | "approved" | "rejected" */
   status: string;

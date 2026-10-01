@@ -13,7 +13,7 @@ the permit number and validity.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/public/transport/learning-permits/issue` | `Content-Type: application/json`, `Accept: application/json` |
+| POST | `${busBaseUrl}/api/internal/transport/learning-permits/issue` | `Content-Type: application/json`, `Accept: application/json` |
 
 ## Payload
 

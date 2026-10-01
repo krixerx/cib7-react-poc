@@ -20,7 +20,7 @@ branch).
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/documents/index-case` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/internal/cases/index` | `Content-Type: application/json` |
 
 ## Payload
 
@@ -43,6 +43,6 @@ None — fire-and-forget.
 ## Why these notes matter
 
 - Same internal-chain / bus-injected-token pattern as the other
-  `/api/documents/**` tasks — no token header in the BPMN.
+  `/api/internal/**` tasks — no token header in the BPMN.
 - `sendBackReason` comes from the officer review form; defensively defaulted
   because the card must render even if the form ever makes it optional.

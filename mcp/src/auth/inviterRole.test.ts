@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { JWTPayload } from 'jose';
 
-import { audiencesOf, hasInviterAccess, INVITER_ROLES, realmRolesOf } from './inviterRole';
+import {
+  audiencesOf,
+  createInvitationQuota,
+  hasInviterAccess,
+  INVITER_ROLES,
+  realmRolesOf,
+} from './inviterRole';
 
 function claims(aud: string | string[] | undefined, roles?: string[]): JWTPayload {
   return {
@@ -68,5 +74,34 @@ describe('claim normalisation helpers', () => {
     expect(realmRolesOf(claims('x'))).toEqual([]);
     expect(realmRolesOf(undefined)).toEqual([]);
     expect(realmRolesOf({ realm_access: 'not-an-object' } as JWTPayload)).toEqual([]);
+  });
+});
+
+describe('createInvitationQuota', () => {
+  const alice = claims('cib7-rest-api', ['applicant']);
+  const bob = { ...claims('cib7-rest-api', ['applicant']), sub: 'bob-uuid' };
+
+  it('refuses the inviter once the per-user hourly quota is used up', () => {
+    const quota = createInvitationQuota(2, 100, () => 0);
+    expect(quota(alice).ok).toBe(true);
+    expect(quota(alice).ok).toBe(true);
+    expect(quota(alice)).toEqual({ ok: false, retryAfterSeconds: 3600 });
+    expect(quota(bob).ok).toBe(true);
+  });
+
+  it('applies the global ceiling across users', () => {
+    const quota = createInvitationQuota(5, 2, () => 0);
+    expect(quota(alice).ok).toBe(true);
+    expect(quota(bob).ok).toBe(true);
+    expect(quota({ ...alice, sub: 'carol-uuid' }).ok).toBe(false);
+  });
+
+  it('resets after the hour has passed', () => {
+    let t = 0;
+    const quota = createInvitationQuota(1, 100, () => t);
+    expect(quota(alice).ok).toBe(true);
+    expect(quota(alice).ok).toBe(false);
+    t = 60 * 60 * 1000;
+    expect(quota(alice).ok).toBe(true);
   });
 });

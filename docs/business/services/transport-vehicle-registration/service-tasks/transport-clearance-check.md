@@ -14,7 +14,7 @@ check (payment of fines, circulars, expired vehicles).
 
 | HTTP | URL | Headers |
 |---|---|---|
-| GET | `${busBaseUrl}/api/public/transport/vehicle-clearance/${vin}` | `Accept: application/json` |
+| GET | `${busBaseUrl}/api/internal/transport/vehicle-clearance/${vin}` | `Accept: application/json` |
 
 `${busBaseUrl}` resolves from `BusConfiguration.java`. The endpoint
 returns 200 for ANY vin — unknown VINs come back all-clear, seeded demo

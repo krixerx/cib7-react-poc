@@ -13,7 +13,7 @@ import {
 /**
  * Public, unauthenticated page reached from the email link
  * `${frontendBaseUrl}/sign-founder/:token`. No Keycloak — the token
- * itself is the credential (see PublicApiSecurityConfig).
+ * itself is the credential: an engine-signed capability token, opaque here.
  *
  * Mirror of {@link ./ConfirmOwnerPage.tsx} for the OÜ-registration flow.
  *
@@ -221,7 +221,7 @@ export default function SignFounderPage() {
         <h2 className="card-subtitle">{t('summary.coFounders')}</h2>
         <ul className="owner-list">
           {allFounders.map((f) => (
-            <li key={f.token}>
+            <li key={f.partyId}>
               <span className="owner-meta">
                 <span className="owner-name">
                   {f.name}
@@ -232,7 +232,6 @@ export default function SignFounderPage() {
                     </>
                   )}
                 </span>
-                <span className="owner-email">{f.email}</span>
                 {f.status === 'rejected' && f.reason && (
                   <span className="owner-email">{t('summary.reason', { reason: f.reason })}</span>
                 )}

@@ -1,0 +1,21 @@
+{
+  "$comment": "Generated from docs/business/services/business-registration (forms/*.md Actions, README Variable write policy). Top-level variables a client may write per start and per form; enforced by VariableWritePolicyFilter. Do not hand-edit.",
+  "processDefinitionKey": "businessRegistration",
+  "start": ["companyName", "boardMembers", "shareCapital", "applicantAge"],
+  "forms": {
+    "business-details": [
+      "companyName",
+      "boardMembers",
+      "shareCapital",
+      "applicantFirstName",
+      "applicantLastName",
+      "applicantEmail",
+      "applicantAge",
+      "applicantResidency",
+      "additionalFounders",
+      "pendingAoaDocument",
+      "sendBackReason"
+    ],
+    "review-business-registration": ["decision", "sendBackReason"]
+  }
+}

@@ -1,5 +1,12 @@
 package com.poc.backend.documents;
 
+import static com.poc.backend.documents.DocumentStorage.ALLOWED_CATEGORIES;
+import static com.poc.backend.documents.DocumentStorage.ALLOWED_CONTENT_TYPES;
+import static com.poc.backend.documents.DocumentStorage.isPendingKeyOf;
+import static com.poc.backend.documents.DocumentStorage.isProcessKeyOf;
+import static com.poc.backend.documents.DocumentStorage.objectExists;
+import static com.poc.backend.documents.DocumentStorage.safeFilename;
+
 import com.poc.backend.security.CaseAccessService;
 import com.poc.backend.storage.S3Properties;
 import java.time.Duration;
@@ -7,7 +14,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,14 +27,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
@@ -40,14 +40,9 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  * that used to live as engine {@code Attachment} rows is now the {@link Document} JPA entity, so
  * the engine carries no document concept at all.
  *
- * <p>Two distinct authentication paths, gated by {@link com.poc.backend.security.SecurityConfig}:
- *
- * <ul>
- *   <li>JWT-authenticated endpoints (called by the SPA) — Keycloak Bearer, uploader recorded from
- *       {@code preferred_username}.
- *   <li>Internal endpoints {@code /move-pending} + {@code /server-upload} — called by BPMN service
- *       tasks via the cibseven http-connector. Auth is by shared {@code X-Internal-Token} header.
- * </ul>
+ * <p>Every endpoint here is JWT-authenticated (SPA, mobile, MCP); the uploader is recorded from
+ * {@code preferred_username}. The engine's own document calls live in {@link
+ * InternalDocumentsController} under {@code /api/internal/documents}.
  *
  * <p>Per-case authorization: every process-scoped read and write runs through {@link
  * CaseAccessService} — reviewers ({@code civil-servant}/{@code cib7-admin}) see every case,
@@ -62,20 +57,14 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  * </pre>
  *
  * <p>{@link Document#getS3Key()} stores the S3 key (not a presigned URL, since those expire). The
- * presigned GET is minted on demand by {@code /attachments/{aid}/download-url}.
+ * presigned GET is minted on demand by {@code /attachments/{aid}/download-url}; keys of filed
+ * documents are never returned to clients. A key a client hands in is accepted only under its own
+ * {@code pending/<user>/} prefix or the case's {@code process/<piId>/} prefix (docs/security.md
+ * rule 6).
  */
 @RestController
 @RequestMapping("/api/documents")
 public class DocumentsController {
-
-  private static final Set<String> ALLOWED_CONTENT_TYPES =
-      Set.of("application/pdf", "image/jpeg", "image/png");
-
-  private static final Set<String> ALLOWED_CATEGORIES =
-      Set.of(
-          "applicant-id-document", "founder-articles-of-association",
-          "generated-approval-pdf", "generated-certificate",
-          "generated-business-fee-invoice", "generated-bcard");
 
   private static final Duration PUT_TTL = Duration.ofMinutes(5);
   private static final Duration GET_TTL = Duration.ofSeconds(60);
@@ -234,7 +223,13 @@ public class DocumentsController {
     if (!caseAccess.canAccessCase(processInstanceId)) {
       return caseNotFound();
     }
-    if (!objectExists(req.key())) {
+    // The key must be one this caller staged, or one already filed under this case. Any other key
+    // (another user's pending upload, another case's object) gets the same answer as a missing
+    // object, so key probing learns nothing.
+    String userId = currentUserId();
+    boolean owned =
+        isPendingKeyOf(req.key(), userId) || isProcessKeyOf(req.key(), processInstanceId);
+    if (!owned || !objectExists(s3, props.getBucket(), req.key())) {
       return badRequest("Object not found in storage. Did the upload complete?");
     }
     Document doc =
@@ -245,8 +240,8 @@ public class DocumentsController {
                 req.filename(),
                 req.contentType(),
                 req.key(),
-                currentUserId()));
-    return ResponseEntity.ok(new AttachmentResponse(doc.getId(), req.key()));
+                userId));
+    return ResponseEntity.ok(new AttachmentResponse(doc.getId()));
   }
 
   @GetMapping("/{processInstanceId}")
@@ -264,8 +259,7 @@ public class DocumentsController {
                         d.getFilename(),
                         d.getContentType(),
                         DateTimeFormatter.ISO_INSTANT.format(d.getCreatedAt()),
-                        d.getUploaderUserId(),
-                        d.getS3Key()))
+                        d.getUploaderUserId()))
             .toList();
     return ResponseEntity.ok(out);
   }
@@ -296,129 +290,7 @@ public class DocumentsController {
         new DownloadUrlResponse(presigned.url().toString(), GET_TTL.toSeconds()));
   }
 
-  // ----------------- Internal endpoints (BPMN engine) -----------------
-
-  @PostMapping("/move-pending")
-  public ResponseEntity<?> movePending(@RequestBody MovePendingRequest req) {
-    if (req == null
-        || req.pendingKey() == null
-        || req.processInstanceId() == null
-        || req.filename() == null
-        || req.contentType() == null
-        || req.category() == null) {
-      return badRequest("pendingKey, processInstanceId, filename, contentType, category required.");
-    }
-    if (!ALLOWED_CATEGORIES.contains(req.category())) {
-      return badRequest("category must be one of " + ALLOWED_CATEGORIES);
-    }
-    if (!req.pendingKey().startsWith("pending/")) {
-      return badRequest("pendingKey must live under pending/");
-    }
-    if (!objectExists(req.pendingKey())) {
-      return badRequest("Pending object not found — already migrated or never uploaded?");
-    }
-
-    String destKey =
-        "process/"
-            + req.processInstanceId()
-            + "/"
-            + UUID.randomUUID()
-            + "/"
-            + safeFilename(req.filename());
-
-    s3.copyObject(
-        CopyObjectRequest.builder()
-            .sourceBucket(props.getBucket())
-            .sourceKey(req.pendingKey())
-            .destinationBucket(props.getBucket())
-            .destinationKey(destKey)
-            .build());
-    s3.deleteObject(
-        DeleteObjectRequest.builder().bucket(props.getBucket()).key(req.pendingKey()).build());
-
-    // The uploader is recoverable from the pending/{userId}/... key —
-    // keep it so the metadata survives the move out of the pending prefix.
-    Document doc =
-        documents.save(
-            new Document(
-                req.processInstanceId(),
-                req.category(),
-                req.filename(),
-                req.contentType(),
-                destKey,
-                uploaderFromPendingKey(req.pendingKey())));
-    return ResponseEntity.ok(new AttachmentResponse(doc.getId(), destKey));
-  }
-
-  @PostMapping("/server-upload")
-  public ResponseEntity<?> serverUpload(@RequestBody ServerUploadRequest req) {
-    if (req == null
-        || req.processInstanceId() == null
-        || req.filename() == null
-        || req.contentType() == null
-        || req.category() == null
-        || req.base64() == null) {
-      return badRequest("processInstanceId, filename, contentType, category, base64 required.");
-    }
-    if (!ALLOWED_CATEGORIES.contains(req.category())) {
-      return badRequest("category must be one of " + ALLOWED_CATEGORIES);
-    }
-
-    byte[] bytes;
-    try {
-      bytes = Base64.getDecoder().decode(req.base64());
-    } catch (IllegalArgumentException e) {
-      return badRequest("base64 was not decodable.");
-    }
-    // Same cap as /stage: the caller is the trusted engine, but a runaway
-    // FreeMarker payload must not buffer unbounded bytes in memory.
-    if (bytes.length == 0 || bytes.length > props.getMaxBytes()) {
-      return badRequest("decoded size must be between 1 and " + props.getMaxBytes() + " bytes.");
-    }
-
-    String key =
-        "process/"
-            + req.processInstanceId()
-            + "/"
-            + UUID.randomUUID()
-            + "/"
-            + safeFilename(req.filename());
-
-    s3.putObject(
-        PutObjectRequest.builder()
-            .bucket(props.getBucket())
-            .key(key)
-            .contentType(req.contentType())
-            .contentLength((long) bytes.length)
-            .build(),
-        software.amazon.awssdk.core.sync.RequestBody.fromBytes(bytes));
-
-    Document doc =
-        documents.save(
-            new Document(
-                req.processInstanceId(),
-                req.category(),
-                req.filename(),
-                req.contentType(),
-                key,
-                null));
-    return ResponseEntity.ok(new AttachmentResponse(doc.getId(), key));
-  }
-
   // ----------------- helpers -----------------
-
-  private boolean objectExists(String key) {
-    try {
-      HeadObjectResponse head =
-          s3.headObject(HeadObjectRequest.builder().bucket(props.getBucket()).key(key).build());
-      return head != null;
-    } catch (NoSuchKeyException e) {
-      return false;
-    } catch (S3Exception e) {
-      if (e.statusCode() == 404) return false;
-      throw e;
-    }
-  }
 
   /** Keycloak username from the validated Bearer; null on the internal chain. */
   private static String currentUserId() {
@@ -427,18 +299,6 @@ public class DocumentsController {
       return jwt.getToken().getClaimAsString("preferred_username");
     }
     return null;
-  }
-
-  /** pending/{userId}/{uuid}/{file} → userId, or null when the shape is off. */
-  private static String uploaderFromPendingKey(String pendingKey) {
-    String[] parts = pendingKey.split("/");
-    return parts.length >= 4 ? parts[1] : null;
-  }
-
-  private static String safeFilename(String raw) {
-    if (raw == null) return "file";
-    String trimmed = raw.replaceAll("[^A-Za-z0-9._-]", "_");
-    return trimmed.isBlank() ? "file" : trimmed;
   }
 
   private static ResponseEntity<?> badRequest(String message) {
@@ -462,7 +322,8 @@ public class DocumentsController {
   public record AttachmentRegisterRequest(
       String key, String filename, String contentType, String category) {}
 
-  public record AttachmentResponse(String attachmentId, String key) {}
+  /** Only the id: storage keys stay server-side, downloads go through download-url. */
+  public record AttachmentResponse(String attachmentId) {}
 
   public record DocumentEntry(
       String id,
@@ -470,24 +331,9 @@ public class DocumentsController {
       String filename,
       String contentType,
       String createdAt,
-      String uploaderUserId,
-      String key) {}
+      String uploaderUserId) {}
 
   public record DownloadUrlResponse(String url, long expiresIn) {}
-
-  public record MovePendingRequest(
-      String pendingKey,
-      String processInstanceId,
-      String filename,
-      String contentType,
-      String category) {}
-
-  public record ServerUploadRequest(
-      String processInstanceId,
-      String filename,
-      String contentType,
-      String category,
-      String base64) {}
 
   public record StagePendingRequest(
       String filename, String contentType, String category, String base64) {}

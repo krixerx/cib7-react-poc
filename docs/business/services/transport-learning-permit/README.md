@@ -119,7 +119,7 @@ none); a rejected applicant starts a new case.
 
 | BPMN task | Message | Correlation | Triggered by |
 |---|---|---|---|
-| `Task_TransportWaitPermitPayment` | `PaymentReceived` | `processInstanceId` | `POST /api/public/payments/{piId}/confirm` (public `/pay/{piId}` page). The shared `PaymentController` charges the flat **6 EUR** for this definition key. |
+| `Task_TransportWaitPermitPayment` | `PaymentReceived` | `processInstanceId` | The payment provider's signed callback `POST /api/public/payments/callback` (docs/security.md rule 4), after the applicant pays from the public `/pay/{token}` page. Sets `paymentReceived`, `paymentReference`, `paidAmount`. The backend's `FeeSchedule` charges the flat **6 EUR** for this definition key. |
 
 ## Decisions
 
@@ -148,12 +148,31 @@ none); a rejected applicant starts a new case.
 | `medicalResult` | `Task_TransportHospitalAssessment` | String | `"positive"` \| `"negative"` (Police Hospital). |
 | `medicalNotes` | `Task_TransportHospitalAssessment` | String | Free-text assessment notes. |
 | `rejectionReason` | `Task_TransportHospitalAssessment` | String | Set on negative assessment ("Police Hospital medical assessment: …"); empty otherwise. Rejection email prefers this over `permitDecision`. |
-| `paymentReceived` | `PaymentReceived` correlation | Boolean | Written by `PaymentController.confirm`. |
+| `paymentReceived`, `paymentReference`, `paidAmount` | `PaymentReceived` correlation (signed provider callback) | Boolean, String, Double | Written only by the backend's payment callback after the provider signature and amount check. |
 | `permitNumber` | `Task_TransportIssuePermit` | String | Issued by the backend permit registry. |
 | `permitValidUntil` | `Task_TransportIssuePermit` | String | ISO date, one year from issue. |
 | `permitPdfBytes` | `Task_TransportPermitPdf` | byte[] | Raw license PDF — bytes-typed so it spills to `ACT_GE_BYTEARRAY`. |
 | `permitPdfFilename` | `Task_TransportPermitPdf` | String | e.g. `transport-learning-permit-<permitNumber>.pdf`. |
 | `permitAttachmentId` | `Task_TransportStorePermit` | String | Backend document id (Documents card). |
+
+## Variable write policy
+
+The variables a client (SPA, MCP agent) may write, per start and per form.
+`/service-builder` generates
+`cib7/src/main/resources/processes/transport-learning-permit/variable-policy.json` from this
+table and `VariableWritePolicyFilter` refuses anything else with 403
+(docs/security.md rule 2). Everything not listed here is system-owned.
+
+| Start / form | Client may write | Notes |
+|---|---|---|
+| start | `civilId`, `age`, `residencyStatus`, `hasResidentCard`, `licenseCategory`, `specialNeeds`, `profession` | MCP `start_process` prefill; the SPA starts with no variables. |
+| `transport-permit-application` | `applicantName`, `applicantEmail`, `civilId`, `age`, `residencyStatus`, `hasResidentCard`, `licenseCategory`, `specialNeeds`, `profession` | Identity fields re-validated by `IdentityValidationListener` and SPA-only. |
+| `transport-hospital-assessment` | `medicalResult`, `medicalNotes`, `rejectionReason` | The Police Hospital's decision; never on the applicant form. |
+
+System-owned: `initiator`, `permitDecision`, `eyeTestResult`,
+`hasValidTemporaryLicense`, `restrictionsCleared`, payment state
+(`paymentReceived`, `paymentReference`, `paidAmount`), permit number, PDF and
+attachment variables.
 
 ## Roles and authorization
 
@@ -180,7 +199,7 @@ none); a rejected applicant starts a new case.
   valid temporary license, `90000005` → outstanding restrictions; any
   other civil ID is all-clear with a passed eye test.
 - **Fee is flat 6 EUR** (demo document's "Service Fee: 6 EUR") —
-  hard-coded in `PaymentController` for this definition key and stated in
+  hard-coded in the backend's `FeeSchedule` for this definition key and stated in
   the form intro; no fee DMN needed.
 - **No driving-school / appointment sub-flows.** The demo's optional
   service-center path and the instructor-related services are separate
@@ -200,8 +219,8 @@ none); a rejected applicant starts a new case.
 - If the case parks on "Police Hospital medical assessment", explain that
   the applicant was flagged for weak vision and the hospital must confirm
   fitness — in the POC the back-office user completes that task.
-- After approval the case waits for the fee payment — surface the
-  `/pay/{processInstanceId}` link.
+- After approval the case waits for the fee payment — surface that the pay link is in the applicant's approval email and behind "Pay" in the web portal's My processes; there is no MCP payment tool and no
+  link the agent can build.
 
 ## Flow diagram
 

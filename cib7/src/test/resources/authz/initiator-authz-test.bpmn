@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal two-step case for AuthorizationModelTest: an applicant step
+     assigned to the initiator, then a civil-servant review step. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_AuthzTest"
+                  targetNamespace="http://poc.cib7/test">
+  <bpmn:process id="authzTest" name="Authorization test" isExecutable="true"
+                camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="Start" camunda:initiator="initiator" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Task_Applicant" />
+    <bpmn:userTask id="Task_Applicant" name="Applicant step" camunda:assignee="${initiator}" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_Applicant" targetRef="Task_Review" />
+    <bpmn:userTask id="Task_Review" name="Review" camunda:candidateGroups="civil-servant" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Task_Review" targetRef="End" />
+    <bpmn:endEvent id="End" />
+  </bpmn:process>
+</bpmn:definitions>

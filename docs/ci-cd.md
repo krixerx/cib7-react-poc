@@ -8,7 +8,7 @@ is and how to operate the host) and [`deployment.md`](deployment.md)
 (deploying from source, which CI does not do).
 
 **Contents**
-1. [The three workflows](#the-three-workflows)
+1. [The workflows](#the-workflows)
 2. [The deploy, step by step](#the-deploy-step-by-step)
 3. [What to configure](#what-to-configure)
 4. [First-time setup](#first-time-setup)
@@ -18,13 +18,24 @@ is and how to operate the host) and [`deployment.md`](deployment.md)
 
 ---
 
-## The three workflows
+## The workflows
 
 | Workflow | Runs when | Does |
 |---|---|---|
-| [`quality.yml`](../.github/workflows/quality.yml) | every push to `main`, every PR | `mvn verify` for `cib7` + `backend` (Spotless included), and format/lint/typecheck/test/build for `frontend` and `mcp`. The same commands as the ones in `CLAUDE.md`, so a green local run means a green CI run. |
-| [`docker-publish.yml`](../.github/workflows/docker-publish.yml) | every push to `main`, or by hand | Builds all seven images and pushes them to Docker Hub as `krixerx/cib7-poc-*`, tagged both `latest` and the commit's 7-character SHA. |
+| [`quality.yml`](../.github/workflows/quality.yml) | every PR; on `main` as the first job of `docker-publish.yml` (reusable workflow) | `mvn verify` for `cib7` + `backend` (Spotless included), and format/lint/typecheck/test/build for `frontend` and `mcp`. The same commands as the ones in `CLAUDE.md`, so a green local run means a green CI run. |
+| [`docker-publish.yml`](../.github/workflows/docker-publish.yml) | every push to `main`, or by hand | Runs `quality.yml`, and only if it passes builds all seven images, scans each with Trivy (fails on a fixable HIGH or CRITICAL vulnerability, before anything is pushed), and pushes them to Docker Hub as `krixerx/cib7-poc-*`, tagged both `latest` and the commit's 7-character SHA. |
+| [`security.yml`](../.github/workflows/security.yml) | every PR, every push to `main`, Mondays 05:17 UTC | `npm audit --audit-level=high` for `frontend`, `mcp`, `scripts` and `pdf-renderer`, and a Trivy filesystem scan (Maven poms, npm locks, committed secrets; HIGH and CRITICAL with a fix). Not a publish gate, so a new advisory turns it red without blocking unrelated merges. |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | **only when you ask** (`workflow_dispatch`) | Ships the `deploy/` bundle to the VM over SSH and runs the host's `deploy.sh`. Builds nothing. |
+
+[`dependabot.yml`](../.github/dependabot.yml) opens weekly update PRs for
+Maven (`cib7`, `backend`), npm (`frontend`, `mcp`, `scripts`,
+`pdf-renderer`), the Dockerfiles' base images, the images pinned in both
+compose files, and the GitHub Actions themselves. Minor and patch bumps come
+grouped; majors one at a time. MUI majors, Node majors and Java majors are
+ignored on purpose (see the comments in the file).
+
+Accepted vulnerability findings go in a `.trivyignore` at the repo root, one
+CVE per line with a comment saying why; there is none yet.
 
 The deploy is manual on purpose. The engine keeps process state in
 in-memory H2, so recreating its container throws away every running case
@@ -103,7 +114,7 @@ Repository **secrets**:
 | Name | How to get it |
 |---|---|
 | `VM_SSH_PRIVATE_KEY` | The private half of a key whose public half is in `~/$VM_USER/.ssh/authorized_keys` on the VM. Paste it whole, or as one base64 line — the workflow accepts either and strips CRs. |
-| `VM_KNOWN_HOSTS` | `ssh-keyscan <VM_HOST>` (without `-H`, so each line names the host in clear and can be checked). The first field must be exactly the `VM_HOST` value, or a comma-separated list containing it — a pin written for the hostname does not match when `VM_HOST` is the IP. Run `deploy.yml` with `preflight_only` once and it prints the lines for you. |
+| `VM_KNOWN_HOSTS` | `ssh-keyscan <VM_HOST>` (without `-H`, so each line names the host in clear and can be checked). The first field must be exactly the `VM_HOST` value, or a comma-separated list containing it — a pin written for the hostname does not match when `VM_HOST` is the IP. **Required**: with it empty, every job that would log in fails before connecting (there is no trust-on-first-use). That failing run prints the scanned lines and their fingerprints for you; check the fingerprints against the VM before pasting them. |
 | `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | Already set for `docker-publish.yml`. The deploy uses them only so its tag check does not spend the shared runner's anonymous pull quota. |
 
 The deploy job declares `environment: vm`, so GitHub records a
@@ -128,9 +139,12 @@ ssh deploy@poc.example.com 'id -Gn; docker compose version'
 cat ~/.ssh/cib7_deploy
 ```
 
-Then run the workflow with `preflight_only=true`. It prints the
-`ssh-keyscan` lines for `VM_KNOWN_HOSTS`; paste them into the secret and
-run it again for real.
+Then pin the host key. Either run `ssh-keyscan <VM_HOST>` yourself, or run
+the workflow with `preflight_only=true`: with `VM_KNOWN_HOSTS` empty it
+prints the scanned lines and their fingerprints, then fails on purpose. In
+both cases compare the fingerprints with the VM's own
+(`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`, run on the VM) before
+pasting the lines into the secret, then run the workflow again.
 
 **If the key is rejected.** The secret is accepted raw, with stray blank
 lines around it, or as one base64 line
@@ -214,6 +228,21 @@ below.
   prune them.
 - **First boot is slow.** The engine waits for Keycloak to become
   healthy; `deploy.sh` allows five minutes before calling it a failure.
-- **`quality.yml` does not gate `docker-publish.yml`.** They run
-  independently on a push to `main`, so an image can exist for a commit
-  whose tests failed. Check the commit is green before deploying it.
+- **No image without green quality gates.** `docker-publish.yml` calls
+  `quality.yml` first and builds nothing if it fails, so every published
+  tag passed the tests and the Trivy image scan. A red publish run therefore
+  means `deploy.yml` will refuse that commit's tag as missing.
+- **Inputs never reach a shell as text.** `deploy.yml` passes every
+  `inputs.*` value to its scripts through `env:`, so a crafted tag or flag
+  cannot finish someone else's shell line. Keep it that way when adding
+  inputs.
+- **The host's `.env` is edited in place without a backup copy**
+  (`sed -i`, no `.bak`), and the run deletes a `.env.bak` that older runs
+  left behind: a backup file would be a second, forgotten copy of every
+  secret.
+- **Upgrading a TLS host from before the non-root images.** The frontend
+  and mobile containers now listen on 8080. `traefik/dynamic/routes.yml` on
+  the host is host-owned and never shipped, so `deploy.sh` refuses to run
+  while it still points at `frontend:80` or `mobile:80`. Re-copy
+  `routes.yml.example` (it also brings the header and rate-limit
+  middlewares) and re-apply your `Host()` rules.

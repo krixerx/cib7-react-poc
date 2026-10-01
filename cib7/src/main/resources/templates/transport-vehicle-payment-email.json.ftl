@@ -5,7 +5,11 @@
   Variables in scope: applicantName, applicantEmail, vehicleCategory, vin,
   registrationFee (Double from the transport-vehicle-fee DMN — defensively
   coerced because DMN→JUEL can surface numerics as locale-formatted
-  Strings), frontendBaseUrl, execution.
+  Strings), frontendBaseUrl, execution, links.
+
+  The pay link carries a payment capability token minted by
+  links.payment(execution) (docs/security.md rules 3 and 4), not the
+  process instance id.
 -->
 <#assign rawFee = (registrationFee!0)>
 <#if rawFee?is_number>
@@ -13,7 +17,7 @@
 <#else>
   <#assign feeAmount = rawFee?replace(",", "")?replace(" ", "")?replace(" ", "")?number>
 </#if>
-<#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
+<#assign payUrl = frontendBaseUrl + "/pay/" + links.payment(execution)>
 <#assign body>Dear ${applicantName!""},
 
 Your vehicle registration application has been approved by the traffic

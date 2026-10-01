@@ -13,11 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Both endpoints return 200 for ANY id: unknown ids come back all-clear so any ad-hoc demo input
  * sails through, while the rows seeded by {@link TransportSeedData} trigger the rejection / medical
- * branches deterministically. Unauthenticated under {@code /api/public/**} — the engine's
- * http-connector calls these without credentials, same posture as the vehicle registry stand-in.
+ * branches deterministically. Internal ({@code /api/internal/**}, {@code X-Internal-Token}): only
+ * the engine calls them, through the ESB, and a lookup by civil id or VIN returns personal data.
  */
 @RestController
-@RequestMapping("/api/public/transport")
+@RequestMapping("/api/internal/transport")
 public class TransportClearanceController {
 
   private final VehicleClearanceRepository vehicleClearances;

@@ -27,6 +27,11 @@ The template renders the Mailpit `/api/v1/send` JSON payload — `From`,
 company name, share capital, and a list of board members rendered from
 the `boardMembers` Spin Json list.
 
+The pay link is `${frontendBaseUrl}/pay/${links.payment(execution)}`: a
+payment capability token minted by the reserved `links` bean
+(`CapabilityLinks`), never the bare process instance id (docs/security.md
+rules 3 and 4).
+
 ## Response
 
 Mailpit returns a JSON `{ID: "...", Total: N}`. We don't capture the ID

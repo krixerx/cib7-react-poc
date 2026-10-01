@@ -1,50 +1,53 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
-import { confirm, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { checkout, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatCurrency } from '../i18n/format';
 
 /**
  * Public, unauthenticated page reached from the approval email's pay link
- * `${frontendBaseUrl}/pay/:processInstanceId`. No Keycloak — the process
- * instance id in the URL is the credential (POC; production would gate
- * with a payment token).
+ * `${frontendBaseUrl}/pay/:token`. No Keycloak: the engine-signed payment
+ * capability token in the URL is the credential (docs/security.md rule 3).
  *
- * Visual shape per redomain plan D2: fake Estonian SEPA bank-payment
- * screen — invoice summary on the left, "sender bank" picker + Confirm
- * button on the right. The bank picker is purely cosmetic; the
- * Confirm button correlates a `PaymentReceived` message into the
- * process instance, which unblocks the receive task that's waiting
- * between the approval email and the certificate / B-card generation.
+ * "Pay" only starts a checkout: the backend creates a payment session with
+ * the amount it computed and returns the provider's page, here the demo
+ * bank at `/mock-bank/:sessionId`. The fee counts as paid only after the
+ * provider's signed callback (rule 4), so on the way back from the bank
+ * (`?from=bank`) this page polls the status until it flips to paid.
  *
  * Renders three terminal states:
- *   pending   — show the invoice + bank picker + Confirm
- *   paid      — show a success card
- *   unknown   — show a not-found card (404 from /status)
+ *   pending   — the bill + "Continue to payment"
+ *   paid      — a success card
+ *   unknown   — a not-found card (404 for any invalid or expired link)
  */
 
-const ESTONIAN_BANKS = [
-  { value: 'swedbank', label: 'Swedbank' },
-  { value: 'seb', label: 'SEB' },
-  { value: 'lhv', label: 'LHV Pank' },
-  { value: 'coop', label: 'Coop Pank' },
-  { value: 'luminor', label: 'Luminor' },
-];
+const POLL_MS = 2000;
+const POLL_LIMIT = 15;
+
+const ISSUERS: Record<string, string> = {
+  vehicleRegistration: 'vehicle',
+  businessRegistration: 'business',
+  transportVehicleRegistration: 'transport',
+  transportLearningPermit: 'transport',
+};
 
 export default function PayPage() {
   const { t } = useTranslation('pay');
-  const { processInstanceId } = useParams<{ processInstanceId: string }>();
+  const { token } = useParams<{ token: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const fromBank = searchParams.get('from') === 'bank';
   const [status, setStatus] = useState<PaymentStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [bank, setBank] = useState<string>('swedbank');
+  const [polls, setPolls] = useState(0);
 
   const refresh = useCallback(async () => {
-    if (!processInstanceId) return;
+    if (!token) return;
     try {
-      const s = await getStatus(processInstanceId);
+      const s = await getStatus(token);
       setStatus(s);
       setError(null);
     } catch (e) {
@@ -56,19 +59,29 @@ export default function PayPage() {
     } finally {
       setLoading(false);
     }
-  }, [processInstanceId]);
+  }, [token]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  async function handleConfirm() {
-    if (!processInstanceId) return;
+  // Back from the bank: the callback may land a moment after the redirect.
+  useEffect(() => {
+    if (!fromBank || status?.status !== 'pending' || polls >= POLL_LIMIT) return;
+    const id = window.setTimeout(() => {
+      setPolls((n) => n + 1);
+      refresh();
+    }, POLL_MS);
+    return () => window.clearTimeout(id);
+  }, [fromBank, status, polls, refresh]);
+
+  async function handlePay() {
+    if (!token) return;
     setSubmitting(true);
     setError(null);
     try {
-      const next = await confirm(processInstanceId);
-      setStatus(next);
+      const session = await checkout(token);
+      navigate(session.redirectUrl);
     } catch (e) {
       if (e instanceof PaymentError) {
         setError({ code: e.code, message: e.message });
@@ -76,7 +89,6 @@ export default function PayPage() {
       } else {
         setError({ code: 'network', message: e instanceof Error ? e.message : String(e) });
       }
-    } finally {
       setSubmitting(false);
     }
   }
@@ -96,15 +108,20 @@ export default function PayPage() {
       <div className="pay-page">
         <div className="card">
           <h1 className="card-title">{t('linkCard.title')}</h1>
-          <p className="form-error">{error?.message ?? t('linkCard.unknown')}</p>
+          <p className="form-error">
+            {error?.code === 'unknown_link' || !error ? t('linkCard.unknown') : error.message}
+          </p>
         </div>
       </div>
     );
   }
 
-  const isVehicle = status.processDefinitionKey === 'vehicleRegistration';
-  const issuer = isVehicle ? t('issuer.vehicle.name') : t('issuer.business.name');
-  const issuerSub = isVehicle ? t('issuer.vehicle.sub') : t('issuer.business.sub');
+  const issuerKey = ISSUERS[status.processDefinitionKey] ?? 'transport';
+  const issuer = t(`issuer.${issuerKey}.name`);
+  const issuerSub = t(`issuer.${issuerKey}.sub`);
+  const service = t(`services.${status.processDefinitionKey}`, {
+    defaultValue: status.serviceName,
+  });
 
   if (status.status === 'paid') {
     return (
@@ -152,7 +169,7 @@ export default function PayPage() {
     <div className="pay-page">
       <div className="card pay-card">
         <header
-          className={`pay-header ${isVehicle ? 'pay-header-vehicle' : 'pay-header-business'}`}
+          className={`pay-header ${issuerKey === 'business' ? 'pay-header-business' : 'pay-header-vehicle'}`}
         >
           <div>
             <h1 className="pay-title">{t('header.title')}</h1>
@@ -168,20 +185,12 @@ export default function PayPage() {
             <h2 className="pay-section-title">{t('invoice.title')}</h2>
             <dl className="pay-summary">
               <div className="summary-row">
-                <dt>{t('summary.payer')}</dt>
-                <dd>{status.payerName || '—'}</dd>
-              </div>
-              <div className="summary-row">
                 <dt>{t('summary.for')}</dt>
-                <dd>{status.item}</dd>
+                <dd>{service}</dd>
               </div>
               <div className="summary-row">
                 <dt>{t('summary.recipient')}</dt>
                 <dd>{translateBackendName(t, status.recipient)}</dd>
-              </div>
-              <div className="summary-row">
-                <dt>{t('summary.iban')}</dt>
-                <dd className="pay-mono">{status.iban}</dd>
               </div>
               <div className="summary-row">
                 <dt>{t('summary.reference')}</dt>
@@ -198,22 +207,12 @@ export default function PayPage() {
 
           <section className="pay-bank-block">
             <h2 className="pay-section-title">{t('bank.title')}</h2>
-            <label className="field">
-              <span className="field-label">{t('bank.senderBank')}</span>
-              <select
-                className="field-input"
-                value={bank}
-                onChange={(e) => setBank(e.target.value)}
-                disabled={submitting}
-              >
-                {ESTONIAN_BANKS.map((b) => (
-                  <option key={b.value} value={b.value}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="field-hint">{t('bank.demoHint')}</p>
+            <p className="field-hint">{t('bank.redirectHint')}</p>
+            {fromBank && polls < POLL_LIMIT && (
+              <p className="muted" role="status">
+                {t('bank.waitingForBank')}
+              </p>
+            )}
 
             {error && <p className="form-error">{error.message}</p>}
 
@@ -221,12 +220,12 @@ export default function PayPage() {
               <button
                 type="button"
                 className="btn btn-primary pay-confirm"
-                onClick={handleConfirm}
+                onClick={handlePay}
                 disabled={submitting}
               >
                 {submitting
-                  ? t('actions.confirming')
-                  : t('actions.confirmPayment', {
+                  ? t('actions.redirecting')
+                  : t('actions.pay', {
                       amount: formatCurrency(status.amount, status.currency),
                     })}
               </button>

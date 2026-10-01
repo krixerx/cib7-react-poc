@@ -11,14 +11,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Single-header check: every request that reaches this filter must carry {@code X-Internal-Token:
- * <configured-secret>}. Used by the {@code /api/documents/move-pending} and {@code
- * /api/documents/server-upload} endpoints called from BPMN service tasks via the cibseven
- * http-connector.
+ * <configured-secret>}. Guards every {@code /api/internal/**} endpoint, which only the engine
+ * calls, through the ESB.
  *
- * <p>Replaces a service-account JWT roundtrip for engine→backend calls — same pattern as MinIO's
- * own service token: the secret travels with the request, the receiver does a constant-time
- * compare, no Keycloak involvement. Rotated by re-issuing the {@code INTERNAL_TASK_TOKEN} env var
- * on both the engine (BPMN expression) and backend (this filter).
+ * <p>Replaces a service-account JWT roundtrip for engine→backend calls: the secret travels with the
+ * request, the receiver does a constant-time compare, no Keycloak involvement. The engine never
+ * holds it; the ESB injects it after authenticating the engine with its own {@code X-Bus-Token}.
+ * Rotated by re-issuing the {@code INTERNAL_TASK_TOKEN} env var on the ESB and the backend.
  */
 public class InternalTokenAuthenticationFilter extends OncePerRequestFilter {
 

@@ -26,10 +26,12 @@ Variables in scope: `applicantName`, `applicantEmail`, `vehicleCategory`,
 Body: the approved-application summary, the amount due —
 `${registrationFee} EUR` (use the defensive numeric-coercion pattern from
 the FreeMarker-numeric-vars memory before `?string("0.000")`; EUR has 3
-decimal places) — and the payment link:
+decimal places) — and the payment link, carrying a payment capability token
+minted by the reserved `links` bean (docs/security.md rules 3 and 4), never
+the bare process instance id:
 
 ```ftl
-<#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
+<#assign payUrl = frontendBaseUrl + "/pay/" + links.payment(execution)>
 ```
 
 Sender "Transport Authority"; subject
@@ -41,9 +43,9 @@ Fire-and-forget.
 
 ## Why these notes matter
 
-- The shared `PaymentController` resolves this definition key
-  (`transportVehicleRegistration`) to the `registrationFee` variable and renders
-  the pay page in EUR — the email's amount and the pay page's amount come
-  from the same DMN-written variable.
+- The backend's `FeeSchedule` resolves this definition key
+  (`transportVehicleRegistration`) to the `registrationFee` variable and charges
+  it in EUR — the email's amount and the amount the payment callback must
+  report come from the same DMN-written variable.
 - `registrationFee` is written by a DMN and can surface through JUEL as a
   locale-formatted String — coerce defensively in the template.

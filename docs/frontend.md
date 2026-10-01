@@ -64,7 +64,9 @@ frontend/src/
 │   ├── camundaClient.ts           — typed /engine-rest client + interfaces (attaches Bearer JWT)
 │   ├── bpmn.ts                    — BPMN XML parsing: user tasks, activity names, flow graph + nextSteps()
 │   ├── documentsApi.ts            — /api/documents client (upload-url, attachments, download-url)
-│   ├── paymentsApi.ts             — /api/public/payments client (pay page)
+│   ├── paymentsApi.ts             — /api/public/payments client (pay page: status + checkout)
+│   ├── paymentLinkApi.ts          — /api/cases/{id}/payment-link (pay link for the signed-in applicant)
+│   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
 │   ├── ownerConfirmationsApi.ts   — /api/public/owner-confirmations client (confirm page)
 │   ├── founderSignaturesApi.ts    — /api/public/founder-signatures client (signing page)
 │   └── vehicleRegistryApi.ts      — /api/public/vehicle-registry client (vehicle dropdown)
@@ -86,7 +88,8 @@ frontend/src/
 │   ├── ProcessHistoryView.tsx     — embeddable read-only history view (route page + worklist right pane)
 │   ├── ConfirmOwnerPage.tsx       — public route "/confirm-owner/:token" (no Keycloak; token is the credential)
 │   ├── SignFounderPage.tsx        — public route "/sign-founder/:token" (no Keycloak)
-│   └── PayPage.tsx                — public route "/pay/:processInstanceId" (no Keycloak)
+│   ├── PayPage.tsx                — public route "/pay/:token" (no Keycloak)
+│   └── MockBankPage.tsx           — public route "/mock-bank/:sessionId" (demo payment provider)
 └── forms/
     ├── types.ts                   — FormProps contract
     ├── registry.ts                — formId → React component map
@@ -119,8 +122,10 @@ how did it get here" without opening Cockpit:
 - a collapsed **Full history** disclosure with every named activity,
   including the service-task machinery (emails, PDF generation, storage),
   consecutive repeats collapsed to one row with a ×N count;
-- a **payment-required alert** with a link to `/pay/{piId}` whenever the
-  case is parked on `Task_WaitForPayment`.
+- a **payment-required alert** whenever the case is parked on
+  `Task_WaitForPayment`; its button asks the backend for a pay link
+  (`GET /api/cases/{id}/payment-link`, only for the user who started the
+  case) and opens `/pay/{token}`.
 
 ## Routing
 
@@ -197,7 +202,7 @@ Other). Inspired by portals like monentreprise.bj and lesotho.eregulations.org
   |---|---|---|---|
   | task assigned to me | empty / absent | **Awaiting submission** | Needs your attention |
   | task assigned to me | non-empty | **Sent back for corrections** | Needs your attention |
-  | parked on `Task_WaitForPayment` | — | **Payment required** (card links to `/pay/{piId}`) | Needs your attention |
+  | parked on `Task_WaitForPayment` | — | **Payment required** (card opens `/pay/{token}` via the payment-link endpoint) | Needs your attention |
   | parked on another receive task | — | **Waiting for signatures** (wait-state name in the meta line) | In progress |
   | back-office task open | — | **Under review** | In progress |
   | none (service task in flight) | — | **Processing** | In progress |
@@ -205,8 +210,8 @@ Other). Inspired by portals like monentreprise.bj and lesotho.eregulations.org
 - Finished instances are labelled **Approved** if `endActivityId === 'EndEvent_Approved'`,
   otherwise **Ended**.
 - Every row is clickable. When the applicant task is active, the row links to
-  `/tasks/{taskId}` (editable form); a payment-required card links straight
-  to the public `/pay/{instanceId}` page. Otherwise — finished OR in-flight
+  `/tasks/{taskId}` (editable form); a payment-required card fetches a pay
+  link for the case and opens the public `/pay/{token}` page. Otherwise — finished OR in-flight
   with no applicant task — the row links to `/processes/{instanceId}`
   (read-only form + case-progress stepper), so an applicant can always see
   where the case is while the back office holds it.
@@ -335,7 +340,7 @@ export function parseFormId(formKey: string | null | undefined): string | null {
 
 | Form id | Component | Reads | Writes |
 |---|---|---|---|
-| `owner-vehicle` | `OwnerVehicleForm.tsx` | `firstName`, `lastName`, `age`, `applicantEmail`, `objectId`, `additionalOwners`, `sendBackReason` (banner on re-submit) + vehicle list from `/api/public/vehicle-registry` + ID upload via `/api/documents` | names/age/email Strings + `objectId: String` (VIN), `applicantToken: String`, `additionalOwners`/`ownerConfirmations`/`pendingIdDocument: Json`, `rejectedByOwner`/`sentToProcess: false`, `sendBackReason: ''` |
+| `owner-vehicle` | `OwnerVehicleForm.tsx` | `firstName`, `lastName`, `age`, `applicantEmail`, `objectId`, `additionalOwners`, `sendBackReason` (banner on re-submit) + vehicle list from `/api/public/vehicle-registry` + ID upload via `/api/documents` | names/age/email Strings + `objectId: String` (VIN), `additionalOwners: Json` (`[{name, email}]` only; the engine assigns party ids, confirmations and link tokens), `pendingIdDocument: Json`, `sendBackReason: ''` |
 | `vehicle-review` | `VehicleReviewForm.tsx` | submitted data + registry values + `sendBackReason` (read-only) | **Accept:** `decision: 'approve'` / **Send back:** `decision: 'sendback'` + `sendBackReason: String` |
 | `business-details` | `BusinessDetailsForm.tsx` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
 | `review-business-registration` | `ReviewBusinessRegistrationForm.tsx` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
@@ -384,7 +389,14 @@ attaches the Keycloak Bearer (uploads stage via presigned PUT directly to
 RustFS — the one browser call that leaves the SPA origin); the others are
 deliberately unauthenticated: they serve the public token-link pages
 (`/confirm-owner`, `/sign-founder`, `/pay`) and the vehicle dropdown, where
-the UUID token or process-instance id in the URL is the credential.
+the engine-signed capability token in the URL is the credential. The SPA
+treats the token as opaque and never creates one
+([security rule 3](security.md#3-capability-links)). The pay page can only
+start a checkout; the demo bank (`/mock-bank/:sessionId`) stands in for the
+external provider, whose signed callback is what marks a fee paid
+([rule 4](security.md#4-external-facts-need-proof)). `paymentLinkApi` is
+the one Bearer-authenticated call here: it asks the backend for a pay link
+for the signed-in applicant's own case.
 
 ## Authentication
 

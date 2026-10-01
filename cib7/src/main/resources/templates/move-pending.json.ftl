@@ -1,5 +1,5 @@
 <#--
-  /api/documents/move-pending payload for Task_AttachIdDocument.
+  /api/internal/documents/move-pending payload for Task_AttachIdDocument.
   Copies the just-uploaded object out of the pending/ prefix and into
   process/{piId}/..., creates a Camunda Attachment with type=
   applicant-id-document, deletes the pending object.

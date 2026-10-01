@@ -15,7 +15,7 @@
         -> [Apply for a learning permit]  user task (applicant — PartA)
               flat 6 EUR fee shown in the form before submit
         -> (Fetch eye test, license & restrictions status)  service task
-              GET /api/public/transport/driver-clearance/{civilId} (backend stand-in
+              GET /api/internal/transport/driver-clearance/{civilId} (backend stand-in
               for approved opticians + license registry + restrictions)
         -> {Check terms of service}  business rule task (DMN
               transport-permit-eligibility -> permitDecision: "ok" | "medical" |
@@ -31,7 +31,7 @@
              else (default) -> (Email: application rejected) -> end rejected
         -> [Wait for fee payment]  receiveTask (msg "PaymentReceived";
               PaymentController charges the flat 6 EUR for this key)
-        -> (Issue learning permit)  POST /api/public/transport/learning-permits/issue
+        -> (Issue learning permit)  POST /api/internal/transport/learning-permits/issue
               (persists transport_learning_permits; permit number + 1y validity)
         -> (Generate electronic learning license PDF)  pdf-renderer
               (license + payment receipt in one document)
@@ -43,7 +43,7 @@
     Case-index milestones (not shown above): after submit, on the medical
     branch, on both reject paths, and after the license is stored, an
     "Index case" service task POSTs a case summary card to
-    ${busBaseUrl}/api/documents/index-case for the backend's case-card
+    ${busBaseUrl}/api/internal/cases/index for the backend's case-card
     index (search_cases MCP tool). Best-effort; response ignored.
 
     No send-back loop — the demo scenario has none; rejected applicants
@@ -83,7 +83,7 @@
       the same processInstanceId, so the index holds exactly one card per
       case reflecting its latest status. Indexing is best-effort on the
       backend; the response is ignored. The bus injects X-Internal-Token on
-      /api/documents/** — never set it here.
+      /api/internal/** — never set it here.
     -->
     <bpmn:serviceTask id="Task_TransportPermitIndexSubmitted" name="Index case: submitted"
                       camunda:asyncBefore="true">
@@ -91,7 +91,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -124,7 +124,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/public/transport/driver-clearance/${civilId}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/transport/driver-clearance/${civilId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -219,7 +219,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -313,7 +313,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -390,7 +390,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/public/transport/learning-permits/issue</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/transport/learning-permits/issue</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -448,7 +448,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -480,7 +480,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>

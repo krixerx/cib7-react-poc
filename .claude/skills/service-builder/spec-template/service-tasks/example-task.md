@@ -28,14 +28,15 @@
 
 All outbound HTTP goes to `${busBaseUrl}` — the integration bus (`esb`, Apache
 Camel) routes the path to the real downstream system. **Don't hard-code** a
-system URL, and **don't** add an `X-Internal-Token` header to `/api/documents/**`
+system URL, and **don't** add an `X-Internal-Token` header to `/api/internal/**`
 calls — the bus injects it.
 
 | Path on `${busBaseUrl}` | Downstream | When |
 |---|---|---|
 | `/api/v1/send` | Mailpit | sending mail |
 | `/render` | pdf-renderer | rendering PDFs |
-| `/api/public/**` \| `/api/documents/**` | backend | business calls / document writes |
+| `/api/internal/**` | backend | business calls / document writes (engine-only) |
+| `/api/public/**` | backend | public reference data without personal data |
 
 If the request targets a NEW external system on a new path, add a declarative
 route to `esb/routes/` rather than inlining a literal URL or a new

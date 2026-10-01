@@ -20,6 +20,7 @@
     "paymentRequiredTitle": "يلزم سداد الرسوم الحكومية.",
     "paymentRequiredBody": "تبقى المعاملة متوقفة حتى يتم سداد الرسوم.",
     "openPaymentPage": "فتح صفحة الدفع",
+    "paymentLinkUnavailable": "صفحة السداد متاحة لمقدّم الطلب الذي بدأ هذه المعاملة فقط.",
     "fullHistory": "السجل الكامل",
     "expectedNextSteps": "الخطوات التالية المتوقعة",
     "onePossiblePath": "· مسار محتمل واحد",

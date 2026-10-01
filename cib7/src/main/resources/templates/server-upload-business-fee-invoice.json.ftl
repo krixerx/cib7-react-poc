@@ -1,5 +1,5 @@
 <#--
-  /api/documents/server-upload payload for Task_StoreFeeInvoicePdf in
+  /api/internal/documents/server-upload payload for Task_StoreFeeInvoicePdf in
   business-registration.bpmn.
 
   Sends the just-generated fee invoice PDF bytes (held in the

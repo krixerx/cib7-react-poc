@@ -12,7 +12,7 @@ independently of the email.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/documents/server-upload` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/internal/documents/server-upload` | `Content-Type: application/json` |
 
 ## Payload
 
@@ -44,7 +44,7 @@ mirror of `server-upload-certificate.json.ftl`:
 - Goes through the **internal** chain (`X-Internal-Token`), not the public
   one — server-upload writes documents on behalf of the engine. The engine no
   longer sets that header; the call crosses the integration bus (`esb`), which
-  injects `X-Internal-Token` on the `/api/documents` route. The spec table above
+  injects `X-Internal-Token` on the `/api/internal` route. The spec table above
   therefore lists no token header — `/service-builder` must not re-add it.
 - The bytes stay in `certificatePdfBytes` for the subsequent email task's
   attachment; this task only re-encodes for transport.

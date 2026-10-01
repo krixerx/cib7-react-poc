@@ -16,7 +16,7 @@
               fee preview shown in the form before submit (demo: cost visible
               at the beginning); fields incl. category, VIN, plate option
         -> (Check inspection, insurance & restrictions) service task
-              GET /api/public/transport/vehicle-clearance/{vin} (backend stand-in for
+              GET /api/internal/transport/vehicle-clearance/{vin} (backend stand-in for
               technical inspection systems + insurers + fines restrictions)
         -> {Validate registration conditions}  business rule task (DMN
               transport-vehicle-eligibility -> eligibilityDecision; non-"ok" output
@@ -32,9 +32,9 @@
              reject         -> (Email: application rejected) -> end rejected
              else (default) -> (Email: returned for corrections) -> Submit (loop)
         -> [Wait for fee payment]  receiveTask (msg "PaymentReceived",
-              correlated by processInstanceId from PaymentController; pay page
-              renders the EUR amount from registrationFee)
-        -> (Allocate plate number)   POST /api/public/transport/plates/allocate
+              correlated by processInstanceId after the signed payment
+              callback; the amount comes from registrationFee)
+        -> (Allocate plate number)   POST /api/internal/transport/plates/allocate
               (persists transport_plate_registrations; random or reserved plate)
         -> (Generate registration certificate PDF)  pdf-renderer
         -> (Store certificate)       server-upload, category generated-certificate
@@ -44,8 +44,8 @@
 
     Case-index milestones (not shown above): after submit, on send-back, on
     both reject paths, and after the certificate is stored, an "Index case"
-    service task POSTs a case summary card to ${busBaseUrl}/api/documents/
-    index-case for the backend's case-card store (search_cases MCP
+    service task POSTs a case summary card to ${busBaseUrl}/api/internal/
+    cases/index for the backend's case-card store (search_cases MCP
     tool). Best-effort; response ignored.
 
     Process variables: see docs/business/services/transport-vehicle-registration/README.md.
@@ -85,7 +85,7 @@
       the same processInstanceId, so the index holds exactly one card per
       case reflecting its latest status. Indexing is best-effort on the
       backend; the response is ignored. The bus injects X-Internal-Token on
-      /api/documents/** — never set it here.
+      /api/internal/** — never set it here.
     -->
     <bpmn:serviceTask id="Task_TransportVehicleIndexSubmitted" name="Index case: submitted"
                       camunda:asyncBefore="true">
@@ -93,7 +93,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -126,7 +126,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/public/transport/vehicle-clearance/${vin}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/transport/vehicle-clearance/${vin}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -254,7 +254,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -317,7 +317,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -368,10 +368,11 @@
                        sourceRef="Task_TransportVehiclePaymentEmail" targetRef="Task_TransportWaitFeePayment" />
 
     <!--
-      Park until the applicant confirms on the public /pay/{piId} page.
-      PaymentController correlates PaymentReceived by processInstanceId and
-      renders the EUR amount from the registrationFee variable for this
-      definition key.
+      Park until the payment provider's signed callback reports the fee as
+      paid (docs/security.md rule 4). The applicant pays from the public
+      /pay/{token} page; the backend charges the EUR amount from the
+      registrationFee variable, verifies the provider's signature and amount
+      on the callback, then correlates PaymentReceived by processInstanceId.
     -->
     <bpmn:receiveTask id="Task_TransportWaitFeePayment" name="Wait for fee payment"
                       messageRef="Message_PaymentReceived">
@@ -394,7 +395,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/public/transport/plates/allocate</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/transport/plates/allocate</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -451,7 +452,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -483,7 +484,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/index-case</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/cases/index</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>

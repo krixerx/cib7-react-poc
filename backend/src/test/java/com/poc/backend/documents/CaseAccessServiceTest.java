@@ -2,6 +2,8 @@ package com.poc.backend.documents;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -71,18 +73,27 @@ class CaseAccessServiceTest {
   @Test
   void civilServantRoleBypassesStarterCheck() {
     authenticateAs("reviewer", List.of("civil-servant"));
+    when(engine.historicProcessInstanceExists(PI)).thenReturn(true);
 
     assertThat(service.canAccessCase(PI)).isTrue();
-    // Bypass short-circuits before any engine lookup.
-    verifyNoInteractions(engine);
+    // Reviewers skip the starter lookup, but not the existence check.
+    verify(engine, never()).getHistoricStartUserId(PI);
   }
 
   @Test
   void cib7AdminRoleBypassesStarterCheck() {
     authenticateAs("root", List.of("cib7-admin"));
+    when(engine.historicProcessInstanceExists(PI)).thenReturn(true);
 
     assertThat(service.canAccessCase(PI)).isTrue();
-    verifyNoInteractions(engine);
+  }
+
+  @Test
+  void reviewerIsDeniedAnUnknownProcessInstance() {
+    authenticateAs("reviewer", List.of("civil-servant"));
+    when(engine.historicProcessInstanceExists(PI)).thenReturn(false);
+
+    assertThat(service.canAccessCase(PI)).isFalse();
   }
 
   @Test

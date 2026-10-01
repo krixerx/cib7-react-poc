@@ -107,8 +107,9 @@ jobs:
           host: ${{ env.VM_HOST }}
           user: ${{ env.VM_USER }}
           private-key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
-          # Unpinned here on purpose: a diagnostic run is how you obtain the
-          # value for the secret. The deploy job refuses to run without it.
+          # When the secret is empty the action prints the ssh-keyscan lines
+          # to paste into it and then fails: nothing logs in unpinned, not
+          # even a diagnostic run.
           known-hosts: ${{ secrets.VM_KNOWN_HOSTS }}
 
       - name: What a deploy would find on the host
@@ -303,7 +304,10 @@ jobs:
             exit 0
           fi
           if grep -q '^IMAGE_TAG=' .env; then
-            sed -i.bak "s|^IMAGE_TAG=.*|IMAGE_TAG=$TAG|" .env
+            # No backup suffix: a .env.bak would be a second, forgotten copy
+            # of every secret in .env. Also clears one left by older runs.
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=$TAG|" .env
+            rm -f .env.bak
           else
             printf '\n# Pinned by the Deploy to VM workflow.\nIMAGE_TAG=%s\n' "$TAG" >> .env
           fi
@@ -311,12 +315,15 @@ jobs:
           EOS
 
       - name: Deploy
+        # Inputs through the environment, never spliced into the script text.
         env:
           TAG: ${{ steps.tag.outputs.tag }}
+          RECREATE_KEYCLOAK: ${{ inputs.recreate_keycloak }}
+          SKIP_BACKUP: ${{ inputs.skip_backup }}
         run: |
           FLAGS="--yes --no-git"
-          if [ "${{ inputs.recreate_keycloak }}" = "true" ]; then FLAGS="$FLAGS --realm"; fi
-          if [ "${{ inputs.skip_backup }}" = "true" ]; then FLAGS="$FLAGS --no-backup"; fi
+          if [ "$RECREATE_KEYCLOAK" = "true" ]; then FLAGS="$FLAGS --realm"; fi
+          if [ "$SKIP_BACKUP" = "true" ]; then FLAGS="$FLAGS --no-backup"; fi
           echo "running on the host: IMAGE_TAG=$TAG ./deploy.sh $FLAGS"
           # deploy.sh is the single tested upgrade path: volume backup, compose
           # pull, up -d --remove-orphans, then the public smoke tests. Those
@@ -362,6 +369,10 @@ jobs:
         if: always()
         env:
           TAG: ${{ steps.tag.outputs.tag }}
+          SHIP_REALM: ${{ inputs.ship_realm }}
+          RECREATE_KEYCLOAK: ${{ inputs.recreate_keycloak }}
+          BACKUP: ${{ inputs.skip_backup && 'skipped' || 'taken on the host' }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           {
             echo "### Deploy to \`$VM_HOST\`"
@@ -371,10 +382,10 @@ jobs:
             echo "| Image tag | \`$TAG\` |"
             echo "| Commit | \`$GITHUB_SHA\` (\`$GITHUB_REF_NAME\`) |"
             echo "| Deploy dir | \`$DEPLOY_DIR\` |"
-            echo "| Realm shipped | ${{ inputs.ship_realm }} |"
-            echo "| Keycloak recreated | ${{ inputs.recreate_keycloak }} |"
-            echo "| Volume backup | ${{ inputs.skip_backup && 'skipped' || 'taken on the host' }} |"
-            echo "| Result | ${{ job.status }} |"
+            echo "| Realm shipped | $SHIP_REALM |"
+            echo "| Keycloak recreated | $RECREATE_KEYCLOAK |"
+            echo "| Volume backup | $BACKUP |"
+            echo "| Result | $JOB_STATUS |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Logs from the host (on failure)

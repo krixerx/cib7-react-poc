@@ -94,6 +94,7 @@ and ask** rather than guessing.
 | `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest + JSON Schemas; § 11) |
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
 | Every `<service>/build/mcp-service.json` across every service | `docs/business/services/build/services.json` (aggregated MCP index; § 11) |
+| `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `cib7/src/main/resources/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2) |
 
 The three `build/`-typed outputs above are the contract with the `mcp/` Node
 sidecar — its `Dockerfile` COPYs `docs/business/services/` into the image
@@ -163,17 +164,39 @@ generated files get rewritten in place; idempotent runs are a no-op.
    matching `forms/<id>.md` Fields table. Use the variable types declared
    in the README's process-variables table to constrain the JSON Schema
    `type` keyword.
-10. **Emit the MCP training markdown** at `<service>/build/mcp-training.md`
+10. **Emit the variable write policy** at
+    `cib7/src/main/resources/processes/<service>/variable-policy.json`:
+    ```json
+    {
+      "$comment": "Generated from docs/business/services/<service>. Do not hand-edit.",
+      "processDefinitionKey": "<process id>",
+      "start": ["<names>"],
+      "forms": { "<form-id>": ["<names>"] }
+    }
+    ```
+    Derivation rule: a form's list is the union of the variable names in
+    every `complete-with` cell of its `forms/<id>.md` Actions table, plus the
+    `writeTo` variable of each required document; `start` is the property
+    list of the MCP start `variables` schema (step 9). Then apply the
+    README's "Variable write policy" section, which is the source of truth
+    for the result and lists any SPA-only fields. Never list a config bean
+    name (`ReservedBeansPlugin.RESERVED_NAMES`), `initiator`, a DMN output, a
+    connector output, consent or payment state, or a decision on an
+    applicant form or the start. Identity fields may appear on the applicant
+    form only when `IdentityFieldRegistry` binds them for this process (the
+    listener rejects a changed value). `VariableWritePolicyFilter` enforces
+    the file; a service without one accepts no client variables at all.
+11. **Emit the MCP training markdown** at `<service>/build/mcp-training.md`
     following the template in [§ 11.2](#112-mcp-trainingmd). Draw the
     "What this service does" content from the README's overview section,
     the "What to ask for" from the first user task's form Fields, and the
     "Status interpretation" mapping from the BPMN's end states.
-11. **Update the aggregated services index** at
+12. **Update the aggregated services index** at
     `docs/business/services/build/services.json` to include this service's
     `key`, `name`, `description`, `audience`, and a relative `manifestPath`
     to its `mcp-service.json`. List every service the skill knows about;
     the index is a full rewrite, alphabetical by `key`.
-12. **Regenerate the mermaid diagram.** Run:
+13. **Regenerate the mermaid diagram.** Run:
     ```sh
     cd scripts && node bpmn-to-mermaid.mjs \
       ../cib7/src/main/resources/processes/<service>/<service>.bpmn \
@@ -182,7 +205,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     The script replaces the block between `<!-- bpmn-diagram:start -->` and
     `<!-- bpmn-diagram:end -->`. If the markers are missing, add them around
     the existing mermaid block before running the script.
-13. **Report.** Summarise what changed in one short paragraph: service id,
+14. **Report.** Summarise what changed in one short paragraph: service id,
     counts of forms / service tasks / decisions, list of generated files
     (including the three `build/` MCP artifacts), and the next manual step
     ("run `docker compose up --build` to test, including the `mcp` container
@@ -213,6 +236,13 @@ short-circuit on the first one.
 | FreeMarker JSON safety | Generated `.json.ftl` files escape string values with `?json_string`. |
 | MCP manifest variable consistency | Every variable name + type in `mcp-service.json`'s start `variables` schema and each `userTasks[].schema` matches the README's process-variables table. Drift here means start_process or complete_task will reject the LLM's input while the React form succeeds (or vice versa) — silent contract break. |
 | MCP manifest user-task coverage | Every user task with a `camunda:formKey="react:<id>"` in the emitted BPMN has a matching `userTasks[]` entry in `mcp-service.json` with the same `formKey`. The skill rejects manifests where a form exists in the React tree but not in the MCP manifest. |
+| Security: escaping | Every user-supplied value in a `.json.ftl` uses `?json_string`; in HTML bodies (PDF, email) `?html` as well. User values never go into a connector URL path unvalidated (docs/security.md rule 7). |
+| Security: no client-minted secrets | Forms never generate tokens, link ids, payment references or any other credential in the browser (`crypto.randomUUID()` for a link token is a violation). Capability links are minted server-side (docs/security.md rule 3). |
+| Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].schema` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`busBaseUrl`, `frontendBaseUrl`, `pdf`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
+| Variable policy coverage | `variable-policy.json` exists, its `processDefinitionKey` is the BPMN process id, and its `forms` keys equal the set of `camunda:formKey` ids in the emitted BPMN, no more and no fewer. `VariablePolicyFilesTest` fails the cib7 build otherwise. |
+| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].schema.properties` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP start `variables` properties. A field the MCP schema has but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
+| Security: no wildcard grants | The spec never asks for engine grants; access comes from `camunda:assignee="${initiator}"` and `candidateGroups`. If a spec needs a new role, stop and ask (docs/security.md rule 1). |
+| Security: endpoint class | Connector calls to the backend use `/api/internal/**` for anything that writes data or returns personal data (docs/security.md rule 5). |
 | services.json completeness | `docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
 
 ---
@@ -338,12 +368,14 @@ Camel, `esb/routes/*.yaml`) routes each path to the real downstream system:
 |---|---|---|
 | `/api/v1/send` | Mailpit | send email |
 | `/render` | pdf-renderer | render a PDF |
-| `/api/public/**` | backend | clearance, registry, plate, permit |
-| `/api/documents/**` | backend | move-pending, server-upload |
+| `/api/public/**` | backend | public reference data (vehicle catalog) |
+| `/api/internal/**` | backend | documents (move-pending, server-upload), case index, transport clearance, plate, permit |
 
 Two rules when generating service tasks:
-- **Never** add an `X-Internal-Token` header to `/api/documents/**` calls — the
+- **Never** add an `X-Internal-Token` header to `/api/internal/**` calls — the
   bus injects it. Emitting it would reference a deleted bean and break the task.
+- A backend endpoint the engine calls that writes data or returns personal data
+  goes under `/api/internal/**`, never `/api/public/**` (docs/security.md rule 5).
 - If the spec needs a NEW external integration on a new path, add a declarative
   route to `esb/routes/` (YAML) rather than a hand-written `*Configuration.java`
   bean; the engine still just calls `${busBaseUrl}/<new-path>`.

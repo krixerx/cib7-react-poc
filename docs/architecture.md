@@ -85,9 +85,10 @@ The runtime pieces:
   (`/api/public/owner-confirmations`, `/api/public/founder-signatures`,
   `/api/public/payments`), the curated vehicle registry
   (`/api/public/vehicle-registry`, the Liiklusregister stand-in the engine
-  calls via http-connector), and `/api/documents` (S3 presigned upload /
+  calls via http-connector), `/api/documents` (S3 presigned upload /
   download against RustFS; metadata as a JPA `Document` entity in its own
-  in-memory H2). Talks to the engine only over `/engine-rest`, authenticated
+  in-memory H2), and the engine-only `/api/internal/**` endpoints (document
+  filing, case index, transport clearance, plate allocation, permit issue). Talks to the engine only over `/engine-rest`, authenticated
   with the `cib7-business` Keycloak service account (client_credentials; the
   service account sits in `/cib7-admin` so engine authorization passes).
 - **RustFS** — S3-compatible object storage for applicant uploads and
@@ -101,8 +102,9 @@ The runtime pieces:
   routes (`esb/routes/*.yaml`, no Java). The engine makes every outbound HTTP
   call to a single address (`${busBaseUrl}` = `http://esb:8080`) and the bus
   routes each path to the real downstream system — `/api/v1/send`→Mailpit,
-  `/render`→pdf-renderer, `/api/public/**` and `/api/documents/**`→backend
-  (injecting `X-Internal-Token` on the document calls). Demonstrates the
+  `/render`→pdf-renderer, `/api/public/**` and `/api/internal/**`→backend
+  (injecting `X-Internal-Token` on the internal calls). Every route first
+  checks the engine's `X-Bus-Token` (`esb/routes/bus-auth.yaml`). Demonstrates the
   RFP's "all integration crosses the Central Integration Platform" mandate as
   a mediated bus instead of point-to-point connector calls.
 - **PDF stack** — two collaborating sidecars: **Gotenberg** (headless
@@ -149,7 +151,7 @@ The runtime pieces:
 | Integration bus | Apache Camel JBang (`apache/camel-jbang`) | `esb/` (declarative YAML routes) | Mediates every engine→downstream HTTP call; engine talks only to `${busBaseUrl}` and the bus routes each path to mailpit / pdf-renderer / backend (injecting `X-Internal-Token` on `/api/documents`) |
 | Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
-| Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | Grants the `applicant` engine group the narrow set of permissions it needs (admins are handled by the plugin's `administratorGroupName`) |
+| Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | The only group-level engine grants: applicants list and start services, civil servants read every case and retry jobs. Per-case access comes from `authorization/InitiatorAuthorizationListener.java` and the engine's default task authorizations (admins are handled by the plugin's `administratorGroupName`) |
 | Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
 | Database | H2 (in-memory) | runtime classpath, no datasource config | Engine state — wiped on every restart |
 | Email sink | Mailpit | compose service | Captures every notification + attachment the process sends; UI at `:8025` |
@@ -188,7 +190,7 @@ A single "Vehicle Registration" process instance:
      SPA → POST /engine-rest/task/{taskId}/complete
      ↓
 6. Engine promotes the staged upload + looks the vehicle up (job executor)
-     Engine → POST {busBaseUrl}/api/documents/move-pending   (bus injects X-Internal-Token)
+     Engine → POST {busBaseUrl}/api/internal/documents/move-pending   (bus injects X-Internal-Token)
      Engine → GET  {busBaseUrl}/api/public/vehicle-registry/vehicles/{vin}
      Spin reads value/age inline; engine writes `price`, `vehicleAgeYears`
      ↓
@@ -197,9 +199,11 @@ A single "Vehicle Registration" process instance:
      Reviewer approves → {decision: "approve"} — or sends back to step 3
      ↓
 8. Engine generates + stores the state-fee invoice PDF (both via the bus)
-     Engine → {busBaseUrl}/render (→ pdf-renderer) → {busBaseUrl}/api/documents/server-upload (→ backend)
+     Engine → {busBaseUrl}/render (→ pdf-renderer) → {busBaseUrl}/api/internal/documents/server-upload (→ backend)
    then parks on "Wait for state fee payment" (receive task)
-     Payer → public /pay/{piId} page → POST /api/public/payments/{piId}/confirm
+     Payer → public /pay/{token} page → POST /api/public/payments/{token}/checkout
+           → payment provider (demo: MockPaymentProvider, /mock-bank/{sessionId})
+     Provider → signed POST /api/public/payments/callback (HMAC, amount checked)
      Backend correlates PaymentReceived via /engine-rest/message
      ↓
 9. Engine generates the registration certificate, process ends (Approved)
@@ -212,7 +216,7 @@ The full REST surface used by the SPA is listed in
 
 | Environment | SPA origin | Engine + backend | Keycloak | How `/engine-rest` reaches the engine |
 |---|---|---|---|---|
-| Docker (`docker compose up`) | `http://localhost:3000` (Traefik) | network-internal (Traefik routes `/engine-rest`, `/camunda`, `/oauth2`, `/login`, `/logout` to `cib7:8080` and `/api` to `backend:8085`) | `http://localhost:8180` (exposed) | Traefik label on the `cib7` service: `PathPrefix("/engine-rest") || …` → `cib7-engine` loadbalancer on `8080` |
+| Docker (`docker compose up`) | `http://localhost:3000` (the frontend nginx, container port 8080; Traefik with `--profile traefik`) | network-internal (nginx, or Traefik, routes `/engine-rest`, `/camunda`, `/oauth2`, `/login`, `/logout` to `cib7:8080` and `/api` to `backend:8085`, except `/api/internal/**`, which answers 404) | `http://localhost:8180` (exposed) | `location /engine-rest/` in `frontend/nginx.conf`; with Traefik, the `cib7-rest` router label on the `cib7` service |
 | Local dev | `http://localhost:5173` (Vite) | `http://localhost:8080` (`mvn spring-boot:run`) | `http://localhost:8180` (run Keycloak separately or via `docker compose up keycloak`) | Vite `server.proxy['/engine-rest']` → `http://localhost:8080` |
 
 The SPA **always uses the same-origin paths** `/engine-rest/...` and
@@ -227,7 +231,9 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 | Surface | Why | How to reach it |
 |---|---|---|
 | Graylog web UI | central log store; holds user ids and message content | published on `127.0.0.1:9900` only — `ssh -N -L 9900:127.0.0.1:9900 <user>@<host>` |
-| Graylog GELF inputs (`12201` UDP + TCP) | shippers are sibling containers | docker network only, no host port |
+| Graylog GELF inputs (`12201` UDP + TCP) | shippers are sibling containers | docker networks only (Graylog joins each shipper's network, see [Networks](#networks)), no host port |
+| Backend `/api/internal/**` | engine-only endpoints, called by the ESB with `X-Internal-Token` | `esb-backend` network only; nginx and Traefik answer 404 |
+| ESB, Gotenberg, pdf-renderer, Mailpit API | integration plumbing | only from the one service that calls each, see [Networks](#networks) |
 | Mailpit web UI | unauthenticated inbox | opt-in `dev` compose profile |
 | Traefik dashboard | auth-free | `127.0.0.1:8081` only |
 
@@ -236,7 +242,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 `docker-compose.yml` defines the application services below, plus the
 `dev`-profile `mailpit-ui` sidecar and the four-container Graylog group:
 
-- **keycloak** — `quay.io/keycloak/keycloak:26.1` in `start-dev --import-realm`
+- **keycloak** — `quay.io/keycloak/keycloak:26.1.5` in `start-dev --import-realm`
   mode. Mounts `keycloak/realm-export.json` so the realm boots pre-seeded
   (realm + clients + role + group + user). Publishes port `8180` mapped to
   container port `8080`. `KC_HOSTNAME_URL=http://localhost:8180` pins a
@@ -259,22 +265,28 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `rustfs` (healthy), and `cib7` (started). Authenticates its
   `/engine-rest` calls with the `cib7-business` service account and shares
   `INTERNAL_TASK_TOKEN` with the integration bus (`esb`), which injects the
-  `X-Internal-Token` header on the BPMN-called document endpoints
-  (`move-pending`, `server-upload`, `index-case`) — the engine no longer
-  holds that secret.
+  `X-Internal-Token` header on the BPMN-called `/api/internal/**` endpoints
+  — the engine never holds that secret.
 - **rustfs** — S3-compatible object storage, host-published on `:9000` (the
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
   `pending/` lifecycle rule are bootstrapped by the backend on startup.
 - **frontend** — built from `frontend/Dockerfile` (multi-stage: Vite build →
-  nginx). Publishes port `3000` mapped to container port `80`. `depends_on:
-  cib7` (start ordering only — nginx does not wait for the engine to be
-  healthy).
-- **mailpit** — `axllent/mailpit:latest`. Publishes `:8025` (web UI) and
-  `:1025` (SMTP, unused — the engine uses the HTTP API).
-- **gotenberg** — `gotenberg/gotenberg:8`. Headless Chromium wrapped in a
-  REST API. Internal only (no host port mapping); only pdf-renderer talks
-  to it on port 3000.
+  `nginx-unprivileged`, uid 101). Publishes port `3000` mapped to container
+  port `8080`. Sets the security headers and the `/api/public` and `/mcp`
+  rate limits; its CSP is generated at start from `KEYCLOAK_URL` and
+  `S3_PUBLIC_URL`. `depends_on: cib7` (start ordering only — nginx does not
+  wait for the engine to be healthy). **mobile** is the same shape on
+  `3001` → `8080`.
+- **mailpit** — `axllent/mailpit:v1.31.3`. Network-internal: web UI and send
+  API on `8025`, SMTP on `1025` (unused — the engine uses the HTTP API via
+  the bus). The UI is published on `:8025` only through the `dev`-profile
+  `mailpit-ui` socat sidecar.
+- **gotenberg** — `gotenberg/gotenberg:8.37.0`. Headless Chromium wrapped in
+  a REST API. Internal only (no host port mapping) on an `internal` network
+  shared with pdf-renderer alone; renders with JavaScript disabled and a
+  `--chromium-deny-list` covering `file://` outside its work dir, private
+  and loopback IPs and every single-label (compose service) hostname.
 - **pdf-renderer** — built from `pdf-renderer/Dockerfile` (Node 20 +
   Express). Internal only on port 8088. JSON-in / JSON-out adapter in
   front of Gotenberg. Hides Gotenberg's multipart input format and binary
@@ -284,8 +296,10 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   on port `8080`. The integration bus: the engine POSTs every outbound call to
   `http://esb:8080` and the declarative YAML routes (`esb/routes/*.yaml`,
   loaded via `camel run --source-dir`) forward each path to mailpit /
-  pdf-renderer / backend. Holds `INTERNAL_TASK_TOKEN` and injects
-  `X-Internal-Token` on the `/api/documents` route. Not in `esb.depends_on`'s
+  pdf-renderer / backend. Accepts a call only with `X-Bus-Token` equal to its
+  `BUS_TOKEN` (the engine sends it; the bus strips it before forwarding).
+  Holds `INTERNAL_TASK_TOKEN` and injects `X-Internal-Token` on the
+  `/api/internal` route. Not in `esb.depends_on`'s
   `backend` (that would be a `backend → cib7 → esb` startup cycle); the route
   resolves the backend at request time.
 - **mcp** — built from `mcp/Dockerfile` with the repo root as build
@@ -316,6 +330,40 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `graylog-mongodb-data`, `graylog-mongodb-config`): OpenSearch and MongoDB run
   non-root and are strict about data-directory ownership, which host bind
   mounts get wrong on Windows and macOS. Details in [`logging.md`](logging.md).
+
+### Networks
+
+Containers share a network only when one of them calls the other
+(`docs/security.md` rule 9). All three compose files use the same map; the
+networks have explicit names (`cib7-poc-<name>`), so
+`docker network inspect cib7-poc-bus` lists who is on one.
+
+| Network | Members | Carries |
+|---|---|---|
+| `edge` | traefik, frontend, mobile, cib7, backend, mcp | ingress (Traefik or the frontend/mobile nginx) to the services it routes |
+| `app` | cib7, backend, mcp, keycloak | backend → cib7, mcp → cib7 / backend, all three → `keycloak:8080` (JWKS, tokens, admin API) |
+| `storage` | backend, rustfs | the backend's S3 client |
+| `bus` | cib7, esb, graylog | the engine's only outbound channel; GELF from cib7 and esb |
+| `esb-backend` | esb, backend, graylog | the bus calling `/api/public` and `/api/internal`; the backend's GELF |
+| `mail` | esb, mailpit, mailpit-ui | outbound email |
+| `pdf` | esb, pdf-renderer, graylog | PDF rendering requests; pdf-renderer's GELF |
+| `render` (internal) | pdf-renderer, gotenberg | HTML → PDF; no route off the host |
+| `gelf-mcp` | mcp, graylog | the MCP sidecar's GELF |
+| `logstore` (internal) | graylog, opensearch, graylog-mongodb, graylog-init | Graylog's own stores and its input provisioning |
+| `ingress-idp`, `ingress-s3` (prod overlay, `deploy/`) | traefik + keycloak / rustfs | only used when `routes.yml` routes the Keycloak or S3 hostname |
+
+Graylog joins its shippers' networks rather than every shipper joining one
+log network, because a shared log network would connect every shipper to
+every other one, the ESB included. Two consequences to keep in mind:
+adding a call between two services means putting both on a common network
+here, and the eleven-or-so bridge networks take a visible share of Docker's
+default address pool (`could not find an available, non-overlapping IPv4
+address pool` means prune unused networks or widen `default-address-pools`).
+
+Keycloak stays reachable by its compose name on `app` for every service that
+validates tokens. No container needs the public issuer URL: the `iss` claim is
+a string compare against `KEYCLOAK_ISSUER_URL` (see the issuer-URL split
+below).
 
 There is no shared volume between the application services; neither Java module has a
 persistent volume because both databases are in-memory (the engine's process
@@ -387,24 +435,52 @@ End-to-end Keycloak authentication, authorization, and a single seeded user:
   (only the applicant who started the case can complete it on the initial
   submit and on any send-back loop); the review task is
   `camunda:candidateGroups="civil-servant"` (only members of the
-  back-office group can claim/complete it). Homer is in `/cib7-admin`
-  (engine admin via the `cibseven-keycloak` plugin's
-  `administratorGroupName`); Bart's narrower applicant permissions are
-  bootstrapped at startup by
-  `cib7/src/main/java/com/poc/cib7/AuthorizationBootstrap.java`. Engine
+  back-office group can claim/complete it). Engine grants only add access,
+  so no group holds a wildcard task grant: `AuthorizationBootstrap` lets
+  applicants list and start services and lets civil servants read every case
+  and retry jobs, and nothing more. An applicant reaches their own case
+  through per-instance grants `InitiatorAuthorizationListener` creates when
+  they start it (with `enableHistoricInstancePermissions` on, these also
+  cover the case history), and works a task only through the engine's
+  default authorization for its assignee or candidate group. Another
+  applicant gets empty results or 403 for the same ids; a civil servant
+  cannot complete an applicant's task. `admin` is in `/cib7-admin` (engine
+  admin via the `cibseven-keycloak` plugin's `administratorGroupName`);
+  Homer is an ordinary `/civil-servant`. Engine
   group ids in candidateGroups / authorization grants are the *slash-less*
   form (`applicant`, `civil-servant`, `cib7-admin`) — the cibseven-keycloak
   plugin strips the leading slash from the Keycloak group path even with
   `useGroupPathAsCamundaGroupId: true`. See
   [`cib7.md` § BPMN files](cib7.md#bpmn-files) for the full note.
-- **`/api/**` trust levels (backend).** Three Spring Security chains in
-  `backend/`: `/api/public/**` is unauthenticated by design (the
-  per-participant UUID token — or the opaque process-instance id for
-  payments — in the URL is the credential); the two BPMN-called document
-  endpoints accept only the shared `X-Internal-Token` header (injected by the
-  integration bus, not the engine); everything
-  else under `/api/documents/**` is a JWT resource server validating the
-  same issuer + `cib7-rest-api` audience as the engine.
+- **Reserved expression names.** `busBaseUrl`, `frontendBaseUrl` and `pdf`
+  resolve to their Spring beans before any process variable of the same
+  name, in JUEL and in FreeMarker (`ReservedBeansPlugin`), so a client
+  cannot redirect a case's connectors by writing a variable.
+- **Engine to bus.** Every http-connector call to `${busBaseUrl}` carries
+  `X-Bus-Token` (`BusTokenInterceptor`, env `BUS_TOKEN`); the bus refuses
+  calls without it and strips it before forwarding.
+- **`/api/**` trust levels (backend).** One Spring Security chain per
+  endpoint class ([`security.md` rule 5](security.md#5-backend-endpoint-classes)):
+  `/api/public/**` is unauthenticated by design (the capability token in the
+  URL is the credential, or the data is read-only reference data with no
+  personal data, like the vehicle catalog). Capability tokens are
+  HMAC-signed by the engine's `links` bean (`CapabilityLinks`) into the
+  email links, keyed with `LINK_SIGNING_SECRET`, and never stored; the
+  backend's `CapabilityLinkVerifier` checks signature, expiry, purpose and
+  the case's current consent round, and every failure is one 404
+  ([rule 3](security.md#3-capability-links)). The one public endpoint without
+  a capability token, `POST /api/public/payments/callback`, accepts only a
+  body signed with `PAYMENT_PROVIDER_SECRET` for the amount the server
+  charged ([rule 4](security.md#4-external-facts-need-proof)); `/api/internal/**` holds every
+  endpoint only the engine calls and accepts only the shared
+  `X-Internal-Token` header, which the integration bus injects after checking
+  the engine's `X-Bus-Token` (the ingress never routes this prefix);
+  `/api/documents/**` and `/api/cases/**` are a JWT resource server
+  validating the same issuer + `cib7-rest-api` audience as the engine. A
+  final deny-all chain refuses any other path. Storage keys a client hands
+  in are accepted only under its own `pending/<user>/` prefix or the case's
+  `process/<piId>/` prefix, and the engine's `move-pending` only moves keys
+  under the case initiator's pending prefix.
 - **`/engine-rest` is still directly exposed.** This POC has no BFF — the spec
   calls for one (see
   [`human-role-react-forms-spec.md` §D11](human-role-react-forms-spec.md)).

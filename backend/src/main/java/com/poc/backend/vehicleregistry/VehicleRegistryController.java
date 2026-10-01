@@ -14,8 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>Two endpoints under {@code /api/public/vehicle-registry/**}: a list used by the PartA form to
  * populate its vehicle dropdown, and a single-vehicle lookup the engine hits from {@code
- * Task_GetPrice} via the http-connector. Both unauthenticated — the matcher in {@link
- * com.poc.backend.security.SecurityConfig} already opens {@code /api/public/**}.
+ * Task_GetPrice} via the http-connector. Both unauthenticated under {@code /api/public/**}: the
+ * catalog is read-only reference data with no owner or other personal data in it, which is the only
+ * kind of data docs/security.md rule 5 lets a public endpoint serve without a capability.
  *
  * <p>From the engine's point of view this is exactly the external REST service the http-connector
  * exists for — it just happens to be served by this microservice instead of a real government

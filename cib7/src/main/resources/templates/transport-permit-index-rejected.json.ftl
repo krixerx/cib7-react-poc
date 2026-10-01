@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportPermitIndexRejected.
+  /api/internal/cases/index payload for Task_TransportPermitIndexRejected.
   Card refresh: rejected. Covers both reject paths — the reason is, in order
   of preference: the officer's rejectionReason, the DMN's human-readable
   permitDecision (its outputs are "ok", "medical", or the reason sentence,

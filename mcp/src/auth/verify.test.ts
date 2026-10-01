@@ -37,17 +37,28 @@ beforeAll(async () => {
   strangerKey = stranger.privateKey;
 });
 
+/** Must match verify.ts's REQUIRED_AUDIENCE fallback (env unset in tests). */
+const AUDIENCE = 'cib7-rest-api';
+
 interface SignOptions {
   issuer?: string | null;
+  /** Defaults to the required audience; null omits the claim. */
+  audience?: string | string[] | null;
   /** Epoch seconds; defaults to 5 minutes from now. */
   exp?: number;
   key?: KeyLike;
 }
 
 function sign(claims: JWTPayload = {}, opts: SignOptions = {}): Promise<string> {
-  const { issuer = ISSUER, exp = Math.floor(Date.now() / 1000) + 300, key } = opts;
+  const {
+    issuer = ISSUER,
+    audience = AUDIENCE,
+    exp = Math.floor(Date.now() / 1000) + 300,
+    key,
+  } = opts;
   let jwt = new SignJWT(claims).setProtectedHeader({ alg: 'RS256' }).setExpirationTime(exp);
   if (issuer !== null) jwt = jwt.setIssuer(issuer);
+  if (audience !== null) jwt = jwt.setAudience(audience);
   return jwt.sign(key ?? privateKey);
 }
 
@@ -101,6 +112,26 @@ describe('verifyBearer', () => {
     expect(result).toEqual({ ok: false, reason: 'wrong_issuer' });
   });
 
+  it('accepts aud as an array that contains the required audience', async () => {
+    const token = await sign({}, { audience: ['account', AUDIENCE] });
+    expect((await verifyBearer(`Bearer ${token}`)).ok).toBe(true);
+  });
+
+  it('reports "wrong_audience" for a token minted for another client', async () => {
+    const token = await sign({}, { audience: 'account' });
+    expect(await verifyBearer(`Bearer ${token}`)).toEqual({ ok: false, reason: 'wrong_audience' });
+  });
+
+  it('does not match the audience by substring', async () => {
+    const token = await sign({}, { audience: `${AUDIENCE}-extended` });
+    expect(await verifyBearer(`Bearer ${token}`)).toEqual({ ok: false, reason: 'wrong_audience' });
+  });
+
+  it('fails closed when the aud claim is absent', async () => {
+    const token = await sign({}, { audience: null });
+    expect(await verifyBearer(`Bearer ${token}`)).toEqual({ ok: false, reason: 'wrong_audience' });
+  });
+
   it('reports "invalid_signature" for a token signed with an unknown key', async () => {
     const token = await sign({}, { key: strangerKey });
     const result = await verifyBearer(`Bearer ${token}`);
@@ -113,6 +144,7 @@ describe('verifyBearer', () => {
     const forgedPayload = Buffer.from(
       JSON.stringify({
         iss: ISSUER,
+        aud: AUDIENCE,
         exp: Math.floor(Date.now() / 1000) + 300,
         preferred_username: 'admin',
       }),

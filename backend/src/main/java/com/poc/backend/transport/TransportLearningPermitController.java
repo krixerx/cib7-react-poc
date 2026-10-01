@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
  * Learning-permit issuance for {@code transport-learning-permit.bpmn} — called by {@code
  * Task_TransportIssuePermit} strictly after the 6 EUR fee payment is correlated. Persists the
  * permit (validity one year from issue) and returns the permit number the PDF and email render.
+ * Internal ({@code X-Internal-Token}) because it writes a registry record: only the engine, after
+ * the payment, may issue a permit.
  */
 @RestController
-@RequestMapping("/api/public/transport/learning-permits")
+@RequestMapping("/api/internal/transport/learning-permits")
 public class TransportLearningPermitController {
 
   private final LearningPermitRepository permits;

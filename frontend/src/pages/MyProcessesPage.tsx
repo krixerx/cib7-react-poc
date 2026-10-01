@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   getHistoricVariable,
   listHistoricProcessInstancesByStarter,
@@ -12,6 +12,7 @@ import {
   type ProcessDefinition,
 } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
+import { getPaymentLink } from '../api/paymentLinkApi';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatDate } from '../i18n/format';
 import { categoryOf, type CategoryId } from '../services/categories';
@@ -290,16 +291,24 @@ function ActionCard({ row }: { row: ProcessRow }) {
   const { t } = useTranslation('my-processes');
   const isSentBack = row.status === 'sent-back';
   const isPayment = row.status === 'payment-needed';
-  // Active applicant task → /tasks; payment wait → the public pay page;
-  // otherwise /processes for read-only.
-  const to = row.openTaskId
-    ? `/tasks/${row.openTaskId}`
-    : isPayment
-      ? `/pay/${row.pi.id}`
-      : `/processes/${row.pi.id}`;
+  const navigate = useNavigate();
+  // Active applicant task → /tasks; payment wait → the public pay page,
+  // whose link the backend mints for the case's starter; otherwise
+  // /processes for read-only (also the fallback if no pay link is issued).
+  const to = row.openTaskId ? `/tasks/${row.openTaskId}` : `/processes/${row.pi.id}`;
+  const payInstead = isPayment && !row.openTaskId;
+  async function openPayment(e: MouseEvent) {
+    e.preventDefault();
+    try {
+      navigate(await getPaymentLink(row.pi.id));
+    } catch {
+      navigate(to);
+    }
+  }
   return (
     <Link
       to={to}
+      onClick={payInstead ? openPayment : undefined}
       className={`mp-action cat-${row.category}${isSentBack || isPayment ? ' sent-back' : ''}`}
     >
       <span className="mp-action-icon" aria-hidden="true">

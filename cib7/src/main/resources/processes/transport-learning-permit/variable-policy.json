@@ -1,0 +1,27 @@
+{
+  "$comment": "Generated from docs/business/services/transport-learning-permit (forms/*.md Actions, README Variable write policy). Top-level variables a client may write per start and per form; enforced by VariableWritePolicyFilter. Do not hand-edit.",
+  "processDefinitionKey": "transportLearningPermit",
+  "start": [
+    "civilId",
+    "age",
+    "residencyStatus",
+    "hasResidentCard",
+    "licenseCategory",
+    "specialNeeds",
+    "profession"
+  ],
+  "forms": {
+    "transport-permit-application": [
+      "applicantName",
+      "applicantEmail",
+      "civilId",
+      "age",
+      "residencyStatus",
+      "hasResidentCard",
+      "licenseCategory",
+      "specialNeeds",
+      "profession"
+    ],
+    "transport-hospital-assessment": ["medicalResult", "medicalNotes", "rejectionReason"]
+  }
+}

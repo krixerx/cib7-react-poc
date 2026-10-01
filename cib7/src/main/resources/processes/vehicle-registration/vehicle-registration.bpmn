@@ -17,13 +17,14 @@
         -> <Need owner confirmations?> exclusive gateway
              additionalOwners empty -> (Get price) [skip whole confirmation block]
              else                   -> (Send applicant tracking email)
-        -> (Send applicant tracking email)  service task  (Mailpit; applicant's own /confirm-owner/{token} link)
+        -> (Send applicant tracking email)  service task  (Mailpit; applicant's own /confirm-owner/{token} link,
+                                                            token minted by the `links` bean)
         -> [Owner confirmations]       subprocess (parallel multi-instance over additionalOwners)
               per instance:
                   (Send owner confirmation email)  service task
                   -> [Wait for owner confirmation] receiveTask    (msg "OwnerConfirmation"
                                                                     correlated on local
-                                                                    ownerToken)
+                                                                    partyId)
               completionCondition: ${rejectedByOwner == true}  (any reject short-circuits)
         -> <Any reject?>               exclusive gateway
              rejectedByOwner == true -> (Send "sent back" email) -> Submit (loop)
@@ -49,22 +50,31 @@
       applicantEmail             - written by the applicant task (optional; when
                                    non-empty and contains "@", the approval-email
                                    service task fires)
-      applicantToken             - written by the applicant task; UUID that powers
-                                   the applicant's own /confirm-owner/{token} link.
-                                   Pre-confirmed by submitting the form.
-      additionalOwners           - written by the applicant task; Spin Json list
-                                   of {name, email, token} for each additional
-                                   owner that must confirm before the case proceeds.
-                                   Drives the multi-instance subprocess.
-      ownerConfirmations         - written by OwnerConfirmationController on every
-                                   approve/reject; Spin Json map of token ->
-                                   {status, reason?, signedAt}. Includes the
-                                   applicant's token pre-set to "approved".
-                                   Read by the public status endpoint.
-      rejectedByOwner            - written by OwnerConfirmationController on reject;
+      additionalOwners           - written by the applicant task as {name, email}
+                                   entries, then rewritten by ConsentPartiesListener
+                                   (task complete) to [{partyId, name, email}] with
+                                   server-assigned party ids p1, p2, ... Anything
+                                   else the client sent is dropped. Drives the
+                                   multi-instance subprocess.
+      consentRound               - written by ConsentPartiesListener on every
+                                   submission (epoch millis). Signed into every
+                                   confirmation link; the backend rejects links
+                                   from an earlier round.
+      ownerConfirmations         - initialised by ConsentPartiesListener with the
+                                   applicant ("applicant") approved, then updated
+                                   by OwnerConfirmationController on every
+                                   approve/reject; Spin Json map of partyId ->
+                                   {status, reason?, signedAt}. Read by the public
+                                   status endpoint.
+                                   Confirmation links are never stored: the
+                                   `links` bean (CapabilityLinks) signs them into
+                                   the emails, see docs/security.md rule 3.
+      rejectedByOwner            - reset to false by ConsentPartiesListener, set by
+                                   OwnerConfirmationController on reject;
                                    Boolean. Drives the multi-instance completionCondition
                                    and the post-subprocess gateway.
-      sentToProcess              - written by the SendToProcess message correlation;
+      sentToProcess              - reset to false by ConsentPartiesListener, set by
+                                   the SendToProcess message correlation;
                                    Boolean. Used by the status endpoint.
       price                      - written by the Get price service task
       autoDecision               - written by the DMN business rule task ("approve"/"review")
@@ -129,6 +139,20 @@
     <bpmn:userTask id="Task_SubmitDetails" name="Submit owner &amp; vehicle details"
                    camunda:formKey="react:owner-vehicle"
                    camunda:assignee="${initiator}">
+      <!--
+        Server-side consent state (docs/security.md rule 3): keeps only name
+        and email of each co-owner, assigns party ids, resets the
+        confirmations map and the reject/sent flags, and starts a new
+        consentRound so earlier confirmation links stop verifying.
+      -->
+      <bpmn:extensionElements>
+        <camunda:taskListener class="com.poc.cib7.consent.ConsentPartiesListener" event="complete">
+          <camunda:field name="partiesVariable" stringValue="additionalOwners" />
+          <camunda:field name="confirmationsVariable" stringValue="ownerConfirmations" />
+          <camunda:field name="rejectedVariable" stringValue="rejectedByOwner" />
+          <camunda:field name="sentVariable" stringValue="sentToProcess" />
+        </camunda:taskListener>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Start_Submit</bpmn:incoming>
       <bpmn:incoming>Flow_SendBackEmail_Submit</bpmn:incoming>
       <bpmn:outgoing>Flow_Submit_HasPendingUpload</bpmn:outgoing>
@@ -172,7 +196,7 @@
       DocumentsApiSecurityConfig matches the X-Internal-Token header
       instead of a JWT. The engine no longer sets that header; the call
       crosses the integration bus (esb), which injects X-Internal-Token on
-      the /api/documents route.
+      the /api/internal route.
     -->
     <bpmn:serviceTask id="Task_AttachIdDocument" name="Attach owner ID document"
                       camunda:asyncBefore="true">
@@ -180,7 +204,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -231,7 +255,7 @@
 
     <!--
       Emails the applicant their own tracking link. Same UI as every other
-      owner — applicant's token is pre-confirmed at submit time, so opening
+      owner — the applicant is pre-confirmed at submit time, so opening
       the link shows status + the "Send to process" button when all owners
       have signed.
     -->
@@ -265,8 +289,8 @@
     <!--
       Parallel multi-instance subprocess. One instance per element of
       additionalOwners (a Spin Json list). Each instance gets its own
-      element variable `owner` (a SpinJsonNode) plus a local `ownerToken`
-      set from owner.token via inputOutput — the receiveTask correlation
+      element variable `owner` (a SpinJsonNode) plus a local `partyId`
+      set from owner.partyId via inputOutput — the receiveTask correlation
       keys off that local variable so the public confirmation endpoint
       reaches exactly the waiting execution.
 
@@ -321,15 +345,16 @@
 
       <!--
         Park until the owner clicks Approve/Reject in their confirmation page.
-        The inputOutput mapping promotes owner.token to a flat local variable
-        so MessageCorrelationBuilder.localVariableEquals("ownerToken", ...) in
-        the controller finds this exact execution.
+        The inputOutput mapping promotes owner.partyId to a flat local variable
+        so the controller's localCorrelationKeys {partyId} (taken from the
+        verified link token, never from the request body) find this exact
+        execution.
       -->
       <bpmn:receiveTask id="ReceiveTask_OwnerConfirmation" name="Wait for co-owner signature"
                         messageRef="Message_OwnerConfirmation">
         <bpmn:extensionElements>
           <camunda:inputOutput>
-            <camunda:inputParameter name="ownerToken">${owner.prop('token').stringValue()}</camunda:inputParameter>
+            <camunda:inputParameter name="partyId">${owner.prop('partyId').stringValue()}</camunda:inputParameter>
           </camunda:inputOutput>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_Owner_SendEmail_Wait</bpmn:incoming>
@@ -636,7 +661,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -719,7 +744,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -775,9 +800,10 @@
                        sourceRef="Task_SendApprovalEmail" targetRef="Task_WaitForPayment" />
 
     <!--
-      Park until the applicant clicks "Confirm payment" on the public
-      /pay/{piId} page (or any external SEPA→PaymentController flow,
-      future work). The controller correlates PaymentReceived by
+      Park until the payment provider's signed callback reports the state
+      fee as paid (docs/security.md rule 4). The applicant pays from the
+      public /pay/{token} page; the backend's payment callback verifies the
+      provider signature and amount, then correlates PaymentReceived by
       processInstanceId, so only this one waiter is unblocked. Once
       payment lands the case advances to the certificate generation;
       cases without an applicantEmail skip this branch entirely.

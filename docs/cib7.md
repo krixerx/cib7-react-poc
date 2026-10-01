@@ -51,22 +51,27 @@ cib7/
     ├── java/com/poc/cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
     │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin + Spin plugin
+    │   ├── BusTokenInterceptor.java       — adds X-Bus-Token to every http-connector call to the bus
     │   ├── BusConfiguration.java          — exposes ${busBaseUrl} to BPMN JUEL (the integration bus)
     │   ├── FrontendConfiguration.java     — exposes ${frontendBaseUrl} (links in emails)
     │   ├── PdfHelper.java                 — @Component("pdf") — base64 ↔ byte[] bridge
-    │   ├── AuthorizationBootstrap.java    — grants applicant + civil-servant engine perms on startup
+    │   ├── ReservedBeansPlugin.java       — config beans resolve before same-named process variables
+    │   ├── AuthorizationBootstrap.java    — the group-level engine grants (applicant, civil-servant)
+    │   ├── authorization/                 — InitiatorAuthorizationListener + plugin: per-case grants for the initiator
+    │   ├── policy/                        — VariableWritePolicyFilter + VariablePolicyRegistry: per-form variable allowlist
     │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
     │       └── webapp/                    — OAuth2 login + ContainerBasedAuthenticationProvider for Cockpit/Tasklist/Admin
     └── resources/
         ├── application.yaml               — engine + OAuth2 client config
         ├── processes/<service>/           — one engine deployment per folder (ServiceDeployments.java)
+        │   ├── <service>/variable-policy.json — which variables clients may write (generated, see below)
         │   ├── vehicle-registration/      — vehicle-registration.bpmn + vehicle-auto-approval.dmn
         │   ├── business-registration/     — business-registration.bpmn + business-auto-approval.dmn
         │   ├── transport-vehicle-registration/  — BPMN + eligibility/fee DMNs
         │   └── transport-learning-permit/       — BPMN + eligibility DMN
         └── templates/                     — FreeMarker payloads for the http-connector
             └── *.json.ftl                 — Mailpit emails, pdf-renderer renders,
-                                             backend /api/documents calls
+                                             backend /api/internal calls
 ```
 
 The `com.poc.cib7.keycloak` package contains five classes verbatim from the
@@ -93,6 +98,14 @@ starter discovers all `ProcessEnginePlugin` beans and wires them into the
 engine. Without this bean, `<camunda:connector>` elements in BPMN are ignored
 and the "Get price" service task fails at deploy/runtime.
 
+The plugin bean overrides `postInit` to add a `BusTokenInterceptor` to the
+http-connector once Connect has loaded it. The interceptor sets
+`X-Bus-Token: <app.bus.token>` (env `BUS_TOKEN`, demo default
+`bus-token-change-me`) on every request whose URL starts with `${busBaseUrl}`,
+replacing any value the BPMN set, and adds nothing to requests for other
+hosts. The ESB refuses calls without it (`esb/routes/bus-auth.yaml`), so the
+token lives in one place in the engine and no BPMN or template sees it.
+
 If you add another engine plugin (e.g. an LDAP identity provider), add it as
 another `@Bean` in the same `@Configuration` class or split per concern.
 
@@ -104,14 +117,14 @@ without any further wiring:
 
 | Bean | Env var | Used by BPMN as |
 |---|---|---|
-| `busBaseUrl` | `BUS_URL` | `${busBaseUrl}/...` for ALL outbound HTTP. The integration bus (`esb`, Apache Camel) routes each path: `/api/v1/send`→Mailpit, `/render`→pdf-renderer, `/api/public/**` and `/api/documents/**`→backend |
+| `busBaseUrl` | `BUS_URL` | `${busBaseUrl}/...` for ALL outbound HTTP. The integration bus (`esb`, Apache Camel) routes each path: `/api/v1/send`→Mailpit, `/render`→pdf-renderer, `/api/public/**` and `/api/internal/**`→backend |
 | `frontendBaseUrl` | `FRONTEND_BASE_URL` | links embedded in confirmation / payment emails |
 
 The former `MailConfiguration` / `PdfConfiguration` / `BackendConfiguration`
 beans (one per downstream system) were collapsed into the single `busBaseUrl`;
 the per-system addresses now live in `esb/routes/*.yaml`. The internal
 `X-Internal-Token` secret also moved to the bus — the engine no longer sets it
-(the bus injects it on `/api/documents`), so `INTERNAL_TASK_TOKEN` is an `esb`
+(the bus injects it on `/api/internal`), so `INTERNAL_TASK_TOKEN` is an `esb`
 env var, not an engine one.
 
 Defaults target `localhost` ports for `mvn spring-boot:run`; docker-compose
@@ -129,34 +142,48 @@ rationale.
 
 ### `AuthorizationBootstrap.java`
 
-Runs once after `ApplicationReadyEvent` and grants both the `applicant` and
-the `civil-servant` engine groups the minimum permissions to do their jobs
-across all deployed process definitions. With `camunda.bpm.authorization.enabled:
-true`, a new group has no permissions by default — without this bootstrap
-Bart's PartA calls return empty arrays and Homer's PartB worklist gets a 500
-"no matching process definition" (the engine hides resources the caller can't
-read rather than returning 403).
+Runs once after `ApplicationReadyEvent` and is the only place group-level
+engine grants are created ([security.md rule 1](security.md#1-engine-authorization)).
+With `camunda.bpm.authorization.enabled: true`, a new group has no
+permissions by default, and the engine hides what a caller can't read (empty
+arrays, or a 500 "no matching process definition") rather than returning 403.
 
-Grants summary:
+Engine grants only ever **add** access. There is no implicit "assignee only"
+filter on top of a wildcard, so a `TASK:*` or `PROCESS_DEFINITION:*
+READ_INSTANCE` grant to `applicant` would show every applicant every other
+applicant's case. The grants are therefore limited to what a role may do on
+every case:
 
 | Group | Resource | Permissions |
 |---|---|---|
-| `applicant` | `PROCESS_DEFINITION *` | READ, CREATE_INSTANCE, READ_INSTANCE, READ_HISTORY, UPDATE_INSTANCE, READ_TASK, UPDATE_TASK |
-| `applicant` | `PROCESS_INSTANCE *` | CREATE |
-| `applicant` | `TASK *` | READ, UPDATE |
-| `civil-servant` | `PROCESS_DEFINITION *` | READ, READ_INSTANCE, READ_HISTORY, UPDATE_INSTANCE, READ_TASK, UPDATE_TASK |
-| `civil-servant` | `TASK *` | READ, UPDATE |
+| `applicant` | `PROCESS_DEFINITION *` | READ, CREATE_INSTANCE |
+| `applicant` | `PROCESS_INSTANCE *` | CREATE (checked by `start`; opens no existing instance) |
+| `civil-servant` | `PROCESS_DEFINITION *` | READ, READ_INSTANCE, READ_HISTORY, READ_TASK, RETRY_JOB |
 
-`civil-servant` does NOT get `CREATE_INSTANCE` or `CREATE` on `PROCESS_INSTANCE` —
-civil servants don't start cases, applicants do. BPMN `candidateGroups` still
-gate which tasks a civil servant can actually claim/complete on top of these
-resource-level grants, so the wildcard resource id is safe.
+Everything else comes from per-resource grants created while a case runs:
 
-Idempotent — re-running on a clean H2 startup is fine, and on a re-deploy
-the same-group-same-resource check skips already-existing grants. The
-`cib7-admin` group is handled separately by the `cibseven-keycloak`
-plugin's `administratorGroupName: cib7-admin` config — no bootstrap needed,
-it gets full admin powers automatically.
+- **The applicant's own case**: `InitiatorAuthorizationListener` (see below)
+  grants the user who started the instance `PROCESS_INSTANCE:<id> READ` and
+  `HISTORIC_PROCESS_INSTANCE:<id> READ`, and `TASK:<id> READ` on every user
+  task of that instance (so "My processes" can show "under review").
+- **Working a task**: the engine's default task authorizations. The assignee,
+  candidate users and candidate groups of a task get `READ` + `UPDATE`
+  (`defaultUserPermissionNameForTask`) on that one task, and, because
+  `enableHistoricInstancePermissions` is on, `HISTORIC_TASK READ` too. So
+  Bart can complete the task assigned to `${initiator}`, and only members of
+  `civil-servant` can claim, assign or complete a task with
+  `candidateGroups="civil-servant"`. No group has `UPDATE_TASK`, so a civil
+  servant cannot complete an applicant's task and vice versa.
+- **Retrying jobs**: `RETRY_JOB` is the narrowest permission
+  `PUT /job/{id}/retries` accepts. The engine also accepts `UPDATE_INSTANCE`,
+  which would additionally allow variable changes and instance modification.
+
+The bootstrap converges on every start: a missing grant is created, a grant
+with different permissions is rewritten, and the `TASK:*` group grants of
+earlier versions are deleted. The `cib7-admin` group is handled separately by
+the `cibseven-keycloak` plugin's `administratorGroupName: cib7-admin`.
+`AuthorizationModelTest` holds the negative tests (another applicant, the
+wrong group, a civil servant on an applicant task).
 
 > **Gotcha** — the cibseven-keycloak plugin exposes engine group IDs
 > **without** the leading slash of the Keycloak group path, even when
@@ -165,6 +192,89 @@ it gets full admin powers automatically.
 > BPMN `candidateGroups` attribute must use this slash-less form to
 > match; the realm export still uses the canonical paths
 > (`/applicant`, `/civil-servant`, `/cib7-admin`).
+
+### `authorization/InitiatorAuthorizationListener.java`
+
+Registered on every process and user task by `InitiatorAuthorizationPlugin`
+(a pre-BPMN parse listener, so generated BPMN needs no markup). At process
+start it reads the authenticated user from the command context and creates the
+two per-instance user grants above; at user-task creation it gives every user
+holding a `PROCESS_INSTANCE` grant on that instance `TASK:<id> READ` (read
+only; working the task still needs the default assignee/candidate grant).
+Grants are written through the authorization manager with checks suspended,
+because the applicant has no right to create authorizations. No authenticated
+user (job executor, a start without a Bearer) means no grant; a case started by
+a service account gives that account read access to it.
+
+With `enableHistoricInstancePermissions`, the engine's history queries
+(`/history/process-instance`, `/activity-instance`, `/task`,
+`/variable-instance`, `/detail`, `/incident`, `/job-log`) accept
+`HISTORIC_PROCESS_INSTANCE READ` as an alternative to `PROCESS_DEFINITION
+READ_HISTORY`, which is what lets an applicant read their own timeline and
+nobody else's.
+
+### `ReservedBeansPlugin.java`
+
+Configuration beans used in BPMN expressions and FreeMarker templates
+(`busBaseUrl`, `frontendBaseUrl`, `pdf`, listed once in
+`ReservedBeansPlugin.RESERVED_NAMES`) resolve before process variables of the
+same name. Stock JUEL asks the variable scope before the Spring context, so a
+variable called `busBaseUrl` would otherwise redirect that case's connectors.
+The plugin swaps in a `SpringExpressionManager` subclass whose resolver chain
+starts with a reserved-name resolver, and appends a matching resolver to the
+script bindings (where the last resolver that knows a key wins). Add a name
+there whenever a new bean is referenced from BPMN or a template;
+`ReservedBeansPluginTest` checks both paths.
+
+### `policy/VariableWritePolicyFilter.java`
+
+Engine authorization decides whether a user may complete a task or start a
+process, not which variables come with the call. This filter enforces
+[security rule 2](security.md#2-process-variables-are-untrusted-input): a
+client writes only the variables its form declares.
+
+- **Policy files.** Each `processes/<service>/variable-policy.json` names a
+  `processDefinitionKey`, a `start` list and a `forms` map (form id, i.e.
+  `formKey` without `react:`, to the variables that form may write). They are
+  generated by `/service-builder` from the spec's "Variable write policy"
+  section, sit next to the BPMN, and are ignored by `ServiceDeployments`.
+  `VariablePolicyRegistry` loads them at startup
+  (`app.variable-policy.locations`, default
+  `classpath*:processes/*/variable-policy.json`) and refuses to start on a
+  malformed file, a duplicate key, or a reserved name (`initiator`,
+  `ReservedBeansPlugin.RESERVED_NAMES`).
+- **Checked endpoints.** `POST /task/{id}/complete|submit-form|resolve` against
+  the task's form; `POST /process-definition/{id}|key/{key}[/tenant-id/{t}]/start|submit-form`
+  against `start` (start instructions and `skipCustomListeners` /
+  `skipIoMappings` are refused); `POST /task/{id}/localVariables`, which the
+  MCP `save_draft` tool uses, against the task's form. Only top-level variable
+  names are checked, not values or nested JSON.
+- **Closed endpoints.** Every other endpoint of the 2.2 REST API that writes
+  variables answers 403 for non-admins: task, process-instance and execution
+  variables, `/message`, `/signal`, `/condition`, process-instance
+  modification, `/modification`, `/migration` execute, restart, external task
+  completion, CMMN.
+- **Who bypasses it.** Members of `cib7-admin`
+  (`plugin.identity.keycloak.administratorGroupName`), which includes the
+  backend's `service-account-cib7-business`: it sets consent and payment
+  variables and correlates messages.
+- **Failing closed.** A definition without a policy, a form without an entry,
+  or a task the caller cannot see accepts no variables; the registry logs the
+  missing key once. The path is decoded and stripped of `/engine/{name}` and
+  trailing slashes before matching, and a body that is not a JSON object gets
+  400.
+- **Ordering.** Registered in the `/engine-rest` security chain right after
+  `KeycloakAuthenticationFilter` (`RestApiSecurityConfig`), so the engine's
+  `IdentityService` already holds the user and groups; deliberately not a
+  `Filter` bean, which Spring Boot would also register outside the chain.
+- **Response.** 403 with `{"type":"VariablePolicyViolation","message":"variable
+  'x' is not writable from form 'y'"}`; the task stays open.
+
+Tests: `VariableWritePolicyFilterTest` (end to end through the real security
+chain, with a locally signed JWT) and `VariablePolicyFilesTest` (every
+`formKey` in every BPMN has an entry, no system-owned or engine-set name is
+listed, decisions only on reviewer forms, and each policy equals its MCP
+manifest plus the documented SPA-only fields).
 
 ## Engine configuration (`application.yaml`)
 
@@ -263,7 +373,7 @@ StartEvent_1 (camunda:initiator="initiator")
   → Task_SubmitDetails            userTask         formKey="react:owner-vehicle"
                                                     camunda:assignee="${initiator}"
                                                     (also re-entered on send-back)
-  → Task_AttachIdDocument         serviceTask      http-connector → backend /api/documents/move-pending
+  → Task_AttachIdDocument         serviceTask      http-connector → backend /api/internal/documents/move-pending
   → SubProcess_OwnerConfirmations multi-instance   one branch per co-owner: signing email +
                                                     ReceiveTask_OwnerConfirmation (message
                                                     correlation from the public confirm page)
@@ -283,11 +393,12 @@ StartEvent_1 (camunda:initiator="initiator")
        decision == "approve"  → invoice + payment path below
        default (sendback)     → Task_SendBackEmail → Task_SubmitDetails (loop)
   → Task_GeneratePdf → Task_StoreApprovalPdf       fee invoice (pdf-renderer →
-                                                    backend /api/documents/server-upload)
+                                                    backend /api/internal/documents/server-upload)
   → Task_SendApprovalEmail                          invoice email with /pay link
   → Task_WaitForPayment           receiveTask      "PaymentReceived" message —
-                                                    correlated by the backend when the
-                                                    public /pay/{piId} page confirms
+                                                    correlated by the backend's payment
+                                                    callback, only for a provider-signed
+                                                    PAID callback for the charged amount
   → Task_GenerateCertificatePdf → Task_StoreCertificatePdf
   → EndEvent_Approved  "Vehicle registered"
 ```
@@ -296,19 +407,39 @@ Key process variables:
 - `initiator` — login of the applicant who started the case (written by the
   start event so the applicant task can be reassigned on every loop).
 - `firstName`, `lastName`, `age`, `objectId` (VIN), `applicantEmail`,
-  `applicantToken`, `additionalOwners` (Json), `pendingIdDocument` (Json) —
+  `additionalOwners` (Json `[{name, email}]`), `pendingIdDocument` (Json) —
   written by the applicant task.
+- `additionalOwners` rewritten to `[{partyId, name, email}]`,
+  `consentRound`, and the reset `ownerConfirmations` / `rejectedByOwner` /
+  `sentToProcess` — written by `ConsentPartiesListener`, a complete
+  listener on `Task_SubmitDetails` (same on `Task_SubmitBusinessDetails`
+  for founders). It drops anything else the client sent, so party ids,
+  approvals and the round are server-owned
+  ([security rule 3](security.md#3-capability-links)).
 - `price`, `vehicleAgeYears`, `vehicleMake/Model/Year/FuelType` — written by
   `Task_GetPrice` via Spin expressions on the `http-connector` response.
-- `ownerConfirmations` (Json), `rejectedByOwner`, `sentToProcess` — written
-  by the backend's public owner-confirmation endpoints via `/engine-rest`.
+- `ownerConfirmations` (Json, keyed by party id), `rejectedByOwner`,
+  `sentToProcess` — then updated by the backend's public owner-confirmation
+  endpoints via `/engine-rest`; the multi-instance receive task correlates
+  on its local `partyId`.
 - `autoDecision` — written by `Task_AutoDecide`, mapped from the
   `vehicle-auto-approval` DMN's single output (`"approve"` or `"review"`).
 - `decision` — written by the review task (`"approve"` or `"sendback"`).
 - `sendBackReason` — set by the review form when sending back; cleared by
   the applicant form on resubmit so the next review cycle starts clean.
-- `paymentReceived` — set by the backend's payment confirmation via
-  message correlation.
+- `paymentReceived`, `paymentReference`, `paidAmount` — set by the
+  backend's signed payment callback via message correlation.
+
+**Capability links (`links` bean).** `CapabilityLinks` mints the tokens the
+email templates put into public links:
+`links.owner(execution, partyId)`, `links.founder(execution, partyId)` and
+`links.payment(execution)`. A token is `base64url(payload).base64url(hmac)`
+over `processInstanceId|partyId|purpose|round|expiresAt`, HMAC-SHA256 keyed
+with `LINK_SIGNING_SECRET` (`app.links.secret`; expiry `app.links.consent-ttl`
+P14D and `app.links.payment-ttl` P30D). Consent tokens carry the case's
+`consentRound`; payment tokens round 0. Nothing is stored, and the backend's
+`CapabilityLinkVerifier` checks the same format (both modules pin a shared
+test vector). `links` is a reserved name in `ReservedBeansPlugin`.
 
 **DMN — `vehicle-auto-approval.dmn`.** Hit policy `FIRST`. Inputs `age`,
 `price`, and `vehicleAgeYears`; one output (`autoDecision`). (The OÜ flow's
@@ -359,8 +490,8 @@ body as a String).
 It is wired inline inside every integration service task across the two
 BPMNs: registry lookup (`Task_GetPrice`), document promotion and storage
 (`Task_AttachIdDocument` / `Task_AttachAoaDocument` → backend
-`/api/documents/move-pending`; the `Task_Store*Pdf` tasks → backend
-`/api/documents/server-upload`), email sends (Mailpit), and PDF renders
+`/api/internal/documents/move-pending`; the `Task_Store*Pdf` tasks → backend
+`/api/internal/documents/server-upload`), email sends (Mailpit), and PDF renders
 (pdf-renderer). For `Task_GetPrice` the response body is parsed with Spin
 (bundled with the CIB seven engine), with per-property fallbacks so a
 malformed response degrades to "review" instead of crashing the activity:
@@ -428,10 +559,13 @@ caller's Keycloak group membership.
 | JWT validation | `spring-boot-starter-oauth2-resource-server` | `RestApiSecurityConfig.java` |
 | Audience pin | `AudienceValidator` (rejects tokens without `cib7-rest-api` in `aud`) | `AudienceValidator.java` |
 | Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
+| Variable allowlist | `VariableWritePolicyFilter` (per-form and per-start variable allowlist; other variable writes admin-only) | `policy/VariableWritePolicyFilter.java`, `processes/*/variable-policy.json` |
 | Engine authorization | `camunda.bpm.authorization.enabled: true` | `application.yaml` |
 | Admin group → engine admin | `administratorGroupName: cib7-admin` on the identity plugin | `application.yaml` |
-| Group → narrow grants | `AuthorizationBootstrap` adds READ / CREATE_INSTANCE / READ_INSTANCE / READ_HISTORY / UPDATE_INSTANCE / READ_TASK / UPDATE_TASK for the `applicant` group (and a read/update set for `civil-servant`) on `ProcessDefinition:*`, plus CREATE on `ProcessInstance:*` and READ / UPDATE on `Task:*` | `AuthorizationBootstrap.java` |
-| BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | both BPMNs |
+| Group grants | `AuthorizationBootstrap`: `applicant` may list and start services (`ProcessDefinition:*` READ, CREATE_INSTANCE; `ProcessInstance:*` CREATE); `civil-servant` may read every case and retry jobs (`ProcessDefinition:*` READ, READ_INSTANCE, READ_HISTORY, READ_TASK, RETRY_JOB). No `Task:*` and no `UPDATE_TASK` | `AuthorizationBootstrap.java` |
+| Initiator's own case | Per-instance user grants (`ProcessInstance`, `HistoricProcessInstance` READ; READ on each user task) created at process start / task creation | `authorization/InitiatorAuthorizationListener.java` |
+| Working a task | Engine default task authorizations: assignee and candidate users/groups get READ + UPDATE (and HISTORIC_TASK READ) on that one task | engine, `defaultUserPermissionNameForTask` |
+| BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | all BPMNs |
 
 The five Java files under `com/poc/cib7/keycloak/` are **verbatim copies of
 the plugin's reference example** (`examples/sso-kubernetes/.../rest/` and
@@ -440,14 +574,16 @@ plugin author's published recipe for wiring Spring Security to the engine's
 `IdentityService`. Keep them in sync with the upstream plugin when bumping
 its version.
 
-`AuthorizationBootstrap.java` is the one piece of custom auth code, and it
-is intentionally narrow: it only adds grants for the `applicant` and
-`civil-servant` groups (wildcard resource ids so new services need no Java
-change). Admin (`cib7-admin`) is covered by the plugin's
-`administratorGroupName` config — which also makes the backend's
-`service-account-cib7-business` an engine admin, since the realm export puts
-that service account in `/cib7-admin`. Per-task access is still gated by the
-BPMN's `assignee` / `candidateGroups`.
+The custom authorization code is `AuthorizationBootstrap` (group grants, with
+wildcard resource ids so new services need no Java change) and
+`InitiatorAuthorizationListener` (per-case grants); see
+[§ `AuthorizationBootstrap.java`](#authorizationbootstrapjava) for the full
+model. Engine grants only add access, so the per-task gate is the absence of
+any wildcard task grant: the BPMN's `assignee` / `candidateGroups` decide who
+gets the default task authorization. Admin (`cib7-admin`) is covered by the
+plugin's `administratorGroupName` config, which also makes the backend's
+`service-account-cib7-business` an engine admin while the realm export puts
+that service account in `/cib7-admin`.
 
 ### Configuration surface (`application.yaml`)
 
@@ -457,6 +593,9 @@ BPMN's `assignee` / `candidateGroups`.
 | `rest.security.{enabled,provider,required-audience}` | Activates the filter chain and the audience claim check |
 | `plugin.identity.keycloak.*` | All Keycloak Admin REST API config — issuer URL, admin URL, client credentials, `useUsernameAsCamundaUserId`, `useGroupPathAsCamundaGroupId` |
 | `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
+| `camunda.bpm.generic-properties.properties.enable-historic-instance-permissions: true` | History queries accept per-instance `HISTORIC_PROCESS_INSTANCE` / `HISTORIC_TASK` grants, which is how applicants read their own history |
+| `camunda.bpm.generic-properties.properties.default-user-permission-name-for-task: UPDATE` | Permission the assignee/candidates get on a task besides READ (the default, set explicitly). `TASK_WORK` is narrower but blocks the SPA's `setAssignee` before completing a group task |
+| `app.bus.token` (`BUS_TOKEN`) | Value of `X-Bus-Token` on calls to the ESB |
 | `camunda.bpm.admin-user.id: admin` | Bootstraps admin authorizations on the dedicated `admin` user (in `/cib7-admin`) so the engine doesn't 403 the very first call. Was `homer` before — split out so the admin role is separate from the civil-servant role. |
 | `plugin.identity.keycloak.administratorGroupName: cib7-admin` | Grants engine admin authorizations to everyone in the `/cib7-admin` Keycloak group on every startup |
 

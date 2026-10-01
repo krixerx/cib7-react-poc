@@ -13,12 +13,13 @@ import FileUpload, { type FileUploadValue } from '../../components/FileUpload';
  * and the form is not read-only, a banner with the reviewer's reason
  * appears above the fields and is cleared on the next submit.
  *
- * On submit the form generates one UUID token per participant (applicant
- * plus each additional co-founder), seeds `founderSignatures` with the
- * applicant's signature already recorded, and writes everything as process
- * variables. The BPMN gateway downstream branches on whether
- * `additionalFounders` is non-empty — sole-founder cases skip the whole
- * signing block.
+ * On submit the form writes the co-founders as plain `{name, email}`
+ * entries. The engine (ConsentPartiesListener) assigns party ids, records
+ * the applicant's own signature, starts a new consent round and signs each
+ * signing link into the emails; the browser never sees or mints a token
+ * (docs/security.md rule 3). The BPMN gateway downstream branches on
+ * whether `additionalFounders` is non-empty — sole-founder cases skip the
+ * whole signing block.
  *
  * boardMembers is a separate concern (board-of-management appointment data
  * for the OÜ register entry). Co-founders are the people signing the
@@ -286,19 +287,6 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       }
     }
 
-    // Regenerate every token on every submit. The first round and any
-    // resubmit after a reject both produce fresh links — old emails stop
-    // working as soon as new tokens replace them in the process variables.
-    const applicantToken = crypto.randomUUID();
-    const foundersWithTokens = cleanedFounders.map((f) => ({
-      name: f.name,
-      email: f.email,
-      token: crypto.randomUUID(),
-    }));
-    const initialSignatures: Record<string, { status: string; signedAt: string }> = {
-      [applicantToken]: { status: 'approved', signedAt: new Date().toISOString() },
-    };
-
     // Always write pendingAoaDocument — non-null when there's a fresh upload
     // to migrate, null otherwise. Camunda's complete-task doesn't clear
     // unlisted variables, so a sendback resubmit that omitted this var
@@ -328,13 +316,9 @@ export default function BusinessDetailsForm({ data, onComplete, submitting, read
       applicantEmail: { value: trimmedEmail, type: 'String' },
       // Clear the send-back reason so a future cycle doesn't show a stale banner.
       sendBackReason: { value: '', type: 'String' },
-      applicantToken: { value: applicantToken, type: 'String' },
-      additionalFounders: { value: JSON.stringify(foundersWithTokens), type: 'Json' },
-      founderSignatures: { value: JSON.stringify(initialSignatures), type: 'Json' },
-      // Reset the flags so a previous reject round doesn't bleed into this
-      // submission. The receive task and gateway re-read them fresh.
-      rejectedByFounder: { value: false, type: 'Boolean' },
-      sentToRegister: { value: false, type: 'Boolean' },
+      // Party ids, signatures and the reject/sent flags are server-owned:
+      // the engine rebuilds them from this list on every submission.
+      additionalFounders: { value: JSON.stringify(cleanedFounders), type: 'Json' },
       pendingAoaDocument: pendingAoaDocumentVar,
     });
   }

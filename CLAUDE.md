@@ -142,6 +142,35 @@ Generated from the spec:
 
 If a spec is missing a required field, stop and ask rather than guessing.
 
+## Security rules (mandatory)
+
+`docs/security.md` holds the full rules and the list of accepted demo
+exemptions (seeded users and passwords, dev-default secrets, self-signed TLS).
+Read it before touching auth, endpoints, variables, links, integrations or
+containers. The short form:
+
+- **No wildcard engine grants for applicants.** Grants only add access; there
+  is no implicit "own tasks" filter. Applicants reach their own case through
+  per-instance grants for the initiator and per-task assignee/candidate grants.
+- **Process variables from clients are untrusted.** A form writes only the
+  variables in its generated `variable-policy.json`; system-owned variables
+  (decisions, payment, consent, identity) are set server-side only, and
+  config beans resolve before variables.
+- **Capability links are minted server-side**, bound to case, party, round and
+  expiry, never stored raw where another party can read them, never returned
+  to other parties.
+- **External facts need proof.** Payment counts only on a signed provider
+  callback, never on a browser call.
+- **Every `/api` path is in one class:** `/api/public/**` (capability or
+  harmless reference data), `/api/internal/**` (X-Internal-Token, never
+  routed by the ingress), everything else JWT. Unmatched paths are denied.
+- **Check ownership of every id or key** a caller passes.
+- **Encode at every boundary:** `?json_string`, `?html`, encoded URL segments.
+- **Ingress sends security headers and rate-limits public paths.** Containers
+  run as non-root on pinned images; internal services share a network only
+  when they must talk.
+- **Every security fix lands with a negative test.**
+
 ## Contracts and gotchas that bite
 
 - **`formKey` to registry.** A user task carries

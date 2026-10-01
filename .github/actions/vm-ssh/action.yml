@@ -23,10 +23,10 @@ inputs:
     description: >
       known_hosts lines for the VM, i.e. the output of `ssh-keyscan <host>`.
       Unhashed, so the name each line pins is readable and checkable.
-      Left empty, host keys are accepted on first sight and printed for you to
-      paste into the secret — acceptable for a diagnostic run, never for a
-      deploy: docker group membership on the target is root-equivalent, so an
-      unpinned host key means handing that to whoever answers on port 22.
+      Left empty, the action prints what ssh-keyscan sees, for you to verify
+      against the VM and paste into the secret, and then FAILS: docker group
+      membership on the target is root-equivalent, so an unpinned host key
+      would hand that to whoever answers on port 22, diagnostic run or not.
     required: false
     default: ''
 
@@ -150,12 +150,22 @@ runs:
         if [ -n "$VM_KNOWN_HOSTS" ]; then
           printf '%s\n' "$VM_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
         else
-          STRICT=accept-new
-          : > ~/.ssh/known_hosts
-          echo "::warning::VM_KNOWN_HOSTS is empty — accepting the host key on first sight."
-          echo "--- paste these lines into the VM_KNOWN_HOSTS secret to pin the host ---"
-          ssh-keyscan -T 10 "$VM_HOST" 2>/dev/null | grep -v '^#' || echo "(keyscan got nothing back)"
-          echo "-----------------------------------------------------------------------"
+          # No trust-on-first-use. The scan is printed so the secret can be
+          # filled, but only after comparing the fingerprints with the VM's own
+          # (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub): this runner
+          # cannot tell the real host from whoever answered on port 22.
+          echo "FATAL: VM_KNOWN_HOSTS is empty, so the host key cannot be pinned."
+          SCAN=$(ssh-keyscan -T 10 "$VM_HOST" 2>/dev/null | grep -v '^#' || true)
+          echo "--- ssh-keyscan $VM_HOST: VERIFY against the VM, then paste into VM_KNOWN_HOSTS ---"
+          if [ -n "$SCAN" ]; then
+            printf '%s\n' "$SCAN"
+            echo "--- their fingerprints ---"
+            printf '%s\n' "$SCAN" | ssh-keygen -lf - 2>/dev/null || true
+          else
+            echo "(keyscan got nothing back)"
+          fi
+          echo "------------------------------------------------------------------------------------"
+          exit 1
         fi
         chmod 644 ~/.ssh/known_hosts
 

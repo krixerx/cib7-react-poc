@@ -1,5 +1,5 @@
 <#--
-  /api/documents/server-upload payload for Task_StoreCertificatePdf.
+  /api/internal/documents/server-upload payload for Task_StoreCertificatePdf.
   Mirror of server-upload-approval.json.ftl with the certificate's
   variable names and a different category.
 -->

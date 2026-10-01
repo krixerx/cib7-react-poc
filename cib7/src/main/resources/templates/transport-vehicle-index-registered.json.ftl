@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportVehicleIndexRegistered.
+  /api/internal/cases/index payload for Task_TransportVehicleIndexRegistered.
   Terminal happy-path card: plate allocated, certificate stored.
 -->
 {

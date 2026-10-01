@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportPermitIndexIssued.
+  /api/internal/cases/index payload for Task_TransportPermitIndexIssued.
   Terminal happy-path card: permit issued, electronic license stored.
 -->
 {

@@ -22,9 +22,10 @@ downstream system:
 cib7 engine ──POST ${busBaseUrl}/…──▶ [ Camel routes ] ──▶ downstream
    /api/v1/send      ──▶ mailpit:8025
    /render           ──▶ pdf-renderer:8088   (response flows back)
-   /api/public/**    ──▶ backend:8085        (clearance, registry, plate, permit)
-   /api/documents/** ──▶ backend:8085        (move-pending, server-upload;
-                                              bus injects X-Internal-Token)
+   /api/public/**    ──▶ backend:8085        (vehicle catalog lookup)
+   /api/internal/**  ──▶ backend:8085        (documents, case index, transport
+                                              clearance/plate/permit; bus
+                                              injects X-Internal-Token)
 ```
 
 Each integration is one declarative route file in `routes/`, all loaded via
@@ -32,6 +33,20 @@ Each integration is one declarative route file in `routes/`, all loaded via
 addresses and the `INTERNAL_TASK_TOKEN` secret live here on the bus. The
 engine's `BusConfiguration.java` exposes `${busBaseUrl}` to BPMN — there is no
 longer a Mail/Pdf/Backend config class per system.
+
+## Authentication
+
+Every route starts with `to: direct:bus-auth` (`routes/bus-auth.yaml`). A call
+passes only with `X-Bus-Token` equal to the bus's `BUS_TOKEN` env var, which the
+engine sends on every connector call; anything else gets a fixed `401` JSON body
+and is not forwarded. The header is stripped before the call leaves the bus.
+`BUS_TOKEN` has no default here: unset or empty, the bus refuses everything.
+The comparison is plain string equality because the simple language has no
+constant-time compare; the bus is reachable only on the internal network.
+
+A new route must call `direct:bus-auth` first. `X-Internal-Token` is injected
+only on the `/api/internal` route, so it reaches the backend only for callers
+that passed this check.
 
 ## See it working
 
@@ -52,7 +67,8 @@ docker compose --profile dev up -d mailpit-ui   # Mailpit UI at http://localhost
 ## Adding an integration
 
 Drop a new `routes/<name>.yaml` in — `--source-dir` auto-loads it, no Dockerfile
-change — and point the engine connector at `${busBaseUrl}/<new-path>`. Gotcha:
+change — and point the engine connector at `${busBaseUrl}/<new-path>`. Start
+its steps with `- to: "direct:bus-auth"`. Gotcha:
 for a fixed-path forward, `removeHeader CamelHttpPath` before the `to` (else the
 inbound platform-http path is appended and the downstream 404s); for a
 path-preserving prefix proxy, use `matchOnUriPrefix=true` and keep the header.

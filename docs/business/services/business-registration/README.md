@@ -84,6 +84,53 @@ flow               send-approval-email -> approved
 | `autoDecision` | `Task_AutoDecide` (DMN) | String | `"approve"` or `"review"`. |
 | `decision` | `Task_ReviewBusinessRegistration` | String | `"approve"` or `"sendback"`. |
 | `sendBackReason` | `Task_ReviewBusinessRegistration` | String | Reason for the loop-back. The applicant sees this as a banner above the form on resubmit; the React form clears it on next submit so a future cycle starts clean. |
+| `additionalFounders` | `Task_SubmitBusinessDetails`, rewritten by `ConsentPartiesListener` | Json (Spin list) | The form writes `[{name, email}]`. The complete listener on `Task_SubmitBusinessDetails` keeps only those two fields and adds server-assigned `partyId`s (`p1`, `p2`, ...): `[{partyId, name, email}]`. Always set (empty list when the client sent none, e.g. over MCP). Drives the signing subprocess. |
+| `consentRound` | `ConsentPartiesListener` | Long | Replaced on every submission (epoch milliseconds). Signed into every signing link; links from an earlier round get 404. |
+| `founderSignatures` | `ConsentPartiesListener` + `FounderSignatureController` | Json (Spin map) | `{<partyId>: {status, signedAt, reason?}}`. Reset on every submission to the applicant (`"applicant"`) pre-set to `"approved"`. |
+| `rejectedByFounder`, `sentToRegister` | `ConsentPartiesListener` (reset to false) + `FounderSignatureController` / `SubmitToRegister` correlation | Boolean | Drive the subprocess completion condition, the gateway after it and the public status page. |
+| `paymentReceived`, `paymentReference`, `paidAmount` | `PaymentReceived` correlation (signed provider callback) | Boolean, String, Double | Written only by the backend's payment callback after the provider signature and amount check. |
+
+## Co-founder signatures and payment
+
+When `additionalFounders` is non-empty, the engine emails the applicant a
+tracking link and each co-founder a signing link
+(`templates/founder-tracking-email.json.ftl`,
+`templates/founder-signing-email.json.ftl`). Each link is
+`${frontendBaseUrl}/sign-founder/${links.founder(execution, partyId)}`: a
+capability token the `links` bean (`CapabilityLinks`) signs over the case,
+the party, the consent round and a 14-day expiry. Nothing stores it. The
+public `/api/public/founder-signatures/{token}` endpoints act only for the
+party and case the verified token names, and their status shows the other
+founders' names and states, never their email or link
+(docs/security.md rule 3).
+
+| Receive task | Message | Correlation | Triggered by |
+|---|---|---|---|
+| `ReceiveTask_FounderSignature` (in subprocess) | `FounderSignature` | local `partyId` (from `founder.partyId`) | `POST /api/public/founder-signatures/{token}` |
+| `Task_WaitSubmitToRegister` | `SubmitToRegister` | `processInstanceId` | `POST /api/public/founder-signatures/{token}/submit-to-register` |
+| `Task_WaitForPayment` | `PaymentReceived` | `processInstanceId` | The payment provider's signed callback `POST /api/public/payments/callback` (docs/security.md rule 4), after the applicant pays from `/pay/{token}` |
+
+The approval email's pay link is `${frontendBaseUrl}/pay/${links.payment(execution)}`
+(30-day expiry). The fee (EUR 265) is computed by the backend; the
+callback must report exactly that amount.
+
+## Variable write policy
+
+The variables a client (SPA, MCP agent) may write, per start and per form.
+`/service-builder` generates
+`cib7/src/main/resources/processes/business-registration/variable-policy.json` from this
+table and `VariableWritePolicyFilter` refuses anything else with 403
+(docs/security.md rule 2). Everything not listed here is system-owned.
+
+| Start / form | Client may write | Notes |
+|---|---|---|
+| start | `companyName`, `boardMembers`, `shareCapital`, `applicantAge` | MCP `start_process` prefill; the SPA starts with no variables. |
+| `business-details` | `companyName`, `boardMembers`, `shareCapital`, `applicantFirstName`, `applicantLastName`, `applicantEmail`, `applicantAge`, `applicantResidency`, `additionalFounders`, `pendingAoaDocument`, `sendBackReason` | Identity fields re-validated by `IdentityValidationListener`. `sendBackReason` is only cleared. SPA-only (not in the MCP schema): the three identity fields, `applicantResidency`, `additionalFounders`, `pendingAoaDocument`. |
+| `review-business-registration` | `decision`, `sendBackReason` | The reviewer's decision; never on the applicant form. |
+
+System-owned: `initiator`, `founderSignatures`,
+`rejectedByFounder`, `sentToRegister`, consent round and party ids,
+`autoDecision`, PDF and attachment variables.
 
 ## Roles and authorization
 

@@ -1,6 +1,6 @@
 # Node 20 has native fetch + FormData + Blob, so server.js needs nothing
 # beyond express. Alpine keeps the final image under 60 MB.
-FROM node:20-alpine
+FROM node:20.20.2-alpine
 
 WORKDIR /app
 
@@ -14,5 +14,9 @@ COPY server.js gelf.js ./
 
 ENV PORT=8088
 EXPOSE 8088
+
+# The stock `node` user (uid 1000) — no image we build runs as root
+# (docs/security.md rule 11).
+USER node
 
 CMD ["node", "server.js"]

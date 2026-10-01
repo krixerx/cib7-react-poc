@@ -226,6 +226,15 @@ The example routes everything by path on any hostname. Scope the rules
 with `` Host(`app.example.com`) `` if the box serves multiple names.
 Changes to files in `traefik/dynamic/` are hot-reloaded — no restart.
 
+The example also carries the security headers (HSTS, CSP for the APIs,
+nosniff, `X-Frame-Options`, `Referrer-Policy`), per-IP rate limits on
+`/api/public` and `/mcp`, keeps `/api/internal/**` unrouted, and has
+commented routers for serving Keycloak (with a login rate limit) and RustFS
+through Traefik. **Upgrading an older `routes.yml`:** the frontend and
+mobile containers now listen on 8080, not 80. `deploy.sh` refuses to run
+while `routes.yml` still points at `frontend:80` or `mobile:80`; re-copy the
+example and re-apply your `Host()` rules.
+
 ### 4. Set up TLS certificates
 
 **Option A — automatic Let's Encrypt.** Set `ACME_EMAIL=you@example.com`

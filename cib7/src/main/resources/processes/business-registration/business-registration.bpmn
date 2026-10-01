@@ -32,7 +32,7 @@
                   (Send co-founder signing email) service task
                   -> [Wait for co-founder signature] receiveTask    (msg "FounderSignature"
                                                                       correlated on local
-                                                                      founderToken)
+                                                                      partyId)
               completionCondition: ${rejectedByFounder == true}  (any reject short-circuits)
         -> <Anyone rejected?>             exclusive gateway
              rejectedByFounder == true -> (Send sent-back email) -> Submit (loop)
@@ -67,21 +67,29 @@
       applicantEmail      - written by submit-business-details. Required when
                             additionalFounders is non-empty (we need to email
                             the applicant their tracking link).
-      applicantToken      - written by submit-business-details; UUID that powers
-                            the applicant's own /sign-founder/{token} link.
-                            Pre-confirmed by submitting the form.
-      additionalFounders  - written by submit-business-details; Spin Json list of
-                            {name, email, token} for each co-founder that must
-                            sign before the case proceeds. Drives the multi-instance
+      additionalFounders  - written by submit-business-details as {name, email}
+                            entries, then rewritten by ConsentPartiesListener
+                            (task complete) to [{partyId, name, email}] with
+                            server-assigned party ids p1, p2, ... Anything else
+                            the client sent is dropped. Always set (an empty list
+                            when the client sent none). Drives the multi-instance
                             subprocess.
-      founderSignatures   - written by FounderSignatureController on every
-                            approve/reject; Spin Json map of token ->
-                            {status, reason?, signedAt}. Includes the applicant's
-                            token pre-set to "approved".
-      rejectedByFounder   - written by FounderSignatureController on reject; Boolean.
+      consentRound        - written by ConsentPartiesListener on every submission
+                            (epoch millis). Signed into every signing link; the
+                            backend rejects links from an earlier round.
+      founderSignatures   - initialised by ConsentPartiesListener with the
+                            applicant ("applicant") approved, then updated by
+                            FounderSignatureController on every approve/reject;
+                            Spin Json map of partyId -> {status, reason?, signedAt}.
+                            Signing links are never stored: the `links` bean
+                            (CapabilityLinks) signs them into the emails, see
+                            docs/security.md rule 3.
+      rejectedByFounder   - reset to false by ConsentPartiesListener, set by
+                            FounderSignatureController on reject; Boolean.
                             Drives the multi-instance completionCondition and the
                             post-subprocess gateway.
-      sentToRegister      - written by the SubmitToRegister message correlation;
+      sentToRegister      - reset to false by ConsentPartiesListener, set by the
+                            SubmitToRegister message correlation;
                             Boolean. Used by the public status endpoint.
       autoDecision        - written by the DMN ("approve" / "review").
       decision            - written by the review user task ("approve" / "sendback").
@@ -143,6 +151,20 @@
     <bpmn:userTask id="Task_SubmitBusinessDetails" name="Submit OÜ founding details"
                    camunda:formKey="react:business-details"
                    camunda:assignee="${initiator}">
+      <!--
+        Server-side consent state (docs/security.md rule 3): keeps only name
+        and email of each co-founder, assigns party ids, resets the
+        signatures map and the reject/sent flags, and starts a new
+        consentRound so earlier signing links stop verifying.
+      -->
+      <bpmn:extensionElements>
+        <camunda:taskListener class="com.poc.cib7.consent.ConsentPartiesListener" event="complete">
+          <camunda:field name="partiesVariable" stringValue="additionalFounders" />
+          <camunda:field name="confirmationsVariable" stringValue="founderSignatures" />
+          <camunda:field name="rejectedVariable" stringValue="rejectedByFounder" />
+          <camunda:field name="sentVariable" stringValue="sentToRegister" />
+        </camunda:taskListener>
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_Start</bpmn:incoming>
       <bpmn:incoming>Flow_SentBackEmail</bpmn:incoming>
       <bpmn:outgoing>Flow_Submit_HasPendingAoa</bpmn:outgoing>
@@ -187,7 +209,7 @@
       endpoint — DocumentsApiSecurityConfig matches the X-Internal-Token
       header instead of a JWT. The engine no longer sets that header; the
       call crosses the integration bus (esb), which injects X-Internal-Token
-      on the /api/documents route.
+      on the /api/internal route.
     -->
     <bpmn:serviceTask id="Task_AttachAoaDocument" name="Attach Articles of Association"
                       camunda:asyncBefore="true">
@@ -195,7 +217,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -258,7 +280,7 @@
 
     <!--
       Emails the applicant their own tracking link. Same UI as every other
-      co-founder — applicant's token is pre-confirmed at submit time, so
+      co-founder — the applicant is pre-confirmed at submit time, so
       opening the link shows status + the "Submit to register" button once
       all co-founders have signed.
     -->
@@ -293,8 +315,8 @@
     <!--
       Parallel multi-instance subprocess. One instance per element of
       additionalFounders (a Spin Json list). Each instance gets its own
-      element variable `founder` (a SpinJsonNode) plus a local `founderToken`
-      set from founder.token via inputOutput — the receiveTask correlation
+      element variable `founder` (a SpinJsonNode) plus a local `partyId`
+      set from founder.partyId via inputOutput — the receiveTask correlation
       keys off that local variable so the public signing endpoint reaches
       exactly the waiting execution.
 
@@ -350,16 +372,17 @@
 
       <!--
         Park until the co-founder clicks Approve/Reject in their signing page.
-        The inputOutput mapping promotes founder.token to a flat local variable
-        so MessageCorrelationBuilder.localVariableEquals("founderToken", ...) in
-        the controller finds this exact execution.
+        The inputOutput mapping promotes founder.partyId to a flat local
+        variable so the controller's localCorrelationKeys {partyId} (taken from
+        the verified link token, never from the request body) find this exact
+        execution.
       -->
       <bpmn:receiveTask id="ReceiveTask_FounderSignature"
                         name="Wait for co-founder signature"
                         messageRef="Message_FounderSignature">
         <bpmn:extensionElements>
           <camunda:inputOutput>
-            <camunda:inputParameter name="founderToken">${founder.prop('token').stringValue()}</camunda:inputParameter>
+            <camunda:inputParameter name="partyId">${founder.prop('partyId').stringValue()}</camunda:inputParameter>
           </camunda:inputOutput>
         </bpmn:extensionElements>
         <bpmn:incoming>Flow_Founder_SendEmail_Wait</bpmn:incoming>
@@ -533,7 +556,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -581,8 +604,10 @@
                        sourceRef="Task_SendApprovalEmail" targetRef="Task_WaitForPayment" />
 
     <!--
-      Park until the applicant clicks "Confirm payment" on the public
-      /pay/{piId} page. PaymentController correlates PaymentReceived by
+      Park until the payment provider's signed callback reports the state
+      fee as paid (docs/security.md rule 4). The applicant pays from the
+      public /pay/{token} page; the backend's payment callback verifies the
+      provider signature and amount, then correlates PaymentReceived by
       processInstanceId, so only this one waiter is unblocked. Cases
       without an applicantEmail skip this branch entirely (no invoice
       was generated to pay).
@@ -653,7 +678,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>

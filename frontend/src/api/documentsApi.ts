@@ -43,7 +43,6 @@ export interface AttachmentRegisterInput {
 
 export interface AttachmentResponse {
   attachmentId: string;
-  key: string;
 }
 
 export type DocumentCategory =
@@ -61,7 +60,6 @@ export interface DocumentEntry {
   contentType: string;
   createdAt: string | null;
   uploaderUserId: string | null;
-  key: string;
 }
 
 export interface DownloadUrlResponse {

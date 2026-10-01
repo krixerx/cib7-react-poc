@@ -20,9 +20,13 @@
   this email and stored as a process Attachment — visible in the
   Documents card. A future PR (payment step) will email it once the
   state fee is paid.
+
+  The pay link carries a payment capability token minted by
+  links.payment(execution) (docs/security.md rules 3 and 4), not the
+  process instance id.
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
-<#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
+<#assign payUrl = frontendBaseUrl + "/pay/" + links.payment(execution)>
 <#-- price can surface as a locale-formatted String ("38,000") on some
      engine→FreeMarker paths — same defensive coercion as approval-pdf. -->
 <#assign rawPrice = (price!0)>

@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportVehicleIndexSubmitted.
+  /api/internal/cases/index payload for Task_TransportVehicleIndexSubmitted.
   Case summary card for the backend's case-card store (search_cases
   MCP tool). Same processInstanceId at every milestone -> the index keeps
   one card per case. The summary is prose for an LLM reader, not a UI.

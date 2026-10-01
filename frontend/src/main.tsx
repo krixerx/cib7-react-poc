@@ -9,6 +9,7 @@ import LanguageSwitcher from './components/LanguageSwitcher';
 import ConfirmOwnerPage from './pages/ConfirmOwnerPage';
 import SignFounderPage from './pages/SignFounderPage';
 import PayPage from './pages/PayPage';
+import MockBankPage from './pages/MockBankPage';
 import { muiTheme } from './theme/mui';
 import './i18n';
 // TEDI base styles load before styles.css so portal overrides keep winning.
@@ -32,12 +33,13 @@ function Standalone({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The `/confirm-owner/:token`, `/sign-founder/:token`, and
- * `/pay/:processInstanceId` routes bypass AuthProvider so the pages
- * are reachable from email links without a Keycloak session — the
- * per-participant UUID token (or process instance id, for the
- * payment page) in the URL is the credential. Every other route
- * falls through to the catch-all, which mounts the authenticated SPA.
+ * The `/confirm-owner/:token`, `/sign-founder/:token` and `/pay/:token`
+ * routes bypass AuthProvider so the pages are reachable from email links
+ * without a Keycloak session: the engine-signed capability token in the URL
+ * is the credential (docs/security.md rule 3). `/mock-bank/:sessionId` is
+ * the demo payment provider's page, which stands in for an external site.
+ * Every other route falls through to the catch-all, which mounts the
+ * authenticated SPA.
  */
 /**
  * TEDI providers wrap the whole tree: StyleProvider wires what-input focus
@@ -70,10 +72,18 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 }
               />
               <Route
-                path="/pay/:processInstanceId"
+                path="/pay/:token"
                 element={
                   <Standalone>
                     <PayPage />
+                  </Standalone>
+                }
+              />
+              <Route
+                path="/mock-bank/:sessionId"
+                element={
+                  <Standalone>
+                    <MockBankPage />
                   </Standalone>
                 }
               />

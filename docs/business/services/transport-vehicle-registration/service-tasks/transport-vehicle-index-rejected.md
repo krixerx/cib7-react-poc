@@ -19,7 +19,7 @@ Between `Task_TransportVehicleRejectionEmail` and `EndEvent_Rejected`.
 
 | HTTP | URL | Headers |
 |---|---|---|
-| POST | `${busBaseUrl}/api/documents/index-case` | `Content-Type: application/json` |
+| POST | `${busBaseUrl}/api/internal/cases/index` | `Content-Type: application/json` |
 
 ## Payload
 

@@ -1,5 +1,7 @@
 # --- build stage ---------------------------------------------------------
-FROM node:20-alpine AS build
+# Node 22, matching quality.yml: npm 10.9 (Node 22) and 10.8 (Node 20) hoist
+# TEDI's dependencies differently, and the lock is written on 22.
+FROM node:22.23.3-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
@@ -19,13 +21,24 @@ ENV VITE_KEYCLOAK_CLIENT_ID=${VITE_KEYCLOAK_CLIENT_ID}
 RUN npm run build
 
 # --- runtime stage -------------------------------------------------------
-FROM nginx:alpine
+# nginx-unprivileged runs as uid 101 and listens on 8080 (docs/security.md
+# rule 11: no image we build runs as root).
+FROM nginxinc/nginx-unprivileged:1.30.5-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/dist /usr/share/nginx/html
-# Runtime config injection: regenerates /env.js from KEYCLOAK_URL /
-# KEYCLOAK_REALM / KEYCLOAK_CLIENT_ID env vars at container start, so the
-# image published to Docker Hub works on any hostname without a rebuild.
-# nginx's stock entrypoint runs every executable in /docker-entrypoint.d/.
+# Runtime config injection: regenerates /env.js and the SPA's CSP snippet from
+# KEYCLOAK_URL / KEYCLOAK_REALM / KEYCLOAK_CLIENT_ID / S3_PUBLIC_URL at
+# container start, so the image published to Docker Hub works on any hostname
+# without a rebuild. nginx's stock entrypoint runs every executable in
+# /docker-entrypoint.d/.
 COPY docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-env.sh
-EXPOSE 80
+USER root
+# The entrypoint script runs as uid 101, so the two files it rewrites must be
+# writable by it. Running it once here also bakes a localhost-default
+# headers-spa.conf, so nginx starts even if the script were skipped.
+RUN chmod 755 /docker-entrypoint.d/40-runtime-env.sh \
+ && /docker-entrypoint.d/40-runtime-env.sh \
+ && chown 101:0 /usr/share/nginx/html/env.js /etc/nginx/snippets /etc/nginx/snippets/headers-spa.conf
+USER 101
+EXPOSE 8080

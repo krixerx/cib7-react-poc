@@ -11,8 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Ingest endpoint for case summary cards — the engine's BPMN "Index case" milestone tasks POST here
  * through the integration bus, which injects {@code X-Internal-Token} (SecurityConfig's internal
- * chain, same trust level as {@code move-pending} / {@code server-upload}; the path lives under
- * {@code /api/documents} so it rides the bus's existing token-injection route).
+ * chain on {@code /api/internal/**}, same trust level as the internal document endpoints).
  *
  * <p>The primary key is the process instance id, so every milestone re-post <em>replaces</em> the
  * previous card — the table always holds exactly one card per case reflecting its latest status.
@@ -21,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * false}, never an error status — a case card must never fail or retry the process that posted it.
  */
 @RestController
-@RequestMapping("/api/documents")
+@RequestMapping("/api/internal/cases")
 public class CaseIndexController {
 
   private static final Logger log = LoggerFactory.getLogger(CaseIndexController.class);
@@ -32,7 +31,7 @@ public class CaseIndexController {
     this.repository = repository;
   }
 
-  @PostMapping("/index-case")
+  @PostMapping("/index")
   public ResponseEntity<?> indexCase(@RequestBody IndexCaseRequest req) {
     if (isBlank(req.processInstanceId())
         || isBlank(req.service())

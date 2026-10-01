@@ -17,8 +17,17 @@
 #     Keycloak resolves at import time.
 #   - Mailpit replacement (the BPMN uses Mailpit's /api/v1/send wire
 #     format — pointing MAIL_API_URL elsewhere requires a compatible API)
+#
+# Routing: Traefik here uses the FILE provider only (routes in
+# /opt/volumes/traefik/dynamic/routes.yml, template in
+# traefik/dynamic/routes.yml.example), so no container mounts the Docker
+# socket (docs/security.md rule 11). The traefik.* labels in the base file
+# only drive the dev Traefik and are ignored here.
 services:
   keycloak:
+    # ingress-idp: for when Traefik serves the Keycloak hostname (see the
+    # keycloak routers in traefik/dynamic/routes.yml.example).
+    networks: [app, ingress-idp]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
@@ -59,13 +68,10 @@ services:
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
       # INTERNAL_TASK_TOKEN moved to the esb service — the bus injects
       # X-Internal-Token now, the engine no longer holds the secret.
-    # Override the two router keys that change for TLS-terminated prod:
-    # entrypoints flips from `web` → `websecure`, and tls=true tells the
-    # router to require a TLS connection. All other labels (the rule and
-    # the loadbalancer port) are inherited from the base file unchanged.
-    labels:
-      traefik.http.routers.cib7-engine.entrypoints: "websecure"
-      traefik.http.routers.cib7-engine.tls: "true"
+      # The engine's credential towards the bus; must equal esb's BUS_TOKEN.
+      BUS_TOKEN: ${BUS_TOKEN}
+      # Signs capability links (co-owner, founder and payment); the backend verifies.
+      LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET}
     restart: unless-stopped
 
   backend:
@@ -81,14 +87,13 @@ services:
       S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
       S3_SECRET_KEY: ${RUSTFS_SECRET_KEY}
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET}
+      PAYMENT_PROVIDER_SECRET: ${PAYMENT_PROVIDER_SECRET}
       # SPA origin allowed in the bucket CORS policy.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
       # Refuse to start if any committed dev-default secret is still in
       # effect (DefaultSecretsGuard) — prod must run on real values.
       APP_REQUIRE_REAL_SECRETS: "true"
-    labels:
-      traefik.http.routers.backend-api.entrypoints: "websecure"
-      traefik.http.routers.backend-api.tls: "true"
     restart: unless-stopped
 
   frontend:
@@ -99,22 +104,18 @@ services:
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-frontend
-    labels:
-      traefik.http.routers.frontend.entrypoints: "websecure"
-      traefik.http.routers.frontend.tls: "true"
+      # The other foreign origin the SPA's CSP allows (presigned uploads).
+      S3_PUBLIC_URL: ${PUBLIC_S3_URL}
     restart: unless-stopped
 
   mobile:
-    # Flip the /mobile router to TLS for prod; the rule, priority and
-    # loadbalancer port are inherited from the base file. The app calls
-    # /engine-rest same-origin; only the browser-visible Keycloak URL changes.
+    # The app calls /engine-rest same-origin; only the browser-visible
+    # Keycloak and S3 URLs change.
     environment:
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-mobile
-    labels:
-      traefik.http.routers.mobile.entrypoints: "websecure"
-      traefik.http.routers.mobile.tls: "true"
+      S3_PUBLIC_URL: ${PUBLIC_S3_URL}
     restart: unless-stopped
 
   mcp:
@@ -128,9 +129,6 @@ services:
       # the realm path — see mcp/src/auth/verify.ts.
       KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL}/realms/cib7-poc
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
-    labels:
-      traefik.http.routers.mcp.entrypoints: "websecure"
-      traefik.http.routers.mcp.tls: "true"
     restart: unless-stopped
 
   pdf-renderer:
@@ -144,6 +142,8 @@ services:
       # Real internal-task secret in prod — the bus injects X-Internal-Token on
       # the /api/documents route. Must match the backend's INTERNAL_TASK_TOKEN.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      # Checked on every call from the engine (X-Bus-Token).
+      BUS_TOKEN: ${BUS_TOKEN}
     restart: unless-stopped
 
   gotenberg:
@@ -162,6 +162,9 @@ services:
     # bound to the docker network only. The base file's ports: 9000:9000
     # is replaced with an empty list.
     ports: !override []
+    # ingress-s3: for when Traefik serves the S3 hostname (see the rustfs
+    # router in traefik/dynamic/routes.yml.example).
+    networks: [storage, ingress-s3]
     restart: unless-stopped
 
   mailpit:
@@ -200,16 +203,17 @@ services:
     # Production Traefik: terminates TLS itself, no host-level Caddy/nginx
     # in front. Two entrypoints — `web` on :80 redirects to `websecure` on
     # :443, which serves the certs declared in
-    # /opt/volumes/traefik/dynamic/tls.yml. Dashboard off. Per-service
-    # router labels point at `websecure` (see cib7/mcp/frontend overrides
-    # above).
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      # Hot-reloaded dynamic config (TLS certs, options, middlewares).
-      # Anything that needs to change without a container restart goes
-      # under /opt/volumes/traefik/dynamic/. See traefik/dynamic/ in the
-      # repo for the template.
+    # /opt/volumes/traefik/dynamic/tls.yml. Dashboard off.
+    #
+    # Routing comes from the FILE provider only: copy
+    # traefik/dynamic/routes.yml.example to /opt/volumes/traefik/dynamic/
+    # routes.yml. The Docker provider (and with it the Docker socket mount,
+    # which is root on the host for whoever compromises Traefik) is gone.
+    command: !override
+      # Hot-reloaded dynamic config (routes, middlewares, TLS certs and
+      # options). Anything that needs to change without a container restart
+      # goes under /opt/volumes/traefik/dynamic/. See traefik/dynamic/ in the
+      # repo for the templates.
       - --providers.file.directory=/etc/traefik/dynamic
       - --providers.file.watch=true
       # :80 exists only to redirect to :443. The redirect is configured
@@ -235,18 +239,24 @@ services:
       # only published ports are 80 (HTTP→HTTPS redirect) and 443 (TLS).
       - "80:80"
       - "443:443"
-    volumes:
+    # edge from the base file, plus the two optional ingress networks.
+    networks: [edge, ingress-idp, ingress-s3]
+    volumes: !override
       # /opt/volumes/traefik/ layout — created and populated by the
       # deployment host operator (see docs/deployment.md and
       # traefik/dynamic/README.md):
-      #   acme/      — reserved for future ACME use (currently unused, static certs only)
       #   certs/     — *.crt and *.key files, read-only into the container
-      #   dynamic/   — tls.yml + any future middlewares.yml, hot-reloaded
+      #   dynamic/   — routes.yml + tls.yml, hot-reloaded
       #   logs/      — access.log + traefik.log
       - /opt/volumes/traefik/certs:/certs:ro
       - /opt/volumes/traefik/dynamic:/etc/traefik/dynamic:ro
       - /opt/volumes/traefik/logs:/logs
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+networks:
+  ingress-idp:  # traefik -> keycloak (only used when routes.yml routes it)
+    name: cib7-poc-ingress-idp
+  ingress-s3:   # traefik -> rustfs (only used when routes.yml routes it)
+    name: cib7-poc-ingress-s3
 
 volumes:
   # Named volume for RustFS in prod (the dev base file uses a bind mount

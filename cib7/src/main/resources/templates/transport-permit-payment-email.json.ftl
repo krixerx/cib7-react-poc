@@ -4,9 +4,13 @@
   hard-coded here AND in PaymentController for the transportLearningPermit key,
   so the email and the pay page always agree. Variables in scope:
   applicantName, applicantEmail, licenseCategory, frontendBaseUrl,
-  execution.
+  execution, links.
+
+  The pay link carries a payment capability token minted by
+  links.payment(execution) (docs/security.md rules 3 and 4), not the
+  process instance id.
 -->
-<#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
+<#assign payUrl = frontendBaseUrl + "/pay/" + links.payment(execution)>
 <#assign body>Dear ${applicantName!""},
 
 Your driving learning permit application (category ${licenseCategory!""})

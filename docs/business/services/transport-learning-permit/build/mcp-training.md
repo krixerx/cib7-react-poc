@@ -19,8 +19,8 @@ receipt) is issued, stored, and emailed.
 - If the case parks on "Police Hospital medical assessment", explain that
   the applicant was flagged for weak vision and the hospital must confirm
   fitness — in the POC the back-office user completes that task.
-- After approval the case waits for the fee payment — surface the
-  `/pay/{processInstanceId}` link.
+- After approval the case waits for the fee payment — surface that the pay link is in the applicant's approval email and behind "Pay" in the web portal's My processes; there is no MCP payment tool and no
+  link the agent can build.
 
 ## What to ask the user for
 
@@ -69,7 +69,7 @@ rejected applicants start a new case.
 - Process `running`, "Police Hospital medical assessment" open → weak
   vision was reported; the hospital board must record the result.
 - Process `running`, "Wait for fee payment" active → approved; the
-  applicant must pay 6 EUR at `/pay/{processInstanceId}`.
+  applicant must pay 6 EUR from the pay link in their approval email.
 - Process `completed` via "Learning permit issued" → the electronic
   license and receipt were emailed.
 - Process `completed` via "Application rejected" → see the rejection

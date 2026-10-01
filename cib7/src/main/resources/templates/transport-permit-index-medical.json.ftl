@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportPermitIndexMedical.
+  /api/internal/cases/index payload for Task_TransportPermitIndexMedical.
   Card refresh: routed to the medical assessment branch — indexed before the
   human task so the card is fresh during the wait.
 -->

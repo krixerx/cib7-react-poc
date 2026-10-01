@@ -74,6 +74,7 @@ below are POSIX; Windows hosts need a different mount path):
 | `keycloak/realm-export.json` | **Nothing to edit for a deployment.** Client secrets, redirect URIs, web origins, post-logout URLs and the realm's `frontendUrl` all carry `${...}` placeholders that Keycloak resolves from the environment while importing, so `.env` is the single source. The import runs only on the first boot of a fresh container, so any change here needs Keycloak recreated. ⚠ Developers: `deploy/keycloak/realm-export.json` is a copy for the pull-only bundle — keep the two in sync when changing clients/roles/users. |
 | `/opt/volumes/traefik/certs/*.{crt,key}` | TLS certificate + private key. Read by Traefik via the file provider. |
 | `/opt/volumes/traefik/dynamic/tls.yml` | Tells Traefik which cert files to load. Copied from `traefik/dynamic/tls.yml.example`. Hot-reloaded (no restart on cert rotation). |
+| `/opt/volumes/traefik/dynamic/routes.yml` | Every route, plus the security-header and rate-limit middlewares. Copied from `traefik/dynamic/routes.yml.example`. The prod Traefik uses the file provider only and mounts no Docker socket, so the `traefik.*` labels in `docker-compose.yml` do nothing here. Hot-reloaded. |
 | `docker-compose.prod.yml` | Overlay that reads `.env`. Don't normally edit. |
 | `docker-compose.yml` | Base file. Don't edit — overrides go in the overlay. |
 
@@ -151,7 +152,11 @@ Minimum fields: `PUBLIC_KEYCLOAK_URL`, `PUBLIC_FRONTEND_URL`,
 `PUBLIC_ENGINE_URL`, `PUBLIC_S3_URL`, `KEYCLOAK_ADMIN_PASSWORD`,
 `KEYCLOAK_BACKEND_CLIENT_SECRET`, `KEYCLOAK_WEBAPPS_CLIENT_SECRET`,
 `KEYCLOAK_BUSINESS_CLIENT_SECRET`, `RUSTFS_ACCESS_KEY`,
-`RUSTFS_SECRET_KEY`, `INTERNAL_TASK_TOKEN`.
+`RUSTFS_SECRET_KEY`, `INTERNAL_TASK_TOKEN`, `BUS_TOKEN`,
+`LINK_SIGNING_SECRET`, `PAYMENT_PROVIDER_SECRET`. The overlay has no
+defaults for the secrets, so an unset one reaches the service as an empty
+string; generate each with `openssl rand -hex 32`. `.env` is git-ignored,
+as is every `.env.*` except `.env.example`.
 
 ### 3. Prepare `/opt/volumes/traefik/`
 
@@ -166,6 +171,10 @@ sudo chmod 700 /opt/volumes/traefik/acme        # reserved for future ACME use
 # Drop the static-cert dynamic config template into place.
 sudo cp traefik/dynamic/tls.yml.example /opt/volumes/traefik/dynamic/tls.yml
 sudo $EDITOR /opt/volumes/traefik/dynamic/tls.yml   # set the cert filenames
+
+# Routes + security headers + rate limits. Scope the rules with Host(...)
+# if several hostnames point at this box.
+sudo cp traefik/dynamic/routes.yml.example /opt/volumes/traefik/dynamic/routes.yml
 
 # Drop your cert + key. Filenames must match what tls.yml points at.
 sudo cp /path/to/your-cert.crt /opt/volumes/traefik/certs/app.example.com.crt
@@ -194,7 +203,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
 compose file because Docker Desktop on Windows leaves its docker
 provider in a retry loop (the dev frontend nginx already covers every
 public path, so dev runs without Traefik). In prod Traefik IS the
-ingress, so the flag must be passed on every prod `up`.
+ingress, so the flag must be passed on every prod `up`. The overlay
+replaces the base file's Docker provider with the file provider and drops
+the Docker socket mount: a socket inside the internet-facing container would
+make a Traefik compromise a root compromise of the host.
 
 First boot takes a few minutes: Maven downloads engine deps, Vite
 builds the SPA (with your Keycloak URL baked in), Keycloak imports the
@@ -211,7 +223,9 @@ docker compose logs -f
 | Check | Expected |
 |---|---|
 | `curl -sI http://app.example.com/` | `308`, `Location: https://app.example.com/` (Traefik :80→:443 redirect) |
-| `curl -sI https://app.example.com/` | `200`, `server: nginx` (the SPA's image nginx, behind Traefik) |
+| `curl -sI https://app.example.com/` | `200`, with `strict-transport-security`, `content-security-policy` (naming your Keycloak and S3 origins), `x-frame-options: DENY`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer` and `permissions-policy` |
+| `curl -s -o /dev/null -w '%{http_code}\n' https://app.example.com/api/internal/documents/index-case` | `404` (engine-only paths are never routed from outside) |
+| `for i in $(seq 40); do curl -s -o /dev/null -w '%{http_code} ' https://app.example.com/api/public/vehicle-registry/vehicles; done` | `200`s, then `429`s once the burst of 20 is spent |
 | `openssl s_client -connect app.example.com:443 -servername app.example.com </dev/null 2>/dev/null \| openssl x509 -noout -subject -dates` | Your cert's subject + validity window |
 | Open `https://app.example.com/` in a browser | Redirects to `https://kc.example.com/realms/cib7-poc/...` |
 | Log in with a Keycloak user | Lands on the SPA |
@@ -249,10 +263,12 @@ and is **not** fronted by this stack's Traefik. Either:
 
 - put your own TLS terminator (Caddy, nginx, cloud LB) in front of
   `localhost:8180` for the `kc.example.com` hostname, **or**
-- extend this Traefik to route a second hostname (`Host(\`kc.example.com\`)`)
-  to the `keycloak:8080` service. That requires the realm export to
-  carry `KC_PROXY_HEADERS=xforwarded` (already set in the prod
-  overlay) and dropping the `8180:8080` host port mapping.
+- extend this Traefik to route a second hostname to the `keycloak:8080`
+  service: uncomment the two `keycloak` routers in `routes.yml`. The
+  `keycloak-login` one rate-limits the login and token endpoints per IP
+  (docs/security.md rule 8). Traefik already shares the `ingress-idp`
+  network with Keycloak, and `KC_PROXY_HEADERS=xforwarded` is already set
+  in the prod overlay; drop the `8180:8080` host port mapping.
 
 Keeping Keycloak on its own port is the documented compromise for the
 POC — it avoids re-importing the realm just to move the issuer URL.
@@ -335,6 +351,34 @@ the inbox visible on a public hostname, add a Traefik label to the
 `mailpit-ui` service (or to a new dedicated route) with an `auth`
 middleware in front.
 
+## Ingress and container hardening
+
+What the stack does on every deployment, so you know what to check after
+changing it (the rules themselves are in [`security.md`](security.md)):
+
+- **Headers.** The frontend and mobile nginx set `Content-Security-Policy`,
+  `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Permissions-Policy` on every response,
+  error pages included. The SPA's CSP is generated at container start from
+  `KEYCLOAK_URL` and `S3_PUBLIC_URL`, because it must name those two
+  origins: if the browser shows a CSP violation for Keycloak or RustFS,
+  one of them differs from what the browser actually uses. Proxied JSON
+  APIs get `default-src 'none'`; the engine webapps keep their own nonce
+  CSP. Traefik adds HSTS and the same headers on every TLS router.
+- **Rate limits.** `/api/public/**` is limited to 10 requests/s per client
+  IP (burst 20) and `/mcp` to 5/s (burst 20), in nginx when it is the front
+  door and in Traefik when Traefik is. Over the limit the answer is `429`.
+- **Internal paths.** `/api/internal/**` answers `404` at the edge; only
+  the ESB calls it, from inside the `esb-backend` network.
+- **Networks.** Each pair of containers that talk shares a network, and no
+  other pair does (map in [`architecture.md`](architecture.md#networks)).
+  Gotenberg sits on an `internal` network with only `pdf-renderer`, renders
+  with JavaScript disabled and with a deny list for internal hosts.
+- **Non-root images, pinned versions.** Every image built here runs as a
+  non-root user; frontend and mobile listen on 8080 inside the container
+  for that reason. Base and third-party images carry exact version tags,
+  which Dependabot bumps.
+
 ## Production gaps the overlay does not solve
 
 These remain real obstacles between this POC and a system you can
@@ -350,7 +394,7 @@ you have to make before exposing the stack to real users.
 | **No BFF** | The SPA calls `/engine-rest` directly with a Bearer JWT. JWT is validated and authorization runs against `IdentityService`, but every engine REST endpoint is reachable from the browser. | Add a backend-for-frontend that exposes only the calls the SPA needs (the spec calls for this — see [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md)). |
 | **Bart/Homer demo users** | Seeded in the realm export with username-equals-password. | Remove or disable them before going live. |
 | **Curated vehicle registry** | The "Look up vehicle in registry" service task calls the backend's hard-coded ten-vehicle catalog (`/api/public/vehicle-registry`) — a stand-in for the real Liiklusregister. | Point the backend (or the BPMN connector) at the real registry API, with retry / circuit-breaker handling. |
-| **Public payment confirmation** | `POST /api/public/payments/{piId}/confirm` trusts the opaque process-instance id as the only credential — anyone with the id can mark the fee paid. | Integrate a real PSP callback (signed webhook) or add a payment-side token/session before exposing the pay page publicly. |
+| **Mock payment provider** | Fees are paid through `MockPaymentProvider` (`backend/.../payment/mockprovider`), a demo bank that signs its callback with `PAYMENT_PROVIDER_SECRET`. The merchant side already verifies a signed callback for the server-computed amount. | Replace only the `mockprovider` package with a client for a real provider (implementing `PaymentProvider`) and point the provider's webhook at `POST /api/public/payments/callback` with its own signing secret. |
 | **Document read authorization** | Any authenticated user who knows a process-instance id can list/download its documents — the engine's per-instance permission check was dropped when documents moved to the backend (documented in `DocumentsController`). | Forward the caller's Bearer to `/engine-rest` and require READ_INSTANCE on the case before serving metadata or presigned URLs. |
 
 For the runtime topology these all sit inside, read

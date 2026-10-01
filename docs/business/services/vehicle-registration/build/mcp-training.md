@@ -73,7 +73,7 @@ Do not collect them and do not pass them to `start_process` / `complete_task`;
 they are rejected by the schema, and a forged value would be refused with an
 HTTP 400. Because the email is now always known, a **manually-reviewed**
 registration runs the state-fee invoice + approval email and then waits at the
-payment step (`/pay/{processInstanceId}`), which has no MCP affordance — those
+payment step (pay link in the approval email), which has no MCP affordance — those
 cases complete up to payment and the user pays on the web. Auto-approved cases
 (adult owner, low-value older vehicle) skip review and payment and finish over
 chat.

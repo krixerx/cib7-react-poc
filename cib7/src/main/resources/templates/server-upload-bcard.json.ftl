@@ -1,5 +1,5 @@
 <#--
-  /api/documents/server-upload payload for Task_StoreBcardPdf in
+  /api/internal/documents/server-upload payload for Task_StoreBcardPdf in
   business-registration.bpmn.
 
   Sends the just-generated B-card extract PDF bytes (held in the

@@ -85,6 +85,19 @@ app:
       # Docker-network address of the GELF UDP input; see docs/logging.md.
       host: ${GRAYLOG_HOST:graylog}
       port: ${GRAYLOG_GELF_UDP_PORT:12201}
+  bus:
+    # Sent as X-Bus-Token on every http-connector call to ${busBaseUrl}
+    # (BusTokenInterceptor); the ESB refuses requests without it. The default is
+    # a documented demo value, like the other `-change-me` secrets.
+    token: ${BUS_TOKEN:bus-token-change-me}
+  # Capability links in emails (co-owner confirmation, founder signature,
+  # payment). CapabilityLinks (bean `links`) signs them with this key; the
+  # backend verifies them with the same LINK_SIGNING_SECRET. The default is a
+  # documented demo value, like the other `-change-me` secrets.
+  links:
+    secret: ${LINK_SIGNING_SECRET:link-signing-secret-change-me}
+    consent-ttl: ${LINK_CONSENT_TTL:P14D}
+    payment-ttl: ${LINK_PAYMENT_TTL:P30D}
   # Document storage, public confirmation/payment endpoints, and the vehicle
   # registry all moved to the `backend` business microservice. The engine
   # only keeps the connector wiring to reach it — see BackendConfiguration
@@ -106,6 +119,19 @@ camunda.bpm:
   # claim/complete regardless of who the authenticated user is.
   authorization:
     enabled: true
+  generic-properties:
+    properties:
+      # Lets the engine honour HISTORIC_PROCESS_INSTANCE / HISTORIC_TASK grants
+      # in history queries, next to PROCESS_DEFINITION READ_HISTORY. Applicants
+      # have no definition-wide history grant; they read their own case through
+      # the per-instance grant InitiatorAuthorizationListener creates. With it on,
+      # the engine also adds HISTORIC_TASK grants for task assignees/candidates.
+      enable-historic-instance-permissions: true
+      # Explicit although it is the default: the assignee or candidate of a task
+      # gets READ + UPDATE on that one task, which covers claim, setAssignee and
+      # complete. TASK_WORK would be narrower but blocks setAssignee, which the
+      # SPA uses to record who completed a group task.
+      default-user-permission-name-for-task: UPDATE
   # Bootstrap admin permissions for the dedicated admin account on first
   # startup so the engine doesn't 403 the very first /engine-rest call. The
   # user must exist in Keycloak (see realm-export.json — `admin` is in the

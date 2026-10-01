@@ -1,5 +1,5 @@
 <#--
-  /api/public/transport/plates/allocate payload for Task_TransportAllocatePlate in
+  /api/internal/transport/plates/allocate payload for Task_TransportAllocatePlate in
   transport-vehicle-registration.bpmn. The backend persists the registration
   record and returns the allocated (or validated reserved) plate number.
   Variables in scope: execution, vin, applicantName, vehicleCategory,

@@ -28,6 +28,8 @@ public class DefaultSecretsGuard implements InitializingBean {
       Map.of(
           "app.internal-task-token", "internal-task-token-change-me",
           "app.s3.secret-key", "cib7admin-secret-change-me",
+          "app.links.secret", "link-signing-secret-change-me",
+          "app.payment.provider-secret", "payment-provider-secret-change-me",
           "spring.security.oauth2.client.registration.engine.client-secret",
               "cib7-business-secret");
 

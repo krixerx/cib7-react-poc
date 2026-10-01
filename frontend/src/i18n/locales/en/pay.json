@@ -12,7 +12,17 @@
     "business": {
       "name": "Äriregister POC",
       "sub": "Estonian Business Register"
+    },
+    "transport": {
+      "name": "Transport Authority POC",
+      "sub": "Integrated Traffic System"
     }
+  },
+  "services": {
+    "vehicleRegistration": "Vehicle registration state fee",
+    "businessRegistration": "OÜ registration state fee",
+    "transportVehicleRegistration": "Vehicle registration fee",
+    "transportLearningPermit": "Driving learning licence fee"
   },
   "header": {
     "title": "Pay state fee",
@@ -23,10 +33,8 @@
     "body": "Thank you. Your state fee of <strong>{{amount}}</strong> has been credited to {{issuer}}. The case will continue to the next step automatically."
   },
   "summary": {
-    "payer": "Payer",
     "for": "For",
     "recipient": "Recipient",
-    "iban": "IBAN",
     "reference": "Reference"
   },
   "invoice": {
@@ -34,12 +42,12 @@
     "amountDue": "Amount due"
   },
   "bank": {
-    "title": "Pay from",
-    "senderBank": "Sender bank",
-    "demoHint": "POC demo — the Confirm button below simulates a successful SEPA transfer without involving a real bank. Production would redirect to the chosen bank's online banking screen."
+    "title": "Payment",
+    "redirectHint": "You will be taken to the payment provider to pay. The fee counts as paid once the provider confirms it to us, not when you close its page.",
+    "waitingForBank": "Waiting for the payment provider to confirm…"
   },
   "actions": {
-    "confirming": "Confirming…",
-    "confirmPayment": "Confirm payment of {{amount}}"
+    "redirecting": "Opening the payment provider…",
+    "pay": "Pay {{amount}}"
   }
 }

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Two processes for VariableWritePolicyFilterTest. policyTest has a policy
+     (policy-test.variable-policy.json); noPolicyTest has none and must fail
+     closed. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_PolicyTest"
+                  targetNamespace="http://poc.cib7/test">
+  <bpmn:process id="policyTest" name="Variable policy test" isExecutable="true"
+                camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="Start" camunda:initiator="initiator" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Task_Applicant" />
+    <bpmn:userTask id="Task_Applicant" name="Applicant step"
+                   camunda:formKey="react:policy-applicant" camunda:assignee="${initiator}" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_Applicant" targetRef="Task_Review" />
+    <bpmn:userTask id="Task_Review" name="Review"
+                   camunda:formKey="react:policy-review" camunda:candidateGroups="civil-servant" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Task_Review" targetRef="End" />
+    <bpmn:endEvent id="End" />
+  </bpmn:process>
+  <bpmn:process id="noPolicyTest" name="No policy test" isExecutable="true"
+                camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="NpStart" camunda:initiator="initiator" />
+    <bpmn:sequenceFlow id="NpF1" sourceRef="NpStart" targetRef="NpTask" />
+    <bpmn:userTask id="NpTask" name="Applicant step"
+                   camunda:formKey="react:no-policy" camunda:assignee="${initiator}" />
+    <bpmn:sequenceFlow id="NpF2" sourceRef="NpTask" targetRef="NpEnd" />
+    <bpmn:endEvent id="NpEnd" />
+  </bpmn:process>
+</bpmn:definitions>

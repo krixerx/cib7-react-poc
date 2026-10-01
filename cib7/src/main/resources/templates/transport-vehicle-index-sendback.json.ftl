@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportVehicleIndexSendback.
+  /api/internal/cases/index payload for Task_TransportVehicleIndexSendback.
   Card refresh: officer returned the application for corrections.
 -->
 {

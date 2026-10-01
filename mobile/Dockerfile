@@ -2,7 +2,9 @@
 # Self-contained, like frontend/Dockerfile's npm build. The cirruslabs image
 # ships the Flutter SDK, so the web app is built entirely inside Docker — no
 # Flutter install on any developer machine or CI runner, just Docker itself.
-FROM ghcr.io/cirruslabs/flutter:stable AS build
+# Pinned to a Flutter release rather than the moving `stable` tag, so a
+# rebuild of the same commit produces the same app.
+FROM ghcr.io/cirruslabs/flutter:3.44.0 AS build
 WORKDIR /app
 
 # Bring in the committed source (lib/ + analysis options). pubspec is copied
@@ -39,9 +41,20 @@ RUN sed -i 's#</head>#  <script src="env.js"></script>\n</head>#' \
 # so the app resolves the same whether reached directly on the container's port
 # (local dev) or via Traefik PathPrefix(`/mobile`) on the server — no prefix
 # stripping needed in either path.
-FROM nginx:alpine
+# nginx-unprivileged runs as uid 101 and listens on 8080 (docs/security.md
+# rule 11: no image we build runs as root).
+FROM nginxinc/nginx-unprivileged:1.30.5-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/build/web /usr/share/nginx/html/mobile
-# Regenerates /mobile/env.js from KEYCLOAK_* env at container start.
+# Regenerates /mobile/env.js and the CSP snippet from KEYCLOAK_* / S3_PUBLIC_URL
+# at container start.
 COPY docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
-RUN chmod +x /docker-entrypoint.d/40-runtime-env.sh
+USER root
+# The script runs as uid 101 at start, so the files it rewrites must be
+# writable by it; running it once here bakes localhost defaults.
+RUN chmod 755 /docker-entrypoint.d/40-runtime-env.sh \
+ && /docker-entrypoint.d/40-runtime-env.sh \
+ && chown 101:0 /usr/share/nginx/html/mobile/env.js /etc/nginx/snippets /etc/nginx/snippets/headers-app.conf
+USER 101
+EXPOSE 8080

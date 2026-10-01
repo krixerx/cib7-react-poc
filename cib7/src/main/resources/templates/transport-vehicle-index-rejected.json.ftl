@@ -1,5 +1,5 @@
 <#--
-  /api/documents/index-case payload for Task_TransportVehicleIndexRejected.
+  /api/internal/cases/index payload for Task_TransportVehicleIndexRejected.
   Card refresh: rejected. Covers both reject paths — the reason is, in order
   of preference: the officer's rejectionReason, the DMN's human-readable
   eligibilityDecision (its non-"ok" output IS the reason sentence, e.g.

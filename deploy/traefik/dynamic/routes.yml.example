@@ -4,8 +4,14 @@
 #
 # Traefik discovers backends through this file-provider config only (the
 # Docker provider can't talk to Docker Engine >= 29, so container labels are
-# not used). Backends are reached by compose service name on the shared
+# not used). Backends are reached by compose service name on the `edge`
 # network. Changes are hot-reloaded; no Traefik restart needed.
+#
+# UPGRADING an existing routes.yml: the frontend and mobile containers now
+# listen on 8080 (non-root nginx), not 80, and every router now carries the
+# security-headers and rate-limit middlewares below. Re-copy this file and
+# re-apply your Host() rules; deploy.sh refuses to run while routes.yml still
+# points at frontend:80 or mobile:80.
 #
 # TLS — pick per router:
 #   * Admin-supplied certificates: keep `tls: true` (as below) and provide
@@ -20,15 +26,59 @@
 # this box. To serve several hostnames (or use Let's Encrypt, which needs a
 # hostname to put on the certificate), scope each rule with
 # Host(`app.example.com`) && (...).
+#
+# Headers (docs/security.md rule 8): HSTS, nosniff, X-Frame-Options DENY,
+# Referrer-Policy no-referrer and a Permissions-Policy on every router. The
+# Content-Security-Policy comes from nginx for the SPA and the mobile app (it
+# names the runtime Keycloak/S3 origins), from the engine for its webapps, and
+# from the api-headers middleware for JSON APIs.
 
 http:
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "no-referrer"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    api-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "no-referrer"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        contentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+    # Per client IP (Traefik is the edge here, so the TCP peer is the client).
+    # Over the limit, Traefik answers 429.
+    public-ratelimit:
+      rateLimit:
+        average: 10
+        burst: 20
+    mcp-ratelimit:
+      rateLimit:
+        average: 5
+        burst: 20
+    # Keycloak's login and token endpoints, for the commented keycloak router
+    # below. Keycloak's own brute-force detection (realm setting) still applies
+    # per account; this caps requests per IP.
+    login-ratelimit:
+      rateLimit:
+        average: 5
+        burst: 10
+
   routers:
     frontend:
       # Catch-all SPA router; every other router outranks it (longer rule or
-      # explicit priority), so keep its priority at 1.
+      # explicit priority), so keep its priority at 1. /api/internal/** falls
+      # through to here and the frontend nginx answers 404 for it.
       rule: "PathPrefix(`/`)"
       entryPoints: ["websecure"]
       service: frontend
+      middlewares: [security-headers]
       priority: 1
       tls: true
 
@@ -37,36 +87,88 @@ http:
       rule: "PathPrefix(`/mobile`)"
       entryPoints: ["websecure"]
       service: mobile
+      middlewares: [security-headers]
       priority: 10
       tls: true
 
-    cib7-engine:
-      rule: "PathPrefix(`/engine-rest`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)"
+    cib7-rest:
+      rule: "PathPrefix(`/engine-rest`)"
       entryPoints: ["websecure"]
       service: cib7
+      middlewares: [api-headers]
+      tls: true
+
+    cib7-engine:
+      # Cockpit/Tasklist/Admin send their own nonce-based CSP, which an API or
+      # SPA policy would break, so this router adds every header except CSP.
+      rule: "PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)"
+      entryPoints: ["websecure"]
+      service: cib7
+      middlewares: [security-headers]
       tls: true
 
     backend-api:
-      rule: "PathPrefix(`/api`)"
+      # /api/internal/** (engine-only, reached through the bus) is excluded:
+      # it is never routed from outside (docs/security.md rule 5).
+      rule: "PathPrefix(`/api`) && !PathPrefix(`/api/internal`) && !PathPrefix(`/api/public`)"
       entryPoints: ["websecure"]
       service: backend
+      middlewares: [api-headers]
+      priority: 20
+      tls: true
+
+    backend-public:
+      # Capability links and anonymous reference data, rate limited per IP.
+      rule: "PathPrefix(`/api/public`)"
+      entryPoints: ["websecure"]
+      service: backend
+      middlewares: [public-ratelimit, api-headers]
+      priority: 30
       tls: true
 
     mcp:
       rule: "PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`) || Path(`/.well-known/mcp.json`) || Path(`/.well-known/mcp/services.json`) || Path(`/llms.txt`)"
       entryPoints: ["websecure"]
       service: mcp
+      middlewares: [mcp-ratelimit, api-headers]
       tls: true
+
+    # Keycloak on its own hostname through Traefik (then bind
+    # KEYCLOAK_HTTP_PORT to 127.0.0.1 in .env). Keycloak sends its own CSP for
+    # the login pages, so it gets security-headers, not api-headers.
+    # keycloak-login:
+    #   rule: "Host(`kc.example.com`) && (PathRegexp(`^/realms/[^/]+/protocol/openid-connect/(auth|token)`) || PathRegexp(`^/realms/[^/]+/login-actions/`))"
+    #   entryPoints: ["websecure"]
+    #   service: keycloak
+    #   middlewares: [login-ratelimit, security-headers]
+    #   priority: 50
+    #   tls: true
+    # keycloak:
+    #   rule: "Host(`kc.example.com`)"
+    #   entryPoints: ["websecure"]
+    #   service: keycloak
+    #   middlewares: [security-headers]
+    #   tls: true
+
+    # RustFS on its own hostname (PUBLIC_S3_URL; then bind RUSTFS_HTTP_PORT to
+    # 127.0.0.1). No header middleware that rewrites the request: S3 SigV4
+    # signs the Host header, so the request must arrive unchanged.
+    # rustfs:
+    #   rule: "Host(`s3.example.com`)"
+    #   entryPoints: ["websecure"]
+    #   service: rustfs
+    #   middlewares: [security-headers]
+    #   tls: true
 
   services:
     frontend:
       loadBalancer:
         servers:
-          - url: "http://frontend:80"
+          - url: "http://frontend:8080"
     mobile:
       loadBalancer:
         servers:
-          - url: "http://mobile:80"
+          - url: "http://mobile:8080"
     cib7:
       loadBalancer:
         servers:
@@ -79,3 +181,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://mcp:8090"
+    keycloak:
+      loadBalancer:
+        servers:
+          - url: "http://keycloak:8080"
+    rustfs:
+      loadBalancer:
+        servers:
+          - url: "http://rustfs:9000"

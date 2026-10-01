@@ -14,7 +14,7 @@ import {
 /**
  * Public, unauthenticated page reached from the email link
  * `${frontendBaseUrl}/confirm-owner/:token`. No Keycloak — the token
- * itself is the credential (see PublicApiSecurityConfig).
+ * itself is the credential: an engine-signed capability token, opaque here.
  *
  * State surface, mirroring the backend's OwnerStatus.state:
  *   pending           - viewer hasn't signed; show Approve/Reject form
@@ -213,7 +213,7 @@ export default function ConfirmOwnerPage() {
         <h2 className="card-subtitle">{t('summary.ownersHeading')}</h2>
         <ul className="owner-list">
           {allOwners.map((o) => (
-            <li key={o.token}>
+            <li key={o.partyId}>
               <span className="owner-meta">
                 <span className="owner-name">
                   {o.name}
@@ -224,7 +224,6 @@ export default function ConfirmOwnerPage() {
                     </>
                   )}
                 </span>
-                <span className="owner-email">{o.email}</span>
                 {o.status === 'rejected' && o.reason && (
                   <span className="owner-email">{t('summary.reason', { reason: o.reason })}</span>
                 )}

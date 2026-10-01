@@ -20,15 +20,17 @@ receives a notification to pay the fees."*). Two incoming sequence flows.
 FreeMarker template at
 `cib7/src/main/resources/templates/transport-permit-payment-email.json.ftl`.
 Variables in scope: `applicantName`, `applicantEmail`, `licenseCategory`,
-`execution`, `frontendBaseUrl`.
+`execution`, `frontendBaseUrl`, `links`.
 
 Body: the application is approved pending payment; the **service fee is
-6.000 EUR** (flat — hard-coded in the template AND in
-`PaymentController`, which renders the same amount on the pay page for
-this definition key); the payment link:
+6.000 EUR** (flat — hard-coded in the template AND in the backend's
+`FeeSchedule`, which charges the same amount for this definition key); the
+payment link, carrying a payment capability token minted by the reserved
+`links` bean (docs/security.md rules 3 and 4), never the bare process
+instance id:
 
 ```ftl
-<#assign payUrl = frontendBaseUrl + "/pay/" + execution.processInstanceId>
+<#assign payUrl = frontendBaseUrl + "/pay/" + links.payment(execution)>
 ```
 
 Sender "Transport Authority"; subject

@@ -26,6 +26,11 @@ COPY log4j2-graylog.xml /etc/camel/log4j2-graylog.xml
 # server). The engine reaches the bus at http://esb:8080 (see docker-compose.yml).
 EXPOSE 8080
 
+# The base image already drops to its `ubuntu` user (uid 1000); restated here so
+# the non-root guarantee (docs/security.md rule 11) does not hinge on a base
+# image default that a version bump could change.
+USER ubuntu
+
 # First start may resolve a few component jars (platform-http, http) before the
 # HTTP server is ready — give it a moment after `docker compose up`.
 CMD ["run", "--source-dir=/routes", "--logging-config-path=/etc/camel/log4j2-graylog.xml"]

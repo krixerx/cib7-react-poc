@@ -1,0 +1,19 @@
+{
+  "brand": "Demo bank",
+  "tagline": "Simulated payment provider, not a real bank",
+  "loading": "Loading payment…",
+  "unknown": "This payment session is unknown.",
+  "title": "Confirm payment",
+  "merchant": "Pay to",
+  "reference": "Reference",
+  "amount": "Amount",
+  "pay": "Pay",
+  "cancel": "Cancel",
+  "processing": "Processing…",
+  "back": "Return to the merchant",
+  "done": {
+    "paid": "This payment is complete.",
+    "cancelled": "This payment was cancelled."
+  },
+  "demoNote": "Demo only. No money moves. A real deployment sends you to your bank or card provider here, which confirms the payment to the merchant directly."
+}

@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
  * registration record (the demo's "integration to database" requirement) and returns the plate: a
  * generated generic {@code NNNNN AB} number for {@code plateOption=random}, or the caller's
  * reserved number verbatim ("previously reserved number plates" in the demo's service path).
+ * Internal ({@code X-Internal-Token}) because it writes a registry record: only the engine, after
+ * the payment, may allocate a plate.
  */
 @RestController
-@RequestMapping("/api/public/transport/plates")
+@RequestMapping("/api/internal/transport/plates")
 public class TransportPlateController {
 
   /** Letters used on vehicle plates (Latin series, simplified for the POC). */

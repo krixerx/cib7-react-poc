@@ -6,14 +6,13 @@ import static org.mockito.Mockito.when;
 
 import com.poc.backend.engine.EngineClient;
 import com.poc.backend.engine.EngineClient.ProcessInstanceRef;
-import com.poc.backend.payment.PaymentController.ErrorResponse;
-import com.poc.backend.payment.PaymentController.PaymentStatus;
+import com.poc.backend.payment.FeeSchedule.Charge;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.ResponseEntity;
 
 /**
  * Characterization tests for the payment amount coercion and the fee-tier logic — no Spring, no
- * HTTP. {@link PaymentController#parseAmount} was relaxed to package-private for this test.
+ * HTTP. {@link FeeSchedule#parseAmount} is package-private for this test.
  *
  * <p>Quirks pinned (candidates for the Phase-4 FeeScheduleProperties refactor):
  *
@@ -32,139 +31,122 @@ class PaymentLogicTest {
 
   @Test
   void numbersPassThrough() {
-    assertThat(PaymentController.parseAmount(42)).isEqualTo(42.0);
-    assertThat(PaymentController.parseAmount(38000.5)).isEqualTo(38000.5);
+    assertThat(FeeSchedule.parseAmount(42)).isEqualTo(42.0);
+    assertThat(FeeSchedule.parseAmount(38000.5)).isEqualTo(38000.5);
   }
 
   @Test
   void plainDecimalStringParses() {
-    assertThat(PaymentController.parseAmount("12.34")).isEqualTo(12.34);
+    assertThat(FeeSchedule.parseAmount("12.34")).isEqualTo(12.34);
   }
 
   @Test
   void commaThousandsAreStripped() {
-    assertThat(PaymentController.parseAmount("38,000")).isEqualTo(38000.0);
-    assertThat(PaymentController.parseAmount("1,234,567")).isEqualTo(1234567.0);
+    assertThat(FeeSchedule.parseAmount("38,000")).isEqualTo(38000.0);
+    assertThat(FeeSchedule.parseAmount("1,234,567")).isEqualTo(1234567.0);
   }
 
   @Test
   void regularSpacesAreStripped() {
-    assertThat(PaymentController.parseAmount(" 1 000 ")).isEqualTo(1000.0);
+    assertThat(FeeSchedule.parseAmount(" 1 000 ")).isEqualTo(1000.0);
   }
 
   @Test
   void currencySymbolsAreStripped() {
-    assertThat(PaymentController.parseAmount("€150")).isEqualTo(150.0);
-    assertThat(PaymentController.parseAmount("$25.50")).isEqualTo(25.5);
+    assertThat(FeeSchedule.parseAmount("€150")).isEqualTo(150.0);
+    assertThat(FeeSchedule.parseAmount("$25.50")).isEqualTo(25.5);
   }
 
   @Test
   void europeanDecimalCommaIsDestroyedNotConverted() {
     // Characterization, not endorsement: "," is removed outright, so the
     // fractional part fuses into the integer part.
-    assertThat(PaymentController.parseAmount("1 234,56")).isEqualTo(123456.0);
+    assertThat(FeeSchedule.parseAmount("1 234,56")).isEqualTo(123456.0);
   }
 
   @Test
   void nonBreakingSpaceIsNotStrippedAndFallsBackToZero() {
     // The replace chain handles the ASCII space twice but never U+00A0,
     // so an NBSP-grouped amount fails Double.parseDouble entirely.
-    assertThat(PaymentController.parseAmount("1\u00A0234")).isEqualTo(0.0);
+    assertThat(FeeSchedule.parseAmount("1\u00A0234")).isEqualTo(0.0);
   }
 
   @Test
   void unparseableInputsFallBackToZero() {
-    assertThat(PaymentController.parseAmount("abc")).isEqualTo(0.0);
-    assertThat(PaymentController.parseAmount("")).isEqualTo(0.0);
-    assertThat(PaymentController.parseAmount(null)).isEqualTo(0.0);
-    assertThat(PaymentController.parseAmount(Boolean.TRUE)).isEqualTo(0.0);
+    assertThat(FeeSchedule.parseAmount("abc")).isEqualTo(0.0);
+    assertThat(FeeSchedule.parseAmount("")).isEqualTo(0.0);
+    assertThat(FeeSchedule.parseAmount(null)).isEqualTo(0.0);
+    assertThat(FeeSchedule.parseAmount(Boolean.TRUE)).isEqualTo(0.0);
   }
 
-  // --- fee tiers (via getStatus with a mocked EngineClient) --------------
+  // --- fee tiers (FeeSchedule with a mocked EngineClient) ---------------
 
   private final EngineClient engine = mock(EngineClient.class);
-  private final PaymentController controller = new PaymentController(engine);
+  private final FeeSchedule fees = new FeeSchedule(engine);
 
-  private PaymentStatus vehicleStatusForPrice(Object rawPrice) {
-    when(engine.findActiveById(PI)).thenReturn(new ProcessInstanceRef(PI, "vehicleRegistration"));
+  private BigDecimal vehicleFeeForPrice(Object rawPrice) {
     when(engine.getRawVariable(PI, "price")).thenReturn(rawPrice);
-    ResponseEntity<?> response = controller.getStatus(PI);
-    assertThat(response.getStatusCode().value()).isEqualTo(200);
-    return (PaymentStatus) response.getBody();
+    return fees.chargeFor(new ProcessInstanceRef(PI, "vehicleRegistration")).orElseThrow().amount();
   }
 
   @Test
   void vehicleFeeIs25Below5000() {
-    assertThat(vehicleStatusForPrice(4999).amount()).isEqualTo(25.0);
+    assertThat(vehicleFeeForPrice(4999)).isEqualByComparingTo("25");
   }
 
   @Test
   void vehicleFeeIs75From5000To19999() {
-    assertThat(vehicleStatusForPrice(5000).amount()).isEqualTo(75.0);
-    assertThat(vehicleStatusForPrice(19999).amount()).isEqualTo(75.0);
+    assertThat(vehicleFeeForPrice(5000)).isEqualByComparingTo("75");
+    assertThat(vehicleFeeForPrice(19999)).isEqualByComparingTo("75");
   }
 
   @Test
   void vehicleFeeIs150From20000() {
-    assertThat(vehicleStatusForPrice(20000).amount()).isEqualTo(150.0);
+    assertThat(vehicleFeeForPrice(20000)).isEqualByComparingTo("150");
   }
 
   @Test
   void missingPriceLandsInTheLowestTier() {
-    // null raw price → parseAmount 0.0 → cheapest tier.
-    assertThat(vehicleStatusForPrice(null).amount()).isEqualTo(25.0);
+    assertThat(vehicleFeeForPrice(null)).isEqualByComparingTo("25");
   }
 
   @Test
   void localeFormattedStringPriceStillTiersCorrectly() {
-    assertThat(vehicleStatusForPrice("38,000").amount()).isEqualTo(150.0);
+    assertThat(vehicleFeeForPrice("38,000")).isEqualByComparingTo("150");
   }
 
   @Test
   void businessRegistrationIsFlat265() {
-    when(engine.findActiveById(PI)).thenReturn(new ProcessInstanceRef(PI, "businessRegistration"));
-    when(engine.getStringVariable(PI, "applicantFirstName")).thenReturn("Frida");
-    when(engine.getStringVariable(PI, "applicantLastName")).thenReturn("Asutaja");
-    when(engine.getStringVariable(PI, "companyName")).thenReturn("Näidis OÜ");
+    Charge charge =
+        fees.chargeFor(new ProcessInstanceRef(PI, "businessRegistration")).orElseThrow();
 
-    PaymentStatus status = (PaymentStatus) controller.getStatus(PI).getBody();
-
-    assertThat(status.amount()).isEqualTo(265.0);
-    assertThat(status.item()).isEqualTo("Näidis OÜ");
-    assertThat(status.payerName()).isEqualTo("Frida Asutaja");
-    assertThat(status.currency()).isEqualTo("EUR");
-    assertThat(status.reference()).isEqualTo(PI);
-    assertThat(status.status()).isEqualTo("pending");
+    assertThat(charge.amount()).isEqualByComparingTo("265");
+    assertThat(charge.currency()).isEqualTo("EUR");
+    assertThat(charge.recipient()).isEqualTo("Äriregister (Justiitsministeerium)");
   }
 
   @Test
-  void alreadyPaidCaseReportsPaid() {
-    when(engine.findActiveById(PI)).thenReturn(new ProcessInstanceRef(PI, "vehicleRegistration"));
-    when(engine.getBooleanVariable(PI, "paymentReceived")).thenReturn(true);
+  void transportVehicleFeeComesFromTheDmnVariable() {
+    when(engine.getRawVariable(PI, "registrationFee")).thenReturn(57.5);
 
-    PaymentStatus status = (PaymentStatus) controller.getStatus(PI).getBody();
-
-    assertThat(status.status()).isEqualTo("paid");
+    assertThat(
+            fees.chargeFor(new ProcessInstanceRef(PI, "transportVehicleRegistration"))
+                .orElseThrow()
+                .amount())
+        .isEqualByComparingTo("57.50");
   }
 
   @Test
-  void unknownProcessInstanceIs404() {
-    when(engine.findActiveById(PI)).thenReturn(null);
-
-    ResponseEntity<?> response = controller.getStatus(PI);
-
-    assertThat(response.getStatusCode().value()).isEqualTo(404);
-    assertThat(((ErrorResponse) response.getBody()).code()).isEqualTo("unknown_case");
+  void learningPermitIsFlat6() {
+    assertThat(
+            fees.chargeFor(new ProcessInstanceRef(PI, "transportLearningPermit"))
+                .orElseThrow()
+                .amount())
+        .isEqualByComparingTo("6");
   }
 
   @Test
-  void unknownDefinitionKeyIsAlso404() {
-    // resolve() only knows the two registration processes; anything else
-    // falls through to null → unknown_case.
-    when(engine.findActiveById(PI)).thenReturn(new ProcessInstanceRef(PI, "someOtherProcess"));
-
-    ResponseEntity<?> response = controller.getStatus(PI);
-
-    assertThat(response.getStatusCode().value()).isEqualTo(404);
+  void unknownDefinitionKeyHasNoCharge() {
+    assertThat(fees.chargeFor(new ProcessInstanceRef(PI, "someOtherProcess"))).isEmpty();
   }
 }

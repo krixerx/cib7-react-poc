@@ -10,6 +10,11 @@
 # network-internal (no published ports). Keycloak stays on :8180 directly
 # to avoid moving the issuer URL baked into JWTs; see KEYCLOAK_ISSUER_URL
 # below and docs/deployment.md for the rationale.
+#
+# Networks: containers share a network only when one calls the other (docs/
+# security.md rule 9). The map is in the `networks:` block at the bottom and in
+# docs/architecture.md § Networks; adding a call between two services means
+# adding them to a common network there.
 services:
   mailpit:
     # Mailpit is a tiny SMTP server + web UI for inspecting emails sent by
@@ -23,8 +28,9 @@ services:
     # host. Hand-testing the inbox:
     #     docker compose --profile dev up -d mailpit-ui
     # or open it inside the network from another container.
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.31.3
     container_name: cib7-poc-mailpit
+    networks: [mail]
     expose:
       - "8025" # Web UI (network-internal)
       - "1025" # SMTP
@@ -37,9 +43,10 @@ services:
     # ONLY when the `dev` profile is active. Lets us keep the default
     # `docker compose up` posture closed while preserving one-command
     # access during development.
-    image: alpine/socat:latest
+    image: alpine/socat:1.8.1.3
     container_name: cib7-poc-mailpit-ui
     profiles: ["dev"]
+    networks: [mail]
     ports:
       - "8025:8025"
     command: ["TCP-LISTEN:8025,fork,reuseaddr", "TCP:mailpit:8025"]
@@ -66,7 +73,15 @@ services:
     # resolves backend:8085 at request time, so no startup ordering is needed.
     build: ./esb
     container_name: cib7-poc-esb
+    # bus: the engine (the only caller). mail / pdf / esb-backend: the three
+    # downstream systems, each on its own network so they cannot reach each
+    # other or the engine. Graylog sits on bus for the bus's own GELF.
+    networks: [bus, mail, pdf, esb-backend]
     environment:
+      # Shared secret the engine sends as X-Bus-Token; the bus refuses calls
+      # without it, so only the engine can make the bus inject
+      # X-Internal-Token (docs/security.md rule 9).
+      BUS_TOKEN: ${BUS_TOKEN:-bus-token-change-me}
       # The bus injects X-Internal-Token on the /api/documents route (the engine
       # no longer sets it). Must match the backend's INTERNAL_TASK_TOKEN.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
@@ -107,11 +122,14 @@ services:
     #     docker compose -f docker-compose.yml -f docker-compose.prod.yml \
     #         --profile traefik up -d
     profiles: ["traefik"]
-    image: traefik:v3.4
+    image: traefik:v3.4.5
     container_name: cib7-poc-traefik
+    networks: [edge]
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      # Backends sit on several networks; Traefik only shares `edge` with them.
+      - --providers.docker.network=cib7-poc-edge
       # Explicit endpoint avoids an empty-error retry loop seen with
       # Docker Desktop on Windows + newer daemon API versions where
       # Traefik's docker client can't auto-negotiate. Bumped Traefik
@@ -124,12 +142,14 @@ services:
       - "3000:80"             # public front door — same port the SPA used to bind directly
       - "127.0.0.1:8081:8080" # Traefik dashboard at http://localhost:8081/dashboard/ — loopback only
     volumes:
-      # Mounted RW (not :ro). Docker Desktop on Windows occasionally returns
-      # an empty error body to the daemon ping when the socket is mounted
-      # read-only, which Traefik treats as a provider failure and never
-      # finishes its first config scan — all routes 404. Traefik only reads
-      # from the socket; the RW mount is just to keep the daemon happy.
-      - /var/run/docker.sock:/var/run/docker.sock
+      # Read-only. :ro only stops writes to the socket FILE, not API calls
+      # through it, so this is still root-equivalent access to the dev host's
+      # Docker. That is why only this profile-gated dev Traefik uses the Docker
+      # provider; the prod overlay and the deploy/ bundle run the file provider
+      # with no socket at all. If Docker Desktop on Windows leaves the provider
+      # stuck on "Error response from daemon: " with :ro, the frontend nginx
+      # (the default front door) still covers every route.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - cib7
       - backend
@@ -140,8 +160,21 @@ services:
     # Headless Chromium wrapped in a REST API. Used by pdf-renderer to convert
     # the approval-email HTML to a PDF for the email attachment. Internal-only
     # — no host port mapping needed; only pdf-renderer talks to it.
-    image: gotenberg/gotenberg:8
+    image: gotenberg/gotenberg:8.37.0
     container_name: cib7-poc-gotenberg
+    # `render` is internal (no route out of the host) and shared with
+    # pdf-renderer only: whatever a template makes Chromium fetch, the only
+    # thing it can reach is pdf-renderer (docs/security.md rule 9).
+    networks: [render]
+    # Templates are static HTML (no <script>), so JavaScript is off. The deny
+    # list keeps Gotenberg's default (no file:// outside its own /tmp work
+    # dir) and adds URLs with userinfo, loopback/private/link-local IPs, IPv6
+    # literals and single-label hosts (every compose service name). `$$` is
+    # compose's escape for a literal `$`.
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - '--chromium-deny-list=^file:(?!//\/tmp/).*|^https?://[^/]*@.*|^https?://(localhost|127\.|0\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|169\.254\.|\[|[^./:]+([:/]|$$)).*'
     expose:
       - "3000"
 
@@ -155,6 +188,9 @@ services:
     # Endpoint: POST /render  {html, filename}  ->  {filename, base64}
     build: ./pdf-renderer
     container_name: cib7-poc-pdf-renderer
+    # pdf: called by the bus (Graylog also sits here for this service's GELF).
+    # render: the only way to Gotenberg.
+    networks: [pdf, render]
     environment:
       GOTENBERG_URL: http://gotenberg:3000
       # Central logging (see pdf-renderer/gelf.js).
@@ -183,8 +219,11 @@ services:
     # (split on docker network vs host) is the simplest correct setup.
     # See docs/deployment.md for the prod story (TLS-fronted, separate
     # subdomain, RUSTFS_DOMAIN to make virtual-host signing work).
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.0
     container_name: cib7-poc-rustfs
+    # Only the backend talks to RustFS inside the stack; browsers reach it on
+    # the published port with presigned URLs.
+    networks: [storage]
     ports:
       - "9000:9000"
     environment:
@@ -223,6 +262,10 @@ services:
       context: .
       dockerfile: mcp/Dockerfile
     container_name: cib7-poc-mcp
+    # edge: reached from the ingress. app: calls cib7, backend, keycloak.
+    # gelf-mcp: its own line to Graylog, so logging does not connect the MCP
+    # sidecar to anything else.
+    networks: [edge, app, gelf-mcp]
     environment:
       # Browser-visible MCP URL. Claude Desktop reaches the sidecar through
       # the Traefik ingress on the host (same-origin with the SPA at port
@@ -268,6 +311,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.mcp.rule: 'PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`)'
       traefik.http.routers.mcp.entrypoints: "web"
+      traefik.http.routers.mcp.middlewares: "mcp-ratelimit@docker,api-headers@docker"
       traefik.http.services.mcp.loadbalancer.server.port: "8090"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/health > /dev/null || exit 1"]
@@ -286,9 +330,13 @@ services:
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).
-    image: quay.io/keycloak/keycloak:26.1
+    image: quay.io/keycloak/keycloak:26.1.5
     container_name: cib7-poc-keycloak
     command: ["start-dev", "--import-realm"]
+    # cib7, backend and mcp reach it as keycloak:8080 for JWKS, tokens and the
+    # admin API; browsers use the published port. Token `iss` is compared as a
+    # string with KEYCLOAK_ISSUER_URL, so no container needs the public URL.
+    networks: [app]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -355,12 +403,29 @@ services:
     # clean CIB seven distribution of plugins and connectors.
     build: ./backend
     container_name: cib7-poc-backend
+    # edge: from the ingress. app: engine + keycloak, and called by mcp.
+    # storage: RustFS. esb-backend: called by the bus on /api/internal and
+    # /api/public (Graylog sits here for the backend's GELF).
+    networks: [edge, app, storage, esb-backend]
     expose:
       - "8085"
     labels:
       traefik.enable: "true"
-      traefik.http.routers.backend-api.rule: 'PathPrefix(`/api`)'
+      # /api/internal/** is engine-only (through the bus) and never routed: it
+      # matches no backend router, so the frontend catch-all hands it to
+      # nginx, which answers 404.
+      traefik.http.routers.backend-api.rule: 'PathPrefix(`/api`) && !PathPrefix(`/api/internal`) && !PathPrefix(`/api/public`)'
       traefik.http.routers.backend-api.entrypoints: "web"
+      traefik.http.routers.backend-api.priority: "20"
+      traefik.http.routers.backend-api.service: "backend-api"
+      traefik.http.routers.backend-api.middlewares: "api-headers@docker"
+      # Capability-link and anonymous reference endpoints: rate limited per
+      # client IP (docs/security.md rule 8).
+      traefik.http.routers.backend-public.rule: 'PathPrefix(`/api/public`)'
+      traefik.http.routers.backend-public.entrypoints: "web"
+      traefik.http.routers.backend-public.priority: "30"
+      traefik.http.routers.backend-public.service: "backend-api"
+      traefik.http.routers.backend-public.middlewares: "public-ratelimit@docker,api-headers@docker"
       traefik.http.services.backend-api.loadbalancer.server.port: "8085"
     environment:
       # Same internal/public Keycloak URL split as the engine: KEYCLOAK_URL
@@ -394,6 +459,13 @@ services:
       # this in an X-Internal-Token header; the backend's internal
       # security chain checks it and bypasses JWT for those two paths.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # HMAC key for the capability links (co-owner, founder and payment). Shared with
+      # cib7, which mints the links the backend verifies (docs/security.md
+      # rule 3), so both services must carry the same value.
+      LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET:-link-signing-secret-change-me}
+      # Key the (mock) payment provider signs its callbacks with; the backend
+      # checks that HMAC before accepting a payment (docs/security.md rule 4).
+      PAYMENT_PROVIDER_SECRET: ${PAYMENT_PROVIDER_SECRET:-payment-provider-secret-change-me}
       # SPA origin allowed in the bucket's CORS policy.
       FRONTEND_BASE_URL: http://localhost:3000
       # Central logging. The `graylog` profile is what activates the GELF
@@ -414,6 +486,10 @@ services:
   cib7:
     build: ./cib7
     container_name: cib7-poc-cib7
+    # edge: from the ingress (and the frontend/mobile nginx). app: keycloak,
+    # and called by backend + mcp. bus: the ESB, its only outbound channel
+    # (Graylog sits here for the engine's GELF).
+    networks: [edge, app, bus]
     # No published port — the engine is reachable only through Traefik on
     # :3000. Routes below cover the three engine surfaces (the /api business
     # endpoints moved to the `backend` service above):
@@ -432,8 +508,16 @@ services:
     # with full duplication of every label.
     labels:
       traefik.enable: "true"
-      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/engine-rest`) || PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
+      # Two routers because the headers differ: the REST API gets the strict
+      # API CSP, the webapps keep the nonce-based CSP the engine sends itself.
+      traefik.http.routers.cib7-rest.rule: 'PathPrefix(`/engine-rest`)'
+      traefik.http.routers.cib7-rest.entrypoints: "web"
+      traefik.http.routers.cib7-rest.service: "cib7-engine"
+      traefik.http.routers.cib7-rest.middlewares: "api-headers@docker"
+      traefik.http.routers.cib7-engine.rule: 'PathPrefix(`/camunda`) || PathPrefix(`/oauth2`) || PathPrefix(`/login`) || PathPrefix(`/logout`)'
       traefik.http.routers.cib7-engine.entrypoints: "web"
+      traefik.http.routers.cib7-engine.service: "cib7-engine"
+      traefik.http.routers.cib7-engine.middlewares: "security-headers@docker"
       traefik.http.services.cib7-engine.loadbalancer.server.port: "8080"
     environment:
       # Two URLs intentionally, because they serve different roles:
@@ -464,6 +548,12 @@ services:
       # system (mailpit, pdf-renderer, backend). The engine no longer knows any
       # individual system's address; those live in esb/routes/*.yaml.
       BUS_URL: http://esb:8080
+      # Sent as X-Bus-Token on every call to the bus; must equal the esb
+      # service's BUS_TOKEN.
+      BUS_TOKEN: ${BUS_TOKEN:-bus-token-change-me}
+      # HMAC key for the capability links (co-owner, founder and payment) the engine
+      # mints; the backend verifies them with the same value.
+      LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET:-link-signing-secret-change-me}
       # Browser-visible base URL for the SPA. Owner-confirmation emails
       # embed ${frontendBaseUrl}/confirm-owner/{token}, so this must be
       # the URL the recipient's browser can open — NOT the docker
@@ -500,16 +590,45 @@ services:
     # to proxy /engine-rest, /api, /camunda, /oauth2, /login, /logout, /mcp,
     # and /.well-known/oauth-protected-resource to the right backends — the
     # same pattern this repo used before Traefik landed.
+    # Container port 8080: the image runs nginx-unprivileged as uid 101.
     ports:
-      - "3000:80"
+      - "3000:8080"
     expose:
-      - "80"
+      - "8080"
+    # nginx proxies to cib7, backend, mcp and mobile, all on `edge`.
+    networks: [edge]
+    environment:
+      # Browser-visible RustFS origin for the SPA's Content-Security-Policy
+      # (frontend/docker/40-runtime-env.sh); presigned uploads go there.
+      S3_PUBLIC_URL: http://localhost:9000
     labels:
       traefik.enable: "true"
       traefik.http.routers.frontend.rule: "PathPrefix(`/`)"
       traefik.http.routers.frontend.entrypoints: "web"
       traefik.http.routers.frontend.priority: "1"
-      traefik.http.services.frontend.loadbalancer.server.port: "80"
+      traefik.http.routers.frontend.middlewares: "security-headers@docker"
+      traefik.http.services.frontend.loadbalancer.server.port: "8080"
+      # Shared Traefik middlewares, referenced as <name>@docker by every
+      # router. They live here because a middleware has to be declared on some
+      # enabled container. HSTS is only emitted on TLS requests, so it is inert
+      # on this plain-HTTP dev entrypoint.
+      traefik.http.middlewares.security-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.security-headers.headers.stsIncludeSubdomains: "true"
+      traefik.http.middlewares.security-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.security-headers.headers.frameDeny: "true"
+      traefik.http.middlewares.security-headers.headers.referrerPolicy: "no-referrer"
+      traefik.http.middlewares.security-headers.headers.permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      traefik.http.middlewares.api-headers.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.api-headers.headers.stsIncludeSubdomains: "true"
+      traefik.http.middlewares.api-headers.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.api-headers.headers.frameDeny: "true"
+      traefik.http.middlewares.api-headers.headers.referrerPolicy: "no-referrer"
+      traefik.http.middlewares.api-headers.headers.permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      traefik.http.middlewares.api-headers.headers.contentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+      traefik.http.middlewares.public-ratelimit.ratelimit.average: "10"
+      traefik.http.middlewares.public-ratelimit.ratelimit.burst: "20"
+      traefik.http.middlewares.mcp-ratelimit.ratelimit.average: "5"
+      traefik.http.middlewares.mcp-ratelimit.ratelimit.burst: "20"
     # Keycloak URL/realm/client-id are baked into the SPA at build time
     # (frontend/src/auth/keycloak.ts reads VITE_KEYCLOAK_* with defaults
     # of http://localhost:8180 / cib7-poc / cib7-frontend). To override
@@ -529,10 +648,13 @@ services:
     # is needed. Priority 10 beats the frontend's catch-all PathPrefix(`/`)
     # (priority 1). Published on 3001 for direct local access the same way
     # frontend uses 3000 — open http://localhost:3001/mobile/.
+    # Container port 8080: nginx-unprivileged, uid 101.
     ports:
-      - "3001:80"
+      - "3001:8080"
     expose:
-      - "80"
+      - "8080"
+    # nginx proxies /engine-rest and /api to cib7 and backend on `edge`.
+    networks: [edge]
     environment:
       # Injected into /mobile/env.js at container start (mobile/docker/
       # 40-runtime-env.sh) and read by the Flutter app as window.__ENV__. This
@@ -541,12 +663,15 @@ services:
       KEYCLOAK_URL: http://localhost:8180
       KEYCLOAK_REALM: cib7-poc
       KEYCLOAK_CLIENT_ID: cib7-mobile
+      # For the app's Content-Security-Policy (mobile/docker/40-runtime-env.sh).
+      S3_PUBLIC_URL: http://localhost:9000
     labels:
       traefik.enable: "true"
       traefik.http.routers.mobile.rule: "PathPrefix(`/mobile`)"
       traefik.http.routers.mobile.entrypoints: "web"
       traefik.http.routers.mobile.priority: "10"
-      traefik.http.services.mobile.loadbalancer.server.port: "80"
+      traefik.http.routers.mobile.middlewares: "security-headers@docker"
+      traefik.http.services.mobile.loadbalancer.server.port: "8080"
     depends_on:
       - cib7
       - backend
@@ -571,8 +696,9 @@ services:
     # Graylog's own configuration store (users, streams, inputs, dashboards).
     # Not a message store — that's OpenSearch below. mongo:7.0 is the version
     # the upstream Graylog compose example pins.
-    image: mongo:7.0
+    image: mongo:7.0.43
     container_name: cib7-poc-graylog-mongodb
+    networks: [logstore]
     volumes:
       - graylog-mongodb-data:/data/db
       - graylog-mongodb-config:/data/configdb
@@ -586,6 +712,7 @@ services:
     # as a one-command story.
     image: opensearchproject/opensearch:2.19.6
     container_name: cib7-poc-opensearch
+    networks: [logstore]
     environment:
       discovery.type: single-node
       # Graylog manages its own index security; the demo security plugin would
@@ -613,8 +740,14 @@ services:
     # Pinned to the 7.1 line. Override GRAYLOG_IMAGE if you need to move it —
     # the only contract this stack depends on is the GELF UDP/TCP input on
     # 12201 and the REST API on 9000.
-    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1}
+    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1.9}
     container_name: cib7-poc-graylog
+    # logstore: its own MongoDB + OpenSearch. The others are the networks its
+    # GELF shippers already sit on (bus: cib7 + esb, pdf: pdf-renderer,
+    # esb-backend: backend, gelf-mcp: mcp). Graylog joins theirs instead of
+    # every shipper joining one log network, which would connect each shipper
+    # to all the others, the ESB included.
+    networks: [logstore, bus, pdf, esb-backend, gelf-mcp]
     environment:
       # Used to encrypt stored secrets (LDAP passwords, lookup-table configs).
       # Must be at least 16 characters and must not change once data exists.
@@ -656,6 +789,7 @@ services:
     #     docker compose logs graylog-init
     image: curlimages/curl:8.11.1
     container_name: cib7-poc-graylog-init
+    networks: [logstore]
     entrypoint: ["/bin/sh"]
     command: ["/provision-inputs.sh"]
     environment:
@@ -669,6 +803,36 @@ services:
     depends_on:
       - graylog
     restart: on-failure
+
+# Explicit names (no project prefix), so Traefik's --providers.docker.network
+# can name `edge` and `docker network inspect cib7-poc-<name>` shows who is on
+# each. Ten bridge networks is a noticeable share of Docker's default address
+# pool; if `up` fails with "could not find an available, non-overlapping IPv4
+# address pool", prune unused networks or widen `default-address-pools` in the
+# daemon config.
+networks:
+  edge:         # ingress / frontend nginx -> frontend, mobile, cib7, backend, mcp
+    name: cib7-poc-edge
+  app:          # cib7, backend, mcp, keycloak
+    name: cib7-poc-app
+  storage:      # backend -> rustfs
+    name: cib7-poc-storage
+  bus:          # cib7 -> esb (+ graylog for their GELF)
+    name: cib7-poc-bus
+  esb-backend:  # esb -> backend (+ graylog for the backend's GELF)
+    name: cib7-poc-esb-backend
+  mail:         # esb -> mailpit (+ mailpit-ui)
+    name: cib7-poc-mail
+  pdf:          # esb -> pdf-renderer (+ graylog for its GELF)
+    name: cib7-poc-pdf
+  render:       # pdf-renderer -> gotenberg; internal: no route off the host
+    name: cib7-poc-render
+    internal: true
+  gelf-mcp:     # mcp -> graylog
+    name: cib7-poc-gelf-mcp
+  logstore:     # graylog <-> mongodb, opensearch; graylog-init
+    name: cib7-poc-logstore
+    internal: true
 
 volumes:
   # Named volumes rather than bind mounts under ./.data (which is what RustFS

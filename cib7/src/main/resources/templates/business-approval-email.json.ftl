@@ -21,6 +21,10 @@
   Recipient is the applicant's own email — Gateway_SendApprovalEmail
   upstream guarantees it is non-null and contains '@' before this
   template runs.
+
+  The pay link carries a payment capability token minted by
+  links.payment(execution) (docs/security.md rules 3 and 4), not the
+  process instance id.
 -->
 <#assign caseRef = execution.processInstanceId>
 <#assign regCode = "1" + caseRef?replace("-", "")?substring(0, 7)>
@@ -61,7 +65,7 @@ ${members}
 Decision made by:        ${((autoDecision!"")=="approve")?then("automated decision table (DMN)", "manual review by the Business Register")}
 
 Pay the state fee here:
-${frontendBaseUrl}/pay/${execution.processInstanceId}
+${frontendBaseUrl}/pay/${links.payment(execution)}
 
 Once payment is received, the B-card extract will be available in the My
 processes page in the SPA.

@@ -1,5 +1,5 @@
 <#--
-  /api/documents/server-upload payload for Task_TransportStoreCertificate in
+  /api/internal/documents/server-upload payload for Task_TransportStoreCertificate in
   transport-vehicle-registration.bpmn. Mirror of server-upload-certificate.json.ftl
   with the Transport Authority certificate's variable names; category generated-certificate
   is the existing allowed category for generated official documents.

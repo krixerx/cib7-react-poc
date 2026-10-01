@@ -1,5 +1,5 @@
 <#--
-  /api/documents/server-upload payload for Task_StoreApprovalPdf.
+  /api/internal/documents/server-upload payload for Task_StoreApprovalPdf.
   Sends the just-generated approval PDF bytes (held in the
   approvalPdfBytes byte[] process variable) as a base64 string inside
   the JSON envelope. Backend decodes once, PUTs to RustFS under

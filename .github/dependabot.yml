@@ -1,0 +1,67 @@
+# Dependency update PRs (docs/security.md rule 11). Minor and patch bumps are
+# grouped per ecosystem and directory so a week's updates arrive as one PR each;
+# majors come one by one because they need reading. Security updates are
+# raised as soon as an advisory lands, independent of this schedule.
+version: 2
+
+updates:
+  - package-ecosystem: maven
+    directories: ["/cib7", "/backend"]
+    schedule:
+      interval: weekly
+    groups:
+      maven-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories: ["/frontend", "/mcp", "/scripts", "/pdf-renderer"]
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      # MUI stays on v5: TEDI bundles MUI v5, and two Emotion trees break
+      # styling (CLAUDE.md, "TEDI first, MUI for complex data components").
+      - dependency-name: "@mui/*"
+        update-types: [version-update:semver-major]
+
+  # Base images in the Dockerfiles we build.
+  - package-ecosystem: docker
+    directories:
+      - "/cib7"
+      - "/backend"
+      - "/frontend"
+      - "/mobile"
+      - "/mcp"
+      - "/pdf-renderer"
+      - "/esb"
+    schedule:
+      interval: weekly
+    groups:
+      base-images:
+        update-types: [minor, patch]
+    ignore:
+      # Node majors are chosen deliberately (22 for frontend, 20 for mcp and
+      # pdf-renderer), and Java stays on 21 until the modules move together.
+      - dependency-name: "node"
+        update-types: [version-update:semver-major]
+      - dependency-name: "eclipse-temurin"
+        update-types: [version-update:semver-major]
+
+  # Third-party images pinned in the compose files.
+  - package-ecosystem: docker-compose
+    directories: ["/", "/deploy"]
+    schedule:
+      interval: weekly
+    groups:
+      compose-images:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        update-types: [minor, patch]

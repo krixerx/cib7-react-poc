@@ -26,6 +26,7 @@ On the deployment host:
 sudo mkdir -p /opt/volumes/traefik/{certs,dynamic,logs}
 sudo chmod 700 /opt/volumes/traefik/certs           # private keys live here
 sudo cp traefik/dynamic/tls.yml.example /opt/volumes/traefik/dynamic/tls.yml
+sudo cp traefik/dynamic/routes.yml.example /opt/volumes/traefik/dynamic/routes.yml
 sudo $EDITOR /opt/volumes/traefik/dynamic/tls.yml   # point at your actual certs
 sudo cp your-cert.crt /opt/volumes/traefik/certs/app.example.com.crt
 sudo cp your-key.key  /opt/volumes/traefik/certs/app.example.com.key
@@ -34,8 +35,10 @@ sudo chmod 600 /opt/volumes/traefik/certs/*.key
 ```
 
 Then `docker compose -f docker-compose.yml -f docker-compose.prod.yml up
--d` — Traefik starts, reads `dynamic/tls.yml`, and serves the cert on
-`:443`.
+-d` — Traefik starts, reads `dynamic/routes.yml` and `dynamic/tls.yml`, and
+serves the cert on `:443`. Routing comes only from `routes.yml`: the prod
+Traefik runs the file provider and has no Docker socket, so the `traefik.*`
+labels in `docker-compose.yml` do nothing there.
 
 See [`docs/deployment.md`](../../docs/deployment.md) for the full
 walk-through.

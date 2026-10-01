@@ -128,6 +128,24 @@ public class EngineClient {
     }
   }
 
+  /**
+   * Whether the engine's history knows this process instance (running or ended). Reviewers may see
+   * any case, but only cases that exist: without this check an unknown id would answer like a real
+   * one and let a reviewer stage objects under an invented {@code process/<id>/} prefix.
+   */
+  public boolean historicProcessInstanceExists(String processInstanceId) {
+    try {
+      JsonNode pi =
+          rest.get()
+              .uri("/history/process-instance/{id}", processInstanceId)
+              .retrieve()
+              .body(JsonNode.class);
+      return pi != null && !pi.path("id").asText("").isEmpty();
+    } catch (HttpClientErrorException.NotFound e) {
+      return false;
+    }
+  }
+
   private List<String> queryInstanceIds(Map<String, Object> queryBody) {
     JsonNode result =
         rest.post().uri("/process-instance").body(queryBody).retrieve().body(JsonNode.class);

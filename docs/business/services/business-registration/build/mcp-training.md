@@ -49,7 +49,7 @@ starting the process:
 One more thing to set expectations on: because the applicant's email is now
 always known (filled from their account), an approved registration generates a
 state-fee invoice + approval email and then waits at a payment step
-(`/pay/{processInstanceId}`). There is no MCP payment tool, so over chat the
+(the pay link in the approval email). There is no MCP payment tool, so over chat the
 case completes up to that payment step and the user pays on the web. Everything
 before payment — sole-founder registration, auto-approval, civil-servant
 review, the send-back loop — works end-to-end over chat.

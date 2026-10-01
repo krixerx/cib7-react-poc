@@ -57,3 +57,9 @@ visible.
 - `boardMembers` is serialised as JSON on submit (Camunda `Json` type) so
   it survives history persistence and stays queryable via
   `query_user_history`.
+- Co-founders (`additionalFounders`) are written as plain `{name, email}`
+  rows. The form never creates link tokens, party ids or the
+  `founderSignatures` map, and does not reset `rejectedByFounder` /
+  `sentToRegister`: the engine's `ConsentPartiesListener` rebuilds all of
+  that on every submit and ignores anything else the client sends
+  (docs/security.md rule 3).
