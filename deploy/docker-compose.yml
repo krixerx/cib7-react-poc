@@ -541,7 +541,7 @@ services:
     # Graylog Data Node — Data Node boots into an interactive preflight setup UI
     # that somebody has to click through, which would break `docker compose up`
     # as a one-command story.
-    image: opensearchproject/opensearch:2.19.6
+    image: opensearchproject/opensearch:3.8.0
     container_name: cib7-poc-opensearch
     restart: unless-stopped
     networks: [logstore]
