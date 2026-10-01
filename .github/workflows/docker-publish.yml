@@ -57,7 +57,7 @@ jobs:
 
       # Produces `latest` and `sha-<short>` tags for every push to main.
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           tags: |
