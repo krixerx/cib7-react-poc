@@ -253,7 +253,10 @@ taken from the service specs; an unknown key falls back to `info.default`.
 
 Two-pane civil-servant worklist. Left: filterable case list. Right: the
 selected case's detail (active form, read-only history, or incident block —
-whichever applies).
+whichever applies). A button in the list header collapses the list to a
+narrow rail (expand button, row count, vertical title) so the detail gets the
+full width; the open form keeps its state, and the choice is remembered in
+`localStorage` under `ereg-worklist-collapsed`.
 
 - `listWorklist()` (in `camundaClient.ts`) loads the worklist in one call:
   joins `listRecentProcessInstances()` + `listIncidents()` +

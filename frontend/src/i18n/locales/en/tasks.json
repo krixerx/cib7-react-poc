@@ -4,6 +4,8 @@
     "refreshing": "Refreshing…",
     "countFiltered": "{{shown}} of {{total}}",
     "refresh": "Refresh list",
+    "collapse": "Collapse list",
+    "expand": "Expand list",
     "newestFirst": "Newest first",
     "sortPill": "Date submitted",
     "caseRef": "CASE-{{id}}",

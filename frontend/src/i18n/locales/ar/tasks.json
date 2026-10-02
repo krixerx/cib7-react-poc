@@ -4,6 +4,8 @@
     "refreshing": "جارٍ التحديث…",
     "countFiltered": "{{shown}} من {{total}}",
     "refresh": "تحديث القائمة",
+    "collapse": "طيّ القائمة",
+    "expand": "توسيع القائمة",
     "newestFirst": "الأحدث أولاً",
     "sortPill": "تاريخ التقديم",
     "caseRef": "CASE-{{id}}",

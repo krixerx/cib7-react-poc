@@ -6,6 +6,8 @@ import {
   Check,
   ChevronDown,
   Hourglass,
+  PanelLeftClose,
+  PanelLeftOpen,
   RotateCw,
   Search,
   TriangleAlert,
@@ -18,6 +20,16 @@ import { formatDate, formatDateTime, formatNumber } from '../i18n/format';
 import { translateBackendName } from '../i18n/backendNames';
 import TaskDetailView from './TaskDetailView';
 import ProcessHistoryView from './ProcessHistoryView';
+
+const COLLAPSED_KEY = 'ereg-worklist-collapsed';
+
+function storedCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * PartB — civil-servant worklist. Two-pane layout: a filterable, applicant-
@@ -88,6 +100,18 @@ export default function TasksPage() {
   const { username } = useAuth();
   const [params, setParams] = useSearchParams();
   const selectedCaseId = params.get('case');
+  // Collapsing the list gives the case detail the full width; the choice is
+  // remembered per browser.
+  const [listCollapsed, setListCollapsed] = useState(storedCollapsed);
+  const toggleList = () =>
+    setListCollapsed((v) => {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, v ? '0' : '1');
+      } catch {
+        // Storage blocked: the toggle still works for this page view.
+      }
+      return !v;
+    });
 
   const [rows, setRows] = useState<WorklistRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -224,10 +248,105 @@ export default function TasksPage() {
     }
   }
 
+  const detail = (
+    <div className="worklist-detail">
+      {!selected && (
+        <div className="card worklist-empty-state">
+          <h1 className="card-title">{t('empty.pickTitle')}</h1>
+          <p className="muted">{t('empty.pickBody', { count: filteredRows.length })}</p>
+        </div>
+      )}
+
+      {selected && selected.incidents.length > 0 && (
+        <IncidentBlock
+          applicantName={
+            selected.applicantName || selected.startUserId || t('incidents.caseFallback')
+          }
+          serviceName={selected.serviceName}
+          caseShortId={shortCaseId(selected.processInstanceId)}
+          incidents={selected.incidents}
+          busyIncidentId={busyIncidentId}
+          onRetry={retryIncident}
+          onClose={clearCase}
+        />
+      )}
+
+      {selected && !selected.currentTask && selected.incidents.length === 0 && (
+        <ProcessHistoryView
+          processInstanceId={selected.processInstanceId}
+          topSlot={
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={clearCase}
+              aria-label={t('common:actions.close')}
+              title={t('common:actions.close')}
+            >
+              <X aria-hidden="true" />
+            </button>
+          }
+        />
+      )}
+
+      {selected && selected.currentTask && (
+        <TaskDetailView
+          taskId={selected.currentTask.id}
+          onCompleted={() => {
+            clearCase();
+            load();
+          }}
+          topSlot={
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={clearCase}
+              aria-label={t('common:actions.close')}
+              title={t('common:actions.close')}
+            >
+              <X aria-hidden="true" />
+            </button>
+          }
+        />
+      )}
+    </div>
+  );
+
+  if (listCollapsed) {
+    return (
+      <div className="worklist list-collapsed">
+        <aside className="worklist-rail">
+          <button
+            type="button"
+            className="worklist-collapse"
+            onClick={toggleList}
+            title={t('list.expand')}
+            aria-label={t('list.expand')}
+            aria-expanded={false}
+          >
+            <PanelLeftOpen size={16} aria-hidden="true" />
+          </button>
+          <span className="worklist-list-count">{formatNumber(filteredRows.length)}</span>
+          <span className="worklist-rail-title">{t('list.title')}</span>
+        </aside>
+        {detail}
+      </div>
+    );
+  }
+
   return (
     <div className="worklist">
       <aside className="worklist-list">
         <div className="worklist-list-head">
+          <button
+            type="button"
+            className="worklist-collapse"
+            onClick={toggleList}
+            title={t('list.collapse')}
+            aria-label={t('list.collapse')}
+            aria-expanded={true}
+          >
+            <PanelLeftClose size={16} aria-hidden="true" />
+          </button>
           <span className="worklist-list-title">{t('list.title')}</span>
           <span className={`worklist-list-count${loading ? ' refreshing' : ''}`} aria-live="polite">
             {loading
@@ -429,66 +548,7 @@ export default function TasksPage() {
         </ul>
       </aside>
 
-      <div className="worklist-detail">
-        {!selected && (
-          <div className="card worklist-empty-state">
-            <h1 className="card-title">{t('empty.pickTitle')}</h1>
-            <p className="muted">{t('empty.pickBody', { count: filteredRows.length })}</p>
-          </div>
-        )}
-
-        {selected && selected.incidents.length > 0 && (
-          <IncidentBlock
-            applicantName={
-              selected.applicantName || selected.startUserId || t('incidents.caseFallback')
-            }
-            serviceName={selected.serviceName}
-            caseShortId={shortCaseId(selected.processInstanceId)}
-            incidents={selected.incidents}
-            busyIncidentId={busyIncidentId}
-            onRetry={retryIncident}
-            onClose={clearCase}
-          />
-        )}
-
-        {selected && !selected.currentTask && selected.incidents.length === 0 && (
-          <ProcessHistoryView
-            processInstanceId={selected.processInstanceId}
-            topSlot={
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={clearCase}
-                aria-label={t('common:actions.close')}
-                title={t('common:actions.close')}
-              >
-                <X aria-hidden="true" />
-              </button>
-            }
-          />
-        )}
-
-        {selected && selected.currentTask && (
-          <TaskDetailView
-            taskId={selected.currentTask.id}
-            onCompleted={() => {
-              clearCase();
-              load();
-            }}
-            topSlot={
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={clearCase}
-                aria-label={t('common:actions.close')}
-                title={t('common:actions.close')}
-              >
-                <X aria-hidden="true" />
-              </button>
-            }
-          />
-        )}
-      </div>
+      {detail}
     </div>
   );
 }

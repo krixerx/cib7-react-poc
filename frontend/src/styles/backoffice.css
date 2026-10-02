@@ -22,6 +22,59 @@
 
 /* ---- list pane ---------------------------------------------------------- */
 
+.worklist.list-collapsed {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+/* Collapsed list: a narrow rail with the expand button and the row count. */
+.worklist-rail {
+  position: sticky;
+  top: 86px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.worklist-rail-title {
+  writing-mode: vertical-rl;
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.worklist-collapse {
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.worklist-collapse:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+[dir='rtl'] .worklist-collapse svg {
+  transform: scaleX(-1);
+}
+
 .worklist-list {
   position: sticky;
   top: 86px;
@@ -669,9 +722,19 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .worklist-list {
+  .worklist-list,
+  .worklist-rail {
     position: static;
     max-height: none;
+  }
+
+  .worklist-rail {
+    flex-direction: row;
+    padding: 10px 14px;
+  }
+
+  .worklist-rail-title {
+    writing-mode: horizontal-tb;
   }
 }
 
