@@ -168,13 +168,13 @@ password in Keycloak's form, and lands in the SPA signed in.
 > Where do I sign up?
 
 Expected: Claude calls `get_signup_url` (works signed out) and returns the
-deep-linked Keycloak registration URL. The user fills the form themselves and
+portal sign-up link (`/?auth=register`), which starts Keycloak registration. The user fills the form themselves and
 is signed in at once.
 
 > I forgot my password.
 
 Expected: Claude calls `get_password_reset_url` (works signed out) and returns
-the `kc_action=reset_credentials` deep link. The user resets it themselves.
+Keycloak's standalone reset page (`/login-actions/reset-credentials`). The user resets it themselves.
 The reset email goes to Mailpit, which on the public deployment sits behind a
 login, so there a reset is effectively admin-assisted.
 

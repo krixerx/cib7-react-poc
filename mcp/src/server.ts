@@ -52,28 +52,16 @@ const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER_URL ?? 'http://localhost:818
 const APPLICANT_PORTAL_URL = process.env.MCP_APPLICANT_PORTAL_URL ?? 'http://localhost:3000';
 const MAILPIT_URL = process.env.MCP_MAILPIT_URL ?? 'http://localhost:8025';
 
-// Pre-built deep-link to Keycloak's hosted registration form for the
-// cib7-frontend client. We use the SPA's client because registration must
-// land back at the applicant portal (the SPA), not at Claude Desktop's
-// loopback callback. The user fills the Keycloak form, verifies via email,
-// is redirected back to the SPA already signed in, and from there can come
-// back to chat and the next MCP tool call will reuse their fresh session.
-const REGISTRATION_URL =
-  `${KEYCLOAK_ISSUER}/protocol/openid-connect/registrations` +
-  `?client_id=cib7-frontend` +
-  `&response_type=code` +
-  `&scope=openid` +
-  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`;
+// Sign-up goes through the SPA, not straight to Keycloak's registration
+// endpoint: cib7-frontend requires PKCE, and only keycloak-js in the SPA can
+// hold the verifier. `/?auth=register` makes the SPA start registration and
+// land the new user back on the portal, signed in.
+const REGISTRATION_URL = `${APPLICANT_PORTAL_URL}/?auth=register`;
 
-// Password-reset uses the same hosted-page deep-link pattern via the
-// kc_action=reset_credentials parameter on the standard auth endpoint.
+// Keycloak's standalone "forgot password" page. It needs no authorization
+// request, so it works without PKCE; the reset email goes to the realm's SMTP.
 const PASSWORD_RESET_URL =
-  `${KEYCLOAK_ISSUER}/protocol/openid-connect/auth` +
-  `?client_id=cib7-frontend` +
-  `&response_type=code` +
-  `&scope=openid` +
-  `&kc_action=reset_credentials` +
-  `&redirect_uri=${encodeURIComponent(APPLICANT_PORTAL_URL + '/')}`;
+  `${KEYCLOAK_ISSUER}/login-actions/reset-credentials` + `?client_id=cib7-frontend`;
 
 const SERVER_INSTRUCTIONS = [
   'This MCP server drives e-government services (business registration, vehicle',

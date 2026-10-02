@@ -59,6 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkLoginIframe: false,
       })
       .then(() => {
+        // `/?auth=register` is the sign-up link handed out by the MCP sidecar
+        // (get_signup_url). It cannot point at Keycloak's registration
+        // endpoint itself, because cib7-frontend requires PKCE and only
+        // keycloak-js holds the verifier, so the SPA starts the flow here.
+        const wantsRegister =
+          new URLSearchParams(window.location.search).get('auth') === 'register';
+        if (wantsRegister && !keycloak.authenticated) {
+          void keycloak.register({ redirectUri: window.location.origin + '/' });
+          return;
+        }
         setReady(true);
       })
       .catch((e) => {

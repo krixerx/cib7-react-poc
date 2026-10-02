@@ -173,8 +173,8 @@ under `untrustedData` behind a fixed `untrustedDataNote`; see
 | Tool | Keycloak endpoint | Purpose |
 |---|---|---|
 | `get_started` | (none — reads the verified claims, if any) | Works signed out. Says whether the user is signed in, lists the services from the manifests, and gives next steps: how sign-in and registration work (with the sign-up and reset URLs) when signed out, which tools to use next when signed in. |
-| `get_signup_url` | (none — builds the URL locally) | Works signed out. Returns the public hosted Keycloak registration URL plus the steps to relay to the user. Pure URL lookup; performs no action. |
-| `get_password_reset_url` | (none — builds the URL locally) | Works signed out. Returns the public hosted Keycloak `kc_action=reset_credentials` URL plus the steps. Pure URL lookup. |
+| `get_signup_url` | (none — builds the URL locally) | Works signed out. Returns `<portal>/?auth=register` plus the steps to relay to the user. The SPA starts Keycloak registration from there, because `cib7-frontend` requires PKCE and only keycloak-js holds the verifier; a bare Keycloak registration URL is rejected with `Missing parameter: code_challenge_method`. Pure URL lookup; performs no action. |
+| `get_password_reset_url` | (none — builds the URL locally) | Works signed out. Returns Keycloak's standalone reset page (`/login-actions/reset-credentials?client_id=cib7-frontend`, no authorization request, so no PKCE) plus the steps. Pure URL lookup. |
 | `send_account_invitation(username, email, firstName, lastName)` | `POST /admin/realms/<r>/users` + `PUT /admin/realms/<r>/users/<id>/execute-actions-email` | Creates an invite-pending Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]`, then triggers the magic-link email. The invitee sets their own password in Keycloak — the tool never accepts or returns one. Uses the `cib7-backend` service-account client (client_credentials grant), not the caller's Bearer. Requires the `cib7-rest-api` audience plus the `applicant`, `civil-servant` or `cib7-admin` realm role, and is capped at 5 invitations per user per hour and 50 overall (`RATE_LIMITED`). |
 
 The username `<me>` (for process tools) is decoded from the Bearer's
@@ -406,7 +406,7 @@ Three paths an applicant can sign up, each with a different UX trade-off:
 | Path | Tool / Surface | What the user does | Who owns the password |
 |---|---|---|---|
 | **Self-registration via the SPA** | "Register" button on `http://localhost:3000` → `keycloak.register()` | Fill the Keycloak form themselves (username, email, name, password ×2) → signed in at once (no email verification). | The user, in Keycloak's hosted form. |
-| **Self-registration via chat** | `get_signup_url` or `get_started` (both work signed out), or the "Register" link on the sign-in page the connector opens | LLM returns the same Keycloak registration URL + step-by-step. Useful when the user is chatting with Claude before they've discovered the SPA. | The user, in Keycloak's hosted form. |
+| **Self-registration via chat** | `get_signup_url` or `get_started` (both work signed out), or the "Register" link on the sign-in page the connector opens | LLM returns the portal sign-up link (`/?auth=register`) + step-by-step. Useful when the user is chatting with Claude before they've discovered the SPA. | The user, in Keycloak's hosted form. |
 | **Invite by email via chat** | `send_account_invitation` MCP tool (inviter must be signed in) | LLM collects `{ username, email, firstName, lastName }` — never a password. The tool creates the Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]` via admin REST and triggers `execute-actions-email`. Invitee clicks the magic link in Mailpit, sets their own password in Keycloak's form, signed in. | The invitee, in Keycloak's hosted form. The MCP service never accepts or stores a password. |
 
 All three paths land the user in the `/applicant` group via the realm's
@@ -426,8 +426,8 @@ successes. The counters are in-process and reset when the container
 restarts.
 
 **Password reset** is symmetric to "self-registration via chat":
-`get_password_reset_url` returns the Keycloak `kc_action=reset_credentials`
-deep link. The user enters their email, gets a reset email at Mailpit,
+`get_password_reset_url` returns Keycloak's standalone reset page
+(`/login-actions/reset-credentials`). The user enters their email, gets a reset email at Mailpit,
 clicks, sets a new password, signed in.
 
 **Mail on the public deployment.** Reset and invitation emails still go to
