@@ -195,7 +195,7 @@ startup banner. Details in [`../docs/logging.md`](../docs/logging.md).
 
 - `package.json` — `@modelcontextprotocol/sdk`, `express`, `tsx`, `ajv`, `ajv-formats`, `jose`.
 - `tsconfig.json` — strict TypeScript with `noEmit` (tsx interprets at runtime).
-- `Dockerfile` — `node:20-alpine`, no multi-stage; `npm start` runs `tsx src/server.ts`. COPYs from repo root so it can include both `mcp/src` and `docs/business/services`.
+- `Dockerfile` — `node:24-alpine`, no multi-stage; installs runtime dependencies only (`npm ci --omit=dev`), then removes npm, so the container starts with `node --import tsx src/server.ts`, the same thing `npm start` runs locally. COPYs from repo root so it can include both `mcp/src` and `docs/business/services`.
 - `cib7-bridge.mjs` — Node launcher used by Claude Desktop's `claude_desktop_config.json`. Imports `mcp-remote`'s entry directly with assembled `process.argv` to avoid shell-quoting issues.
 - `src/server.ts` — Express + per-request MCP `Server` + `StreamableHTTPServerTransport`. Tool registry, `SERVER_INSTRUCTIONS` LLM playbook, AsyncLocalStorage bearer-context.
 - `src/auth/verify.ts` — JOSE `jwtVerify` against Keycloak JWKS (signature + issuer). 401 + `WWW-Authenticate` on failure.

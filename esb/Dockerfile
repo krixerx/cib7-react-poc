@@ -6,7 +6,14 @@
 # `camel run --source-dir=/routes`, loading every *.yaml route in the directory).
 # Adding an integration in a later stage is just dropping a new route file in
 # esb/routes/ — no Dockerfile change.
-FROM apache/camel-jbang:4.20.0-21-jdk
+FROM apache/camel-jbang:4.22.1-21-jdk
+
+# The base image lags Ubuntu's security pocket; OpenSSL had fixed HIGH CVEs
+# (Trivy in docker-publish.yml) that a package upgrade picks up.
+USER root
+RUN apt-get update \
+  && apt-get install -y --only-upgrade --no-install-recommends openssl libssl3t64 openssl-provider-legacy \
+  && rm -rf /var/lib/apt/lists/*
 
 # NOTE: startup logs one benign warning — "Failed to create working directory:
 # /.camel-jbang" — because the base image's user has OS home "/" (not writable).

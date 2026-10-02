@@ -58,7 +58,7 @@ cd frontend && npm test -- --run src/api/bpmn.test.ts
 
 `npm run typecheck` is the cheapest correctness check after a TypeScript change.
 Node 24 for `frontend` (TEDI's engines require node >=24 and npm >=11, and npm 10
-crashes resolving vitest 4's peers, so write locks with npm 11), Node 20 for `mcp`, JDK 21 for both Java
+crashes resolving vitest 4's peers, so write locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
 modules.
 
 Regenerate a service's flow diagram after touching its BPMN:

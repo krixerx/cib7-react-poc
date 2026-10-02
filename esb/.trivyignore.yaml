@@ -1,0 +1,65 @@
+# Accepted Trivy findings for the cib7-poc-esb image only (docker-publish.yml
+# passes this file to the esb scan and to no other image).
+#
+# Every entry is scoped to the path the finding sits in and expires, so the
+# build turns red again on expiry and someone checks for a newer
+# apache/camel-jbang image (or moves the bus to a Maven-built Camel app whose
+# versions we can pin). Accepted 2026-10-02 against camel-jbang 4.22.1, the
+# newest image published at the time.
+#
+# Why accepting is tolerable for now:
+#   * the bus is internal only: Traefik routes nothing to it, and only the
+#     engine reaches it on the compose network (docs/security.md rule 9);
+#   * our routes (esb/routes/*.yaml) only proxy HTTP. None uses FreeMarker,
+#     and none binds JSON with Jackson;
+#   * jbang.jar's HTTP client and plexus-utils only serve JBang resolving
+#     dependencies from Maven Central at container start.
+# OpenSSL is not listed here: the Dockerfile upgrades it.
+
+vulnerabilities:
+  # Jackson in Camel's pre-warmed dependency cache; the version is Camel
+  # 4.22.1's BOM, so deleting the jar only makes Camel download it again.
+  - id: CVE-2026-89407
+    paths: ["home/ubuntu/.m2/repository/com/fasterxml/jackson/core/**"]
+    statement: Camel 4.22.1 BOM version; esb is internal and binds no JSON
+    expired_at: 2026-11-13
+  - id: CVE-2026-89425
+    paths: ["home/ubuntu/.m2/repository/com/fasterxml/jackson/core/**"]
+    statement: Camel 4.22.1 BOM version; esb is internal and binds no JSON
+    expired_at: 2026-11-13
+  - id: CVE-2026-68497
+    paths: ["home/ubuntu/.m2/repository/com/fasterxml/jackson/core/**"]
+    statement: Camel 4.22.1 BOM version; esb is internal and binds no JSON
+    expired_at: 2026-11-13
+  - id: CVE-2026-91776
+    paths: ["home/ubuntu/.m2/repository/com/fasterxml/jackson/core/**"]
+    statement: Camel 4.22.1 BOM version; esb is internal and binds no JSON
+    expired_at: 2026-11-13
+  - id: CVE-2026-91777
+    paths: ["home/ubuntu/.m2/repository/com/fasterxml/jackson/core/**"]
+    statement: Camel 4.22.1 BOM version; esb is internal and binds no JSON
+    expired_at: 2026-11-13
+
+  # FreeMarker in the same cache. No route of ours renders a template.
+  - id: CVE-2026-84939
+    paths: ["home/ubuntu/.m2/repository/org/freemarker/**"]
+    statement: Cached by the Camel image; no esb route uses FreeMarker
+    expired_at: 2026-11-13
+
+  # Bundled inside the JBang launcher jar itself.
+  - id: CVE-2026-40542
+    paths: ["opt/jbang/jbang.jar"]
+    statement: Inside jbang.jar; used only to fetch dependencies at startup
+    expired_at: 2026-11-13
+  - id: CVE-2026-54399
+    paths: ["opt/jbang/jbang.jar"]
+    statement: Inside jbang.jar; used only to fetch dependencies at startup
+    expired_at: 2026-11-13
+  - id: CVE-2026-54428
+    paths: ["opt/jbang/jbang.jar"]
+    statement: Inside jbang.jar; used only to fetch dependencies at startup
+    expired_at: 2026-11-13
+  - id: CVE-2025-67030
+    paths: ["opt/jbang/jbang.jar"]
+    statement: Inside jbang.jar; used only to fetch dependencies at startup
+    expired_at: 2026-11-13

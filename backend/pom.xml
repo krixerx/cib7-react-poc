@@ -27,6 +27,12 @@
     <!-- AWS SDK v2 pinned directly (no BOM) — same rationale as before the
          move out of cib7: one artifact isn't worth the BOM resolution step. -->
     <awssdk.version>2.55.8</awssdk.version>
+    <!-- Security pins over Boot 4.1.1's managed versions, which still carry
+         fixable HIGH/CRITICAL CVEs that fail the image scan (Trivy in
+         docker-publish.yml). 4.1.1 is the newest Boot release. Drop each pin
+         once a Boot release manages that version or newer. -->
+    <tomcat.version>11.0.25</tomcat.version>
+    <jackson-bom.version>3.1.7</jackson-bom.version>
   </properties>
 
   <dependencies>

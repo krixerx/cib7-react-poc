@@ -1,11 +1,17 @@
-# Node 20 has native fetch + FormData + Blob, so server.js needs nothing
+# Node 24 has native fetch + FormData + Blob, so server.js needs nothing
 # beyond express. Alpine keeps the final image under 60 MB.
-FROM node:20.20.2-alpine
+FROM node:24.21.0-alpine
 
 WORKDIR /app
 
+# npm, corepack and yarn are removed once the dependencies are in: nothing
+# runs them at runtime, and their bundled packages (tar, undici, ...) were the
+# image's remaining CVEs.
 COPY package.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev --no-audit --no-fund \
+  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+            /usr/local/bin/yarn /usr/local/bin/yarnpkg /root/.npm
 
 # gelf.js ships the service's own logs to Graylog; server.js requires it at the
 # top, so leaving it out of the image turns every start into a module-not-found

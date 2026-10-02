@@ -46,7 +46,7 @@ meets them is in [Security controls](#security-controls).
 | | |
 |---|---|
 | Language | TypeScript 5.5 (strict) |
-| Runtime | Node 20, run directly via `tsx` (no `tsc` build step) |
+| Runtime | Node 24, run directly via `tsx` (no `tsc` build step) |
 | Framework | Express 4 |
 | MCP SDK | `@modelcontextprotocol/sdk` 1.18+ (Streamable HTTP transport, per-request server) |
 | Schema validator | Ajv 8 + ajv-formats (JSON Schema draft 2020-12) |

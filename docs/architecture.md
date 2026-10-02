@@ -287,7 +287,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   shared with pdf-renderer alone; renders with JavaScript disabled and a
   `--chromium-deny-list` covering `file://` outside its work dir, private
   and loopback IPs and every single-label (compose service) hostname.
-- **pdf-renderer** — built from `pdf-renderer/Dockerfile` (Node 20 +
+- **pdf-renderer** — built from `pdf-renderer/Dockerfile` (Node 24 +
   Express). Internal only on port 8088. JSON-in / JSON-out adapter in
   front of Gotenberg. Hides Gotenberg's multipart input format and binary
   output from the http-connector, which only handles plain
@@ -304,7 +304,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   resolves the backend at request time.
 - **mcp** — built from `mcp/Dockerfile` with the repo root as build
   context (so the Dockerfile can COPY both `mcp/` source AND
-  `docs/business/services/` for the per-service MCP manifests). Node 20 +
+  `docs/business/services/` for the per-service MCP manifests). Node 24 +
   TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`. Internal
   only on port 8090; exposed publicly via nginx at `/mcp` and the
   OAuth resource metadata at `/.well-known/oauth-protected-resource`.

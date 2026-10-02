@@ -34,8 +34,14 @@ compose files, and the GitHub Actions themselves. Minor and patch bumps come
 grouped; majors one at a time. MUI majors, Node majors and Java majors are
 ignored on purpose (see the comments in the file).
 
-Accepted vulnerability findings go in a `.trivyignore` at the repo root, one
-CVE per line with a comment saying why; there is none yet.
+Accepted image-scan findings go in a per-image Trivy YAML ignore file that
+`docker-publish.yml` passes to that image's scan only (the matrix's
+`trivyignores` field). Each entry names the CVE, the path it sits in, a
+`statement` saying why, and an `expired_at` date, so the build turns red
+again when the exception lapses. An image without a file is scanned with no
+exceptions. The only one is `esb/.trivyignore.yaml`: Jackson and FreeMarker
+in Camel JBang's dependency cache and libraries inside `jbang.jar`, which
+our Dockerfile cannot upgrade. It expires 2026-11-13.
 
 The deploy is manual on purpose. The engine keeps process state in
 in-memory H2, so recreating its container throws away every running case
