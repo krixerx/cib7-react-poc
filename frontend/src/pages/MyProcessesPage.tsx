@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowRight,
+  ChevronRight,
+  CreditCard,
+  FolderOpen,
+  PenLine,
+  RotateCcw,
+  RotateCw,
+} from 'lucide-react';
 import {
   getHistoricVariable,
   listHistoricProcessInstancesByStarter,
@@ -19,10 +28,10 @@ import { categoryOf, type CategoryId } from '../services/categories';
 import { CategoryIcon } from '../services/CategoryIcon';
 
 /**
- * PartA — the applicant's "My processes" page. Action-first inbox: a
- * "Needs your attention" zone of large category-tinted cards puts cases
- * waiting on the user up top; quieter rows show in-progress work parked
- * with the back office; completed work collapses into a disclosure.
+ * PartA — the applicant's "My cases" page. Action-first inbox: a
+ * "Needs your attention" zone of category-tinted cards puts cases waiting on
+ * the user up top; quieter rows show work parked with the back office;
+ * completed work collapses into a disclosure.
  */
 
 type RowStatus =
@@ -74,14 +83,14 @@ const STATUS_LABEL_KEYS: Record<RowStatus, string> = {
 };
 
 const STATUS_PILL_CLASS: Record<RowStatus, string> = {
-  'awaiting-submission': 'status-pill status-active',
-  'sent-back': 'status-pill status-warn',
-  'payment-needed': 'status-pill status-warn',
-  'waiting-signatures': 'status-pill status-info',
-  'under-review': 'status-pill status-info',
-  processing: 'status-pill status-info',
-  approved: 'status-pill status-done',
-  ended: 'status-pill status-done',
+  'awaiting-submission': 'pill pill-primary',
+  'sent-back': 'pill pill-warn',
+  'payment-needed': 'pill pill-warn',
+  'waiting-signatures': 'pill pill-primary',
+  'under-review': 'pill pill-primary',
+  processing: 'pill pill-primary',
+  approved: 'pill pill-ok',
+  ended: 'pill',
 };
 
 /** The payment wait state in both shipped BPMNs. */
@@ -232,7 +241,8 @@ export default function MyProcessesPage() {
             </p>
           )}
         </div>
-        <button className="btn" onClick={load} disabled={loading}>
+        <button type="button" className="btn" onClick={load} disabled={loading}>
+          <RotateCw aria-hidden="true" />
           {t('common:actions.refresh')}
         </button>
       </div>
@@ -241,9 +251,17 @@ export default function MyProcessesPage() {
       {error && <p className="form-error">{t('errors.loadFailed', { message: error })}</p>}
 
       {isEmpty && (
-        <p className="empty">
-          <Trans t={t} i18nKey="empty.noProcesses" components={{ servicesLink: <Link to="/" /> }} />
-        </p>
+        <div className="empty-state">
+          <span className="empty-state-icon" aria-hidden="true">
+            <FolderOpen size={26} />
+          </span>
+          <h2>{t('empty.title')}</h2>
+          <p>{t('empty.body')}</p>
+          <Link to="/" className="btn btn-primary">
+            {t('empty.cta')}
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </div>
       )}
 
       {showContent && buckets.attention.length > 0 && (
@@ -317,6 +335,13 @@ function ActionCard({ row }: { row: ProcessRow }) {
       <span className="mp-action-body">
         <span className="mp-action-title">{translateBackendName(t, row.serviceName)}</span>
         <span className="mp-action-status">
+          {isPayment ? (
+            <CreditCard size={15} aria-hidden="true" />
+          ) : isSentBack ? (
+            <RotateCcw size={15} aria-hidden="true" />
+          ) : (
+            <PenLine size={15} aria-hidden="true" />
+          )}
           {isPayment
             ? t('card.paymentNeeded')
             : isSentBack
@@ -332,7 +357,10 @@ function ActionCard({ row }: { row: ProcessRow }) {
           {t('meta.started', { date: formatDate(row.pi.startTime) })}
         </span>
       </span>
-      <span className="mp-action-cta">{isPayment ? t('card.ctaPay') : t('card.ctaOpen')}</span>
+      <span className="mp-action-cta">
+        {isPayment ? t('card.ctaPay') : t('card.ctaOpen')}
+        <ArrowRight size={16} aria-hidden="true" />
+      </span>
     </Link>
   );
 }
@@ -358,7 +386,10 @@ function ProgressRow({ row, compact = false }: { row: ProcessRow; compact?: bool
       </span>
       <span className="mp-row-right">
         <span className={STATUS_PILL_CLASS[row.status]}>{t(STATUS_LABEL_KEYS[row.status])}</span>
-        <span className="row-action">{action}</span>
+        <span className="mp-row-action">
+          {action}
+          <ChevronRight size={16} aria-hidden="true" />
+        </span>
       </span>
     </Link>
   );

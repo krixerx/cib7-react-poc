@@ -1,0 +1,599 @@
+/*
+ * App shell shared by both portals: official banner, floating glass header,
+ * navigation, language and theme switches, the mesh backdrop and the footer.
+ */
+
+.app {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: clip;
+}
+
+.shell-wrap {
+  width: 100%;
+  max-width: var(--page-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 16px;
+  top: -60px;
+  z-index: 100;
+  background: var(--primary);
+  color: var(--primary-ink);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.2s;
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+/* ---- official banner -------------------------------------------------- */
+
+.official {
+  background: var(--banner-bg);
+  color: var(--banner-fg);
+  font-size: 13px;
+  position: relative;
+  z-index: 2;
+}
+
+.official-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding-block: 7px;
+}
+
+.official svg.lucide {
+  width: 15px;
+  height: 15px;
+}
+
+.official-toggle {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.official-toggle svg.lucide {
+  transition: transform 0.25s var(--ease-out);
+}
+
+.official-toggle[aria-expanded='true'] svg.lucide {
+  transform: rotate(180deg);
+}
+
+.official-demo {
+  margin-inline-start: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.official-demo-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.official-demo a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--banner-strong);
+  white-space: nowrap;
+  text-underline-offset: 3px;
+}
+
+.official-more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px 40px;
+  padding-block: 6px 16px;
+}
+
+.official-more p {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  max-width: 52ch;
+  line-height: 1.5;
+}
+
+.official-more p svg.lucide {
+  margin-top: 2px;
+}
+
+.official-more strong {
+  display: block;
+  color: var(--banner-strong);
+  font-weight: 600;
+}
+
+/* ---- mesh backdrop ---------------------------------------------------- */
+
+.app-mesh {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 900px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(#000 50%, transparent);
+  mask-image: linear-gradient(#000 50%, transparent);
+}
+
+.app-mesh i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: var(--mesh-opacity);
+}
+
+.app-mesh i:nth-child(1) {
+  width: 620px;
+  height: 620px;
+  inset-inline-start: -6%;
+  top: -14%;
+  background: var(--mesh-1);
+  animation: mesh-a 26s ease-in-out infinite alternate;
+}
+
+.app-mesh i:nth-child(2) {
+  width: 520px;
+  height: 520px;
+  inset-inline-end: -4%;
+  top: -8%;
+  background: var(--mesh-2);
+  animation: mesh-b 30s ease-in-out infinite alternate;
+}
+
+.app-mesh i:nth-child(3) {
+  width: 480px;
+  height: 480px;
+  inset-inline-start: 34%;
+  top: 18%;
+  background: var(--mesh-3);
+  animation: mesh-c 24s ease-in-out infinite alternate;
+}
+
+.app-mesh i:nth-child(4) {
+  width: 340px;
+  height: 340px;
+  inset-inline-end: 18%;
+  top: 36%;
+  background: var(--mesh-4);
+  opacity: calc(var(--mesh-opacity) * 0.6);
+  animation: mesh-a 28s ease-in-out infinite alternate-reverse;
+}
+
+/* The back office is a work surface: keep the backdrop to a faint wash. */
+.app-backoffice .app-mesh {
+  height: 520px;
+  opacity: 0.55;
+}
+
+@keyframes mesh-a {
+  to {
+    transform: translate(120px, 80px) scale(1.12);
+  }
+}
+
+@keyframes mesh-b {
+  to {
+    transform: translate(-140px, 110px) scale(0.92);
+  }
+}
+
+@keyframes mesh-c {
+  to {
+    transform: translate(-100px, -60px) scale(1.15);
+  }
+}
+
+/* ---- header ----------------------------------------------------------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  padding-block: 10px;
+}
+
+.app-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 7px 7px 7px 14px;
+  padding-inline: 14px 7px;
+  border-radius: 999px;
+  transition: box-shadow 0.3s;
+}
+
+.app-header.is-scrolled .app-bar {
+  box-shadow: 0 12px 30px -18px var(--shadow-color);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: var(--primary-ink);
+  flex: none;
+  transition: transform 0.3s var(--ease-out);
+}
+
+.brand:hover .brand-mark {
+  transform: rotate(-6deg) scale(1.05);
+}
+
+.brand-mark svg.lucide {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.brand-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: 8px;
+}
+
+.app-nav a {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 14.5px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.app-nav a:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.app-nav a.active {
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 600;
+}
+
+/* Count next to "My cases": part of the link, not a notification dot. */
+.nav-badge {
+  margin-inline-start: 6px;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-nav a.active .nav-badge {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+.app-nav-mobile {
+  display: none;
+}
+
+.app-bar-end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  appearance: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.icon-btn svg.lucide {
+  width: 17px;
+  height: 17px;
+}
+
+.app-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.app-user-name {
+  font-weight: 500;
+  font-size: 14px;
+  max-width: 14ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- language switcher ------------------------------------------------- */
+
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.lang-switch-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.lang-switch-btn:hover {
+  color: var(--text);
+}
+
+.lang-switch-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* Email-link pages have no app header: the switches float in the corner. */
+.standalone-lang {
+  position: fixed;
+  top: 14px;
+  inset-inline-end: 16px;
+  z-index: 50;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+}
+
+/* ---- main ------------------------------------------------------------- */
+
+.app-main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 20px var(--gutter) 56px;
+}
+
+/* ---- footer ----------------------------------------------------------- */
+
+.site-footer {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.site-footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 28px;
+  padding-block: 32px 20px;
+}
+
+.site-footer-brand p {
+  color: var(--muted);
+  max-width: 38ch;
+  margin: 12px 0 0;
+}
+
+.site-footer-h {
+  margin: 0 0 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.site-footer-org {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.site-footer-org strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.site-footer-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.site-footer-links a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-footer-links a:hover {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.site-footer-legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding-block: 14px 22px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- narrow screens ---------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .app-bar .app-nav {
+    display: none;
+  }
+
+  .app-nav-mobile {
+    display: flex;
+    margin: 8px 0 0;
+    padding: 4px;
+    overflow-x: auto;
+    border-radius: 999px;
+    background: var(--glass);
+    border: 1px solid var(--glass-edge);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+
+  .site-footer-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .site-footer-brand {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  /* The bar keeps the mark, language, theme and account controls; the
+     brand name returns in the footer. */
+  .brand-text,
+  .brand-sub,
+  .app-user-name,
+  .app-register,
+  .official-demo-text {
+    display: none;
+  }
+
+  .app-bar {
+    gap: 8px;
+  }
+
+  .lang-switch-btn {
+    padding: 5px 8px;
+  }
+
+  .site-footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The back office worklist runs wider than the applicant pages; keep the
+   header and footer aligned with it. */
+.app-backoffice .shell-wrap {
+  max-width: 1500px;
+  padding-inline: clamp(12px, 2vw, 24px);
+}

@@ -668,38 +668,28 @@ keeps `git log` readable from the analyst's perspective.
 
 ---
 
-## UI component libraries — TEDI + MUI
+## UI and styling
 
-The SPA is built on **TEDI** ([`@tedi-design-system/react`](https://www.npmjs.com/package/@tedi-design-system/react)
-v18 — TEHIK's open-source design system, WCAG 2.2 AA) as the base component
-library, complemented by **MUI** for the complex data components TEDI doesn't
-cover. This mirrors the common public-sector tender requirement "TEDI as the
-base, MUI for data grids / calendars / wizards".
+The SPA uses its own design system in plain CSS, with **MUI v5** only for the
+complex data grid on the Incidents page.
 
-- **Package choice.** `@tedi-design-system/react` is the current package —
-  the older `@tehik-ee/tedi-react` (13.x) it superseded is what tender texts
-  usually still name. MUI is pinned to **v5** (`@mui/material`,
-  `@mui/x-data-grid`) deliberately: TEDI bundles MUI v5 internally, so
-  matching it keeps a single MUI/Emotion tree instead of two.
-- **Wiring** ([`frontend/src/main.tsx`](frontend/src/main.tsx)): TEDI's
-  stylesheet is imported before `styles.css` (portal overrides win), and the
-  tree is wrapped in TEDI's `StyleProvider` + `LabelProvider` and an MUI
-  `ThemeProvider` ([`frontend/src/theme/mui.ts`](frontend/src/theme/mui.ts)
-  maps MUI's palette to the portal brand). TEDI ships its fonts (Roboto,
-  Material Symbols) inside the package — no CDN calls, works offline.
-- **Reference implementations.**
-  [`TransportPermitApplicationForm`](frontend/src/forms/transport-permit-application/TransportPermitApplicationForm.tsx)
-  is the TEDI reference form (`TextField`, `NumberField`, `Select`,
-  `Checkbox`, `Alert`, `Button` — validation and the typed-variable payload
-  unchanged), the template for converting the remaining forms.
-  [`IncidentsPage`](frontend/src/pages/IncidentsPage.tsx) is the MUI
-  reference: a sortable, paginated `DataGrid` with a TEDI Button rendered
-  inside the actions cell — the "TEDI base + MUI for complex tables"
-  composition in one screen.
-- **Locale caveat.** TEDI's internal labels exist only in Estonian, English,
-  and Russian, so `LabelProvider` is pinned to `en` — under the Arabic UI the
-  app's own i18n switches normally while TEDI-internal microcopy stays
-  English.
+- **Tokens** ([`frontend/src/styles/tokens.css`](frontend/src/styles/tokens.css))
+  define every colour for a light and a dark scheme, the category accents, the
+  fonts (Sora for headings, Instrument Sans for text, Red Hat Mono for case
+  references, Noto Sans Arabic under `lang="ar"`) and radii.
+  `<html data-theme>` selects the scheme; `public/theme-init.js` sets it
+  before first paint and [`src/theme/colorScheme.ts`](frontend/src/theme/colorScheme.ts)
+  owns the toggle.
+- **Area stylesheets** under `frontend/src/styles/` (base, shell, landing,
+  cases, forms, back office, public pages) build on the tokens. Generated
+  forms keep the generator's class contract (`field`, `field-input`,
+  `form-banner`, `btn btn-primary`), so a restyle never needs a regeneration.
+- **Icons** come from [Lucide](https://lucide.dev) via `lucide-react`.
+- **MUI** is themed per scheme in [`frontend/src/theme/mui.ts`](frontend/src/theme/mui.ts)
+  and wraps only the [`IncidentsPage`](frontend/src/pages/IncidentsPage.tsx) grid.
+
+TEDI was removed in favour of this system: it was used by one form and one
+button, fought the portal's own styling, and has no Arabic microcopy.
 
 ## How the form wiring works
 

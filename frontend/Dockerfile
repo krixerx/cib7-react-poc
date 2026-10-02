@@ -1,6 +1,6 @@
 # --- build stage ---------------------------------------------------------
-# Node 24, matching quality.yml: TEDI's engines require node >=24 and npm >=11,
-# and the lock is written with npm 11.
+# Node 24, matching quality.yml. The lock is written with npm 11, which
+# Node 24 ships.
 FROM node:24.21.0-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./

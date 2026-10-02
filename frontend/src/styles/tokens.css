@@ -1,0 +1,139 @@
+/*
+ * Design tokens. Every colour in the app comes from here so the light and
+ * dark schemes stay complete: a rule that uses a literal colour reads in one
+ * scheme only. <html data-theme> is always set (public/theme-init.js, then
+ * src/theme/colorScheme.ts), so the dark block needs no media query.
+ * src/theme/mui.ts repeats a few of these hexes for MUI; keep them in step.
+ */
+:root {
+  color-scheme: light;
+
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef3f8;
+  --surface-hover: #f3f6fa;
+  --text: #0b1b2f;
+  --muted: #4c5d70;
+  --border: #dbe3ec;
+  --border-strong: #c3cfdc;
+
+  --primary: #0b57c9;
+  --primary-hover: #0a4aab;
+  --primary-ink: #ffffff;
+  --primary-soft: #e5eefc;
+  --primary-soft-border: #bcd2f5;
+
+  --ok: #0d7f57;
+  --ok-soft: #e2f4ec;
+  --ok-border: #a9dcc5;
+  --warn: #8f5300;
+  --warn-soft: #fff4e0;
+  --warn-border: #f1d29c;
+  --danger: #c4282d;
+  --danger-hover: #a51f24;
+  --danger-soft: #fdecec;
+  --danger-border: #f3c1c3;
+
+  /* Category accents: the six life events in the catalog and case lists. */
+  --cat-business: #0b57c9;
+  --cat-business-soft: #e5eefc;
+  --cat-family: #a3367a;
+  --cat-family-soft: #fbe9f3;
+  --cat-property: #8f5300;
+  --cat-property-soft: #fff1dc;
+  --cat-travel: #0d7f57;
+  --cat-travel-soft: #e2f4ec;
+  --cat-social: #6a44c2;
+  --cat-social-soft: #efe9fd;
+  --cat-other: #4c5d70;
+  --cat-other-soft: #eef3f8;
+
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-edge: rgba(255, 255, 255, 0.95);
+  --shadow-color: rgba(11, 27, 47, 0.16);
+  --mesh-1: #a9d6ff;
+  --mesh-2: #bfeadb;
+  --mesh-3: #dcd9ff;
+  --mesh-4: #ffe1cf;
+  --mesh-opacity: 0.7;
+  --banner-bg: #0b1b2f;
+  --banner-fg: #dfe7f1;
+  --banner-strong: #ffffff;
+
+  --font-display: 'Sora', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Red Hat Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-arabic: 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+
+  /* Lucide chevron-down for native selects, stroked in --muted. */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234c5d70' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --shadow: 0 1px 2px rgba(11, 27, 47, 0.05), 0 1px 3px rgba(11, 27, 47, 0.06);
+  --shadow-lg: 0 24px 48px -28px var(--shadow-color);
+
+  --ease-out: cubic-bezier(0.2, 0.75, 0.15, 1);
+  --page-max: 1200px;
+  --gutter: clamp(16px, 4vw, 40px);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #07101c;
+  --surface: #0e1a2a;
+  --surface-2: #132235;
+  --surface-hover: #15263b;
+  --text: #e7eef7;
+  --muted: #9aabbf;
+  --border: #1f3047;
+  --border-strong: #2c4260;
+
+  --primary: #6aa5ff;
+  --primary-hover: #8ab8ff;
+  --primary-ink: #061226;
+  --primary-soft: #14294a;
+  --primary-soft-border: #24477d;
+
+  --ok: #4cc999;
+  --ok-soft: #0f2e25;
+  --ok-border: #1d5a45;
+  --warn: #f0b45c;
+  --warn-soft: #2f2210;
+  --warn-border: #5c4119;
+  --danger: #ff8a8f;
+  --danger-hover: #ffa6aa;
+  --danger-soft: #35161a;
+  --danger-border: #5e252b;
+
+  --cat-business: #6aa5ff;
+  --cat-business-soft: #14294a;
+  --cat-family: #f08cc8;
+  --cat-family-soft: #3a1630;
+  --cat-property: #f0b45c;
+  --cat-property-soft: #2f2210;
+  --cat-travel: #4cc999;
+  --cat-travel-soft: #0f2e25;
+  --cat-social: #b59cff;
+  --cat-social-soft: #251c45;
+  --cat-other: #9aabbf;
+  --cat-other-soft: #132235;
+
+  --glass: rgba(14, 26, 42, 0.66);
+  --glass-edge: rgba(120, 160, 210, 0.18);
+  --shadow-color: rgba(0, 0, 0, 0.55);
+  --mesh-1: #12406e;
+  --mesh-2: #0d4a3e;
+  --mesh-3: #2b2c6e;
+  --mesh-4: #4a2a22;
+  --mesh-opacity: 0.6;
+  --banner-bg: #030a14;
+  --banner-fg: #b9c6d6;
+  --banner-strong: #e7eef7;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aabbf' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}

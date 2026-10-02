@@ -1,0 +1,418 @@
+/*
+ * Base layer: reset, typography, shared primitives (buttons, cards, chips,
+ * icons) and motion. Area styles (shell, landing, cases, forms, back office,
+ * public pages) build on these and never redefine them.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text);
+  text-wrap: balance;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+}
+
+h3,
+h4 {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+a {
+  color: var(--primary);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+code,
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+code {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 0.88em;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.muted a {
+  color: var(--primary);
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+  padding-block: 4px 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Lucide icons render as svg.lucide at their size prop (24 by default); a
+   context that wants another size sets width/height here in CSS. */
+svg.lucide {
+  flex: none;
+}
+
+/* ---- buttons ---------------------------------------------------------- */
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.2s,
+    transform 0.2s var(--ease-out),
+    opacity 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--primary-soft-border);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  box-shadow: 0 8px 20px -12px var(--primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  box-shadow: 0 12px 24px -12px var(--primary);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--primary-ink);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.btn-link:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn svg.lucide {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.btn:hover:not(:disabled) svg.lucide-arrow-right {
+  transform: translateX(3px);
+}
+
+html[dir='rtl'] svg.lucide-arrow-right,
+html[dir='rtl'] svg.lucide-chevron-right,
+html[dir='rtl'] svg.lucide-arrow-left {
+  transform: scaleX(-1);
+}
+
+html[dir='rtl'] .btn:hover:not(:disabled) svg.lucide-arrow-right {
+  transform: scaleX(-1) translateX(3px);
+}
+
+/* ---- cards ------------------------------------------------------------ */
+
+.card {
+  width: 100%;
+  max-width: 600px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 24px 28px;
+  height: fit-content;
+}
+
+.card-wide {
+  max-width: none;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+
+.card-head .card-title {
+  margin: 0;
+}
+
+/* Glass surface: header, hero case card, sticky panels. */
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+}
+
+/* ---- chips and status pills -------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pill-primary {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.pill-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.pill-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.pill-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ---- category accents ------------------------------------------------- */
+
+/* Any element tagged with its life-event category gets --cat-accent and
+   --cat-soft, so icons and chips read the same colour on every page. */
+.cat-business {
+  --cat-accent: var(--cat-business);
+  --cat-soft: var(--cat-business-soft);
+}
+
+.cat-family {
+  --cat-accent: var(--cat-family);
+  --cat-soft: var(--cat-family-soft);
+}
+
+.cat-property {
+  --cat-accent: var(--cat-property);
+  --cat-soft: var(--cat-property-soft);
+}
+
+.cat-travel {
+  --cat-accent: var(--cat-travel);
+  --cat-soft: var(--cat-travel-soft);
+}
+
+.cat-social {
+  --cat-accent: var(--cat-social);
+  --cat-soft: var(--cat-social-soft);
+}
+
+.cat-other {
+  --cat-accent: var(--cat-other);
+  --cat-soft: var(--cat-other-soft);
+}
+
+/* ---- motion ----------------------------------------------------------- */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Page-load entrance; --d staggers siblings. Ends fully visible. */
+.anim-in {
+  animation: fade-up 0.7s var(--ease-out) both;
+  animation-delay: var(--d, 0s);
+}
+
+/* Scroll reveal where the browser supports scroll-driven animations;
+   elsewhere the element is simply visible. */
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: fade-up linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 50%;
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px var(--primary-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .anim-in,
+  .reveal {
+    animation: none !important;
+  }
+}
+
+/* ---- Arabic ------------------------------------------------------------ */
+
+/* Sora and Instrument Sans have no Arabic glyphs: Arabic runs in Noto Sans
+   Arabic, with the Latin faces kept for embedded Latin text and numbers. */
+html[lang='ar'] body,
+html[lang='ar'] h1,
+html[lang='ar'] h2,
+html[lang='ar'] .card-title {
+  font-family: var(--font-arabic);
+}
+
+/* Latin tracking (uppercase eyebrows, tight display sizes) reads wrong in Arabic. */
+html[lang='ar'] * {
+  letter-spacing: normal !important;
+}

@@ -1,25 +1,27 @@
 {
   "app": {
     "brandName": "eRegistrations",
-    "brandSub": "Digital government · React POC",
-    "partBadge": "Part {{part}}",
+    "brandSub": "Public services portal",
     "roleApplicant": "Applicant",
     "roleBackOffice": "Back office",
     "nav": {
       "services": "Services",
       "tasks": "Tasks",
       "incidents": "Incidents",
-      "myProcesses": "My processes"
+      "myProcesses": "My cases",
+      "label": "Main"
     },
     "auth": {
       "logIn": "Log in",
       "logOut": "Log out",
       "register": "Register"
-    }
+    },
+    "skipToContent": "Skip to main content"
   },
   "demo": {
     "warning": "Public demo — please don't enter real personal data.",
-    "inbox": "Demo email inbox"
+    "inbox": "Demo email inbox",
+    "badge": "Demo"
   },
   "language": {
     "label": "Language",
@@ -145,5 +147,27 @@
     "generateRegistrationCertificatePdf": "Generate registration certificate (PDF)",
     "storeCertificate": "Store certificate",
     "emailCertificatePlateCollection": "Email: certificate & plate collection"
+  },
+  "official": {
+    "text": "The digital public services portal.",
+    "howYouKnow": "Here's how you know",
+    "signInTitle": "Secure sign-in",
+    "signInBody": "You sign in once with your state ID. The portal never sees your password.",
+    "httpsTitle": "Encrypted connection",
+    "httpsBody": "Check for the padlock in the address bar before you enter personal details."
+  },
+  "theme": {
+    "toDark": "Switch to dark theme",
+    "toLight": "Switch to light theme"
+  },
+  "footer": {
+    "about": "Apply, sign and pay online, and follow your case to the decision.",
+    "supportTitle": "Built and supported by",
+    "registryCode": "Registry code {{code}}",
+    "location": "Tallinn, Estonia",
+    "contactTitle": "Contact",
+    "contactForm": "Contact form",
+    "businessRegister": "Business register",
+    "demoNote": "Demo environment. Data is reset when the system restarts."
   }
 }

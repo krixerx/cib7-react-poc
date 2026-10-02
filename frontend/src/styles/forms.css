@@ -1,0 +1,414 @@
+/*
+ * Process-flow forms. Every generated form uses the class contract in the
+ * service-builder template (.claude/skills/service-builder/SKILL.md §8):
+ * form, form-intro, form-banner, field, field-label, field-input,
+ * field-hint, field-checkbox, form-error, form-actions, btn. Restyle here;
+ * never edit a generated form for looks.
+ */
+
+.form {
+  display: block;
+  margin-top: 6px;
+}
+
+.form-intro {
+  margin: 4px 0 18px;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+/* ---- fields ----------------------------------------------------------- */
+
+.field {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.field-input {
+  width: 100%;
+  padding: 11px 14px;
+  font-size: 15px;
+  line-height: 1.4;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.field-input::placeholder {
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.field-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--primary-soft-border);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+.field-input:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.field-input:user-invalid {
+  border-color: var(--danger);
+}
+
+select.field-input {
+  appearance: none;
+  padding-inline-end: 40px;
+  background-image: var(--select-chevron);
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+html[dir='rtl'] select.field-input {
+  background-position: left 14px center;
+}
+
+textarea.field-input {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.field-hint {
+  display: block;
+  margin: 6px 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.field > .field-hint {
+  margin-bottom: 0;
+}
+
+/* Checkbox and radio rows (permit application, hospital assessment). */
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.field-checkbox:hover {
+  border-color: var(--primary-soft-border);
+}
+
+.field-checkbox:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.field-checkbox + .field-hint {
+  margin-top: -6px;
+}
+
+.field-checkbox .field-label {
+  margin: 0;
+  font-weight: 500;
+}
+
+.field-checkbox .field-hint {
+  margin: 0;
+  margin-inline-start: 4px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--primary);
+}
+
+.radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.radio-row:hover {
+  border-color: var(--primary-soft-border);
+}
+
+.radio-row input[type='radio'] {
+  margin-top: 2px;
+}
+
+.radio-row:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.radio-body {
+  display: grid;
+  gap: 2px;
+}
+
+.radio-label {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.radio-hint {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ---- grouped editors (owners, board members, founders) ---------------- */
+
+.field-group {
+  margin: 18px 0 16px;
+  padding: 14px 16px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.field-group > legend,
+.field-group > .field-label {
+  padding-inline: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.owner-row,
+.board-member-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+  animation: fade-up 0.3s var(--ease-out);
+}
+
+.board-member-row {
+  grid-template-columns: 1fr 1fr 1.3fr auto;
+}
+
+.owner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.owner-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.owner-list li:last-child {
+  border-bottom: 0;
+}
+
+.owner-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.owner-name {
+  font-weight: 600;
+}
+
+.owner-email {
+  font-size: 13px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+/* ---- read-only summaries (review forms) -------------------------------- */
+
+.summary {
+  margin: 0 0 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 16px;
+}
+
+.summary-row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-row dt {
+  color: var(--muted);
+}
+
+.summary-row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: end;
+}
+
+.summary-row dd.decision-approve {
+  color: var(--ok);
+}
+
+.summary-row dd.decision-reject {
+  color: var(--danger);
+}
+
+/* ---- banners, errors, actions ------------------------------------------ */
+
+.form-banner {
+  display: block;
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  padding-inline-start: 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--primary-soft-border);
+  border-inline-start: 4px solid var(--primary);
+  background: var(--primary-soft);
+  color: var(--text);
+  animation: fade-up 0.4s var(--ease-out);
+}
+
+.form-banner-warn {
+  border-color: var(--warn-border);
+  border-inline-start-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.form-banner-warn > strong {
+  color: var(--warn);
+}
+
+.form-banner-body {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+
+.form-error {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 14px;
+  word-break: break-word;
+  animation: fade-up 0.3s var(--ease-out);
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* The closing actions row anchors the card, primary action at the end. */
+.form > .form-actions:last-child {
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.card-subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Status pills on the co-owner and founder confirmation pages. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.status-pill.status-active {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.status-pill.status-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.status-pill.status-info {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  .owner-row,
+  .board-member-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .board-member-row .field-input:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .summary-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .summary-row dd {
+    text-align: start;
+  }
+}

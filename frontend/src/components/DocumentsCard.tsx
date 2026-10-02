@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Download, FileText } from 'lucide-react';
 import {
   listAttachments,
   getDownloadUrl,
@@ -115,6 +116,9 @@ function Section({
         <ul className="document-list">
           {docs.map((d) => (
             <li key={d.id} className="document-row">
+              <span className="document-row-icon" aria-hidden="true">
+                <FileText size={18} />
+              </span>
               <div className="document-row-meta">
                 <span className="document-row-name">{d.filename}</span>
                 <span className="document-row-category">
@@ -123,8 +127,14 @@ function Section({
                   })}
                 </span>
               </div>
-              <button type="button" className="btn btn-link" onClick={() => onDownload(d.id)}>
-                {t('common:actions.download')}
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => onDownload(d.id)}
+                aria-label={`${t('common:actions.download')}: ${d.filename}`}
+                title={t('common:actions.download')}
+              >
+                <Download aria-hidden="true" />
               </button>
             </li>
           ))}

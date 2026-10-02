@@ -19,7 +19,7 @@
     "loading": "Loading progress…",
     "paymentRequiredTitle": "State fee payment required.",
     "paymentRequiredBody": "The case stays parked until the fee is paid.",
-    "openPaymentPage": "Open payment page →",
+    "openPaymentPage": "Open payment page",
     "paymentLinkUnavailable": "The payment page is available to the applicant who started this case.",
     "fullHistory": "Full history",
     "expectedNextSteps": "Expected next steps",

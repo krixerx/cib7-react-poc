@@ -1,0 +1,335 @@
+/*
+ * Pages opened from email links without signing in: co-owner confirmation,
+ * founder signature and payment (inside PublicFrame), and the mock bank,
+ * which stands in for the payment provider's own site.
+ */
+
+/* ---- confirmation and signature pages ---------------------------------- */
+
+.confirm-page {
+  width: 100%;
+  max-width: 680px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.confirm-page .card {
+  max-width: none;
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+.confirm-state {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- payment page -------------------------------------------------------- */
+
+.pay-page {
+  width: 100%;
+  max-width: 920px;
+}
+
+.pay-page > .card {
+  max-width: none;
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+.pay-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Issuer band: a fixed dark gradient with white text, so it reads the same
+   in both schemes. */
+.pay-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 28px;
+  color: #ffffff;
+}
+
+.pay-header-vehicle {
+  background: linear-gradient(135deg, #0a2f66, #0b57c9);
+}
+
+.pay-header-business {
+  background: linear-gradient(135deg, #064a36, #0d7f57);
+}
+
+.pay-title {
+  margin: 0 0 4px;
+  color: #ffffff;
+  font-size: 24px;
+}
+
+.pay-subtitle {
+  margin: 0;
+  font-size: 13.5px;
+  opacity: 0.85;
+}
+
+.pay-status {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pay-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 32px;
+  padding: 28px;
+}
+
+.pay-section-title {
+  margin: 0 0 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pay-summary-block,
+.pay-bank-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.pay-summary {
+  margin: 0;
+}
+
+.pay-summary .summary-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+  font-size: 14px;
+}
+
+.pay-summary .summary-row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+.pay-summary dd {
+  text-align: start;
+}
+
+.pay-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.pay-amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--primary-soft);
+  border-inline-start: 4px solid var(--primary);
+}
+
+.pay-header-business + .pay-grid .pay-amount {
+  background: var(--ok-soft);
+  border-inline-start-color: var(--ok);
+}
+
+.pay-amount-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pay-amount-value {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pay-confirm {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 15px;
+}
+
+.pay-success {
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.pay-success-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ok-soft);
+  color: var(--ok);
+  animation: pop-in 0.6s var(--ease-out) both;
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.pay-success .card-title {
+  margin-bottom: 10px;
+  color: var(--ok);
+}
+
+.pay-success .pay-summary {
+  margin-top: 24px;
+  text-align: start;
+}
+
+@media (max-width: 720px) {
+  .pay-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+
+/* ---- mock bank ------------------------------------------------------------ */
+
+/* Deliberately not the portal's look: it stands in for the provider's own
+   site, which in production is another domain. It keeps one light palette,
+   set by overriding the tokens on its own subtree. */
+.mock-bank {
+  color-scheme: light;
+  --surface: #ffffff;
+  --surface-2: #f4f6f3;
+  --surface-hover: #eef2ee;
+  --text: #1c2a21;
+  --muted: #55665a;
+  --border: #d4ddd6;
+  --border-strong: #b9c6bc;
+  --primary: #1f3d2b;
+  --primary-hover: #16301f;
+  --primary-ink: #ffffff;
+  --primary-soft: #e3ece5;
+  --primary-soft-border: #b9cfc0;
+
+  min-height: 100vh;
+  padding: 0 16px 48px;
+  background: #eef1ec;
+  color: var(--text);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.mock-bank-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 28px 0 20px;
+}
+
+.mock-bank-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: #e8f5e9;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.mock-bank-name {
+  margin: 0;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.mock-bank-tagline {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.mock-bank-card {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.mock-bank-title {
+  margin: 0 0 16px;
+  font-family: inherit;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.mock-bank-summary {
+  margin: 0 0 20px;
+}
+
+.mock-bank-summary .summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.mock-bank-summary dt {
+  color: var(--muted);
+}
+
+.mock-bank-summary dd {
+  margin: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
+.mock-bank-amount {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.mock-bank .btn {
+  border-radius: 4px;
+  font-family: system-ui, sans-serif;
+}
+
+.mock-bank-note {
+  margin: 20px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}

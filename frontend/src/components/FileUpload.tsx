@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CloudUpload } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { formatNumber } from '../i18n/format';
 import {
@@ -225,6 +226,9 @@ export default function FileUpload({
       >
         {progress === null ? (
           <>
+            <span className="file-upload-icon" aria-hidden="true">
+              <CloudUpload size={22} />
+            </span>
             <div className="file-upload-title">{label ?? t('fileUpload.dropTitle')}</div>
             <div className="file-upload-hint">
               {t('fileUpload.hint', {

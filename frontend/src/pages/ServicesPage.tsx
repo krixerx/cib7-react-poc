@@ -1,7 +1,30 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type PointerEvent,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
+import {
+  Accessibility,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Fingerprint,
+  History,
+  KeyRound,
+  Plus,
+  Search,
+  ShieldCheck,
+  UserLock,
+  X,
+} from 'lucide-react';
 import {
   listProcessDefinitions,
   startProcess,
@@ -14,34 +37,33 @@ import { CategoryIcon } from '../services/CategoryIcon';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatNumber } from '../i18n/format';
 
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 /**
- * PartA landing — life-event catalog. Six category tiles let citizens pick a
- * topic before drilling into the specific service; tiles with no services
- * deployed yet stay visible so the catalog shape is stable as new BPMN models
- * land. Anonymous browsing is allowed; starting still routes through Keycloak.
+ * PartA landing. Search is the main way in; the hero card shows what a case
+ * looks like while it moves through the steps; below sit the six life-event
+ * topics (topics with no deployed service stay visible so the catalog keeps
+ * its shape), the live services with who takes part and what they cost, how a
+ * case runs, and help. Anonymous browsing is allowed; starting a service
+ * still routes through Keycloak.
  */
 export default function ServicesPage() {
   const { t } = useTranslation('services');
   const navigate = useNavigate();
-  const { authenticated, login, register } = useAuth();
+  const { authenticated, login } = useAuth();
 
   const [services, setServices] = useState<ProcessDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<CategoryId | null>(null);
   const [startingKey, setStartingKey] = useState<string | null>(null);
-  const servicesPanelRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
 
-  // When a category opens, scroll the services panel into view. The panel
-  // renders below the grid and on a typical viewport ends up under the fold —
-  // without this you click a tile and nothing visible happens, which reads as
-  // a broken button rather than "scroll down to see the list".
+  // A picked topic opens its panel under the grid; bring it into view, or a
+  // click looks like it did nothing.
   useEffect(() => {
-    if (picked && servicesPanelRef.current) {
-      servicesPanelRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-      });
+    if (picked && panelRef.current) {
+      panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [picked]);
 
@@ -61,13 +83,30 @@ export default function ServicesPage() {
     load();
   }, [load]);
 
-  /** category id → list of services in that category. */
   const byCategory = useMemo(() => {
     const m = new Map<CategoryId, ProcessDefinition[]>();
     CATEGORIES.forEach((c) => m.set(c.id, []));
     for (const s of services) m.get(categoryOf(s.key))!.push(s);
     return m;
   }, [services]);
+
+  // Live services in catalog order: by topic, then by name.
+  const liveServices = useMemo(
+    () => CATEGORIES.flatMap((c) => byCategory.get(c.id) ?? []),
+    [byCategory],
+  );
+
+  const serviceName = useCallback(
+    (s: ProcessDefinition) => (s.name ? translateBackendName(t, s.name) : s.key),
+    [t],
+  );
+
+  const infoKeys = useMemo(
+    () => new Set(Object.keys(t('live.info', { returnObjects: true }) as Record<string, unknown>)),
+    [t],
+  );
+  const info = (key: string, field: 'summary' | 'who' | 'whoSub' | 'fee' | 'feeSub') =>
+    t(`live.info.${infoKeys.has(key) ? key : 'default'}.${field}`);
 
   async function startService(key: string) {
     if (!authenticated) {
@@ -86,319 +125,556 @@ export default function ServicesPage() {
     }
   }
 
-  const pickedCategory = picked ? CATEGORIES.find((c) => c.id === picked) : null;
+  const startLabel = (key: string) =>
+    startingKey === key
+      ? t('live.starting')
+      : authenticated
+        ? t('live.start')
+        : t('live.signInToStart');
+
   const pickedServices = picked ? (byCategory.get(picked) ?? []) : [];
+  const rotating = t('hero.rotating', { returnObjects: true }) as string[];
+  const trust = t('trust', { returnObjects: true }) as { title: string; body: string }[];
+  const steps = t('how.steps', { returnObjects: true }) as { title: string; body: string }[];
+  const faq = t('help.faq', { returnObjects: true }) as { q: string; a: string }[];
+  const trustIcons = [KeyRound, UserLock, History, Accessibility];
 
   return (
-    <div className="catalog">
-      <section className="catalog-hero">
-        <div className="catalog-hero-inner">
-          <div className="hero-copy">
-            <span className="hero-eyebrow">{t('hero.eyebrow')}</span>
-            <h1 className="catalog-hero-title">
-              {t('hero.titleLine1')}
-              <br />
-              <span className="hero-accent">{t('hero.titleAccent')}</span>
-            </h1>
-            <p className="catalog-hero-sub">{t('hero.sub')}</p>
-            {!authenticated && (
-              <div className="hero-cta">
-                <button type="button" className="hero-btn-primary" onClick={login}>
-                  {t('hero.signIn')}
+    <div className="landing">
+      <section className="landing-hero">
+        <div className="landing-hero-copy">
+          <span className="eyebrow anim-in">{t('hero.eyebrow')}</span>
+          <h1 className="landing-title anim-in" style={{ '--d': '0.08s' } as CSSProperties}>
+            <span className="sr-only">{t('hero.titleSr')}</span>
+            <span aria-hidden="true">
+              {t('hero.titleBefore')}
+              <span className="rotator">
+                {rotating.map((w) => (
+                  <span key={w}>{w}</span>
+                ))}
+              </span>
+              {t('hero.titleAfter')}
+            </span>
+          </h1>
+          <p className="landing-lede anim-in" style={{ '--d': '0.18s' } as CSSProperties}>
+            {t('hero.sub')}
+          </p>
+          <SearchBox
+            services={liveServices}
+            nameOf={serviceName}
+            summaryOf={(s) => info(s.key, 'summary')}
+            onPick={startService}
+          />
+          {liveServices.length > 0 && (
+            <div className="popular anim-in" style={{ '--d': '0.36s' } as CSSProperties}>
+              <span>{t('search.popular')}</span>
+              {liveServices.slice(0, 3).map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  className="chip"
+                  onClick={() => startService(s.key)}
+                  disabled={startingKey !== null}
+                >
+                  {serviceName(s)}
                 </button>
-                <button type="button" className="hero-btn-ghost" onClick={register}>
-                  {t('hero.join')}
-                </button>
-              </div>
-            )}
-            <p className="hero-trust">
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              {t('hero.trust')}
-            </p>
-            <MobileAppCard />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="landing-hero-art anim-in" style={{ '--d': '0.3s' } as CSSProperties}>
+          <HeroCaseCard />
+        </div>
+      </section>
+
+      <div className="landing-trust">
+        {trust.map((item, i) => {
+          const Icon = trustIcons[i] ?? ShieldCheck;
+          return (
+            <div key={item.title} className="reveal">
+              <Icon size={20} aria-hidden="true" />
+              <span>
+                <strong>{item.title}</strong>
+                {item.body}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {error && <p className="form-error landing-status">{error}</p>}
+      {loading && !error && <p className="muted landing-status">{t('loading')}</p>}
+
+      <section className="landing-block" id="events" aria-labelledby="events-h">
+        <div className="landing-head">
+          <div>
+            <span className="eyebrow">{t('events.eyebrow')}</span>
+            <h2 id="events-h">{t('events.heading')}</h2>
           </div>
-          <div className="hero-art" aria-hidden="true">
-            <HeroIllustration />
+          <p>{t('events.sub')}</p>
+        </div>
+        <div className="events">
+          {CATEGORIES.map((cat) => {
+            const list = byCategory.get(cat.id) ?? [];
+            const count = list.length;
+            const single = count === 1;
+            const isPicked = picked === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                className={`event cat-${cat.id}${count === 0 ? ' is-empty' : ''}${
+                  isPicked ? ' is-picked' : ''
+                }`}
+                title={t(`common:categories.${cat.id}.blurb`)}
+                onClick={() => {
+                  // One service in a topic: start it directly, no picker needed.
+                  if (single) {
+                    startService(list[0].key);
+                    return;
+                  }
+                  setPicked(isPicked ? null : cat.id);
+                }}
+                onPointerMove={spotlight}
+                disabled={loading || count === 0 || startingKey !== null}
+                aria-pressed={!single && count > 0 ? isPicked : undefined}
+              >
+                <span className="event-icon">
+                  <CategoryIcon id={cat.id} size={20} />
+                </span>
+                <span className="event-name">{t(`common:categories.${cat.id}.name`)}</span>
+                <span className={`event-count${count === 0 ? ' is-soon' : ''}`}>
+                  {count === 0 ? t('events.comingSoon') : t('events.online', { count })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {picked && (
+          <section ref={panelRef} className="event-panel" aria-labelledby="event-panel-h">
+            <div className="event-panel-head">
+              <h3 id="event-panel-h">{t(`common:categories.${picked}.name`)}</h3>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setPicked(null)}
+                aria-label={t('panel.close')}
+              >
+                <X aria-hidden="true" />
+              </button>
+            </div>
+            {!authenticated && <p className="muted">{t('panel.accountNotice')}</p>}
+            {pickedServices.length === 0 ? (
+              <p className="empty">{t('panel.empty')}</p>
+            ) : (
+              <ul className="event-panel-list">
+                {pickedServices.map((s) => (
+                  <li key={s.id}>
+                    <span>
+                      <strong>{serviceName(s)}</strong>
+                      <span className="muted">{info(s.key, 'summary')}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => startService(s.key)}
+                      disabled={startingKey !== null}
+                    >
+                      {startLabel(s.key)}
+                      <ArrowRight aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+      </section>
+
+      {liveServices.length > 0 && (
+        <section className="landing-block" id="services" aria-labelledby="live-h">
+          <div className="landing-head">
+            <div>
+              <span className="eyebrow">{t('live.eyebrow')}</span>
+              <h2 id="live-h">{t('live.heading', { count: liveServices.length })}</h2>
+            </div>
+          </div>
+          <div className="svc-table" role="table" aria-labelledby="live-h">
+            <div className="svc-row svc-row-head" role="row">
+              <span role="columnheader">{t('live.colService')}</span>
+              <span role="columnheader">{t('live.colWho')}</span>
+              <span role="columnheader">{t('live.colFee')}</span>
+              <span role="columnheader">
+                <span className="sr-only">{t('live.start')}</span>
+              </span>
+            </div>
+            {liveServices.map((s) => {
+              const cat = categoryOf(s.key);
+              return (
+                <div key={s.id} className="svc-row" role="row">
+                  <div role="cell" className="svc-main">
+                    <span className={`svc-icon cat-${cat}`} aria-hidden="true">
+                      <CategoryIcon id={cat} size={18} />
+                    </span>
+                    <span>
+                      <strong>{serviceName(s)}</strong>
+                      <span className="svc-sub">{info(s.key, 'summary')}</span>
+                    </span>
+                  </div>
+                  <div role="cell" className="svc-cell">
+                    <strong>{info(s.key, 'who')}</strong>
+                    {info(s.key, 'whoSub')}
+                  </div>
+                  <div role="cell" className="svc-cell">
+                    <strong>{info(s.key, 'fee')}</strong>
+                    {info(s.key, 'feeSub')}
+                  </div>
+                  <div role="cell" className="svc-action">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => startService(s.key)}
+                      disabled={startingKey !== null}
+                    >
+                      {startLabel(s.key)}
+                      <ArrowRight aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="landing-block" id="how" aria-labelledby="how-h">
+        <div className="landing-head">
+          <div>
+            <span className="eyebrow">{t('how.eyebrow')}</span>
+            <h2 id="how-h">{t('how.heading')}</h2>
+          </div>
+          <p>{t('how.sub')}</p>
+        </div>
+        <ol className="how-steps">
+          <span className="how-fill" aria-hidden="true" />
+          {steps.map((step, i) => (
+            <li key={step.title} className="reveal">
+              <span className="how-num">{formatNumber(i + 1)}</span>
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+            </li>
+          ))}
+        </ol>
+        <div className="landing-stats glass reveal">
+          <div>
+            <strong>{t('stats.alwaysOpen.value')}</strong>
+            <span>{t('stats.alwaysOpen.label')}</span>
+          </div>
+          <div>
+            <strong>{t('stats.averageApplication.value')}</strong>
+            <span>{t('stats.averageApplication.label')}</span>
+          </div>
+          <div>
+            <strong>{t('stats.digital.value')}</strong>
+            <span>{t('stats.digital.label')}</span>
+          </div>
+          <div>
+            <strong>{loading ? '…' : formatNumber(services.length)}</strong>
+            <span>{t('stats.liveServices.label')}</span>
           </div>
         </div>
       </section>
 
-      <div className="hero-stats">
-        <div className="hero-stat">
-          <span className="hero-stat-value">{t('stats.alwaysOpen.value')}</span>
-          <span className="hero-stat-label">{t('stats.alwaysOpen.label')}</span>
-        </div>
-        <div className="hero-stat">
-          <span className="hero-stat-value">{t('stats.averageApplication.value')}</span>
-          <span className="hero-stat-label">{t('stats.averageApplication.label')}</span>
-        </div>
-        <div className="hero-stat">
-          <span className="hero-stat-value">{t('stats.digital.value')}</span>
-          <span className="hero-stat-label">{t('stats.digital.label')}</span>
-        </div>
-        <div className="hero-stat">
-          <span className="hero-stat-value">{loading ? '…' : formatNumber(services.length)}</span>
-          <span className="hero-stat-label">{t('stats.liveServices.label')}</span>
-        </div>
-      </div>
-
-      {error && <p className="form-error catalog-error">{error}</p>}
-      {loading && !error && <p className="muted catalog-status">{t('catalog.loading')}</p>}
-
-      {!loading && !error && (
-        <>
-          <section className="catalog-section-head">
-            <h2>{t('catalog.heading')}</h2>
-            <p>{t('catalog.sub')}</p>
-          </section>
-          <div className="catalog-grid">
-            {CATEGORIES.map((cat) => {
-              const categoryServices = byCategory.get(cat.id) ?? [];
-              const count = categoryServices.length;
-              const empty = count === 0;
-              const single = count === 1;
-              const isPicked = picked === cat.id;
-              const isBusy = single && startingKey === categoryServices[0].key;
-              return (
-                <button
-                  key={cat.id}
-                  className={`cat-tile cat-${cat.id}${empty ? ' cat-empty' : ''}${
-                    isPicked ? ' cat-picked' : ''
-                  }`}
-                  onClick={() => {
-                    // One service in a category — skip the intermediate panel
-                    // and start (or sign-in-then-start) directly. Multi-service
-                    // categories still need a picker.
-                    if (single) {
-                      startService(categoryServices[0].key);
-                      return;
-                    }
-                    setPicked(isPicked ? null : cat.id);
-                  }}
-                  disabled={empty || (startingKey !== null && !isBusy)}
-                  aria-pressed={!single && isPicked}
-                >
-                  <span className="cat-icon" aria-hidden="true">
-                    <CategoryIcon id={cat.id} />
-                  </span>
-                  <span className="cat-body">
-                    <span className="cat-name">{t(`common:categories.${cat.id}.name`)}</span>
-                    <span className="cat-blurb">{t(`common:categories.${cat.id}.blurb`)}</span>
-                  </span>
-                  <span className="cat-count">
-                    {empty
-                      ? t('catalog.tile.comingSoon')
-                      : isBusy
-                        ? t('catalog.tile.starting')
-                        : single
-                          ? authenticated
-                            ? t('catalog.tile.start')
-                            : t('catalog.tile.signInToStart')
-                          : isPicked
-                            ? t('catalog.tile.servicesBelow', { count })
-                            : t('catalog.tile.serviceCount', { count })}
-                  </span>
-                </button>
-              );
-            })}
+      <section className="landing-block landing-help" id="help" aria-labelledby="help-h">
+        <div className="panel reveal">
+          <span className="eyebrow">{t('help.eyebrow')}</span>
+          <h2 id="help-h" className="panel-title">
+            {t('help.heading')}
+          </h2>
+          <div className="faq">
+            {faq.map((item) => (
+              <details key={item.q}>
+                <summary>
+                  {item.q}
+                  <Plus size={18} aria-hidden="true" />
+                </summary>
+                <p>{item.a}</p>
+              </details>
+            ))}
           </div>
+        </div>
+        <div className="panel reveal">
+          <span className="eyebrow">{t('help.contactEyebrow')}</span>
+          <h2 className="panel-title">{t('help.contactHeading')}</h2>
+          <p className="muted">{t('help.contactBody')}</p>
+          <p className="contact-org">
+            <strong>Tulepaak OÜ</strong>
+            <span>{t('help.registry', { code: '12065884' })}</span>
+          </p>
+          <a
+            className="btn"
+            href="https://www.tulepaak.ee/contact"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('help.contactForm')}
+            <ExternalLink aria-hidden="true" />
+          </a>
+          <p className="contact-status">
+            <span className="muted">{t('help.status')}</span>
+            <strong>
+              <Check size={16} aria-hidden="true" />
+              {t('help.statusOk', { count: services.length })}
+            </strong>
+          </p>
+          <MobileAppCard />
+        </div>
+      </section>
+    </div>
+  );
+}
 
-          {pickedCategory && (
-            <section ref={servicesPanelRef} className="cat-services">
-              <div className="cat-services-head">
-                <h2>{t(`common:categories.${pickedCategory.id}.name`)}</h2>
-                <button className="btn btn-link" onClick={() => setPicked(null)}>
-                  {t('common:actions.close')}
+/** Pointer-following highlight on life-event tiles (CSS reads --mx/--my). */
+function spotlight(e: PointerEvent<HTMLElement>) {
+  const r = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`);
+  e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
+}
+
+/**
+ * Hero search over the live services. Matches on the translated name and the
+ * one-line summary. While empty and unfocused, the placeholder types out
+ * example tasks; that stops for reduced-motion users.
+ */
+function SearchBox({
+  services,
+  nameOf,
+  summaryOf,
+  onPick,
+}: {
+  services: ProcessDefinition[];
+  nameOf: (s: ProcessDefinition) => string;
+  summaryOf: (s: ProcessDefinition) => string;
+  onPick: (key: string) => void;
+}) {
+  const { t } = useTranslation('services');
+  const [query, setQuery] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [placeholder, setPlaceholder] = useState(t('search.placeholder'));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const hints = t('search.hints', { returnObjects: true }) as string[];
+    setPlaceholder(t('search.placeholder'));
+    if (reducedMotion() || !Array.isArray(hints) || hints.length === 0) return;
+    let hint = 0;
+    let chars = 0;
+    let deleting = false;
+    let timer: number;
+    const tick = () => {
+      const input = inputRef.current;
+      if (input && document.activeElement !== input && !input.value) {
+        const text = hints[hint];
+        chars += deleting ? -1 : 1;
+        setPlaceholder(text.slice(0, chars) + (chars < text.length ? '▍' : ''));
+        if (!deleting && chars === text.length) {
+          // The last hint is the plain placeholder: stop there.
+          if (hint === hints.length - 1) return;
+          deleting = true;
+          timer = window.setTimeout(tick, 1600);
+          return;
+        }
+        if (deleting && chars === 0) {
+          deleting = false;
+          hint += 1;
+        }
+      }
+      timer = window.setTimeout(tick, deleting ? 28 : 55);
+    };
+    timer = window.setTimeout(tick, 900);
+    return () => window.clearTimeout(timer);
+  }, [t]);
+
+  const q = query.trim().toLowerCase();
+  const results = q
+    ? services.filter((s) => `${nameOf(s)} ${summaryOf(s)} ${s.key}`.toLowerCase().includes(q))
+    : [];
+  const showResults = q.length > 0 || submitted;
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitted(true);
+    if (results.length === 1) onPick(results[0].key);
+  }
+
+  return (
+    <div className="search-wrap anim-in" style={{ '--d': '0.26s' } as CSSProperties}>
+      <form className="search" role="search" onSubmit={onSubmit}>
+        <label className="sr-only" htmlFor="service-search">
+          {t('search.label')}
+        </label>
+        <Search size={20} aria-hidden="true" />
+        <input
+          ref={inputRef}
+          id="service-search"
+          type="search"
+          autoComplete="off"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSubmitted(false);
+          }}
+        />
+        <button type="submit" className="btn btn-primary">
+          {t('search.submit')}
+        </button>
+      </form>
+      {showResults && q && (
+        <ul className="search-results" aria-live="polite">
+          {results.length === 0 ? (
+            <li className="search-empty">
+              <strong>{t('search.noResults', { query: query.trim() })}</strong>
+              <span>{t('search.noResultsHint')}</span>
+            </li>
+          ) : (
+            results.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => onPick(s.key)}>
+                  <strong>{nameOf(s)}</strong>
+                  <span>{summaryOf(s)}</span>
+                  <ArrowRight size={16} aria-hidden="true" />
                 </button>
-              </div>
-              {!authenticated && <p className="muted">{t('catalog.panel.accountNotice')}</p>}
-              {pickedServices.length === 0 ? (
-                <p className="empty">{t('catalog.panel.empty')}</p>
-              ) : (
-                <ul className="row-list">
-                  {pickedServices.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        className="row"
-                        onClick={() => startService(s.key)}
-                        disabled={startingKey !== null}
-                      >
-                        <span className="row-main">
-                          <span className="row-title">
-                            {s.name ? translateBackendName(t, s.name) : s.key}
-                          </span>
-                          <span className="row-sub">
-                            {t('catalog.panel.rowMeta', { key: s.key, version: s.version })}
-                          </span>
-                        </span>
-                        <span className="row-action">
-                          {startingKey === s.key
-                            ? t('catalog.tile.starting')
-                            : authenticated
-                              ? t('catalog.tile.start')
-                              : t('catalog.tile.signInToStart')}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+              </li>
+            ))
           )}
-        </>
+        </ul>
       )}
     </div>
   );
 }
 
 /**
- * "Try it on your phone" hero card — a scannable QR plus a direct link to the
- * Flutter mobile applicant app, which is served at `/mobile` outside the SPA
- * router (own container, Traefik PathPrefix). The QR encodes the app's
- * absolute URL on the current host, so it works on localhost and on
- * companylab.ai alike without hardcoding. The whole card is the link, so a
- * phone visitor can tap it and a desktop visitor can scan the code.
+ * Illustrative case card for the hero: plays a vehicle registration through
+ * its steps so a first-time visitor sees what "follow every step" means. It
+ * is labelled as an example and never shows real case data.
+ */
+function HeroCaseCard() {
+  const { t } = useTranslation('services');
+  const steps = t('caseCard.steps', { returnObjects: true }) as { title: string; who: string }[];
+  const nextActions = t('caseCard.nextActions', { returnObjects: true }) as string[];
+  const total = steps.length;
+  const [step, setStep] = useState(() => (reducedMotion() ? total : 1));
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (reducedMotion()) return;
+    const id = window.setInterval(() => setStep((s) => (s > total ? 1 : s + 1)), 1800);
+    return () => window.clearInterval(id);
+  }, [total]);
+
+  const done = Math.min(step, total);
+  const finished = done >= total;
+
+  function tilt(e: PointerEvent<HTMLDivElement>) {
+    const card = cardRef.current;
+    if (!card || e.pointerType !== 'mouse' || reducedMotion()) return;
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    card.style.transform = `rotateX(${-y * 5}deg) rotateY(${x * 6}deg)`;
+  }
+
+  return (
+    <div className="case-stage">
+      <div
+        ref={cardRef}
+        className="case-card glass"
+        onPointerMove={tilt}
+        onPointerLeave={() => {
+          if (cardRef.current) cardRef.current.style.transform = '';
+        }}
+        role="img"
+        aria-label={t('caseCard.label')}
+      >
+        <div className="case-card-in">
+          <div className="case-card-top">
+            <div>
+              <strong className="case-card-title">{t('caseCard.title')}</strong>
+              <span className="case-card-ref mono">
+                {t('caseCard.reference')} · {t('caseCard.label')}
+              </span>
+            </div>
+            <span className={`pill ${finished ? 'pill-ok' : 'pill-primary'}`}>
+              {finished ? t('caseCard.decided') : t('caseCard.inProgress')}
+            </span>
+          </div>
+          <div className="case-card-progress">
+            <i style={{ width: `${(done / total) * 100}%` }} />
+          </div>
+          <ol className="case-card-steps">
+            {steps.map((s, i) => (
+              <li key={s.title} className={i < done ? 'is-done' : i === done ? 'is-now' : ''}>
+                <span className="case-dot">{i < done && <Check size={12} strokeWidth={3} />}</span>
+                <span>
+                  {s.title}
+                  <small>{s.who}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div className="case-card-foot">
+            <span>
+              {t('caseCard.next')} <strong>{nextActions[Math.max(0, done - 1)]}</strong>
+            </span>
+            <span>{t('caseCard.updated')}</span>
+          </div>
+        </div>
+        <div className="case-float case-float-a">
+          <span className="case-float-icon is-ok">
+            <Check size={16} strokeWidth={2.6} />
+          </span>
+          <span>
+            <strong>{t('caseCard.signedTitle')}</strong>
+            {t('caseCard.signedSub')}
+          </span>
+        </div>
+        <div className="case-float case-float-b">
+          <span className="case-float-icon">
+            <Fingerprint size={16} />
+          </span>
+          <span>
+            <strong>{t('caseCard.idTitle')}</strong>
+            {t('caseCard.idSub')}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Try it on your phone": a QR code and link to the Flutter applicant app,
+ * served at `/mobile` outside the SPA router. The QR encodes the absolute URL
+ * on the current host, so it works on localhost and on the public demo alike.
  */
 function MobileAppCard() {
   const { t } = useTranslation('services');
   const mobileUrl = `${window.location.origin}/mobile`;
   return (
-    <a className="mobile-app-card" href="/mobile" aria-label={t('mobile.ariaLabel')}>
-      <span className="mobile-app-qr">
-        <QRCodeSVG value={mobileUrl} size={84} bgColor="#ffffff" fgColor="#0a221c" />
+    <a className="mobile-card" href="/mobile" aria-label={t('mobile.ariaLabel')}>
+      <span className="mobile-card-qr">
+        <QRCodeSVG value={mobileUrl} size={72} bgColor="#ffffff" fgColor="#0b1b2f" />
       </span>
-      <span className="mobile-app-text">
-        <strong className="mobile-app-title">{t('mobile.title')}</strong>
-        <span className="mobile-app-sub">{t('mobile.sub')}</span>
-        <span className="mobile-app-link">{t('mobile.open')}</span>
+      <span className="mobile-card-text">
+        <strong>{t('mobile.title')}</strong>
+        <span>{t('mobile.sub')}</span>
+        <span className="mobile-card-link">
+          {t('mobile.open')}
+          <ArrowRight size={14} aria-hidden="true" />
+        </span>
       </span>
     </a>
-  );
-}
-
-/**
- * Friendly civic-portal illustration for the hero — a government building
- * with an approved-document card floating in front, an orbiting dashed ring
- * and a few sparkles. Pure inline SVG, animated via the .hero-* CSS classes
- * (disabled under prefers-reduced-motion).
- */
-function HeroIllustration() {
-  return (
-    <svg viewBox="0 0 360 300" fill="none" role="img" aria-hidden="true">
-      {/* soft glow backdrop */}
-      <circle cx="190" cy="150" r="130" fill="rgba(52, 211, 153, 0.08)" />
-      <circle cx="190" cy="150" r="96" fill="rgba(52, 211, 153, 0.08)" />
-
-      {/* orbiting dashed ring */}
-      <g className="hero-spin">
-        <circle
-          cx="190"
-          cy="150"
-          r="126"
-          stroke="rgba(255,255,255,0.18)"
-          strokeWidth="1.5"
-          strokeDasharray="3 10"
-        />
-        <circle cx="316" cy="150" r="5" fill="#34d399" />
-      </g>
-
-      {/* government building */}
-      <g className="hero-float-slow">
-        {/* pediment */}
-        <path
-          d="M110 112 L190 74 L270 112 Z"
-          fill="rgba(255,255,255,0.92)"
-          stroke="#0a221c"
-          strokeWidth="0"
-        />
-        <rect x="118" y="112" width="144" height="10" rx="3" fill="#34d399" />
-        {/* columns */}
-        <rect x="126" y="130" width="16" height="62" rx="4" fill="rgba(255,255,255,0.85)" />
-        <rect x="156" y="130" width="16" height="62" rx="4" fill="rgba(255,255,255,0.85)" />
-        <rect x="186" y="130" width="16" height="62" rx="4" fill="rgba(255,255,255,0.85)" />
-        <rect x="216" y="130" width="16" height="62" rx="4" fill="rgba(255,255,255,0.85)" />
-        <rect x="244" y="130" width="0" height="62" rx="4" fill="rgba(255,255,255,0.85)" />
-        {/* base steps */}
-        <rect x="112" y="196" width="156" height="10" rx="4" fill="rgba(255,255,255,0.9)" />
-        <rect x="102" y="208" width="176" height="10" rx="4" fill="rgba(255,255,255,0.75)" />
-        {/* door light */}
-        <circle cx="190" cy="96" r="7" fill="#34d399" />
-      </g>
-
-      {/* approved-document card */}
-      <g className="hero-float">
-        <rect
-          x="232"
-          y="150"
-          width="92"
-          height="112"
-          rx="12"
-          fill="#ffffff"
-          stroke="rgba(10,34,28,0.08)"
-        />
-        <rect x="246" y="168" width="64" height="7" rx="3.5" fill="#cde7dd" />
-        <rect x="246" y="184" width="48" height="7" rx="3.5" fill="#e3f0ea" />
-        <rect x="246" y="200" width="56" height="7" rx="3.5" fill="#e3f0ea" />
-        {/* check badge */}
-        <g className="hero-pop">
-          <circle cx="278" cy="238" r="17" fill="#34d399" />
-          <path
-            d="M270 238 l6 6 l11 -12"
-            stroke="#0a221c"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-      </g>
-
-      {/* small progress stepper on a chip card, echoing the case stepper */}
-      <g className="hero-float-slow">
-        <rect x="44" y="156" width="118" height="40" rx="20" fill="rgba(255,255,255,0.95)" />
-        <circle cx="70" cy="176" r="8" fill="#005c4c" />
-        <path
-          d="M66.5 176 l2.6 2.6 l4.6 -5.2"
-          stroke="#fff"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <rect x="82" y="174" width="16" height="4" rx="2" fill="#005c4c" />
-        <circle cx="106" cy="176" r="8" fill="none" stroke="#005c4c" strokeWidth="2.5" />
-        <circle cx="106" cy="176" r="3" fill="#34d399" />
-        <rect x="118" y="174" width="16" height="4" rx="2" fill="#cde7dd" />
-        <circle cx="140" cy="176" r="8" fill="none" stroke="#cde7dd" strokeWidth="2.5" />
-      </g>
-
-      {/* sparkles */}
-      <g className="hero-pop">
-        <path
-          d="M86 84 l3.5 9 9 3.5 -9 3.5 -3.5 9 -3.5 -9 -9 -3.5 9 -3.5 Z"
-          fill="#34d399"
-          opacity="0.9"
-        />
-      </g>
-      <g className="hero-float">
-        <path
-          d="M308 92 l2.5 6.5 6.5 2.5 -6.5 2.5 -2.5 6.5 -2.5 -6.5 -6.5 -2.5 6.5 -2.5 Z"
-          fill="rgba(255,255,255,0.7)"
-        />
-      </g>
-      <circle cx="64" cy="232" r="4" fill="rgba(52,211,153,0.6)" />
-      <circle cx="330" cy="206" r="3" fill="rgba(255,255,255,0.5)" />
-    </svg>
   );
 }

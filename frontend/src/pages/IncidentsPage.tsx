@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid';
-import { Button } from '@tedi-design-system/react/tedi';
+import { ThemeProvider } from '@mui/material/styles';
 import {
   listIncidents,
   listProcessDefinitions,
@@ -13,6 +13,8 @@ import {
 import { parseActivityNames } from '../api/bpmn';
 import { formatDateTime } from '../i18n/format';
 import { translateBackendName } from '../i18n/backendNames';
+import { useColorScheme } from '../theme/colorScheme';
+import { muiTheme } from '../theme/mui';
 
 interface DefinitionInfo {
   def: ProcessDefinition;
@@ -43,11 +45,12 @@ function shortId(id: string): string {
  * the engine picks the job up again.
  *
  * The list renders as an MUI DataGrid (sortable columns, virtualised rows) —
- * the portal's reference for "complex data table" screens where TEDI has no
- * component; the surrounding chrome (card, refresh) stays TEDI/portal styled.
+ * the portal's reference for "complex data table" screens; the surrounding
+ * chrome (card, refresh) uses the portal's own classes.
  */
 export default function IncidentsPage() {
   const { t } = useTranslation('incidents');
+  const scheme = useColorScheme();
   const [defs, setDefs] = useState<Map<string, DefinitionInfo>>(new Map());
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,13 +144,14 @@ export default function IncidentsPage() {
         filterable: false,
         renderCell: (params: GridRenderCellParams<unknown, IncidentRow>) =>
           params.row.jobId ? (
-            <Button
-              size="small"
+            <button
+              type="button"
+              className="btn btn-small"
               onClick={() => retry(params.row)}
               disabled={busyId === params.row.id}
             >
               {busyId === params.row.id ? t('incident.retrying') : t('common:actions.retry')}
-            </Button>
+            </button>
           ) : (
             <span className="muted">{t('incident.noRetry')}</span>
           ),
@@ -160,9 +164,9 @@ export default function IncidentsPage() {
     <div className="card card-wide">
       <div className="card-head">
         <h1 className="card-title">{t('title')}</h1>
-        <Button visualType="secondary" onClick={load} disabled={loading}>
+        <button type="button" className="btn" onClick={load} disabled={loading}>
           {t('common:actions.refresh')}
-        </Button>
+        </button>
       </div>
       <p className="muted">
         <Trans t={t} i18nKey="intro" components={{ strong: <strong /> }} />
@@ -174,16 +178,18 @@ export default function IncidentsPage() {
       {!loading && !error && incidents.length === 0 && <p className="empty">{t('empty')}</p>}
 
       {!loading && !error && incidents.length > 0 && (
-        <DataGrid
-          rows={rows}
-          columns={columns}
-          autoHeight
-          disableSelectionOnClick
-          pageSize={25}
-          rowsPerPageOptions={[25]}
-          getRowHeight={() => 'auto'}
-          initialState={{ sorting: { sortModel: [{ field: 'timestamp', sort: 'desc' }] } }}
-        />
+        <ThemeProvider theme={muiTheme(scheme)}>
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            autoHeight
+            disableSelectionOnClick
+            pageSize={25}
+            rowsPerPageOptions={[25]}
+            getRowHeight={() => 'auto'}
+            initialState={{ sorting: { sortModel: [{ field: 'timestamp', sort: 'desc' }] } }}
+          />
+        </ThemeProvider>
       )}
     </div>
   );

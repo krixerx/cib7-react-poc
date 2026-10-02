@@ -5,7 +5,7 @@
     "countFiltered": "{{shown}} من {{total}}",
     "refresh": "تحديث القائمة",
     "newestFirst": "الأحدث أولاً",
-    "sortPill": "تاريخ التقديم ↓",
+    "sortPill": "تاريخ التقديم",
     "caseRef": "CASE-{{id}}",
     "noName": "(بدون اسم)",
     "age": {
