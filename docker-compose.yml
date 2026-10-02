@@ -700,7 +700,7 @@ services:
     # Graylog's own configuration store (users, streams, inputs, dashboards).
     # Not a message store — that's OpenSearch below. mongo:7.0 is the version
     # the upstream Graylog compose example pins.
-    image: mongo:7.0.43
+    image: mongo:8.3.9
     container_name: cib7-poc-graylog-mongodb
     networks: [logstore]
     volumes:
