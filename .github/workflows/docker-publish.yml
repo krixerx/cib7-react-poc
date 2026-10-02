@@ -68,7 +68,7 @@ jobs:
       # Built into the runner's local image store first, so the scan below
       # looks at exactly what would be pushed and a failed scan pushes nothing.
       - name: Build for scanning
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -93,7 +93,7 @@ jobs:
           trivyignores: ${{ matrix.trivyignores }}
 
       # Same inputs and cache as the scanned build, so this is a cache hit.
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
