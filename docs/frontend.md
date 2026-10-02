@@ -77,7 +77,7 @@ frontend/src/
 │   └── CategoryIcon.tsx           — Lucide icon per category
 ├── components/
 │   ├── OfficialBanner.tsx         — "official portal" strip + demo warning and Mailpit link
-│   ├── SiteFooter.tsx             — shared footer (Tulepaak OÜ support details)
+│   ├── SiteFooter.tsx             — shared footer (brand and demo note)
 │   ├── PublicFrame.tsx            — banner + brand bar + footer for the email-link pages
 │   ├── ThemeToggle.tsx            — light/dark switch
 │   ├── LanguageSwitcher.tsx       — EN ⇄ AR switch
@@ -86,7 +86,7 @@ frontend/src/
 │   ├── DocumentsCard.tsx          — submitted/generated documents list with presigned downloads
 │   └── FileUpload.tsx             — drag-and-drop upload via /api/documents presigned PUT
 ├── pages/
-│   ├── ServicesPage.tsx           — PartA route "/" (search, life events, live services, help)
+│   ├── ServicesPage.tsx           — PartA route "/" (list of live services)
 │   ├── MyProcessesPage.tsx        — PartA route "/my-processes" (action-first inbox)
 │   ├── MyFilesPage.tsx            — PartA route "/my-files" (documents across all own cases)
 │   ├── TasksPage.tsx              — PartB route "/" (two-pane worklist)
@@ -179,25 +179,14 @@ underlying HTTP methods and paths, see the canonical
 
 ### `ServicesPage` (`src/pages/ServicesPage.tsx`) — PartA
 
-Landing page. The hero has a search over the live services (name and
-one-line summary; the placeholder types out example tasks) and an example
-case card that plays a vehicle registration through its steps. Below it: a
-trust strip, one row of six life-event tiles (Business, Family & Civil
-Status, Property & Land, Travel & Identity, Social & Health, Other), a table
-of the live services with who takes part and the fee, a four-step "how it
-works" with the headline figures, and help (FAQ plus the Tulepaak OÜ contact
-block and the mobile-app QR card). Per-service summary, participants and fee
-live in `services.json` under `live.info.<processDefinitionKey>`, taken from
-the service specs; an unknown key falls back to `live.info.default`.
+Landing page: a heading and one list of the live services, each with its
+category icon, name, one-line summary and a start button. Nothing else sits
+on the page, so the services are the first thing an applicant sees. The
+summary lives in `services.json` under `info.<processDefinitionKey>.summary`,
+taken from the service specs; an unknown key falls back to `info.default`.
 
-- `listProcessDefinitions()` to populate the catalog; deployed services are
-  bucketed by `categoryOf(s.key)` (see `services/categories.ts`).
-- Tiles with zero services show **Coming soon** and are disabled.
-- Tiles with exactly one service skip the inline list and call `startService()`
-  on click — saves the user the "click twice for the same thing" UX hit.
-- Tiles with two or more services open an inline panel below the grid, with
-  `scrollIntoView({ behavior: 'smooth' })` so the panel is obvious. Picking a
-  service from there is the same `startService()` path.
+- `listProcessDefinitions()` populates the list; services are ordered by
+  `categoryOf(s.key)` in `CATEGORIES` order (see `services/categories.ts`).
 - `startService()`: anonymous → triggers `login()`; authenticated →
   `startProcess(key)`, then `listTasksByInstance(instanceId)` to find the
   first user task, then navigates to `/tasks/{taskId}`. If the engine has

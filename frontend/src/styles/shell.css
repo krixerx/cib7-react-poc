@@ -474,67 +474,13 @@
   font-size: 14px;
 }
 
-.site-footer-grid {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: 28px;
-  padding-block: 32px 20px;
-}
-
-.site-footer-brand p {
-  color: var(--muted);
-  max-width: 38ch;
-  margin: 12px 0 0;
-}
-
-.site-footer-h {
-  margin: 0 0 10px;
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.site-footer-org {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  color: var(--muted);
-}
-
-.site-footer-org strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.site-footer-links {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.site-footer-links a {
-  color: var(--text);
-  text-decoration: none;
-}
-
-.site-footer-links a:hover {
-  color: var(--primary);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .site-footer-legal {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
   gap: 8px 20px;
-  padding-block: 14px 22px;
-  border-top: 1px solid var(--border);
+  padding-block: 18px 22px;
   color: var(--muted);
   font-size: 13px;
 }
@@ -557,14 +503,6 @@
     -webkit-backdrop-filter: blur(18px);
     backdrop-filter: blur(18px);
   }
-
-  .site-footer-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .site-footer-brand {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 600px) {
@@ -584,10 +522,6 @@
 
   .lang-switch-btn {
     padding: 5px 8px;
-  }
-
-  .site-footer-grid {
-    grid-template-columns: 1fr;
   }
 }
 

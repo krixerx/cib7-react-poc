@@ -163,13 +163,6 @@
     "toLight": "Switch to light theme"
   },
   "footer": {
-    "about": "Apply, sign and pay online, and follow your case to the decision.",
-    "supportTitle": "Built and supported by",
-    "registryCode": "Registry code {{code}}",
-    "location": "Tallinn, Estonia",
-    "contactTitle": "Contact",
-    "contactForm": "Contact form",
-    "businessRegister": "Business register",
     "demoNote": "Demo environment. Data is reset when the system restarts."
   }
 }
