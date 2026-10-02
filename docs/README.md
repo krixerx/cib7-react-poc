@@ -32,6 +32,7 @@ The docs are split into two layers:
 | Deploy this stack to a server (admin-facing) | [`deployment.md`](deployment.md) |
 | Deploy from GitHub Actions, or work out why a CI run failed | [`ci-cd.md`](ci-cd.md) |
 | Find a service's logs, add a log statement, reach Graylog | [`logging.md`](logging.md) |
+| Change the statistics page, its counting rules or who may see it | [`statistics.md`](statistics.md) |
 | Touch React code: pages, forms, the form registry, the REST client, auth | [`frontend.md`](frontend.md) |
 | Touch Java code: Spring Boot wiring, engine config, BPMN auto-deploy, the connector, Keycloak | [`cib7.md`](cib7.md) |
 | Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture-poc) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |

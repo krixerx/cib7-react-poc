@@ -89,6 +89,8 @@ frontend/src/
 │   ├── MyProcessesPage.tsx        — PartA route "/my-processes" (action-first inbox)
 │   ├── TasksPage.tsx              — PartB route "/" (two-pane worklist)
 │   ├── IncidentsPage.tsx          — PartB route "/incidents" (cross-service overview)
+│   ├── StatisticsPage.tsx         — route "/statistics" for the statistics-viewer role
+│   ├── statisticsRange.ts         — date-range presets and duration formatting for it
 │   ├── TaskDetailPage.tsx         — shared route "/tasks/:taskId" (thin route wrapper)
 │   ├── TaskDetailView.tsx         — embeddable form host (route page + worklist right pane)
 │   ├── CompletedProcessPage.tsx   — shared route "/processes/:processInstanceId" (thin route wrapper)
@@ -152,6 +154,7 @@ route sets. The TaskDetail and CompletedProcess pages are shared.
 |---|---|---|
 | `/` | `TasksPage` | Two-pane worklist: filterable case list on the left, embedded form / history / incident block on the right |
 | `/incidents` | `IncidentsPage` | Open engine incidents across all services; retry (the worklist also shows incidents inline; this page is the cross-service overview) |
+| `/statistics` | `StatisticsPage` | Started / completed / in progress / failed / cancelled cases per period, service, day and task. Follows the `statistics-viewer` realm role (`canViewStatistics`), not `isCivilServant`; all PartB users have it through their group. See [`statistics.md`](statistics.md). |
 
 ### Shared
 
@@ -275,6 +278,15 @@ whichever applies).
   `setJobRetries(incident.configuration, 1)` so the job executor picks the
   job up again. The worklist also folds incidents into each case's row —
   this page is the flat "what's stuck across the whole engine" view.
+
+### `StatisticsPage` (`src/pages/StatisticsPage.tsx`) — `statistics-viewer`
+
+- Calls `GET /api/statistics` (`api/statisticsApi.ts`), never `/engine-rest`:
+  the backend aggregates the engine history. Filters: period preset or custom
+  dates in the browser's timezone, services and tasks (checkbox lists; none
+  ticked means all). Refreshes every 5 minutes.
+- Charts are plain HTML/SVG coloured by the `--stat-*` tokens; every value
+  is also in text (tiles, legend, tables, tooltips).
 
 ### `TaskDetailView` + `TaskDetailPage` — shared
 

@@ -22,6 +22,8 @@ interface AuthContextValue {
   realmRoles: string[];
   isApplicant: boolean;
   isCivilServant: boolean;
+  /** `statistics-viewer` realm role; all of PartB get it through the civil-servant group. */
+  canViewStatistics: boolean;
   login: () => void;
   register: () => void;
   logout: () => void;
@@ -91,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // A user is treated as a pure applicant only when they're not also a
   // civil servant — admins (Homer) carry both roles in dev seeds.
   const isApplicant = realmRoles.includes('applicant') && !isCivilServant;
+  const canViewStatistics = realmRoles.includes('statistics-viewer');
 
   // Carry the SPA's chosen language into Keycloak. keycloak-js maps `locale`
   // to the OIDC `ui_locales` auth param, so the login/register pages render in
@@ -116,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         realmRoles,
         isApplicant,
         isCivilServant,
+        canViewStatistics,
         login,
         register,
         logout,

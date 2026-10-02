@@ -48,6 +48,15 @@
   --cat-other: #4c5d70;
   --cat-other-soft: #eef3f8;
 
+  /* Case status in statistics charts. Checked with the dataviz validator against
+     --surface: the three hues pass lightness, CVD and contrast; cancelled is a
+     deliberate neutral grey. Started is a total, not a status, and only tints its tile. */
+  --stat-started: #6a44c2;
+  --stat-completed: #0d7f57;
+  --stat-in-progress: #0b57c9;
+  --stat-failed: #c4282d;
+  --stat-cancelled: #6b7889;
+
   --glass: rgba(255, 255, 255, 0.7);
   --glass-edge: rgba(255, 255, 255, 0.95);
   --shadow-color: rgba(11, 27, 47, 0.16);
@@ -121,6 +130,12 @@
   --cat-social-soft: #251c45;
   --cat-other: #9aabbf;
   --cat-other-soft: #132235;
+
+  --stat-started: #9b7df0;
+  --stat-completed: #25a072;
+  --stat-in-progress: #4a8cf0;
+  --stat-failed: #ec5f68;
+  --stat-cancelled: #7d8ca0;
 
   --glass: rgba(14, 26, 42, 0.66);
   --glass-edge: rgba(120, 160, 210, 0.18);

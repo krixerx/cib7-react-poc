@@ -156,6 +156,79 @@ public class EngineClient {
     return ids;
   }
 
+  // --- statistics ---------------------------------------------------------
+
+  private static final int PAGE_SIZE = 1000;
+
+  /** Latest version of every deployed process definition. */
+  public List<JsonNode> latestProcessDefinitions() {
+    JsonNode result =
+        rest.get().uri("/process-definition?latestVersion=true").retrieve().body(JsonNode.class);
+    return toList(result);
+  }
+
+  /**
+   * Historic top-level process instances matching {@code query} (a {@code POST
+   * /history/process-instance} body), paged through until exhausted or {@code limit} rows are read.
+   * Callers pass {@code limit + 1} to detect truncation.
+   */
+  public List<JsonNode> historicProcessInstances(Map<String, Object> query, int limit) {
+    Map<String, Object> body = new LinkedHashMap<>(query);
+    body.put("rootProcessInstances", true);
+    body.put(
+        "sorting",
+        List.of(
+            Map.of("sortBy", "startTime", "sortOrder", "asc"),
+            Map.of("sortBy", "instanceId", "sortOrder", "asc")));
+    return pagedPost("/history/process-instance", body, limit);
+  }
+
+  /** Historic activity instances started at or after {@code startedAfter}, any process. */
+  public List<JsonNode> historicActivityInstancesStartedAfter(String startedAfter, int limit) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("startedAfter", startedAfter);
+    body.put(
+        "sorting",
+        List.of(
+            Map.of("sortBy", "startTime", "sortOrder", "asc"),
+            Map.of("sortBy", "activityInstanceId", "sortOrder", "asc")));
+    return pagedPost("/history/activity-instance", body, limit);
+  }
+
+  /** Every incident that is still open, including the copies propagated to parent instances. */
+  public List<JsonNode> openIncidents() {
+    JsonNode result = rest.get().uri("/history/incident?open=true").retrieve().body(JsonNode.class);
+    return toList(result);
+  }
+
+  private List<JsonNode> pagedPost(String path, Map<String, Object> body, int limit) {
+    List<JsonNode> rows = new ArrayList<>();
+    while (rows.size() < limit) {
+      int first = rows.size();
+      int max = Math.min(PAGE_SIZE, limit - first);
+      JsonNode page =
+          rest.post()
+              .uri(path + "?firstResult={first}&maxResults={max}", first, max)
+              .body(body)
+              .retrieve()
+              .body(JsonNode.class);
+      List<JsonNode> pageRows = toList(page);
+      rows.addAll(pageRows);
+      if (pageRows.size() < max) {
+        break;
+      }
+    }
+    return rows;
+  }
+
+  private static List<JsonNode> toList(JsonNode array) {
+    List<JsonNode> rows = new ArrayList<>();
+    if (array != null && array.isArray()) {
+      array.forEach(rows::add);
+    }
+    return rows;
+  }
+
   // --- variables ---------------------------------------------------------
 
   public String getStringVariable(String processInstanceId, String name) {

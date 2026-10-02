@@ -12,18 +12,21 @@ import TaskDetailPage from './pages/TaskDetailPage';
 import CompletedProcessPage from './pages/CompletedProcessPage';
 import IncidentsPage from './pages/IncidentsPage';
 import MyProcessesPage from './pages/MyProcessesPage';
+import StatisticsPage from './pages/StatisticsPage';
 import { useAuth } from './auth/AuthProvider';
 import { countHistoricProcessInstancesByStarter } from './api/camundaClient';
 
 /**
  * Role-based shell. Anonymous visitors see Services only (catalogue browsing).
  * Applicants (PartA) see Services + My processes. Civil servants (PartB) see
- * Tasks + Incidents. The task-detail and completed-process pages are shared —
+ * Tasks + Incidents. Statistics follow the `statistics-viewer` role rather
+ * than the PartB role, so Keycloak alone decides who sees them. The task-detail and completed-process pages are shared —
  * both roles open the same form pages, just for tasks they're allowed to touch.
  */
 export default function App() {
   const { t } = useTranslation();
-  const { authenticated, username, isCivilServant, login, register, logout } = useAuth();
+  const { authenticated, username, isCivilServant, canViewStatistics, login, register, logout } =
+    useAuth();
   const location = useLocation();
 
   // "My processes" count badge. Refetched whenever the path changes so the
@@ -59,6 +62,10 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  const statisticsLink = canViewStatistics && (
+    <NavLink to="/statistics">{t('app.nav.statistics')}</NavLink>
+  );
+
   const navLinks = !authenticated ? (
     <NavLink to="/" end>
       {t('app.nav.services')}
@@ -69,6 +76,7 @@ export default function App() {
         {t('app.nav.tasks')}
       </NavLink>
       <NavLink to="/incidents">{t('app.nav.incidents')}</NavLink>
+      {statisticsLink}
     </>
   ) : (
     <>
@@ -79,6 +87,7 @@ export default function App() {
         {t('app.nav.myProcesses')}
         {myProcessCount !== null && <span className="nav-badge">{myProcessCount}</span>}
       </NavLink>
+      {statisticsLink}
     </>
   );
 
@@ -163,6 +172,7 @@ export default function App() {
               <Route path="/my-processes" element={<MyProcessesPage />} />
             </>
           )}
+          {canViewStatistics && <Route path="/statistics" element={<StatisticsPage />} />}
           <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
           <Route path="/processes/:processInstanceId" element={<CompletedProcessPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

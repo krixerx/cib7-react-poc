@@ -1,0 +1,55 @@
+{
+  "title": "Statistics",
+  "intro": "Cases started in the selected period and where they stand now. Each case is counted once, so the four statuses add up to Started. Refreshes every 5 minutes.",
+  "refresh": "Refresh",
+  "empty": "No cases were started in this period.",
+  "truncated": "The period holds more cases than one view can count, so the numbers are incomplete. Choose a shorter period or fewer services.",
+  "filters": {
+    "label": "Filters",
+    "date": "Period",
+    "from": "From",
+    "to": "To",
+    "service": "Service",
+    "task": "Task",
+    "all": "All",
+    "selected": "{{count}} selected"
+  },
+  "presets": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "last7": "Last 7 days",
+    "last30": "Last 30 days",
+    "thisMonth": "This month",
+    "custom": "Custom range"
+  },
+  "status": {
+    "started": "Started",
+    "completed": "Completed",
+    "inProgress": "In progress",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "panels": {
+    "status": "Status",
+    "perService": "Per service",
+    "perDay": "Per day",
+    "tasks": "Tasks",
+    "failures": "Open failures"
+  },
+  "tasks": {
+    "none": "No tasks in this period.",
+    "service": "Service",
+    "task": "Task",
+    "completed": "Done",
+    "waiting": "Waiting now",
+    "avgTime": "Average time"
+  },
+  "failures": {
+    "none": "No open failures.",
+    "time": "Time",
+    "service": "Service",
+    "case": "Case",
+    "task": "Task",
+    "error": "Error"
+  }
+}

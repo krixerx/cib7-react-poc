@@ -166,6 +166,11 @@ Every `/api/**` path belongs to exactly one class, chosen by its prefix:
 | `/api/internal/**` | the engine, through the ESB | `X-Internal-Token`; never routed by the ingress |
 | everything else | the SPA, the mobile app, MCP | Keycloak JWT with the `cib7-rest-api` audience |
 
+Inside the JWT class, `/api/statistics/**` additionally requires the
+`statistics-viewer` realm role, read from `realm_access.roles` by
+`RealmRoleAuthorities`. Other JWT endpoints decide access per object
+(rule 6) rather than by role.
+
 `SecurityConfig` ends with a deny-all chain, so a new path outside these
 prefixes is rejected rather than silently open. An endpoint that writes data
 or returns personal data is never public unless it verifies a capability.

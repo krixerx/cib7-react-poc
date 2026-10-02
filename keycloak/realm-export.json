@@ -43,13 +43,14 @@
     "realm": [
       { "name": "applicant",      "description": "End user who starts processes and fills applicant forms (PartA)" },
       { "name": "civil-servant",  "description": "Back-office reviewer who completes civil-servant tasks (PartB)" },
-      { "name": "cib7-admin",     "description": "Engine administrators (mapped to CIB seven admin authorizations)" }
+      { "name": "cib7-admin",     "description": "Engine administrators (mapped to CIB seven admin authorizations)" },
+      { "name": "statistics-viewer", "description": "May open the process statistics page (all of PartB through the civil-servant group)" }
     ]
   },
 
   "groups": [
     { "name": "applicant",     "path": "/applicant",     "realmRoles": ["applicant"] },
-    { "name": "civil-servant", "path": "/civil-servant", "realmRoles": ["civil-servant"] },
+    { "name": "civil-servant", "path": "/civil-servant", "realmRoles": ["civil-servant", "statistics-viewer"] },
     { "name": "cib7-admin",    "path": "/cib7-admin",    "realmRoles": ["cib7-admin"] }
   ],
 
