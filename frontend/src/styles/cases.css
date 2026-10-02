@@ -979,3 +979,42 @@ html[dir='rtl'] .step.active::before {
     grid-column: 2;
   }
 }
+
+/* Draft cards carry a Delete control beside the card link. */
+.mp-action-wrap {
+  position: relative;
+  display: grid;
+  align-content: start;
+}
+
+.mp-draft-delete {
+  position: absolute;
+  inset-block-end: 18px;
+  inset-inline-start: 18px;
+  color: var(--muted);
+}
+
+.mp-draft-delete:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.mp-draft-confirm {
+  position: absolute;
+  inset-inline: 1px;
+  inset-block-end: 1px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-end-start-radius: var(--radius-lg);
+  border-end-end-radius: var(--radius-lg);
+  background: var(--danger-soft);
+  border-block-start: 1px solid var(--danger-border);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mp-draft-confirm span {
+  margin-inline-end: auto;
+}

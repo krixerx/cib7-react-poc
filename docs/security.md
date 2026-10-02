@@ -183,6 +183,14 @@ reference) is checked against the caller before use: case access through
 prefix (`pending/<user>/`, `process/<case>/`). Unknown and forbidden look the
 same (404).
 
+Deleting a draft case is the one place an applicant removes engine state.
+Applicants hold no DELETE grant, so `DELETE /api/cases/{id}`
+(`DraftCaseController`) does it with the service account, and only for the
+user who started the case (`isCaseStarter`, so reviewers cannot), only while
+the case is active and only while none of its user tasks has been completed
+(409 otherwise). Once the first form is submitted the case is on record and
+stays.
+
 ## 7. Encoding at every boundary
 
 - FreeMarker JSON payloads: every user-supplied value through `?json_string`.

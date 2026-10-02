@@ -9,6 +9,7 @@ import {
   PenLine,
   RotateCcw,
   RotateCw,
+  Trash2,
 } from 'lucide-react';
 import {
   getHistoricVariable,
@@ -21,6 +22,7 @@ import {
   type ProcessDefinition,
 } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
+import { deleteDraftCase, listDraftCaseIds } from '../api/draftCaseApi';
 import { getPaymentLink } from '../api/paymentLinkApi';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatDate } from '../i18n/format';
@@ -68,6 +70,8 @@ interface ProcessRow {
   openTaskId: string | null;
   /** Name of the open wait state, e.g. "Wait for co-owner signature". */
   waitingOn: string | null;
+  /** Started but never submitted; the applicant may still delete it. */
+  isDraft: boolean;
 }
 
 /** i18n keys for the status pills; shared labels come from `common`. */
@@ -102,6 +106,7 @@ async function buildRow(
   category: CategoryId,
   username: string,
   waitingOn: { activityId: string; name: string } | null,
+  isDraft: boolean,
 ): Promise<ProcessRow> {
   const base = {
     pi,
@@ -110,6 +115,7 @@ async function buildRow(
     sendBackReason: null,
     openTaskId: null,
     waitingOn: null,
+    isDraft,
   };
   if (pi.endTime) {
     const status: RowStatus = pi.endActivityId === 'EndEvent_Approved' ? 'approved' : 'ended';
@@ -161,10 +167,12 @@ export default function MyProcessesPage() {
     setLoading(true);
     setError(null);
     try {
-      const [defs, instances, openWaits] = await Promise.all([
+      const [defs, instances, openWaits, draftIds] = await Promise.all([
         listProcessDefinitions(),
         listHistoricProcessInstancesByStarter(username),
         listUnfinishedReceiveTasks(),
+        // Without the draft list the page still works, just without Delete.
+        listDraftCaseIds().catch(() => new Set<string>()),
       ]);
       const defById = new Map<string, ProcessDefinition>(defs.map((d) => [d.id, d]));
       // First open receive task per case — one batched call for the page.
@@ -187,6 +195,7 @@ export default function MyProcessesPage() {
             categoryOf(def?.key ?? pi.processDefinitionKey),
             username,
             waitByPI.get(pi.id) ?? null,
+            draftIds.has(pi.id),
           );
         }),
       );
@@ -269,7 +278,11 @@ export default function MyProcessesPage() {
           <h2 className="mp-section-title">{t('sections.attention')}</h2>
           <div className="mp-action-grid">
             {buckets.attention.map((r) => (
-              <ActionCard key={r.pi.id} row={r} />
+              <ActionCard
+                key={r.pi.id}
+                row={r}
+                onDeleted={() => setRows((prev) => prev.filter((p) => p.pi.id !== r.pi.id))}
+              />
             ))}
           </div>
         </section>
@@ -305,8 +318,11 @@ export default function MyProcessesPage() {
   );
 }
 
-function ActionCard({ row }: { row: ProcessRow }) {
+function ActionCard({ row, onDeleted }: { row: ProcessRow; onDeleted: () => void }) {
   const { t } = useTranslation('my-processes');
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const isSentBack = row.status === 'sent-back';
   const isPayment = row.status === 'payment-needed';
   const navigate = useNavigate();
@@ -323,7 +339,18 @@ function ActionCard({ row }: { row: ProcessRow }) {
       navigate(to);
     }
   }
-  return (
+  async function confirmDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteDraftCase(row.pi.id);
+      onDeleted();
+    } catch (e) {
+      setDeleteError(t('draft.deleteFailed', { message: e instanceof Error ? e.message : '' }));
+      setDeleting(false);
+    }
+  }
+  const card = (
     <Link
       to={to}
       onClick={payInstead ? openPayment : undefined}
@@ -346,7 +373,9 @@ function ActionCard({ row }: { row: ProcessRow }) {
             ? t('card.paymentNeeded')
             : isSentBack
               ? t('card.sentBack')
-              : t('card.awaitingSubmission')}
+              : row.isDraft
+                ? t('card.draft')
+                : t('card.awaitingSubmission')}
         </span>
         {row.sendBackReason && (
           <span className="mp-action-reason">
@@ -362,6 +391,45 @@ function ActionCard({ row }: { row: ProcessRow }) {
         <ArrowRight size={16} aria-hidden="true" />
       </span>
     </Link>
+  );
+  if (!row.isDraft) return card;
+  // The delete controls sit beside the card link, not inside it: a button
+  // nested in an <a> is invalid and would also trigger the navigation.
+  return (
+    <div className="mp-action-wrap">
+      {card}
+      {confirming ? (
+        <div className="mp-draft-confirm" role="group" aria-label={t('draft.confirm')}>
+          <span>{t('draft.confirm')}</span>
+          <button
+            type="button"
+            className="btn btn-small btn-danger"
+            onClick={confirmDelete}
+            disabled={deleting}
+          >
+            {t('draft.delete')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => setConfirming(false)}
+            disabled={deleting}
+          >
+            {t('draft.keep')}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-small btn-ghost mp-draft-delete"
+          onClick={() => setConfirming(true)}
+        >
+          <Trash2 size={15} aria-hidden="true" />
+          {t('draft.delete')}
+        </button>
+      )}
+      {deleteError && <p className="form-error">{deleteError}</p>}
+    </div>
   );
 }
 

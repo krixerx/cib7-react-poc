@@ -146,6 +146,51 @@ public class EngineClient {
     }
   }
 
+  /** Ids of the unfinished top-level cases {@code userId} started, newest first. */
+  public List<String> unfinishedInstanceIdsStartedBy(String userId) {
+    JsonNode result =
+        rest.get()
+            .uri(
+                "/history/process-instance?startedBy={user}&unfinished=true"
+                    + "&rootProcessInstances=true&sortBy=startTime&sortOrder=desc&maxResults=100",
+                userId)
+            .retrieve()
+            .body(JsonNode.class);
+    return toList(result).stream().map(pi -> pi.path("id").asText()).toList();
+  }
+
+  /**
+   * How many user tasks of this case have been completed. Zero means the applicant has not
+   * submitted the first form yet, which is what makes a case a draft: three of the four services
+   * loop back to their first task on send-back, so "sitting at the first task" is not enough.
+   */
+  public long finishedTaskCount(String processInstanceId) {
+    JsonNode result =
+        rest.get()
+            .uri("/history/task/count?processInstanceId={id}&finished=true", processInstanceId)
+            .retrieve()
+            .body(JsonNode.class);
+    return result == null ? 0 : result.path("count").asLong(0);
+  }
+
+  /**
+   * Removes a case from the runtime and from history, so it disappears from every list instead of
+   * showing up as an ended case. Listeners and I/O mappings are skipped: nothing a draft could have
+   * triggered needs undoing.
+   */
+  public void deleteProcessInstance(String processInstanceId) {
+    rest.delete()
+        .uri(
+            "/process-instance/{id}?skipCustomListeners=true&skipIoMappings=true",
+            processInstanceId)
+        .retrieve()
+        .toBodilessEntity();
+    rest.delete()
+        .uri("/history/process-instance/{id}", processInstanceId)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
   private List<String> queryInstanceIds(Map<String, Object> queryBody) {
     JsonNode result =
         rest.post().uri("/process-instance").body(queryBody).retrieve().body(JsonNode.class);
