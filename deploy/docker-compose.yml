@@ -130,7 +130,7 @@ services:
     # from ./keycloak/realm-export.json on FIRST start only — edit that file
     # BEFORE the first `up`. To re-import after an edit:
     #   docker compose rm -sf keycloak && docker compose up -d keycloak
-    image: quay.io/keycloak/keycloak:26.1.5
+    image: quay.io/keycloak/keycloak:26.8.0
     container_name: cib7-poc-keycloak
     restart: unless-stopped
     # app: cib7, backend and mcp fetch JWKS/tokens at keycloak:8080. The `iss`
@@ -481,7 +481,7 @@ services:
     #      Issued certs persist in ./traefik/acme/ — losing that directory
     #      forces re-issuance and burns LE rate limits (5 identical certs/week).
     # Not used in single-machine mode — the frontend nginx covers everything.
-    image: traefik:v3.4.5
+    image: traefik:v3.7.13
     container_name: cib7-poc-traefik
     profiles: ["tls"]
     restart: unless-stopped
@@ -668,7 +668,7 @@ services:
     # on 12201 and every shipper would write into a closed port. Idempotent —
     # it matches on input title. Watch it with:
     #     docker compose logs graylog-init
-    image: curlimages/curl:8.11.1
+    image: curlimages/curl:8.22.0
     container_name: cib7-poc-graylog-init
     restart: on-failure
     networks: [logstore]
