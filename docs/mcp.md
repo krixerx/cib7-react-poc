@@ -9,10 +9,13 @@ This module is the **standalone Model Context Protocol (MCP) microservice**
 that exposes the CIB seven deployment as an AI-callable surface. Claude
 Desktop (or any MCP-capable client) connects to `/mcp`, completes an
 OAuth2 PKCE-loopback flow against Keycloak, and drives the deployment
-through **eleven MCP tools** — eight process tools wrapping `/engine-rest`
-plus three identity tools (sign-up URL lookup, password-reset URL lookup,
-and an email-invitation flow that creates an invite-pending Keycloak user
-without ever handling a password). The sidecar is a **Bearer-proxy** in
+through **sixteen MCP tools**: twelve process tools wrapping `/engine-rest`
+and the backend, plus four onboarding tools (a "get started" overview,
+sign-up URL lookup, password-reset URL lookup, and an email-invitation flow
+that creates an invite-pending Keycloak user without ever handling a
+password). Five of the tools also answer a signed-out caller
+([lazy authentication](#lazy-authentication)); everything else needs the
+user's own token. The sidecar is a **Bearer-proxy** in
 front of `/engine-rest` — it forwards the caller's token unchanged on
 every process call. It verifies the JWT (signature against Keycloak's
 JWKS, expiry, issuer and the `cib7-rest-api` audience) at the door so a
@@ -28,16 +31,17 @@ meets them is in [Security controls](#security-controls).
 1. [Stack](#stack)
 2. [Architecture choice — why a sidecar, not an engine plugin](#architecture-choice--why-a-sidecar-not-an-engine-plugin)
 3. [File layout](#file-layout)
-4. [The eleven tools](#the-eleven-tools)
-5. [Auth — OAuth2 PKCE-loopback, step by step](#auth--oauth2-pkce-loopback-step-by-step)
-6. [Connecting Claude Desktop (Windows quirks)](#connecting-claude-desktop-windows-quirks)
-7. [User registration and onboarding](#user-registration-and-onboarding)
-8. [Manifest loading + per-service contracts](#manifest-loading--per-service-contracts)
-9. [Discovery surface (`.well-known`, `<meta>` tags)](#discovery-surface-well-known-meta-tags)
-10. [Configuration surface (env vars)](#configuration-surface-env-vars)
-11. [Run, build, package](#run-build-package)
-12. [Security controls](#security-controls)
-13. [Conventions and extensions](#conventions-and-extensions)
+4. [The sixteen tools](#the-sixteen-tools)
+5. [Lazy authentication](#lazy-authentication)
+6. [Auth — OAuth2 PKCE-loopback, step by step](#auth--oauth2-pkce-loopback-step-by-step)
+7. [Connecting Claude](#connecting-claude)
+8. [User registration and onboarding](#user-registration-and-onboarding)
+9. [Manifest loading + per-service contracts](#manifest-loading--per-service-contracts)
+10. [Discovery surface (`.well-known`, `<meta>` tags)](#discovery-surface-well-known-meta-tags)
+11. [Configuration surface (env vars)](#configuration-surface-env-vars)
+12. [Run, build, package](#run-build-package)
+13. [Security controls](#security-controls)
+14. [Conventions and extensions](#conventions-and-extensions)
 
 ---
 
@@ -106,7 +110,7 @@ mcp/
 ├── package.json                # @modelcontextprotocol/sdk, express, express-rate-limit, tsx, ajv, ajv-formats, jose
 ├── tsconfig.json               # strict, noEmit (tsx runs source)
 ├── Dockerfile                  # node:20-alpine, COPYs from repo root
-├── cib7-bridge.mjs             # stdio↔HTTP bridge for Claude Desktop (see "Connecting Claude Desktop" below)
+├── cib7-bridge.mjs             # stdio↔HTTP bridge for a local stack (see "Connecting Claude" below)
 └── src/
     ├── server.ts               # Express + per-request MCP server/transport + tool registry + LLM instructions
     ├── untrusted.ts            # withUntrustedData: frames applicant-written values for the LLM
@@ -114,6 +118,7 @@ mcp/
     │   ├── audience.ts         # REQUIRED_AUDIENCE (KEYCLOAK_REST_AUDIENCE, default cib7-rest-api)
     │   ├── identity.ts         # decodeBearerUsername (parse only — engine validates)
     │   ├── inviterRole.ts      # send_account_invitation: role + audience predicate, invitation quota
+    │   ├── lazyAuth.ts         # /mcp door: public methods/tools allowlist, 401 challenge for the rest
     │   └── verify.ts           # jwtVerify against Keycloak JWKS — 401 + WWW-Authenticate on stale tokens
     ├── http/
     │   ├── guards.ts           # Host/Origin (DNS rebinding) guard, per-IP and per-user rate limits
@@ -132,40 +137,44 @@ mcp/
 container ships with whatever's in the repo at build time — to add a new
 service or update one, run `/service-builder` and rebuild the image.
 
-## The eleven tools
+## The sixteen tools
 
 All return `{ ok: true, data }` on success or `{ ok: false, status, code,
 message, retryable }` on failure. Schema-validation failures surface as
 `{ code: 'INVALID_VARIABLES', issues: [...] }` (Ajv issues array) without
-hitting `/engine-rest`. Stale tokens are caught at the `/mcp` door by JWT
-verification and return HTTP 401 + `WWW-Authenticate: Bearer error="invalid_token"`,
-which mcp-remote treats as "re-run OAuth" automatically. Engine 5xx
+hitting `/engine-rest`. A missing token on a protected tool, or any stale
+token, is caught at the `/mcp` door and returns HTTP 401 +
+`WWW-Authenticate: Bearer error="invalid_token"`, which the MCP client treats
+as "sign in" (see [Lazy authentication](#lazy-authentication)). Engine 5xx
 surfaces as `{ retryable: true }`. Tools that return applicant-written
 values (`search_cases`, `get_my_profile`, `query_user_history`) put them
 under `untrustedData` behind a fixed `untrustedDataNote`; see
 [Security controls](#security-controls).
 
-**Process tools** (forward the caller's Bearer to `/engine-rest`):
+**Process tools** (forward the caller's Bearer to `/engine-rest` or the backend; `list_services` and `describe_service` also work signed out):
 
 | Tool | Engine endpoint | Purpose |
 |---|---|---|
-| `list_services` | `GET /engine-rest/process-definition?latestVersion=true` | Deployed definitions decorated with `mcpCallable` flag from the manifest registry. |
+| `list_services` | `GET /engine-rest/process-definition?latestVersion=true` (signed out: no call, manifests only) | Deployed definitions decorated with `mcpCallable` flag from the manifest registry. Signed out, the catalog comes from the loaded manifests with `signedIn: false`. |
 | `describe_service(key)` | (no engine call — reads in-memory manifest) | Returns the JSON Schema for `start_process` variables + the LLM training markdown. |
 | `start_process(key, variables)` | `POST /engine-rest/process-definition/key/<k>/start` | Ajv-validates → maps to Camunda `{value, type}` → engine. |
 | `list_my_tasks` | `GET /task?assignee=<me>` + `GET /task?candidateUser=<me>&unassigned=true` (merged, deduped) | Returns tasks the user can act on; `action: 'complete' \| 'claim_then_complete'`. |
 | `get_form_schema(taskId)` | `GET /task/<id>` then look up by formKey | Returns the per-task JSON Schema + audience + description. |
 | `complete_task(taskId, variables)` | (claim if unassigned and the caller is a candidate) + `POST /task/<id>/complete` | Ajv-validates against per-task schema → engine. Claims only after `GET /task/count?taskId=&candidateUser=<me>` confirms candidacy; a task assigned to someone else returns `TASK_ASSIGNED_TO_OTHER`, a non-candidate gets `NOT_A_CANDIDATE`, and a claim the engine refuses returns `CLAIM_FAILED` with the engine status, all without submitting. The tool description tells the agent to show the values (and for review tasks the approve / reject / send-back decision) to the human and get explicit confirmation first. |
+| `save_draft(taskId, variables)` | `POST /task/<id>/localVariables` | Writes a partial, type-checked draft as task-local variables and returns a `portalUrl` where the SPA form opens prefilled. Nothing is submitted; the draft never enters process scope. |
+| `upload_document(category, filename, contentType, base64)` | `POST /api/documents/stage` (backend) | Stages a PDF / JPEG / PNG (≤ 10 MB) and returns `{ pendingKey, filename, contentType }`, which the agent passes verbatim as the task's `requiredDocuments[i].writeTo` variable. |
 | `list_my_processes(processInstanceId?)` | `GET /history/process-instance?startedBy=<me>&sortBy=startTime&sortOrder=desc` | Decorated with state (ACTIVE / COMPLETED / ...). |
 | `query_user_history(variableName)` | Two-step: instances → variable-instance with `processInstanceIdIn` | Most recent value the user ever entered for that variable. Used for autofill (decision A3 / T15). |
 | `get_my_profile()` | Token claims + the same two-step history query, unfiltered | One-shot autofill: identity from the Bearer claims plus the most recent value of every scalar variable the user ever entered (documents / JSON blobs / engine plumbing excluded). Supersedes per-field `query_user_history` calls. |
 | `search_cases(query?, service?, status?)` | `GET /api/cases/search` (backend, not engine) | Case status cards — one prose card per process instance, re-posted by BPMN "Index case" milestone tasks (submitted / sent-back / awaiting-medical / rejected / completed) through the ESB to `POST /api/internal/cases/index` into a plain JPA table. Retrieval is keyword-ranked + exact service/status filters; the LLM does the semantic matching over the returned summaries (no embeddings). Hits are post-filtered through the backend's per-case access rule, so results only cover cases the caller may see. |
 
-**Identity tools** (Keycloak instead of the engine — see [User registration and onboarding](#user-registration-and-onboarding)):
+**Onboarding tools** (Keycloak instead of the engine — see [User registration and onboarding](#user-registration-and-onboarding)):
 
 | Tool | Keycloak endpoint | Purpose |
 |---|---|---|
-| `get_signup_url` | (none — builds the URL locally) | Returns the public hosted Keycloak registration URL plus the steps to relay to the user. Pure URL lookup; performs no action. |
-| `get_password_reset_url` | (none — builds the URL locally) | Returns the public hosted Keycloak `kc_action=reset_credentials` URL plus the steps. Pure URL lookup. |
+| `get_started` | (none — reads the verified claims, if any) | Works signed out. Says whether the user is signed in, lists the services from the manifests, and gives next steps: how sign-in and registration work (with the sign-up and reset URLs) when signed out, which tools to use next when signed in. |
+| `get_signup_url` | (none — builds the URL locally) | Works signed out. Returns the public hosted Keycloak registration URL plus the steps to relay to the user. Pure URL lookup; performs no action. |
+| `get_password_reset_url` | (none — builds the URL locally) | Works signed out. Returns the public hosted Keycloak `kc_action=reset_credentials` URL plus the steps. Pure URL lookup. |
 | `send_account_invitation(username, email, firstName, lastName)` | `POST /admin/realms/<r>/users` + `PUT /admin/realms/<r>/users/<id>/execute-actions-email` | Creates an invite-pending Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]`, then triggers the magic-link email. The invitee sets their own password in Keycloak — the tool never accepts or returns one. Uses the `cib7-backend` service-account client (client_credentials grant), not the caller's Bearer. Requires the `cib7-rest-api` audience plus the `applicant`, `civil-servant` or `cib7-admin` realm role, and is capped at 5 invitations per user per hour and 50 overall (`RATE_LIMITED`). |
 
 The username `<me>` (for process tools) is decoded from the Bearer's
@@ -173,11 +182,47 @@ The username `<me>` (for process tools) is decoded from the Bearer's
 ran at the door). See `mcp/src/auth/identity.ts`.
 
 The tool surface is also wrapped with an MCP **`instructions`** field
-returned in the initialize handshake. It tells the LLM how to handle
-"I'm new", "I forgot my password", and "register someone" requests —
-specifically, to prefer `send_account_invitation` over a static link
-when an email is on hand, and to NEVER ask the user for a password in
-chat. See the `SERVER_INSTRUCTIONS` constant at the top of `server.ts`.
+returned in the initialize handshake. It tells the LLM how signing in works (which tools
+work signed out, that the client shows a sign-in prompt for the rest, that a
+session expires after inactivity), how to handle "I'm new" (`get_signup_url`
+or the Register link), "I forgot my password", and "register someone else"
+(`send_account_invitation`, signed in only), and to NEVER ask the user for a
+password in chat. See the `SERVER_INSTRUCTIONS` constant at the top of
+`server.ts`.
+
+## Lazy authentication
+
+A signed-out user can connect and learn what the deployment offers before
+they have an account; signing in happens only when it is needed. The gate is
+`lazyBearer` in `mcp/src/auth/lazyAuth.ts` (tests in `lazyAuth.test.ts`), and
+it runs before the MCP SDK sees the request:
+
+- **Without a token**, a POST passes only when every JSON-RPC message in it
+  is public: `initialize`, `notifications/initialized`,
+  `notifications/cancelled`, `ping`, `tools/list`, or a `tools/call` of
+  `get_started`, `list_services`, `describe_service`, `get_signup_url` or
+  `get_password_reset_url`. These answer from the manifests or build a URL
+  and never touch user data. Anything else, including an unknown tool or
+  method, a batch that mixes in one protected call, or a malformed body, gets
+  HTTP 401 with
+  `WWW-Authenticate: Bearer resource_metadata="<url>", error="invalid_token", error_description="Sign in required for this tool", scope="openid"`.
+- **A 401 must come from the HTTP layer.** Claude starts sign-in, shows its
+  Connect card and retries the same call only on a transport-level 401; a
+  tool result saying "please sign in" arrives as a 200 and is just text for
+  the model. That is why the check sits in front of the SDK.
+- **With a token**, the token is verified whatever the call, so a stale token
+  gets 401 even on a public tool and the client refreshes or re-authenticates.
+- **An anonymous `GET /mcp`** (the optional server-to-client SSE stream) gets
+  405: this stateless server pushes nothing, and an anonymous open stream
+  would only hold a socket.
+- **Backstop.** `dispatchTool` refuses any non-public tool without a token
+  with `SIGN_IN_REQUIRED`, so a routing mistake cannot run a user-data tool
+  anonymously.
+
+The list is an allowlist on purpose: a new tool is protected until someone
+decides it is harmless without an identity. Signed-out calls still count
+against the per-IP limit, and the per-user limit keys them on the IP.
+
 
 ## Auth — OAuth2 PKCE-loopback, step by step
 
@@ -188,36 +233,43 @@ stdio bridge — see next section) handles the full OAuth flow; the sidecar
 challenges, verifies JWTs at the door, then forwards them.
 
 ```
-1. MCP client POSTs /mcp. No Bearer (or stale one) → 401 +
-   WWW-Authenticate: Bearer resource_metadata="<url>", error="invalid_token".
+1. MCP client POSTs /mcp. Without a Bearer, the handshake, tools/list and
+   the public tools succeed. The first protected tool call (or any call with
+   a stale Bearer) → 401 + WWW-Authenticate: Bearer resource_metadata="<url>",
+   error="invalid_token".
 2. MCP client fetches /.well-known/oauth-protected-resource from the sidecar.
    Sidecar returns { resource, authorization_servers: [keycloak issuer],
    bearer_methods_supported, scopes_supported: ["openid"] }.
 3. MCP client fetches Keycloak's /.well-known/openid-configuration.
-4. MCP client initiates OAuth2 Authorization Code + PKCE with a loopback
-   redirect: http://127.0.0.1:<random-port>/oauth/callback?code=<auth-code>
-   The request uses client_id=cib7-mcp and scope=openid only.
+4. MCP client initiates OAuth2 Authorization Code + PKCE with client_id=cib7-mcp
+   and scope=openid only. The redirect is https://claude.ai/api/mcp/auth_callback
+   for claude.ai / Claude Desktop / mobile, or a loopback
+   http://127.0.0.1:<random-port>/... for Claude Code and mcp-remote.
 5. Browser pops to Keycloak's login page. The page includes "Register" and
    "Forgot Password?" links (realm flags registrationAllowed=true,
    resetPasswordAllowed=true). The user can register inline if they don't
-   have an account; verifyEmail=true means a verification email arrives at
-   Mailpit (smtpServer.host=mailpit, port=1025) and the user clicks the
-   link before the session activates.
-6. After successful login Keycloak redirects to the loopback URL with the
-   auth code. mcp-remote exchanges code → access_token + refresh_token.
+   have an account; verifyEmail=false, so the new account signs in at once.
+6. After successful login Keycloak redirects with the auth code. The client
+   exchanges code → access_token + refresh_token and retries the tool call.
    The token carries: preferred_username + realm_access.roles (cib7-claims
    scope) and aud=cib7-rest-api (cib7-rest-api-audience scope).
 7. MCP client attaches Authorization: Bearer <token> on every subsequent
    /mcp call.
-8. mcp sidecar's requireBearer middleware verifies the JWT against
-   Keycloak's JWKS (signature + issuer). On signature mismatch or expiry
-   it returns HTTP 401 + WWW-Authenticate, which mcp-remote treats as a
-   re-auth signal — fresh OAuth dance, browser pops again.
+8. mcp sidecar's lazyBearer middleware verifies the JWT against
+   Keycloak's JWKS (signature, expiry, issuer, audience). On failure it
+   returns HTTP 401 + WWW-Authenticate, which the client treats as a
+   refresh or re-auth signal.
 9. On verification success the sidecar forwards the same token to
    /engine-rest. RestApiSecurityConfig validates issuer + audience +
    signature again; KeycloakAuthenticationFilter binds the user into
    IdentityService; engine enforces per-user authorization.
 ```
+
+**Session length.** Access tokens live 5 minutes and the client refreshes
+them. The realm's SSO idle timeout is 30 minutes and there is no
+`offline_access`, so after about half an hour without use the refresh fails
+and the chat shows the sign-in prompt again. That is accepted for now;
+`SERVER_INSTRUCTIONS` tells the agent to explain it.
 
 **Why scope is just `openid`.** The realm export doesn't define the
 built-in `profile` / `email` client scopes (Keycloak's realm import
@@ -231,8 +283,10 @@ scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
 **Keycloak realm artifacts** that make all of this work
 (see [`keycloak/realm-export.json`](../keycloak/realm-export.json)):
 
-- **Client `cib7-mcp`** — public client, PKCE required, loopback redirect
-  wildcard (`http://127.0.0.1/*`, `http://localhost/*`). Default scopes:
+- **Client `cib7-mcp`** — public client, PKCE required. Redirects: the
+  loopback wildcards (`http://127.0.0.1/*`, `http://localhost/*`, any port)
+  for Claude Code and mcp-remote, and `https://claude.ai/api/mcp/auth_callback`
+  for claude.ai, Claude Desktop and mobile connectors. Default scopes:
   `cib7-claims`, `cib7-rest-api-audience`.
 - **Client `cib7-frontend`** — public SPA client, PKCE required. Default
   scope: `cib7-claims`. Carries the audience mapper inline (legacy from
@@ -248,58 +302,71 @@ scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
   `realm-management` roles: `query-users`, `view-users`, `query-groups`,
   `query-clients`, `view-clients`, **`manage-users`**. Used by
   `send_account_invitation` to create invite-pending users via admin REST.
-- **Realm `frontendUrl`** attribute pinned to `http://localhost:8180` —
-  forces every generated link (OIDC issuer, action-token emails) to the
-  public URL regardless of which container called the admin API. Without
+- **Realm `frontendUrl`** attribute, set from the `${PUBLIC_KEYCLOAK_URL}`
+  placeholder — forces every generated link (OIDC issuer, action-token
+  emails) to the public URL regardless of which container called the admin
+  API. Without
   this, invitation emails triggered from the MCP container would contain
   `http://keycloak:8080/...` links the browser can't reach.
-- **Realm flags** — `registrationAllowed`, `resetPasswordAllowed`,
-  `verifyEmail` all `true`; `defaultGroups: ["/applicant"]` so any
+- **Realm flags** — `registrationAllowed` and `resetPasswordAllowed`
+  `true`, `verifyEmail` `false` (a self-registered account works at once;
+  on the public deployment the inbox is Mailpit behind a login, so a
+  verification mail could not be read); `defaultGroups: ["/applicant"]` so any
   self-registered or invited user lands in the applicant group; SMTP
   pointed at `mailpit:1025`.
 
-**MCP host caveat:** the `client_id` the MCP client uses depends on its
-release. Claude Desktop on Windows currently goes through the
-`mcp-remote` stdio bridge (next section). The bridge defaults to Dynamic
-Client Registration (DCR), but Keycloak's "Trusted Hosts" anonymous-DCR
-policy rejects it. We pin `cib7-mcp` instead via
-`--static-oauth-client-info '{"client_id":"cib7-mcp"}'`. If a future MCP
-client speaks the URL form natively and prefers DCR, allow it via a
-`clientRegistrationPolicies` block in the realm export.
+Both realm files change together: `keycloak/realm-export.json` (local
+compose) and `deploy/keycloak/realm-export.json` (the public deployment).
+The realm is imported once, at Keycloak's first start, so a change reaches a
+running deployment only through `deploy.sh --realm`, which recreates
+Keycloak and drops users registered at runtime. Restart `cib7` once Keycloak
+is healthy again; the engine exits if Keycloak is down at its startup.
 
-## Connecting Claude Desktop (Windows quirks)
+**Why clients pass a fixed `client_id`.** MCP clients identify themselves by
+Dynamic Client Registration (DCR) or a Client ID Metadata Document (CIMD)
+when they can. Keycloak 26.1.5 offers neither: its "Trusted Hosts"
+anonymous-DCR policy rejects the registration, and CIMD only arrived as an
+experimental feature in Keycloak 26.6. So every client is given `cib7-mcp`:
+in the connector's Advanced settings, with `--client-id` for Claude Code,
+and via `--static-oauth-client-info` in the bridge. Upgrading Keycloak and
+enabling CIMD is the later zero-config path.
 
-Claude Desktop's MCP config supports both `{ "url": "..." }` (native HTTP
-transport) and the older `{ "command": "...", "args": [...] }` (stdio).
-Current Claude Desktop **rejects the URL form on startup** with "not
-valid MCP server configuration." So we go through `mcp-remote` — an npm
-package that runs locally as a stdio child, opens an HTTP transport to
-our `/mcp` endpoint, and handles the OAuth dance.
+## Connecting Claude
 
-Three quirks bit us on Windows and the bridge script (`mcp/cib7-bridge.mjs`)
-exists to work around all three:
+**claude.ai, Claude Desktop, Claude mobile (custom connector).** Customize >
+Connectors > Add custom connector, URL `https://<host>/mcp`, and under
+Advanced settings OAuth Client ID `cib7-mcp`, no secret. The connector is
+reached from Anthropic's cloud (`160.79.104.0/21`), even when the user runs
+Claude Desktop locally, so only the public deployment works this way, and
+Keycloak's discovery endpoints must be reachable from that range too. The
+`resource` in the protected resource metadata must equal the URL the user
+enters, so `MCP_RESOURCE_URL` must be the public `/mcp` URL.
 
-1. **Windows shell mangling.** `npx -y mcp-remote http://localhost:3000/mcp
-   --static-oauth-client-info '{"client_id":"cib7-mcp"}'` strips the inner
-   double-quotes inside the JSON value when the args pass through
-   `cmd.exe` and then `npx.cmd`. PowerShell's `&` operator does the same.
-   `mcp-remote` then fails parsing the JSON. Solution: build the JSON in
-   JavaScript and import `mcp-remote`'s entry directly with the assembled
-   `process.argv`. No shell layer in the path.
-2. **`{"url":...}` rejected.** Current Claude Desktop only accepts stdio.
-   The bridge wraps the HTTP server in a stdio child it can spawn.
-3. **Keycloak rejects DCR.** Pinning `client_id=cib7-mcp` via
-   `--static-oauth-client-info` skips the registration call.
+**Claude Code.**
 
-**One-time setup:**
+```bash
+claude mcp add --transport http --client-id cib7-mcp cib7 https://<host>/mcp
+```
+
+Claude Code redirects to a loopback port, which the `cib7-mcp` wildcards
+already allow.
+
+Either way, connecting asks for nothing. The first tool call that needs the
+user's account shows a sign-in prompt in the chat, and the call is retried
+after sign-in.
+
+**Local stack: the stdio bridge.** The cloud cannot reach
+`http://localhost:3000`, so for a local stack Claude Desktop still goes
+through `mcp-remote`, launched by `mcp/cib7-bridge.mjs`. The launcher exists
+because Windows shells strip the inner quotes of the inline JSON passed to
+`--static-oauth-client-info`; it builds the JSON in JavaScript and imports
+`mcp-remote`'s entry with the assembled `process.argv` instead. It finds
+`mcp-remote` through `npm root -g`, exits with an install hint if it is
+missing, and targets `http://localhost:3000/mcp` unless `CIB7_MCP_URL` is set.
 
 ```bash
 npm install -g mcp-remote
 ```
-
-The bridge expects it at `C:\nvm4w\nodejs\node_modules\mcp-remote\dist/proxy.js`
-(npm global path on the dev box). Edit the `PROXY_ENTRY` constant in
-`mcp/cib7-bridge.mjs` if your npm root differs (`npm root -g`).
 
 **`claude_desktop_config.json`** (at `%APPDATA%\Claude\claude_desktop_config.json`):
 
@@ -316,27 +383,21 @@ The bridge expects it at `C:\nvm4w\nodejs\node_modules\mcp-remote\dist/proxy.js`
 }
 ```
 
-Fully quit Claude Desktop (tray → Quit), reopen, open a new chat. The
-first MCP tool call pops a browser to Keycloak; log in (or register).
-Tokens are cached at `~/.mcp-auth/` and survive Claude Desktop restarts.
+Fully quit Claude Desktop (tray > Quit), reopen, open a new chat. Tokens are
+cached at `~/.mcp-auth/` and survive Claude Desktop restarts.
 
 **Realm rebuild reset.** Re-importing the realm rotates Keycloak's
 signing keys, so any cached `~/.mcp-auth/` tokens become invalid
 signatures. The next MCP call returns 401 + `WWW-Authenticate` and
-mcp-remote SHOULD trigger a fresh OAuth flow automatically — but the
+mcp-remote SHOULD trigger a fresh OAuth flow automatically, but the
 re-auth UX is silent (browser pops with no Claude Desktop chat
 notification). If the connector seems wedged:
 
 ```
-1. Quit Claude Desktop (tray → Quit; closing the window is not enough).
+1. Quit Claude Desktop (tray > Quit; closing the window is not enough).
 2. rm -rf ~/.mcp-auth/
 3. Reopen Claude Desktop. Next tool call triggers a clean OAuth dance.
 ```
-
-For other MCP clients (Cursor, Codex, Windsurf, claude.ai web), once
-they support the URL form natively, drop the bridge and use
-`{ "url": "http://localhost:3000/mcp" }`. The MCP server itself is
-client-agnostic.
 
 ## User registration and onboarding
 
@@ -344,9 +405,9 @@ Three paths an applicant can sign up, each with a different UX trade-off:
 
 | Path | Tool / Surface | What the user does | Who owns the password |
 |---|---|---|---|
-| **Self-registration via the SPA** | "Register" button on `http://localhost:3000` → `keycloak.register()` | Fill the Keycloak form themselves (username, email, name, password ×2) → verify email in Mailpit → signed in. | The user, in Keycloak's hosted form. |
-| **Self-registration via chat (URL lookup)** | `get_signup_url` MCP tool | LLM returns the same Keycloak registration URL + step-by-step. Useful when the user is chatting with Claude before they've discovered the SPA. | The user, in Keycloak's hosted form. |
-| **Invite by email via chat** | `send_account_invitation` MCP tool | LLM collects `{ username, email, firstName, lastName }` — never a password. The tool creates the Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]` via admin REST and triggers `execute-actions-email`. Invitee clicks the magic link in Mailpit, sets their own password in Keycloak's form, signed in. | The invitee, in Keycloak's hosted form. The MCP service never accepts or stores a password. |
+| **Self-registration via the SPA** | "Register" button on `http://localhost:3000` → `keycloak.register()` | Fill the Keycloak form themselves (username, email, name, password ×2) → signed in at once (no email verification). | The user, in Keycloak's hosted form. |
+| **Self-registration via chat** | `get_signup_url` or `get_started` (both work signed out), or the "Register" link on the sign-in page the connector opens | LLM returns the same Keycloak registration URL + step-by-step. Useful when the user is chatting with Claude before they've discovered the SPA. | The user, in Keycloak's hosted form. |
+| **Invite by email via chat** | `send_account_invitation` MCP tool (inviter must be signed in) | LLM collects `{ username, email, firstName, lastName }` — never a password. The tool creates the Keycloak user with `requiredActions: ["UPDATE_PASSWORD","VERIFY_EMAIL"]` via admin REST and triggers `execute-actions-email`. Invitee clicks the magic link in Mailpit, sets their own password in Keycloak's form, signed in. | The invitee, in Keycloak's hosted form. The MCP service never accepts or stores a password. |
 
 All three paths land the user in the `/applicant` group via the realm's
 `defaultGroups: ["/applicant"]`, which grants them `applicant` realm
@@ -368,6 +429,12 @@ restarts.
 `get_password_reset_url` returns the Keycloak `kc_action=reset_credentials`
 deep link. The user enters their email, gets a reset email at Mailpit,
 clicks, sets a new password, signed in.
+
+**Mail on the public deployment.** Reset and invitation emails still go to
+Mailpit, which on the public deployment sits behind a Keycloak login. A user
+who cannot sign in cannot read their reset mail there, and an invitee cannot
+read their invitation, so on that deployment both flows are effectively
+admin-assisted until Mailpit is replaced by a real SMTP relay.
 
 The LLM playbook for routing requests to the right tool lives in
 `SERVER_INSTRUCTIONS` (top of `server.ts`). It's returned in the MCP
@@ -434,15 +501,17 @@ configuration — including from a bare `GET /` before any page renders:
 |---|---|---|
 | HTTP `Link` header | On every `GET /` (added by `frontend/nginx.conf`) | `</mcp>; rel="mcp-server"`, the manifest, and the OAuth metadata — the highest-signal hint for a headless agent that only fetches the homepage. Plus an `X-MCP-Server: /mcp` header. |
 | Top-level manifest | `/.well-known/mcp.json` (served by `mcp:8090`) | Self-describing JSON: endpoint, `streamable-http` transport, OAuth pointer, a paste-ready `mcp-remote` client config, the `SERVER_INSTRUCTIONS` playbook, and the live service catalog. |
-| `llms.txt` | `/llms.txt` (served by `mcp:8090`) | The [llmstxt.org](https://llmstxt.org) plain-text convention — readable with no MCP handshake. Endpoint, auth, client command, and the service list. |
+| `llms.txt` | `/llms.txt` (served by `mcp:8090`) | The [llmstxt.org](https://llmstxt.org) plain-text convention — readable with no MCP handshake. Endpoint, auth, how to connect (custom connector with client id `cib7-mcp`, Claude Code command), the service list, and getting-started text that says which tools work signed out. |
 | HTML `<meta>` / `<link>` | `frontend/index.html` | `<meta name="mcp-server" content="/mcp">` + `<link rel="mcp-manifest" href="/.well-known/mcp.json">` for agents that parse page HTML. |
-| Server-level metadata | `/.well-known/oauth-protected-resource` (proxied to `mcp:8090`) | OAuth2 protected-resource metadata (RFC 9728) — points to Keycloak as the authorization server. Returns `{ resource, authorization_servers, bearer_methods_supported, scopes_supported: ["openid"] }`. |
+| Server-level metadata | `/.well-known/oauth-protected-resource`, also at the path-suffixed `/.well-known/oauth-protected-resource/mcp` that Claude tries first (RFC 9728 § 3.1; proxied to `mcp:8090`) | OAuth2 protected-resource metadata (RFC 9728) — points to Keycloak as the authorization server. Returns `{ resource, authorization_servers, bearer_methods_supported, scopes_supported: ["openid"] }`. |
 | Per-service catalog | `/.well-known/mcp/services.json` (served by `mcp:8090`) | The aggregated services index, derived live from the loaded manifests. |
 | MCP `instructions` | Returned in the initialize handshake on `/mcp` | LLM-facing playbook (the `SERVER_INSTRUCTIONS` constant in `server.ts`) — tells the model how to route registration / password-reset / "what can I do" questions to the right tools. |
 
-The `.json` / `llms.txt` / `oauth-protected-resource` paths are routed to the
-MCP sidecar in **both** `frontend/nginx.conf` (the local / Traefik-down
-fallback) and `deploy/traefik/dynamic/routes.yml` (the live ingress) so they
+The `.json` / `llms.txt` / `oauth-protected-resource` paths (both forms) are
+routed to the MCP sidecar in **both** `frontend/nginx.conf` (the local /
+Traefik-down fallback) and `deploy/traefik/dynamic/routes.yml` (the live
+ingress, copied from `routes.yml.example`; an existing copy on a server needs
+the `/.well-known/oauth-protected-resource/mcp` path added by hand) so they
 return real content, not the SPA shell. Any other `/.well-known/*` probe
 returns an honest `404` (`location /.well-known/` in nginx) rather than a
 misleading `200` of `index.html`.
@@ -522,7 +591,10 @@ Every control has a negative test under `mcp/src/`.
   `aud` lacks `cib7-rest-api` (or has no `aud` at all) gets 401 with
   `error_description="wrong_audience"`. Test: `auth/verify.test.ts`.
 - **Request pipeline on `/mcp`**, in this order: Host/Origin guard → per-IP
-  rate limit → token verification → per-user rate limit → MCP transport.
+  rate limit → lazy token check (`lazyBearer`: a sent token is always
+  verified; without one, only the public methods and tools pass, everything
+  else gets 401, an anonymous GET 405) → per-user rate limit (keyed on the
+  IP when signed out) → MCP transport. Tests: `auth/lazyAuth.test.ts`.
   - The Host guard is the SDK's `hostHeaderValidation` middleware
     (port-agnostic hostname match). The SDK's transport options
     `allowedHosts` / `enableDnsRebindingProtection` are deprecated in SDK
@@ -574,7 +646,10 @@ Every control has a negative test under `mcp/src/`.
 - **JWT fully verified at the door.** `auth/verify.ts` runs JOSE
   `jwtVerify` against Keycloak's JWKS with issuer and audience, so stale
   or foreign tokens fail fast with HTTP 401 + `WWW-Authenticate`, the
-  signal mcp-remote needs to re-run OAuth. The engine checks the same
+  signal the MCP client needs to refresh or re-run OAuth. A request
+  without any token reaches only the public tools (see
+  [Lazy authentication](#lazy-authentication)); a new tool is protected
+  unless it is added to `PUBLIC_TOOLS` in `auth/lazyAuth.ts`. The engine checks the same
   things again on every forwarded call; the sidecar cannot rely on that
   alone because `send_account_invitation` never reaches the engine.
   `auth/identity.ts` reads `preferred_username` for query construction
