@@ -57,8 +57,8 @@ cd frontend && npm test -- --run src/api/bpmn.test.ts
 ```
 
 `npm run typecheck` is the cheapest correctness check after a TypeScript change.
-Node 24 for `frontend` (TEDI's engines require node >=24 and npm >=11, and npm 10
-crashes resolving vitest 4's peers, so write locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
+Node 24 for `frontend` (npm 10 crashes resolving vitest 4's peers, so write
+locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
 modules.
 
 Regenerate a service's flow diagram after touching its BPMN:
@@ -224,12 +224,15 @@ containers. The short form:
   `locales/<lang>/<namespace>.json`; the file name is the i18next namespace and a
   component opts in with `useTranslation('<namespace>')`. Supported languages are
   `en` and `ar` (RTL), so a translated screen needs both files.
-- **TEDI first, MUI for complex data components.** Import TEDI from
-  `@tedi-design-system/react/tedi`. MUI is pinned to v5 on purpose because TEDI
-  bundles MUI v5 internally and two Emotion trees break styling.
-  `TransportPermitApplicationForm.tsx` is the TEDI reference form,
-  `IncidentsPage.tsx` the MUI DataGrid reference. TEDI's `LabelProvider` is pinned
-  to `en` since its internal microcopy has no Arabic.
+- **Styling is plain CSS on tokens; no component library.** Every colour is a
+  token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
+  literal colour in a rule breaks one scheme. Area styles live in
+  `frontend/src/styles/*.css`; `src/styles.css` is the legacy sheet being
+  emptied. Generated forms rely on the class contract in the service-builder
+  template (`field`, `field-input`, `form-banner`, `btn`), so restyle those
+  classes rather than editing forms. Icons are `lucide-react`. MUI v5 is kept
+  only for the `IncidentsPage.tsx` DataGrid, themed per scheme in
+  `src/theme/mui.ts`.
 - **The `graylog` Spring profile is what turns GELF on.** `cib7` and `backend`
   define their GELF appender inside `<springProfile name="graylog">` in
   `logback-spring.xml`, and docker-compose sets `SPRING_PROFILES_ACTIVE=graylog`.

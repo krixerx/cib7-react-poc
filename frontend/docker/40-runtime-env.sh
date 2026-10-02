@@ -36,7 +36,7 @@ KC_ORIGIN=$(origin_of "${KEYCLOAK_URL:-http://localhost:8180}")
 S3_ORIGIN=$(origin_of "${S3_PUBLIC_URL:-http://localhost:9000}")
 [ -n "$S3_ORIGIN" ] || S3_ORIGIN=http://localhost:9000
 
-# 'unsafe-inline' in style-src only: Emotion (MUI, TEDI) injects <style> tags
+# 'unsafe-inline' in style-src only: Emotion (MUI) injects <style> tags
 # at runtime. Scripts stay 'self' — the Vite build emits no inline script and
 # env.js is a file. Google Fonts is the stylesheet index.html links.
 CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: ${S3_ORIGIN}; connect-src 'self' ${KC_ORIGIN} ${S3_ORIGIN}; frame-src ${KC_ORIGIN}; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' ${KC_ORIGIN}; frame-ancestors 'none'"

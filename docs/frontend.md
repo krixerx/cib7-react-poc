@@ -26,24 +26,24 @@ adding a new form, page, or REST call; when changing how a user task is rendered
 | Framework | React 18 |
 | Router | React Router 6 |
 | Build / dev server | Vite 5 |
-| UI components | **TEDI** (`@tedi-design-system/react` v18, base library) + **MUI v5** (`@mui/material`, `@mui/x-data-grid` — complex data components) |
-| Styling | TEDI base CSS + plain CSS in `src/styles.css` |
+| UI components | Own CSS design system + **MUI v5** (`@mui/x-data-grid`) for the Incidents grid only |
+| Styling | Plain CSS on tokens: `src/styles/tokens.css` + area sheets in `src/styles/` (legacy `src/styles.css` being emptied) |
+| Icons | `lucide-react` |
 | HTTP | `fetch` (no axios / SWR / React Query) |
 | Auth | `keycloak-js` (OIDC PKCE against Keycloak) |
 
-**TEDI is the base component library; MUI fills the gaps** (data grids,
-calendars, wizards). MUI stays at v5 on purpose — TEDI bundles MUI v5
-internally, and matching it keeps one MUI/Emotion tree. Providers are wired
-in `main.tsx` (`StyleProvider` + `LabelProvider locale="en"` — TEDI ships
-only et/en/ru labels — + MUI `ThemeProvider` from `src/theme/mui.ts`), with
-TEDI's stylesheet imported **before** `styles.css` so portal overrides win.
-Reference implementations: `forms/transport-permit-application/` (TEDI form
-controls; note the `singleValue()` helper for TEDI's multi-select-typed
-`Select` onChange, and that the prop is `disabled`, not `isDisabled`) and
-`pages/IncidentsPage.tsx` (MUI `DataGrid` hosting a TEDI Button via
-`renderCell`). TEDI forms use `<form className="form form-tedi">` for
-flex-gap spacing. Older forms still use the hand-rolled `.field` markup —
-convert them to TEDI when touched.
+**Design system.** `src/styles/tokens.css` defines every colour for a light
+and a dark scheme (`<html data-theme>`, set before first paint by
+`public/theme-init.js` and toggled through `src/theme/colorScheme.ts`), the
+category accents, fonts (Sora headings, Instrument Sans text, Red Hat Mono
+case references, Noto Sans Arabic under `lang="ar"`) and radii.
+`src/styles/base.css` holds the shared primitives (buttons, cards, pills,
+glass surfaces, motion with a `prefers-reduced-motion` cut-off); the other
+files in `src/styles/` style one area each. Generated forms keep the
+service-builder class contract (`field`, `field-input`, `form-banner`,
+`btn btn-primary`), so restyling never requires regenerating a form.
+MUI v5 renders only the `pages/IncidentsPage.tsx` DataGrid, wrapped in a
+`ThemeProvider` whose palette follows the active scheme (`src/theme/mui.ts`).
 
 There are no state libraries; state is local React state.
 
@@ -51,11 +51,13 @@ There are no state libraries; state is local React state.
 
 ```
 frontend/src/
-├── main.tsx                       — bootstraps React + Router + AuthProvider + TEDI/MUI providers
+├── main.tsx                       — bootstraps React + Router + AuthProvider, imports the stylesheets
 ├── App.tsx                        — layout shell, role-based nav + routes
-├── styles.css
+├── styles.css                     — legacy stylesheet, emptied area by area
+├── styles/                        — tokens.css, base.css and one sheet per area
 ├── theme/
-│   └── mui.ts                     — MUI theme (brand palette for the components TEDI doesn't cover)
+│   ├── colorScheme.ts             — light/dark scheme: resolve, toggle, useColorScheme()
+│   └── mui.ts                     — MUI theme per scheme (Incidents DataGrid only)
 ├── vite-env.d.ts                  — Vite client types + VITE_KEYCLOAK_* env vars
 ├── auth/
 │   ├── keycloak.ts                — keycloak-js singleton + ensureFreshToken()
