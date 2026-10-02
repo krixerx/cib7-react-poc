@@ -73,7 +73,7 @@ jobs:
     steps:
       # Only here for ./.github/actions/vm-ssh below — a local action has to be
       # on disk before it can be used.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Network path to the host
         run: |
@@ -163,7 +163,7 @@ jobs:
       VM_USER: ${{ vars.VM_USER || secrets.VM_USER }}
       DEPLOY_DIR: ${{ vars.VM_DEPLOY_DIR || '/opt/cib7-poc/deploy' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve the image tag
         id: tag
