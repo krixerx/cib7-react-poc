@@ -1,7 +1,7 @@
 # --- build stage ---------------------------------------------------------
-# Node 22, matching quality.yml: npm 10.9 (Node 22) and 10.8 (Node 20) hoist
-# TEDI's dependencies differently, and the lock is written on 22.
-FROM node:22.23.3-alpine AS build
+# Node 24, matching quality.yml: TEDI's engines require node >=24 and npm >=11,
+# and the lock is written with npm 11.
+FROM node:24.21.0-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install

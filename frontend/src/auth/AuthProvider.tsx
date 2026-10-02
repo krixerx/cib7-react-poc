@@ -83,8 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authenticated = keycloak.authenticated === true;
   const token = keycloak.tokenParsed as
-    | { preferred_username?: string; sub?: string; realm_access?: { roles?: string[] } }
-    | undefined;
+    { preferred_username?: string; sub?: string; realm_access?: { roles?: string[] } } | undefined;
 
   const username = authenticated ? (token?.preferred_username ?? token?.sub ?? 'unknown') : '';
   const realmRoles = authenticated ? (token?.realm_access?.roles ?? []) : [];
