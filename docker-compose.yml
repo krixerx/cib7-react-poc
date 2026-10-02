@@ -122,7 +122,7 @@ services:
     #     docker compose -f docker-compose.yml -f docker-compose.prod.yml \
     #         --profile traefik up -d
     profiles: ["traefik"]
-    image: traefik:v3.4.5
+    image: traefik:v3.7.13
     container_name: cib7-poc-traefik
     networks: [edge]
     command:
@@ -330,7 +330,7 @@ services:
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).
-    image: quay.io/keycloak/keycloak:26.1.5
+    image: quay.io/keycloak/keycloak:26.8.0
     container_name: cib7-poc-keycloak
     command: ["start-dev", "--import-realm"]
     # cib7, backend and mcp reach it as keycloak:8080 for JWKS, tokens and the
@@ -791,7 +791,7 @@ services:
     # existing inputs by title before creating anything, so it is safe on
     # every `docker compose up`. Watch it with:
     #     docker compose logs graylog-init
-    image: curlimages/curl:8.11.1
+    image: curlimages/curl:8.22.0
     container_name: cib7-poc-graylog-init
     networks: [logstore]
     entrypoint: ["/bin/sh"]
