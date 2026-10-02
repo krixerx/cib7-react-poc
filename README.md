@@ -283,6 +283,13 @@ not a certification. No external penetration test has been done.
 | A09 Logging and monitoring | Structured GELF logs with the acting user id go to Graylog, which is loopback-only. The engine history records who did what. |
 | A10 SSRF | Every connector URL is built on a reserved `busBaseUrl` bean. Separate Docker networks isolate the services, and Gotenberg renders with JavaScript off and internal hosts on a deny list. |
 
+**Code scanning:** besides the dependency, secret and image scans that run on
+every push, the [`codeql`](.github/workflows/codeql.yml) workflow runs GitHub
+CodeQL static analysis (`security-extended` queries) over the Java, TypeScript
+and GitHub Actions code. It runs only when started by hand from the Actions
+tab (**codeql** > **Run workflow**), and its findings appear under
+**Security** > **Code scanning**.
+
 **Demo exemptions:** the seeded users and passwords, dev-default secrets,
 self-signed TLS, Keycloak `start-dev` and in-memory H2 are accepted for the
 demo and listed in `docs/security.md`. Replace them before real use.

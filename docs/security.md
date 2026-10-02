@@ -254,7 +254,8 @@ same (404).
 - CI scans dependencies and images, and images are published only after the
   quality workflow passes (`docker-publish.yml` calls `quality.yml`, then a
   Trivy image scan; `security.yml` runs `npm audit` and a Trivy filesystem
-  scan; Dependabot proposes updates).
+  scan; Dependabot proposes updates). CodeQL static analysis of our own
+  code (`codeql.yml`) is available but runs only when started by hand.
 
 ## 12. Secrets
 

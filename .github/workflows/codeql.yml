@@ -1,0 +1,44 @@
+# Static analysis (SAST) of our own code with GitHub CodeQL.
+#
+# Manual only on purpose: it is the slowest scan we have and finds code
+# patterns, not new advisories, so it adds little on every push. Run it before
+# a release or a security review; results land in the repository's
+# Security > Code scanning tab, not in the job log.
+#
+# Java and TypeScript use build-mode none, so no Maven or npm build runs here
+# and the scan does not depend on JDK 21 or Node 24 being set up. Flutter
+# (mobile/) is Dart, which CodeQL does not support.
+name: codeql
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # java-kotlin covers cib7 and backend; javascript-typescript covers
+        # frontend, mcp, pdf-renderer and scripts; actions
+        # checks the workflows themselves.
+        language: [java-kotlin, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned to a commit, like trivy-action in security.yml.
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          category: /language:${{ matrix.language }}
