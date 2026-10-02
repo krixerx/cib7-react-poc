@@ -31,7 +31,9 @@ findings:
 
 - The seeded Keycloak users and their passwords (`admin`/`admin`,
   `homer`/`homer`, `bart`/`bart`), the Keycloak bootstrap admin, open
-  self-registration, and Keycloak's `start-dev` mode.
+  self-registration without email verification (`verifyEmail` is off so a
+  visitor can register on the public deployment, where mail only reaches
+  Mailpit), and Keycloak's `start-dev` mode.
 - Development defaults for secrets in the compose files (`:-...-change-me`).
   `DefaultSecretsGuard` warns about them at startup; a real deployment sets
   `APP_REQUIRE_REAL_SECRETS=true`, which turns the warning into a refusal to
@@ -242,6 +244,12 @@ stays.
 
 - The MCP sidecar validates the token's signature, issuer and audience before
   forwarding it.
+- Only reference-data tools answer without a token: ones that read the
+  service manifests or build a public URL, and never touch user data or call
+  the engine, the backend or Keycloak. The list is an allowlist
+  (`mcp/src/auth/lazyAuth.ts`), so a new tool or method needs a token until it
+  is added on purpose. Every other call without a token gets HTTP 401 before
+  any tool runs, and a token that is present must be valid whatever it calls.
 - Applicant-written text returned to an LLM is wrapped as untrusted data and
   never placed where it reads as instructions.
 - Tools that complete a task tell the agent, in the tool description, to show

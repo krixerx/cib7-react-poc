@@ -1,15 +1,16 @@
 /*
  * CIB seven login theme — public-demo email notice.
  *
- * The companylab.ai instance is a PUBLIC demo: Keycloak's "verify email" step is
- * on (realm-export.json `verifyEmail: true`) and SMTP is wired to a shared
- * Mailpit test inbox, not a real mail server. So a registrant's verification
- * email — and every process notification — lands in one inbox that anyone can
- * open. This script progressively enhances two pages with a notice:
+ * The companylab.ai instance is a PUBLIC demo: SMTP is wired to a shared
+ * Mailpit test inbox, not a real mail server, so every process notification
+ * lands in one inbox that anyone signed in can open. Self-registration skips
+ * email verification (realm-export.json `verifyEmail: false`) for that reason;
+ * only invited users still meet the "verify your email" page. This script
+ * progressively enhances two pages with a notice:
  *
  *   1. the registration form, right under the e-mail field (pre-warning), and
- *   2. the post-registration "verify your email" page (where they're stuck),
- *      with a direct link to the inbox.
+ *   2. the "verify your email" page an invited user may reach, with a direct
+ *      link to the inbox.
  *
  * It is deliberately a theme resource (loaded via theme.properties `scripts=`)
  * rather than an .ftl override: the cib7 theme intentionally does NOT fork
@@ -36,7 +37,7 @@
     ? {
         title: "بيئة تجريبية",
         registerBody:
-          "هذا عرض تجريبي عام. تُرسَل رسائل التحقق والإشعارات إلى صندوق بريد تجريبي مشترك يمكن لأي شخص الاطلاع عليه — يُرجى عدم إدخال بيانات شخصية حقيقية.",
+          "هذا عرض تجريبي عام. تُرسَل رسائل الإشعارات إلى صندوق بريد تجريبي مشترك يمكن لأي شخص الاطلاع عليه — يُرجى عدم إدخال بيانات شخصية حقيقية.",
         verifyBody:
           "هذا عرض تجريبي عام. أُرسِلت رسالة التحقق إلى صندوق بريد تجريبي مشترك يمكن لأي شخص الاطلاع عليه؛ يُرجى عدم استخدام بيانات شخصية حقيقية.",
         openInbox: "افتح صندوق البريد التجريبي"
@@ -44,7 +45,7 @@
     : {
         title: "Demo environment",
         registerBody:
-          "This is a public demo. Verification and notification emails go to a shared test inbox that anyone can read — please don’t enter real personal data.",
+          "This is a public demo. Notification emails go to a shared test inbox that anyone can read — please don’t enter real personal data.",
         verifyBody:
           "This is a public demo. The verification email was delivered to a shared test inbox that anyone can read — please don’t use real personal data.",
         openInbox: "Open the demo inbox"

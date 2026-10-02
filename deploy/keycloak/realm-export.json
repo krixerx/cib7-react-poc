@@ -10,7 +10,7 @@
   "registrationAllowed": true,
   "registrationEmailAsUsername": false,
   "rememberMe": true,
-  "verifyEmail": true,
+  "verifyEmail": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
@@ -366,7 +366,8 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [
         "http://127.0.0.1/*",
-        "http://localhost/*"
+        "http://localhost/*",
+        "https://claude.ai/api/mcp/auth_callback"
       ],
       "webOrigins": ["+"],
       "attributes": {

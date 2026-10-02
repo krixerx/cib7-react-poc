@@ -137,7 +137,7 @@ http:
       tls: true
 
     mcp:
-      rule: "PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`) || Path(`/.well-known/mcp.json`) || Path(`/.well-known/mcp/services.json`) || Path(`/llms.txt`)"
+      rule: "PathPrefix(`/mcp`) || Path(`/.well-known/oauth-protected-resource`) || Path(`/.well-known/oauth-protected-resource/mcp`) || Path(`/.well-known/mcp.json`) || Path(`/.well-known/mcp/services.json`) || Path(`/llms.txt`)"
       entryPoints: ["websecure"]
       service: mcp
       middlewares: [mcp-ratelimit, api-headers]
