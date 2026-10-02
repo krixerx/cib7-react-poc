@@ -21,7 +21,7 @@ jobs:
   keycloak-theme-sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: diff -r keycloak/themes deploy/keycloak/themes
 
   java:
@@ -30,7 +30,7 @@ jobs:
       matrix:
         module: [cib7, backend]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,7 +45,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           # 24 ships npm 11, which writes the lock: npm 10's arborist crashes resolving
@@ -66,7 +66,7 @@ jobs:
       run:
         working-directory: mcp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           # 24, matching mcp/Dockerfile. Node 20 reached end of life in April 2026.
