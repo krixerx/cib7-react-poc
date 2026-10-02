@@ -1,39 +1,102 @@
 /*
- * CIB seven login theme — re-skins the stock keycloak login pages to match the
- * React SPA (frontend/src/styles.css). Loaded AFTER the parent theme's
- * css/login.css (see theme.properties `styles`), so these rules win the cascade.
+ * CIB seven login theme: re-skins the stock Keycloak login pages to match the
+ * SPA's Glass Mesh design (frontend/src/styles/). Loaded AFTER the parent
+ * theme's css/login.css (see theme.properties `styles`), so these rules win.
  *
- * PatternFly (the parent's framework) ships high-specificity rules and inline
- * underline-style inputs, so a handful of overrides use !important deliberately
- * — flagged inline where they do.
+ * PatternFly (the parent's framework) ships high-specificity rules and
+ * underline-style inputs, so some overrides use !important on purpose.
  *
- * Design tokens copied verbatim from frontend/src/styles.css :root.
+ * Tokens repeat frontend/src/styles/tokens.css; keep them in step. Keycloak
+ * runs on another origin and cannot read the SPA's saved theme choice, so the
+ * scheme follows the operating system (prefers-color-scheme).
  */
 :root {
-  --bg: #f4f6f5;
+  color-scheme: light;
+  --bg: #f5f7fa;
   --surface: #ffffff;
-  --border: #e2e7e5;
-  --text: #182420;
-  --muted: #5f6f68;
-  --primary: #005c4c;
-  --primary-hover: #00493c;
-  --primary-soft: #e7f3ef;
-  --primary-soft-border: #b9dccf;
-  --danger: #dc2626;
-  --danger-hover: #b91c1c;
+  --surface-2: #eef3f8;
+  --text: #0b1b2f;
+  --muted: #4c5d70;
+  --border: #dbe3ec;
+  --border-strong: #c3cfdc;
+  --primary: #0b57c9;
+  --primary-hover: #0a4aab;
+  --primary-ink: #ffffff;
+  --primary-soft: #e5eefc;
+  --primary-soft-border: #bcd2f5;
+  --danger: #c4282d;
+  --danger-soft: #fdecec;
+  --danger-border: #f3c1c3;
+  --ok: #0d7f57;
+  --ok-soft: #e2f4ec;
+  --warn: #8f5300;
+  --warn-soft: #fff4e0;
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-edge: rgba(255, 255, 255, 0.95);
+  --shadow-color: rgba(11, 27, 47, 0.16);
+  --mesh-1: #a9d6ff;
+  --mesh-2: #bfeadb;
+  --mesh-3: #dcd9ff;
+  --mesh-4: #ffe1cf;
+  --mesh-opacity: 0.7;
+  --banner-bg: #0b1b2f;
+  --banner-fg: #dfe7f1;
+  --font-display: 'Sora', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-arabic: 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
   --radius: 12px;
-  --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
-  --font: 'Inter', 'Noto Sans Arabic', -apple-system, BlinkMacSystemFont,
-    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --radius-lg: 20px;
+  --ease-out: cubic-bezier(0.2, 0.75, 0.15, 1);
 }
 
-/* ---- page canvas ----------------------------------------------------- */
-/* Parent login.css paints a dark background image on `.login-pf body`; replace
-   it with the app's soft sage canvas + a faint teal glow up top. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #07101c;
+    --surface: #0e1a2a;
+    --surface-2: #132235;
+    --text: #e7eef7;
+    --muted: #9aabbf;
+    --border: #1f3047;
+    --border-strong: #2c4260;
+    --primary: #6aa5ff;
+    --primary-hover: #8ab8ff;
+    --primary-ink: #061226;
+    --primary-soft: #14294a;
+    --primary-soft-border: #24477d;
+    --danger: #ff8a8f;
+    --danger-soft: #35161a;
+    --danger-border: #5e252b;
+    --ok: #4cc999;
+    --ok-soft: #0f2e25;
+    --warn: #f0b45c;
+    --warn-soft: #2f2210;
+    --glass: rgba(14, 26, 42, 0.66);
+    --glass-edge: rgba(120, 160, 210, 0.18);
+    --shadow-color: rgba(0, 0, 0, 0.55);
+    --mesh-1: #12406e;
+    --mesh-2: #0d4a3e;
+    --mesh-3: #2b2c6e;
+    --mesh-4: #4a2a22;
+    --mesh-opacity: 0.6;
+    --banner-bg: #030a14;
+    --banner-fg: #b9c6d6;
+  }
+}
+
+/* ---- page canvas ------------------------------------------------------ */
+/* The parent paints a dark photo on `.login-pf body`; replace it. */
 html.login-pf,
 html.login-pf body {
-  background: radial-gradient(1100px 520px at 50% -8%, var(--primary-soft) 0%, var(--bg) 55%) fixed !important;
+  background: var(--bg) !important;
   color: var(--text);
+}
+
+html.login-pf body {
+  position: relative;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
 }
 
 body,
@@ -43,92 +106,237 @@ select,
 textarea,
 .pf-c-form-control,
 .pf-c-button {
-  font-family: var(--font);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
 
-[dir='rtl'] body {
-  font-family: 'Noto Sans Arabic', 'Inter', -apple-system, BlinkMacSystemFont,
-    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+[dir='rtl'] body,
+[dir='rtl'] input,
+[dir='rtl'] button,
+[dir='rtl'] #kc-page-title {
+  font-family: var(--font-arabic);
 }
 
-/* Stack header + card, centered in the viewport. */
-.login-pf-page {
+[dir='rtl'] * {
+  letter-spacing: normal !important;
+}
+
+@keyframes cib7-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- official banner ---------------------------------------------------- */
+
+.cib7-official {
+  position: relative;
+  z-index: 2;
+  background: var(--banner-bg);
+  color: var(--banner-fg);
+  font-size: 13px;
+}
+
+.cib7-official-row {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 24px;
+  gap: 6px 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 7px clamp(16px, 4vw, 40px);
   box-sizing: border-box;
 }
 
-/* ---- branded header (template.ftl #kc-header) ------------------------ */
+.cib7-icon {
+  flex: none;
+}
+
+.cib7-official-demo {
+  margin-inline-start: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.cib7-official-tag {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ---- mesh backdrop ------------------------------------------------------ */
+
+.cib7-mesh {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 820px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(#000 50%, transparent);
+  mask-image: linear-gradient(#000 50%, transparent);
+}
+
+.cib7-mesh i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: var(--mesh-opacity);
+}
+
+.cib7-mesh i:nth-child(1) {
+  width: 620px;
+  height: 620px;
+  left: -8%;
+  top: -14%;
+  background: var(--mesh-1);
+  animation: cib7-mesh-a 26s ease-in-out infinite alternate;
+}
+
+.cib7-mesh i:nth-child(2) {
+  width: 520px;
+  height: 520px;
+  right: -6%;
+  top: -8%;
+  background: var(--mesh-2);
+  animation: cib7-mesh-b 30s ease-in-out infinite alternate;
+}
+
+.cib7-mesh i:nth-child(3) {
+  width: 480px;
+  height: 480px;
+  left: 34%;
+  top: 22%;
+  background: var(--mesh-3);
+  animation: cib7-mesh-c 24s ease-in-out infinite alternate;
+}
+
+.cib7-mesh i:nth-child(4) {
+  width: 340px;
+  height: 340px;
+  right: 18%;
+  top: 40%;
+  background: var(--mesh-4);
+  opacity: calc(var(--mesh-opacity) * 0.6);
+  animation: cib7-mesh-a 28s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes cib7-mesh-a {
+  to {
+    transform: translate(120px, 80px) scale(1.12);
+  }
+}
+
+@keyframes cib7-mesh-b {
+  to {
+    transform: translate(-140px, 110px) scale(0.92);
+  }
+}
+
+@keyframes cib7-mesh-c {
+  to {
+    transform: translate(-100px, -60px) scale(1.15);
+  }
+}
+
+/* ---- layout: brand bar over the card ------------------------------------ */
+
+.login-pf-page {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: calc(100vh - 34px);
+  padding: clamp(24px, 6vh, 64px) 16px 32px;
+  box-sizing: border-box;
+}
+
 #kc-header {
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
+  margin-bottom: 16px;
+  animation: cib7-fade-up 0.6s var(--ease-out) both;
 }
 
 #kc-header-wrapper {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  /* Parent renders the realm name here in white-on-dark; neutralize that. */
+  padding: 8px 18px 8px 8px;
+  padding-inline: 8px 18px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+  box-shadow: 0 12px 30px -18px var(--shadow-color);
+  /* The parent renders the realm name here in white-on-dark; neutralise it. */
   color: var(--text) !important;
   text-shadow: none !important;
   font-size: 0;
-  padding: 0 0 22px;
   text-transform: none;
   letter-spacing: normal;
 }
 
 .cib7-logo {
   flex: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
   background: var(--primary);
-  color: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow);
+  color: var(--primary-ink);
+  display: grid;
+  place-items: center;
 }
 
 .cib7-brand-text {
   display: flex;
   flex-direction: column;
-  line-height: 1.1;
+  line-height: 1.15;
   text-align: start;
 }
 
 .cib7-brand-name {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
   color: var(--text);
 }
 
 .cib7-brand-sub {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  margin-top: 2px;
+  font-size: 12px;
   color: var(--muted);
 }
 
-/* ---- card ------------------------------------------------------------ */
+/* ---- card ----------------------------------------------------------------- */
+
 .login-pf-page .card-pf {
+  position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   margin: 0 auto;
-  padding: 32px;
+  padding: 28px 30px;
+  box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-top: 1px solid var(--border); /* parent adds a thick accent top border */
-  border-radius: var(--radius);
-  box-shadow: 0 10px 30px rgba(10, 34, 28, 0.08), 0 2px 6px rgba(16, 24, 40, 0.04);
+  border-top: 1px solid var(--border); /* the parent adds a thick accent border */
+  border-radius: var(--radius-lg);
+  box-shadow: 0 40px 80px -44px var(--shadow-color);
+  color: var(--text);
+  animation: cib7-fade-up 0.6s var(--ease-out) 0.08s both;
 }
 
 .login-pf-header {
@@ -137,22 +345,27 @@ textarea,
 
 #kc-page-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  padding-inline-end: 96px; /* room for the language menu */
+  text-align: start;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
   color: var(--text);
 }
 
-/* ---- form fields ----------------------------------------------------- */
+/* ---- form fields ----------------------------------------------------------- */
+
 .pf-c-form__label,
 .pf-c-form__label-text,
-#kc-form label {
-  font-size: 13px;
+#kc-form label,
+.login-pf-page label {
+  font-size: 14px;
   font-weight: 600;
   color: var(--text);
 }
 
-/* PatternFly draws inputs as a bottom-underline; force a full boxed control. */
+/* PatternFly draws inputs as an underline; force a full boxed control. */
 .pf-c-form-control,
 input.pf-c-form-control,
 input[type='text'],
@@ -163,25 +376,38 @@ textarea.pf-c-form-control,
 select.pf-c-form-control {
   width: 100%;
   height: auto;
-  padding: 10px 12px;
+  padding: 11px 14px;
   font-size: 15px;
-  color: var(--text);
-  background: #fff !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 10px !important;
+  color: var(--text) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius) !important;
   box-shadow: none !important;
   box-sizing: border-box;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.pf-c-form-control:hover,
+input.pf-c-form-control:hover {
+  border-color: var(--primary-soft-border) !important;
 }
 
 .pf-c-form-control:focus,
 input.pf-c-form-control:focus {
   border-color: var(--primary) !important;
-  box-shadow: 0 0 0 3px var(--primary-soft) !important;
+  box-shadow: 0 0 0 4px var(--primary-soft) !important;
   outline: none;
 }
 
 .pf-c-form-control::placeholder {
-  color: #9aa8a2;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.pf-c-form-control[aria-invalid='true'] {
+  border-color: var(--danger) !important;
 }
 
 .form-group + .form-group,
@@ -189,70 +415,114 @@ input.pf-c-form-control:focus {
   margin-top: 14px;
 }
 
-/* Password show/hide button sitting in the input-group. */
-.pf-c-input-group .pf-c-button.pf-m-control {
-  background: #fff !important;
-  border: 1px solid var(--border) !important;
-  border-inline-start: none !important;
-  color: var(--muted) !important;
-  border-start-end-radius: 10px;
-  border-end-end-radius: 10px;
+/* Password show/hide button joined to the input. The group itself paints a
+   white backing in PatternFly, which shows at the corners in dark mode. */
+.pf-c-input-group {
+  background: transparent !important;
 }
 
-/* ---- buttons --------------------------------------------------------- */
+.pf-c-input-group::before,
+.pf-c-input-group::after,
+.pf-c-form-control::after {
+  display: none !important;
+}
+
+.pf-c-input-group .pf-c-form-control {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+}
+
+.pf-c-input-group .pf-c-button.pf-m-control {
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-inline-start: none !important;
+  color: var(--muted) !important;
+  border-radius: 0;
+  border-start-end-radius: var(--radius);
+  border-end-end-radius: var(--radius);
+}
+
+.pf-c-input-group .pf-c-button.pf-m-control::after {
+  border: 0 !important;
+}
+
+#input-error,
+.kc-feedback-text,
+.pf-c-form__helper-text.pf-m-error {
+  color: var(--danger) !important;
+  font-size: 13px;
+}
+
+/* ---- buttons ------------------------------------------------------------- */
+
 .pf-c-button.pf-m-primary,
 input[type='submit'].pf-m-primary,
 #kc-login {
   background: var(--primary) !important;
   border: none !important;
-  border-radius: 10px;
-  color: #fff !important;
+  border-radius: 999px;
+  color: var(--primary-ink) !important;
   font-weight: 600;
   font-size: 15px;
-  padding: 11px 16px;
-  box-shadow: none;
-  transition: background 0.15s ease;
+  padding: 12px 18px;
+  box-shadow: 0 10px 22px -12px var(--primary);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    box-shadow 0.2s,
+    transform 0.2s var(--ease-out);
 }
 
 .pf-c-button.pf-m-primary:hover,
 #kc-login:hover {
   background: var(--primary-hover) !important;
+  box-shadow: 0 14px 26px -12px var(--primary);
+  transform: translateY(-1px);
+}
+
+.pf-c-button.pf-m-primary::after,
+.pf-c-button.pf-m-secondary::after {
+  border: 0 !important;
 }
 
 .pf-c-button.pf-m-block {
   width: 100%;
 }
 
-/* Secondary / default buttons (e.g. Cancel) — quiet outline style. */
 .pf-c-button.pf-m-secondary,
 .pf-c-button.btn-default {
-  background: #fff !important;
-  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
   color: var(--text) !important;
-  border-radius: 10px;
+  border-radius: 999px;
   font-weight: 600;
 }
 
 .pf-c-button.pf-m-secondary:hover,
 .pf-c-button.btn-default:hover {
-  background: var(--bg) !important;
+  background: var(--surface-2) !important;
 }
 
-/* ---- links, options, info ------------------------------------------- */
-a,
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ---- links, options, info ------------------------------------------------ */
+
+.login-pf-page a,
 #kc-registration a,
 #kc-info a,
-#reset-login,
-.login-pf-signup a {
+#reset-login {
   color: var(--primary);
   font-weight: 600;
   text-decoration: none;
 }
 
-a:hover,
-#kc-info a:hover {
+.login-pf-page a:hover {
   color: var(--primary-hover);
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 #kc-form-options,
@@ -260,13 +530,11 @@ a:hover,
 .pf-c-check__label {
   color: var(--muted);
   font-size: 14px;
+  font-weight: 500;
 }
 
-/* Remember-me: the inherited .checkbox uses Bootstrap's absolute-positioned
-   input + physical padding-left, which reads cramped and breaks in RTL (the
-   padding lands on the wrong side). Drop the positioning and lay the box +
-   label out with a direction-agnostic flex gap so spacing is correct in EN
-   and AR alike. */
+/* Remember-me: the inherited Bootstrap checkbox positions the input absolutely
+   with physical padding, which breaks under RTL; lay it out with a flex gap. */
 #kc-form-options .checkbox label {
   display: inline-flex;
   align-items: center;
@@ -280,31 +548,84 @@ a:hover,
   position: static;
   margin: 0;
   flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
 }
 
 #kc-form-buttons {
   margin-top: 20px;
 }
 
-/* "New user? Register" / "Back to login" footer line. */
+/* The parent draws the "New user? Register" area as a grey slab that bleeds
+   past the card edges; keep it a plain row inside the card. */
+#kc-info,
+.login-pf-page .login-pf-signup,
+#kc-info-wrapper {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+#kc-info {
+  margin-top: 18px !important;
+  padding-top: 16px !important;
+  border-top: 1px solid var(--border) !important;
+}
+
 #kc-info,
 #kc-registration {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
   text-align: center;
   font-size: 14px;
   color: var(--muted);
+}
+
+#kc-info hr,
+#kc-registration-container hr {
+  display: none;
 }
 
 #kc-registration-container {
   text-align: center;
 }
 
-/* ---- alerts ---------------------------------------------------------- */
+.instruction {
+  color: var(--muted);
+}
+
+/* ---- alerts ------------------------------------------------------------- */
+
 .pf-c-alert {
-  border-radius: 10px;
+  border-radius: var(--radius);
   margin-bottom: 16px;
+  background: var(--primary-soft) !important;
+  border: 1px solid var(--primary-soft-border) !important;
+  box-shadow: none !important;
+  color: var(--text);
+}
+
+.pf-c-alert.pf-m-danger,
+.alert-error {
+  background: var(--danger-soft) !important;
+  border-color: var(--danger-border) !important;
+}
+
+.pf-c-alert.pf-m-success,
+.alert-success {
+  background: var(--ok-soft) !important;
+  border-color: var(--ok) !important;
+}
+
+.pf-c-alert.pf-m-warning,
+.alert-warning {
+  background: var(--warn-soft) !important;
+  border-color: var(--warn) !important;
+}
+
+.pf-c-alert::before {
+  display: none !important;
 }
 
 .alert-error .pf-c-alert__title,
@@ -312,15 +633,16 @@ a:hover,
   color: var(--danger);
 }
 
-/* ---- locale dropdown (only shown if realm i18n enabled) -------------- */
+/* ---- locale switch ------------------------------------------------------- */
+
 #kc-locale {
   position: absolute;
-  inset-block-start: 18px;
-  inset-inline-end: 18px;
+  inset-block-start: 22px;
+  inset-inline-end: 22px;
 }
 
 #kc-current-locale-link {
-  background: var(--bg);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 5px 12px;
@@ -330,20 +652,41 @@ a:hover,
   cursor: pointer;
 }
 
-#kc-locale .pf-c-dropdown__menu {
-  border-radius: 10px;
+#kc-locale .pf-c-dropdown__menu,
+#kc-locale ul {
+  background: var(--surface);
+  border-radius: var(--radius);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  box-shadow: 0 16px 30px -18px var(--shadow-color);
 }
 
-/* ---- public-demo email notice (js/demo-notice.js) -------------------- */
-/* Soft teal info card injected under the register e-mail field and on the
-   verify-email page. Logical properties keep it correct under RTL (ar). */
+#kc-locale ul a {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---- support line under the card ---------------------------------------- */
+
+.cib7-support {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.cib7-support strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ---- public-demo email notice (js/demo-notice.js) ----------------------- */
+
 .cib7-demo-notice {
   margin-block: 14px 4px;
   padding: 12px 14px;
-  background: var(--primary-soft);
-  border: 1px solid var(--primary-soft-border);
+  background: var(--warn-soft);
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--warn);
   border-radius: var(--radius);
   text-align: start;
 }
@@ -352,7 +695,7 @@ a:hover,
   display: block;
   font-size: 13px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--warn);
 }
 
 .cib7-demo-notice__body {
@@ -368,4 +711,43 @@ a:hover,
   font-size: 13px;
   font-weight: 600;
   color: var(--primary);
+}
+
+/* ---- narrow screens and motion ------------------------------------------- */
+
+@media (max-width: 520px) {
+  .cib7-official-demo-text {
+    display: none;
+  }
+
+  .login-pf-page .card-pf {
+    padding: 22px 18px;
+  }
+
+  #kc-locale {
+    inset-block-start: 16px;
+    inset-inline-end: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Pages with required fields wrap the title in Bootstrap grid columns that
+   add side padding; line the title up with the form instead. */
+.login-pf-header .col-md-10,
+.login-pf-header [class*='kcLabelWrapper'] {
+  padding-inline: 0;
+  width: 100%;
+}
+
+.login-pf-header .subtitle {
+  font-size: 12px;
+  color: var(--muted);
 }
