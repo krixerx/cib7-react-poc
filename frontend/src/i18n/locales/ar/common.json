@@ -1,25 +1,27 @@
 {
   "app": {
     "brandName": "eRegistrations",
-    "brandSub": "الحكومة الرقمية · نموذج React التجريبي",
-    "partBadge": "الجزء {{part}}",
+    "brandSub": "بوابة الخدمات العامة",
     "roleApplicant": "مقدم الطلب",
     "roleBackOffice": "المكتب الخلفي",
     "nav": {
       "services": "الخدمات",
       "tasks": "المهام",
       "incidents": "الأعطال",
-      "myProcesses": "معاملاتي"
+      "myProcesses": "معاملاتي",
+      "label": "القائمة الرئيسية"
     },
     "auth": {
       "logIn": "تسجيل الدخول",
       "logOut": "تسجيل الخروج",
       "register": "إنشاء حساب"
-    }
+    },
+    "skipToContent": "انتقل إلى المحتوى الرئيسي"
   },
   "demo": {
     "warning": "نظام تجريبي عام — يُرجى عدم إدخال بيانات شخصية حقيقية.",
-    "inbox": "صندوق البريد التجريبي"
+    "inbox": "صندوق البريد التجريبي",
+    "badge": "تجريبي"
   },
   "language": {
     "label": "اللغة",
@@ -145,5 +147,27 @@
     "generateRegistrationCertificatePdf": "إصدار شهادة التسجيل (PDF)",
     "storeCertificate": "حفظ الشهادة",
     "emailCertificatePlateCollection": "بريد إلكتروني: استلام الشهادة واللوحة"
+  },
+  "official": {
+    "text": "بوابة الخدمات العامة الرقمية.",
+    "howYouKnow": "كيف تتحقق من ذلك",
+    "signInTitle": "تسجيل دخول آمن",
+    "signInBody": "تسجّل الدخول مرة واحدة بهويتك الرقمية. لا ترى البوابة كلمة مرورك أبدًا.",
+    "httpsTitle": "اتصال مشفّر",
+    "httpsBody": "تحقق من وجود رمز القفل في شريط العنوان قبل إدخال بياناتك الشخصية."
+  },
+  "theme": {
+    "toDark": "التبديل إلى الوضع الداكن",
+    "toLight": "التبديل إلى الوضع الفاتح"
+  },
+  "footer": {
+    "about": "قدّم طلبك ووقّع وادفع عبر الإنترنت، وتابع معاملتك حتى صدور القرار.",
+    "supportTitle": "تطوير ودعم",
+    "registryCode": "رقم السجل {{code}}",
+    "location": "تالين، إستونيا",
+    "contactTitle": "التواصل",
+    "contactForm": "نموذج التواصل",
+    "businessRegister": "السجل التجاري",
+    "demoNote": "بيئة تجريبية. تُحذف البيانات عند إعادة تشغيل النظام."
   }
 }

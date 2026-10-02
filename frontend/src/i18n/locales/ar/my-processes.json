@@ -35,23 +35,25 @@
     "ended": "منتهية"
   },
   "card": {
-    "paymentNeeded": "💳 مطلوب سداد الرسوم الحكومية",
-    "sentBack": "⚠ أُعيدت للتصحيح",
-    "awaitingSubmission": "◆ بانتظار تقديمك للطلب",
+    "paymentNeeded": "مطلوب سداد الرسوم الحكومية",
+    "sentBack": "أُعيدت للتصحيح",
+    "awaitingSubmission": "بانتظار تقديمك للطلب",
     "reason": "«{{reason}}»",
-    "ctaPay": "السداد ←",
-    "ctaOpen": "فتح ←"
+    "ctaPay": "السداد",
+    "ctaOpen": "فتح"
   },
   "meta": {
     "started": "بدأت في {{date}}",
     "ended": "انتهت في {{date}}"
   },
   "row": {
-    "view": "عرض ←",
-    "viewSubmission": "عرض الطلب المقدم ←"
+    "view": "عرض",
+    "viewSubmission": "عرض الطلب المقدم"
   },
   "empty": {
-    "noProcesses": "لم تبدأ أي معاملة بعد. يمكنك اختيار إحدى الخدمات من صفحة <servicesLink>الخدمات</servicesLink>."
+    "title": "لا توجد معاملات بعد",
+    "body": "لم تبدأ أي خدمة بعد. اختر خدمة من الدليل للبدء.",
+    "cta": "تصفّح الخدمات"
   },
   "errors": {
     "loadFailed": "تعذّر تحميل معاملاتك: {{message}}"

@@ -1,54 +1,187 @@
 {
   "hero": {
     "eyebrow": "Digital government services",
-    "titleLine1": "Government services",
-    "titleAccent": "made simple.",
+    "titleBefore": "Register your",
+    "rotating": ["car", "company", "permit", "truck"],
+    "titleAfter": "online, without the queue.",
+    "titleSr": "Register your car, company or permit online, without the queue.",
     "sub": "Start a service, sign documents, and follow every step of your case in one secure portal. Fast, transparent, accessible to everyone.",
-    "signIn": "Sign in to your account →",
-    "join": "Join the digital state",
-    "trust": "Secure single sign-on · every step of your case tracked transparently"
+    "signIn": "Sign in to your account",
+    "join": "Create an account"
+  },
+  "search": {
+    "label": "Search services",
+    "placeholder": "What do you need to do?",
+    "hints": [
+      "Register a car I bought",
+      "Start a limited company",
+      "Get a learner's permit",
+      "What do you need to do?"
+    ],
+    "submit": "Search",
+    "noResults": "No service matches “{{query}}”.",
+    "noResultsHint": "Try “vehicle”, “company” or “permit”.",
+    "popular": "Popular:"
+  },
+  "caseCard": {
+    "label": "Example case",
+    "title": "Vehicle registration",
+    "reference": "CASE VR-2026-004817",
+    "inProgress": "In progress",
+    "decided": "Decision issued",
+    "next": "Next action:",
+    "updated": "Updated just now",
+    "steps": [
+      { "title": "Application submitted", "who": "You" },
+      { "title": "Co-owner confirmed", "who": "By secure link" },
+      { "title": "State fee paid", "who": "Confirmed by the bank" },
+      { "title": "Reviewed", "who": "Civil servant, Transport Authority" },
+      { "title": "Certificate issued", "who": "Sent to your email" }
+    ],
+    "nextActions": [
+      "Co-owner confirmation",
+      "State fee payment",
+      "Review by the authority",
+      "Certificate issue",
+      "None, case closed"
+    ],
+    "signedTitle": "Signed",
+    "signedSub": "2 of 2 owners",
+    "idTitle": "State ID",
+    "idSub": "Single sign-on"
+  },
+  "trust": [
+    { "title": "Secure sign-in", "body": "One state ID for every service" },
+    { "title": "Your data stays yours", "body": "Only the officials on your case see it" },
+    { "title": "Every step logged", "body": "See who holds your case and why" },
+    { "title": "Accessible", "body": "Keyboard, screen readers, English and Arabic" }
+  ],
+  "events": {
+    "eyebrow": "Browse by life event",
+    "heading": "What is happening in your life?",
+    "sub": "Six topics. Topics without live services stay visible, so the catalog keeps its shape as new services arrive.",
+    "online_one": "{{count}} service online",
+    "online_other": "{{count}} services online",
+    "comingSoon": "Coming soon"
+  },
+  "panel": {
+    "close": "Close",
+    "accountNotice": "Starting a service needs an account. Sign in or create one from the top right.",
+    "empty": "No services in this topic yet."
+  },
+  "live": {
+    "eyebrow": "Available online now",
+    "heading_one": "{{count}} service, start to finish online",
+    "heading_other": "{{count}} services, start to finish online",
+    "allEvents": "Browse by life event",
+    "colService": "Service",
+    "colWho": "Who takes part",
+    "colFee": "Fee",
+    "start": "Start",
+    "signInToStart": "Sign in to start",
+    "starting": "Starting…",
+    "info": {
+      "vehicleRegistration": {
+        "summary": "Register a vehicle from the national catalog.",
+        "who": "You and any co-owners",
+        "whoSub": "Co-owners confirm by link",
+        "fee": "State fee",
+        "feeSub": "Paid online after approval"
+      },
+      "businessRegistration": {
+        "summary": "Found a limited company and enter it in the registry.",
+        "who": "All founders",
+        "whoSub": "Each founder signs remotely",
+        "fee": "State fee",
+        "feeSub": "Paid online after approval"
+      },
+      "transportVehicleRegistration": {
+        "summary": "Register a vehicle with the Transport Authority.",
+        "who": "You",
+        "whoSub": "Reviewed by a traffic officer",
+        "fee": "10–180 EUR",
+        "feeSub": "Set by vehicle category"
+      },
+      "transportLearningPermit": {
+        "summary": "Apply for a learner's permit to start driving lessons.",
+        "who": "You",
+        "whoSub": "Eye test from approved opticians",
+        "fee": "6 EUR",
+        "feeSub": "Flat fee"
+      },
+      "default": {
+        "summary": "",
+        "who": "You",
+        "whoSub": "",
+        "fee": "",
+        "feeSub": ""
+      }
+    }
+  },
+  "how": {
+    "eyebrow": "How it works",
+    "heading": "From application to decision in four steps",
+    "sub": "The same path for every service. You can stop at any step and continue later under My cases.",
+    "steps": [
+      {
+        "title": "Start the service",
+        "body": "Choose it from the catalog and sign in with your state ID."
+      },
+      {
+        "title": "Fill in and sign",
+        "body": "Upload your documents. Co-owners or founders sign by a secure link."
+      },
+      {
+        "title": "Pay the state fee",
+        "body": "Pay online. Your case moves on once the bank confirms the payment."
+      },
+      {
+        "title": "Receive the decision",
+        "body": "An official reviews the case and the certificate arrives by email."
+      }
+    ]
   },
   "stats": {
-    "alwaysOpen": {
-      "value": "24/7",
-      "label": "Always open"
-    },
-    "averageApplication": {
-      "value": "< 5 min",
-      "label": "Average application"
-    },
-    "digital": {
-      "value": "100%",
-      "label": "Digital, zero paper"
-    },
-    "liveServices": {
-      "label": "Services live today"
-    }
+    "alwaysOpen": { "value": "24/7", "label": "Always open" },
+    "averageApplication": { "value": "< 5 min", "label": "Average application" },
+    "digital": { "value": "100%", "label": "Digital, zero paper" },
+    "liveServices": { "label": "Services live today" }
   },
-  "catalog": {
-    "loading": "Loading services…",
-    "heading": "What can we help you with today?",
-    "sub": "Pick a topic to see all services in that area.",
-    "tile": {
-      "comingSoon": "Coming soon",
-      "starting": "Starting…",
-      "start": "Start →",
-      "signInToStart": "Sign in to start →",
-      "serviceCount_one": "{{count}} service",
-      "serviceCount_other": "{{count}} services",
-      "servicesBelow_one": "↓ {{count}} service below",
-      "servicesBelow_other": "↓ {{count}} services below"
-    },
-    "panel": {
-      "accountNotice": "Starting a service requires an account — register or sign in from the top right.",
-      "empty": "No services in this category yet.",
-      "rowMeta": "key: {{key}} · version {{version}}"
-    }
+  "help": {
+    "eyebrow": "Help",
+    "heading": "Common questions",
+    "faq": [
+      {
+        "q": "How do I sign in?",
+        "a": "Use your state ID. You sign in once and every service in the portal recognises you."
+      },
+      {
+        "q": "Can I stop halfway and continue later?",
+        "a": "Yes. Your case is saved after every step. Open My cases to pick it up where you left it."
+      },
+      {
+        "q": "How do co-owners or founders sign?",
+        "a": "Each of them receives a personal, time-limited link by email. They don't need an account to confirm."
+      },
+      {
+        "q": "When is my payment confirmed?",
+        "a": "When the bank reports it to us. Closing the payment page early does not lose the payment."
+      }
+    ],
+    "contactEyebrow": "Contact",
+    "contactHeading": "Talk to the team",
+    "contactBody": "This demo is built and supported by Tulepaak OÜ. Questions about the portal or a project of your own go through their contact form.",
+    "registry": "Registry code {{code}} · Tallinn, Estonia",
+    "contactForm": "Open the contact form",
+    "status": "Service status",
+    "statusOk_one": "{{count}} service running",
+    "statusOk_other": "{{count}} services running"
   },
+  "loading": "Loading services…",
   "mobile": {
     "title": "Try it on your phone",
-    "sub": "Scan to open the mobile app — track your applications and keep certificates in your wallet.",
-    "open": "Open the mobile app →",
+    "sub": "Scan to open the mobile app. Track your applications and keep certificates in your wallet.",
+    "open": "Open the mobile app",
     "ariaLabel": "Open the mobile applicant app"
   }
 }

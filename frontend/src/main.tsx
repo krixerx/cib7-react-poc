@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
 import LanguageSwitcher from './components/LanguageSwitcher';
+import ThemeToggle from './components/ThemeToggle';
+import PublicFrame from './components/PublicFrame';
 import ConfirmOwnerPage from './pages/ConfirmOwnerPage';
 import SignFounderPage from './pages/SignFounderPage';
 import PayPage from './pages/PayPage';
@@ -11,22 +13,24 @@ import MockBankPage from './pages/MockBankPage';
 import './theme/colorScheme';
 import './i18n';
 import './styles/tokens.css';
-// Legacy stylesheet, emptied section by section as each area moves to styles/.
-// It loads before the new files so their rules win where both still match.
-import './styles.css';
 import './styles/base.css';
 import './styles/shell.css';
+import './styles/landing.css';
+import './styles/cases.css';
+import './styles/forms.css';
+import './styles/backoffice.css';
+import './styles/public.css';
 
 /**
- * The standalone email-link pages render without the App header, so they get
- * their own language switcher pinned to the top corner — an Arabic-speaking
- * recipient must be able to switch before reading the page.
+ * The mock bank stands in for the payment provider's own site, so it gets no
+ * portal chrome, only the language and theme switches pinned to a corner.
  */
 function Standalone({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <div className="standalone-lang">
+      <div className="standalone-lang glass">
         <LanguageSwitcher />
+        <ThemeToggle />
       </div>
       {children}
     </>
@@ -49,25 +53,25 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route
           path="/confirm-owner/:token"
           element={
-            <Standalone>
+            <PublicFrame>
               <ConfirmOwnerPage />
-            </Standalone>
+            </PublicFrame>
           }
         />
         <Route
           path="/sign-founder/:token"
           element={
-            <Standalone>
+            <PublicFrame>
               <SignFounderPage />
-            </Standalone>
+            </PublicFrame>
           }
         />
         <Route
           path="/pay/:token"
           element={
-            <Standalone>
+            <PublicFrame>
               <PayPage />
-            </Standalone>
+            </PublicFrame>
           }
         />
         <Route

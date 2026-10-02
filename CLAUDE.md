@@ -227,8 +227,8 @@ containers. The short form:
 - **Styling is plain CSS on tokens; no component library.** Every colour is a
   token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
   literal colour in a rule breaks one scheme. Area styles live in
-  `frontend/src/styles/*.css`; `src/styles.css` is the legacy sheet being
-  emptied. Generated forms rely on the class contract in the service-builder
+  `frontend/src/styles/*.css`, one sheet per area (base, shell, landing,
+  cases, forms, backoffice, public). Generated forms rely on the class contract in the service-builder
   template (`field`, `field-input`, `form-banner`, `btn`), so restyle those
   classes rather than editing forms. Icons are `lucide-react`. MUI v5 is kept
   only for the `IncidentsPage.tsx` DataGrid, themed per scheme in

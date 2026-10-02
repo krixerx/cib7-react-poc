@@ -39,8 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          # 24 — TEDI's engines require node >=24 and npm >=11. The lock is
-          # written with npm 11: npm 10's arborist crashes resolving
+          # 24 ships npm 11, which writes the lock: npm 10's arborist crashes resolving
           # vitest 4's peer set ("reading 'edgesOut'").
           node-version: '24'
           cache: npm

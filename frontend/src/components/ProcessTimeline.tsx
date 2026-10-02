@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ArrowRight, Check, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getPaymentLink } from '../api/paymentLinkApi';
 import { formatDateTime } from '../i18n/format';
@@ -216,7 +217,7 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
       {state && state.paymentDue && (
         <div className="pay-alert">
           <span className="pay-alert-icon" aria-hidden="true">
-            💳
+            <CreditCard size={20} />
           </span>
           <span className="pay-alert-body">
             <strong>{t('timeline.paymentRequiredTitle')}</strong>{' '}
@@ -224,6 +225,7 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
           </span>
           <button type="button" className="btn btn-primary pay-alert-btn" onClick={openPayment}>
             {t('timeline.openPaymentPage')}
+            <ArrowRight aria-hidden="true" />
           </button>
         </div>
       )}
@@ -338,21 +340,7 @@ function Stepper({ state }: { state: LoadedState }) {
 }
 
 function CheckIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="white"
-      strokeWidth={3.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 12l5 5L20 7" />
-    </svg>
-  );
+  return <Check size={13} strokeWidth={3.5} aria-hidden="true" />;
 }
 
 function TimelineItem({ row }: { row: TimelineRow }) {

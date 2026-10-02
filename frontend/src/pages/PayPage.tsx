@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Check, Lock } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { checkout, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
 import { translateBackendName } from '../i18n/backendNames';
@@ -128,18 +129,7 @@ export default function PayPage() {
       <div className="pay-page">
         <div className="card pay-success">
           <div className="pay-success-icon" aria-hidden="true">
-            <svg
-              width="36"
-              height="36"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
+            <Check size={34} strokeWidth={2.5} />
           </div>
           <h1 className="card-title">{t('paid.title')}</h1>
           <p className="muted">
@@ -223,6 +213,7 @@ export default function PayPage() {
                 onClick={handlePay}
                 disabled={submitting}
               >
+                <Lock aria-hidden="true" />
                 {submitting
                   ? t('actions.redirecting')
                   : t('actions.pay', {

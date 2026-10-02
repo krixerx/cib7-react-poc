@@ -6,8 +6,7 @@
  * new service: register its key here too. Unknown keys fall through to
  * `other` so the catalog never hides a deployed service.
  *
- * The icon name maps to an inline SVG in ServicesPage.tsx (CATEGORY_ICONS) —
- * keep that switch and these ids in sync.
+ * Each id maps to a Lucide icon in CategoryIcon.tsx; keep the two in sync.
  */
 
 export type CategoryId = 'business' | 'family' | 'property' | 'travel' | 'social' | 'other';
@@ -54,6 +53,8 @@ export const CATEGORIES: Category[] = [
  */
 const SERVICE_CATEGORY: Record<string, CategoryId> = {
   businessRegistration: 'business',
+  transportLearningPermit: 'travel',
+  transportVehicleRegistration: 'travel',
   vehicleRegistration: 'travel',
 };
 

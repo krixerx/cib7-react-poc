@@ -112,12 +112,10 @@ code {
   color: var(--muted);
 }
 
-/* Lucide icons render as svg.lucide; size follows the text unless a component sets it. */
+/* Lucide icons render as svg.lucide at their size prop (24 by default); a
+   context that wants another size sets width/height here in CSS. */
 svg.lucide {
-  width: 1.15em;
-  height: 1.15em;
   flex: none;
-  stroke-width: 1.9;
 }
 
 /* ---- buttons ---------------------------------------------------------- */
@@ -314,6 +312,40 @@ html[dir='rtl'] .btn:hover:not(:disabled) svg.lucide-arrow-right {
   color: var(--danger);
 }
 
+/* ---- category accents ------------------------------------------------- */
+
+/* Any element tagged with its life-event category gets --cat-accent and
+   --cat-soft, so icons and chips read the same colour on every page. */
+.cat-business {
+  --cat-accent: var(--cat-business);
+  --cat-soft: var(--cat-business-soft);
+}
+
+.cat-family {
+  --cat-accent: var(--cat-family);
+  --cat-soft: var(--cat-family-soft);
+}
+
+.cat-property {
+  --cat-accent: var(--cat-property);
+  --cat-soft: var(--cat-property-soft);
+}
+
+.cat-travel {
+  --cat-accent: var(--cat-travel);
+  --cat-soft: var(--cat-travel-soft);
+}
+
+.cat-social {
+  --cat-accent: var(--cat-social);
+  --cat-soft: var(--cat-social-soft);
+}
+
+.cat-other {
+  --cat-accent: var(--cat-other);
+  --cat-soft: var(--cat-other-soft);
+}
+
 /* ---- motion ----------------------------------------------------------- */
 
 @keyframes fade-up {
@@ -361,6 +393,11 @@ html[dir='rtl'] .btn:hover:not(:disabled) svg.lucide-arrow-right {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .anim-in,
+  .reveal {
+    animation: none !important;
   }
 }
 

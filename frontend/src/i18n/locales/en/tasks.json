@@ -5,7 +5,7 @@
     "countFiltered": "{{shown}} of {{total}}",
     "refresh": "Refresh list",
     "newestFirst": "Newest first",
-    "sortPill": "Date submitted ↓",
+    "sortPill": "Date submitted",
     "caseRef": "CASE-{{id}}",
     "noName": "(no name)",
     "age": {

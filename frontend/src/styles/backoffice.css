@@ -1,0 +1,676 @@
+/*
+ * PartB back office: the civil-servant worklist (list pane with filters and
+ * search, detail pane with the task or history), the incident block, and
+ * the Incidents page. Denser than the applicant side: smaller type, tighter
+ * rows, the mesh backdrop reduced to a wash (see shell.css).
+ */
+
+.app-main:has(.worklist) {
+  align-items: stretch;
+  padding-inline: clamp(12px, 2vw, 24px);
+}
+
+.worklist {
+  width: 100%;
+  max-width: 1500px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+/* ---- list pane ---------------------------------------------------------- */
+
+.worklist-list {
+  position: sticky;
+  top: 86px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 110px);
+  min-height: 420px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.worklist-list-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+}
+
+.worklist-list-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.worklist-list-count {
+  min-width: 24px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.worklist-list-count.refreshing {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.worklist-refresh {
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.worklist-refresh:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.worklist-refresh:disabled svg {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scope-toggle {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  user-select: none;
+}
+
+.scope-switch {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.scope-switch::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 2px var(--shadow-color);
+  transition: inset-inline-start 0.2s var(--ease-out);
+}
+
+.scope-switch.on {
+  background: var(--primary);
+}
+
+.scope-switch.on::before {
+  inset-inline-start: 16px;
+}
+
+.worklist-filters {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-pill-wrap {
+  position: relative;
+}
+
+.filter-pill {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.filter-pill:hover {
+  border-color: var(--primary-soft-border);
+}
+
+.filter-pill.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.filter-pill-label {
+  color: var(--muted);
+}
+
+.filter-pill.active .filter-pill-label {
+  color: var(--primary);
+}
+
+.filter-pill-summary {
+  font-weight: 600;
+}
+
+.filter-pill-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.filter-pill svg.lucide {
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.filter-pill-wrap.open .filter-pill svg.lucide {
+  transform: rotate(180deg);
+}
+
+.filter-reset {
+  appearance: none;
+  margin-inline-start: auto;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.filter-reset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.filter-reset:not(:disabled):hover {
+  color: var(--danger);
+}
+
+.filter-dropdown {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  inset-inline-start: 0;
+  min-width: 230px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  animation: fade-up 0.2s var(--ease-out);
+}
+
+.dd-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.dd-item:hover {
+  background: var(--surface-2);
+}
+
+.dd-checkbox {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  color: var(--primary-ink);
+}
+
+.dd-checkbox.on {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.dd-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dd-empty {
+  padding: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.worklist-search {
+  position: relative;
+}
+
+.worklist-search input {
+  width: 100%;
+  padding: 8px 12px;
+  padding-inline-start: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13.5px;
+  outline: none;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.worklist-search input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 4px var(--primary-soft);
+}
+
+.worklist-search svg.lucide {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: 12px;
+  transform: translateY(-50%);
+  color: var(--muted);
+}
+
+.worklist-sort-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.worklist-sort-pill {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.worklist-error {
+  margin: 8px 16px;
+}
+
+.worklist-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.worklist-empty {
+  padding: 18px 16px;
+}
+
+.worklist-row {
+  appearance: none;
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.worklist-row:hover {
+  background: var(--surface-hover);
+}
+
+.worklist-row.selected {
+  background: var(--primary-soft);
+}
+
+.worklist-row.selected::before {
+  content: '';
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary);
+}
+
+.worklist-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+
+.tone-0 {
+  --tone: var(--cat-business);
+  --tone-soft: var(--cat-business-soft);
+}
+
+.tone-1 {
+  --tone: var(--cat-family);
+  --tone-soft: var(--cat-family-soft);
+}
+
+.tone-2 {
+  --tone: var(--cat-property);
+  --tone-soft: var(--cat-property-soft);
+}
+
+.tone-3 {
+  --tone: var(--cat-travel);
+  --tone-soft: var(--cat-travel-soft);
+}
+
+.tone-4 {
+  --tone: var(--cat-social);
+  --tone-soft: var(--cat-social-soft);
+}
+
+.tone-5 {
+  --tone: var(--cat-other);
+  --tone-soft: var(--cat-other-soft);
+}
+
+.worklist-meta {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.worklist-name {
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worklist-service {
+  font-size: 13px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worklist-step-sep {
+  margin-inline: 5px;
+}
+
+.worklist-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+}
+
+.worklist-date {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.worklist-right {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.worklist-age {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Status tag: dot + label, colour by worklist status. */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pending,
+.status-dot-pending {
+  color: var(--primary);
+}
+
+.status-tag.status-pending {
+  background: var(--primary-soft);
+}
+
+.status-incident,
+.status-dot-incident,
+.status-rejected,
+.status-dot-rejected {
+  color: var(--danger);
+}
+
+.status-tag.status-incident,
+.status-tag.status-rejected {
+  background: var(--danger-soft);
+}
+
+.status-tag.status-incident .status-dot {
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+.status-confirmed,
+.status-dot-confirmed {
+  color: var(--ok);
+}
+
+.status-tag.status-confirmed {
+  background: var(--ok-soft);
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ---- detail pane -------------------------------------------------------- */
+
+.worklist-detail {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  align-content: start;
+}
+
+.worklist-detail .card {
+  max-width: none;
+  margin: 0;
+  animation: fade-up 0.35s var(--ease-out);
+}
+
+.worklist-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 56px 24px;
+  text-align: center;
+  border-style: dashed;
+}
+
+.card-incident {
+  border-color: var(--danger-border);
+}
+
+.card-incident .card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-incident-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.row-title {
+  font-weight: 600;
+}
+
+.row-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.incident-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.incident {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--danger);
+  background: var(--surface);
+}
+
+.incident-head {
+  display: grid;
+  gap: 2px;
+}
+
+.incident-message {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.incident-actions {
+  margin-top: 10px;
+}
+
+/* ---- Incidents page (MUI DataGrid) --------------------------------------- */
+
+.card-wide .MuiDataGrid-root {
+  margin-top: 14px;
+  border-radius: var(--radius);
+  border-color: var(--border);
+  font-size: 14px;
+}
+
+.card-wide .MuiDataGrid-columnHeaders {
+  background: var(--surface-2);
+}
+
+@media (max-width: 900px) {
+  .worklist {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .worklist-list {
+    position: static;
+    max-height: none;
+  }
+}

@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import {
+  ArrowDown,
+  Check,
+  ChevronDown,
+  Hourglass,
+  RotateCw,
+  Search,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { listWorklist, setJobRetries, type Incident, type WorklistRow } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
@@ -239,20 +249,7 @@ export default function TasksPage() {
             title={t('list.refresh')}
             aria-label={t('list.refresh')}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 12a9 9 0 1 1-3-6.7" />
-              <path d="M21 3v6h-6" />
-            </svg>
+            <RotateCw size={15} aria-hidden="true" />
           </button>
           <span className="scope-toggle">
             <span id="my-cases-label">{t('filters.myCases')}</span>
@@ -362,7 +359,10 @@ export default function TasksPage() {
 
         <div className="worklist-sort-line">
           {t('list.newestFirst')}
-          <span className="worklist-sort-pill">{t('list.sortPill')}</span>
+          <span className="worklist-sort-pill">
+            {t('list.sortPill')}
+            <ArrowDown size={12} aria-hidden="true" />
+          </span>
         </div>
 
         {error && <p className="form-error worklist-error">{error}</p>}
@@ -405,7 +405,8 @@ export default function TasksPage() {
                       <>
                         <span className="worklist-step-sep">·</span>
                         <span className="worklist-waiting">
-                          ⏳ {translateBackendName(t, r.waitingOn.name)}
+                          <Hourglass size={12} aria-hidden="true" />
+                          {translateBackendName(t, r.waitingOn.name)}
                         </span>
                       </>
                     )}
@@ -428,7 +429,7 @@ export default function TasksPage() {
         </ul>
       </aside>
 
-      <main className="worklist-detail">
+      <div className="worklist-detail">
         {!selected && (
           <div className="card worklist-empty-state">
             <h1 className="card-title">{t('empty.pickTitle')}</h1>
@@ -454,8 +455,14 @@ export default function TasksPage() {
           <ProcessHistoryView
             processInstanceId={selected.processInstanceId}
             topSlot={
-              <button className="btn" onClick={clearCase}>
-                {t('common:actions.close')}
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={clearCase}
+                aria-label={t('common:actions.close')}
+                title={t('common:actions.close')}
+              >
+                <X aria-hidden="true" />
               </button>
             }
           />
@@ -469,13 +476,19 @@ export default function TasksPage() {
               load();
             }}
             topSlot={
-              <button className="btn" onClick={clearCase}>
-                {t('common:actions.close')}
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={clearCase}
+                aria-label={t('common:actions.close')}
+                title={t('common:actions.close')}
+              >
+                <X aria-hidden="true" />
               </button>
             }
           />
         )}
-      </main>
+      </div>
     </div>
   );
 }
@@ -544,18 +557,7 @@ function DropdownItem({ checked, onToggle, children }: DropdownItemProps) {
       aria-selected={checked}
     >
       <span className={`dd-checkbox${checked ? ' on' : ''}`} aria-hidden="true">
-        {checked && (
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="white"
-            strokeWidth={3}
-          >
-            <path d="M5 12l5 5L20 7" />
-          </svg>
-        )}
+        {checked && <Check size={11} strokeWidth={3.5} />}
       </span>
       <span className="dd-item-label">{children}</span>
     </button>
@@ -563,36 +565,11 @@ function DropdownItem({ checked, onToggle, children }: DropdownItemProps) {
 }
 
 function ChevronIcon() {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.5}
-      aria-hidden="true"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
+  return <ChevronDown size={14} aria-hidden="true" />;
 }
 
 function SearchIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
+  return <Search size={15} aria-hidden="true" />;
 }
 
 interface IncidentBlockProps {
@@ -626,7 +603,7 @@ function IncidentBlock({
       <div className="card-head">
         <h1 className="card-title">
           <span className="card-incident-icon" aria-hidden="true">
-            ⚑
+            <TriangleAlert size={18} />
           </span>
           {applicantName}
         </h1>

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ArrowLeft } from 'lucide-react';
 import { translateBackendName } from '../i18n/backendNames';
 import DocumentsCard from './DocumentsCard';
 import { CategoryIcon } from '../services/CategoryIcon';
@@ -59,20 +60,7 @@ export default function CaseDetailLayout({
           onClick={onBack}
           aria-label={t('common:actions.back')}
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M19 12H5" />
-            <path d="m12 19-7-7 7-7" />
-          </svg>
+          <ArrowLeft size={18} aria-hidden="true" />
           <span>{t('common:actions.back')}</span>
         </button>
         <div className="case-detail-bread">
@@ -94,7 +82,7 @@ export default function CaseDetailLayout({
       </header>
 
       <div className="case-detail-grid">
-        <main className="case-detail-main">{children}</main>
+        <div className="case-detail-main">{children}</div>
         <aside className="case-detail-sidebar">
           {processInstanceId && <DocumentsCard processInstanceId={processInstanceId} />}
         </aside>

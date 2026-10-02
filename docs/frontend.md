@@ -27,7 +27,7 @@ adding a new form, page, or REST call; when changing how a user task is rendered
 | Router | React Router 6 |
 | Build / dev server | Vite 5 |
 | UI components | Own CSS design system + **MUI v5** (`@mui/x-data-grid`) for the Incidents grid only |
-| Styling | Plain CSS on tokens: `src/styles/tokens.css` + area sheets in `src/styles/` (legacy `src/styles.css` being emptied) |
+| Styling | Plain CSS on tokens: `src/styles/tokens.css` + one sheet per area in `src/styles/` |
 | Icons | `lucide-react` |
 | HTTP | `fetch` (no axios / SWR / React Query) |
 | Auth | `keycloak-js` (OIDC PKCE against Keycloak) |
@@ -53,8 +53,7 @@ There are no state libraries; state is local React state.
 frontend/src/
 ├── main.tsx                       — bootstraps React + Router + AuthProvider, imports the stylesheets
 ├── App.tsx                        — layout shell, role-based nav + routes
-├── styles.css                     — legacy stylesheet, emptied area by area
-├── styles/                        — tokens.css, base.css and one sheet per area
+├── styles/                        — tokens, base, shell, landing, cases, forms, backoffice, public
 ├── theme/
 │   ├── colorScheme.ts             — light/dark scheme: resolve, toggle, useColorScheme()
 │   └── mui.ts                     — MUI theme per scheme (Incidents DataGrid only)
@@ -73,14 +72,20 @@ frontend/src/
 │   ├── founderSignaturesApi.ts    — /api/public/founder-signatures client (signing page)
 │   └── vehicleRegistryApi.ts      — /api/public/vehicle-registry client (vehicle dropdown)
 ├── services/
-│   └── categories.ts              — PartA life-event categories + service-key → category mapping
+│   ├── categories.ts              — PartA life-event categories + service-key → category mapping
+│   └── CategoryIcon.tsx           — Lucide icon per category
 ├── components/
+│   ├── OfficialBanner.tsx         — "official portal" strip + demo warning and Mailpit link
+│   ├── SiteFooter.tsx             — shared footer (Tulepaak OÜ support details)
+│   ├── PublicFrame.tsx            — banner + brand bar + footer for the email-link pages
+│   ├── ThemeToggle.tsx            — light/dark switch
+│   ├── LanguageSwitcher.tsx       — EN ⇄ AR switch
 │   ├── CaseDetailLayout.tsx       — shared case-detail chrome (header + sticky Documents sidebar)
 │   ├── ProcessTimeline.tsx        — "Case progress" card: milestone stepper + Full history + payment alert
 │   ├── DocumentsCard.tsx          — submitted/generated documents list with presigned downloads
 │   └── FileUpload.tsx             — drag-and-drop upload via /api/documents presigned PUT
 ├── pages/
-│   ├── ServicesPage.tsx           — PartA route "/" (life-event catalog)
+│   ├── ServicesPage.tsx           — PartA route "/" (search, life events, live services, help)
 │   ├── MyProcessesPage.tsx        — PartA route "/my-processes" (action-first inbox)
 │   ├── TasksPage.tsx              — PartB route "/" (two-pane worklist)
 │   ├── IncidentsPage.tsx          — PartB route "/incidents" (cross-service overview)
@@ -168,10 +173,16 @@ underlying HTTP methods and paths, see the canonical
 
 ### `ServicesPage` (`src/pages/ServicesPage.tsx`) — PartA
 
-Life-event catalog: a hero strip + 3×2 grid of category tiles (Business,
-Family & Civil Status, Property & Land, Travel & Identity, Social & Health,
-Other). Inspired by portals like monentreprise.bj and lesotho.eregulations.org
-— citizens pick a topic before drilling into a specific service.
+Landing page. The hero has a search over the live services (name and
+one-line summary; the placeholder types out example tasks) and an example
+case card that plays a vehicle registration through its steps. Below it: a
+trust strip, one row of six life-event tiles (Business, Family & Civil
+Status, Property & Land, Travel & Identity, Social & Health, Other), a table
+of the live services with who takes part and the fee, a four-step "how it
+works" with the headline figures, and help (FAQ plus the Tulepaak OÜ contact
+block and the mobile-app QR card). Per-service summary, participants and fee
+live in `services.json` under `live.info.<processDefinitionKey>`, taken from
+the service specs; an unknown key falls back to `live.info.default`.
 
 - `listProcessDefinitions()` to populate the catalog; deployed services are
   bucketed by `categoryOf(s.key)` (see `services/categories.ts`).
