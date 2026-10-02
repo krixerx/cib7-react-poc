@@ -595,7 +595,7 @@ services:
   # --------------------------------------------------------------------------
   graylog-mongodb:
     # Graylog's own configuration store (users, streams, inputs, dashboards).
-    image: mongo:7.0.43
+    image: mongo:8.3.9
     container_name: cib7-poc-graylog-mongodb
     restart: unless-stopped
     networks: [logstore]
