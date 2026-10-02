@@ -814,7 +814,7 @@ html[dir='rtl'] .step.active::before {
   min-width: 0;
 }
 
-.document-row-name {
+.document-row-title {
   font-size: 14px;
   font-weight: 600;
   overflow: hidden;
@@ -822,9 +822,12 @@ html[dir='rtl'] .step.active::before {
   white-space: nowrap;
 }
 
-.document-row-category {
+.document-row-sub {
   font-size: 12px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-row .icon-btn {

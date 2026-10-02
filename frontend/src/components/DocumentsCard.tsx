@@ -120,12 +120,12 @@ function Section({
                 <FileText size={18} />
               </span>
               <div className="document-row-meta">
-                <span className="document-row-name">{d.filename}</span>
-                <span className="document-row-category">
+                <span className="document-row-title">
                   {t(`documents.categories.${d.category}`, {
                     defaultValue: categoryLabel(d.category),
                   })}
                 </span>
+                <span className="document-row-sub">{d.filename}</span>
               </div>
               <button
                 type="button"

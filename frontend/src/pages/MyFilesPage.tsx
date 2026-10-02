@@ -203,8 +203,8 @@ export default function MyFilesPage() {
                     {isIssued(r.doc) ? <Award size={18} /> : <FileText size={18} />}
                   </span>
                   <div className="document-row-meta">
-                    <span className="document-row-name">{r.doc.filename}</span>
-                    <span className="document-row-category">
+                    <span className="document-row-title">{r.doc.filename}</span>
+                    <span className="document-row-sub">
                       {[r.categoryText, r.serviceName, formatDate(r.doc.createdAt)]
                         .filter(Boolean)
                         .join(' · ')}

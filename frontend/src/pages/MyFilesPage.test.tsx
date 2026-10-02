@@ -92,7 +92,7 @@ describe('MyFilesPage', () => {
   });
 
   const names = () =>
-    [...container.querySelectorAll('.document-row-name')].map((n) => n.textContent);
+    [...container.querySelectorAll('.document-row-title')].map((n) => n.textContent);
 
   function click(label: string) {
     const chip = [...container.querySelectorAll<HTMLButtonElement>('.mf-filters .chip')].find((b) =>
