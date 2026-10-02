@@ -244,6 +244,32 @@ public class DocumentsController {
     return ResponseEntity.ok(new AttachmentResponse(doc.getId()));
   }
 
+  /**
+   * Every document of every case the caller started, newest first — the applicant's "My files"
+   * page, so a certificate is one click away instead of one per case. Scoped through {@link
+   * CaseAccessService#ownCaseIds()}, never through an id the client passes.
+   */
+  @GetMapping("/mine")
+  public ResponseEntity<?> listMyDocuments() {
+    List<String> caseIds = caseAccess.ownCaseIds();
+    if (caseIds.isEmpty()) {
+      return ResponseEntity.ok(List.of());
+    }
+    List<CaseDocumentEntry> out =
+        documents.findByProcessInstanceIdInOrderByCreatedAtDesc(caseIds).stream()
+            .map(
+                d ->
+                    new CaseDocumentEntry(
+                        d.getId(),
+                        d.getProcessInstanceId(),
+                        d.getCategory(),
+                        d.getFilename(),
+                        d.getContentType(),
+                        DateTimeFormatter.ISO_INSTANT.format(d.getCreatedAt())))
+            .toList();
+    return ResponseEntity.ok(out);
+  }
+
   @GetMapping("/{processInstanceId}")
   public ResponseEntity<?> listAttachments(@PathVariable String processInstanceId) {
     if (!caseAccess.canAccessCase(processInstanceId)) {
@@ -332,6 +358,15 @@ public class DocumentsController {
       String contentType,
       String createdAt,
       String uploaderUserId) {}
+
+  /** A document plus the case it belongs to, for the cross-case "My files" list. */
+  public record CaseDocumentEntry(
+      String id,
+      String processInstanceId,
+      String category,
+      String filename,
+      String contentType,
+      String createdAt) {}
 
   public record DownloadUrlResponse(String url, long expiresIn) {}
 

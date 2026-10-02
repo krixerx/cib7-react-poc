@@ -160,6 +160,16 @@ public class EngineClient {
   }
 
   /**
+   * Ids of every top-level case {@code userId} started, running or ended, capped at {@code limit}.
+   * Backs the applicant's "My files" list, which must still show certificates of closed cases.
+   */
+  public List<String> instanceIdsStartedBy(String userId, int limit) {
+    return historicProcessInstances(Map.of("startedBy", userId), limit).stream()
+        .map(pi -> pi.path("id").asText())
+        .toList();
+  }
+
+  /**
    * How many user tasks of this case have been completed. Zero means the applicant has not
    * submitted the first form yet, which is what makes a case a draft: three of the four services
    * loop back to their first task on send-back, so "sitting at the first task" is not enough.

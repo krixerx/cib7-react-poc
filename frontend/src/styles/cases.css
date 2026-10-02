@@ -833,6 +833,87 @@ html[dir='rtl'] .step.active::before {
   background: var(--surface);
 }
 
+/* ---- My files ------------------------------------------------------------ */
+
+.mf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.mf-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mf-filters .chip.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.mf-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.mf-filters .chip.active .mf-count {
+  color: inherit;
+}
+
+.mf-search {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 320px;
+}
+
+.mf-search svg {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.mf-search .field-input {
+  padding-inline-start: 36px;
+}
+
+.mf-list {
+  gap: 8px;
+}
+
+.mf-row {
+  padding: 10px 12px;
+}
+
+.mf-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mf-case-link {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .mf-search {
+    max-width: none;
+  }
+
+  .mf-case-link {
+    display: none;
+  }
+}
+
 /* ---- file upload ---------------------------------------------------------- */
 
 .file-upload-wrap {

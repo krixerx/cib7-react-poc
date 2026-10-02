@@ -62,6 +62,16 @@ export interface DocumentEntry {
   uploaderUserId: string | null;
 }
 
+/** A document plus the case it belongs to, as listed by `/api/documents/mine`. */
+export interface CaseDocumentEntry {
+  id: string;
+  processInstanceId: string;
+  category: DocumentCategory;
+  filename: string;
+  contentType: string;
+  createdAt: string;
+}
+
 export interface DownloadUrlResponse {
   url: string;
   expiresIn: number;
@@ -123,6 +133,11 @@ export function confirmAttachment(
 
 export function listAttachments(processInstanceId: string): Promise<DocumentEntry[]> {
   return request(`/${encodeURIComponent(processInstanceId)}`);
+}
+
+/** Every document of every case the caller started, newest first. */
+export function listMyDocuments(): Promise<CaseDocumentEntry[]> {
+  return request('/mine');
 }
 
 export function getDownloadUrl(attachmentId: string): Promise<DownloadUrlResponse> {

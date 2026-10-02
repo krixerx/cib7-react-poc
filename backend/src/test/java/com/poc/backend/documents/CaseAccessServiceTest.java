@@ -136,4 +136,29 @@ class CaseAccessServiceTest {
 
     assertThat(service.canAccessCase(PI)).isTrue();
   }
+
+  @Test
+  void ownCaseIdsAreTheCasesTheCallerStarted() {
+    authenticateAs("alice", List.of());
+    when(engine.instanceIdsStartedBy("alice", CaseAccessService.MAX_OWN_CASES))
+        .thenReturn(List.of(PI));
+
+    assertThat(service.ownCaseIds()).containsExactly(PI);
+  }
+
+  @Test
+  void reviewerOwnCaseIdsAreStillOnlyTheirOwn() {
+    authenticateAs("homer", List.of("civil-servant"));
+    when(engine.instanceIdsStartedBy("homer", CaseAccessService.MAX_OWN_CASES))
+        .thenReturn(List.of());
+
+    assertThat(service.ownCaseIds()).isEmpty();
+    verify(engine).instanceIdsStartedBy("homer", CaseAccessService.MAX_OWN_CASES);
+  }
+
+  @Test
+  void ownCaseIdsWithoutAuthenticationAreEmpty() {
+    assertThat(service.ownCaseIds()).isEmpty();
+    verifyNoInteractions(engine);
+  }
 }

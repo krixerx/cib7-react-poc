@@ -1,0 +1,32 @@
+{
+  "head": {
+    "title": "My files",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "cases_one": "from {{count}} case",
+    "cases_other": "from {{count}} cases"
+  },
+  "filters": {
+    "label": "Show",
+    "issued": "Certificates and issued documents",
+    "uploaded": "Uploaded by me",
+    "all": "All files"
+  },
+  "search": {
+    "label": "Search files",
+    "placeholder": "Search by name or service"
+  },
+  "row": {
+    "openCase": "Open case"
+  },
+  "empty": {
+    "title": "No files yet",
+    "body": "Certificates and other documents from your cases will appear here.",
+    "cta": "Browse services",
+    "filtered": "No files match this view."
+  },
+  "errors": {
+    "loadFailed": "Could not load your files: {{message}}",
+    "downloadFailed": "Could not download the file: {{message}}"
+  }
+}

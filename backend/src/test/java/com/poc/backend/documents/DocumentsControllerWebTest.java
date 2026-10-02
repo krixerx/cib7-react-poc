@@ -478,6 +478,48 @@ class DocumentsControllerWebTest {
   }
 
   // =====================================================================
+  // GET /api/documents/mine
+  // =====================================================================
+
+  @Nested
+  class Mine {
+
+    @Test
+    void listsDocumentsOfTheCallersOwnCasesOnly() throws Exception {
+      when(caseAccess.ownCaseIds()).thenReturn(List.of(PI, "pi-43"));
+      Document cert =
+          new Document(
+              "pi-43",
+              "generated-certificate",
+              "certificate.pdf",
+              "application/pdf",
+              "process/pi-43/u/certificate.pdf",
+              null);
+      when(documents.findByProcessInstanceIdInOrderByCreatedAtDesc(List.of(PI, "pi-43")))
+          .thenReturn(List.of(cert));
+
+      mvc.perform(get("/api/documents/mine"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(1))
+          .andExpect(jsonPath("$[0].id").value(cert.getId()))
+          .andExpect(jsonPath("$[0].processInstanceId").value("pi-43"))
+          .andExpect(jsonPath("$[0].category").value("generated-certificate"))
+          .andExpect(jsonPath("$[0].s3Key").doesNotExist())
+          .andExpect(jsonPath("$[0].createdAt").isNotEmpty());
+    }
+
+    @Test
+    void callerWithoutCasesGetsAnEmptyListAndNoQuery() throws Exception {
+      when(caseAccess.ownCaseIds()).thenReturn(List.of());
+
+      mvc.perform(get("/api/documents/mine"))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.length()").value(0));
+      verify(documents, never()).findByProcessInstanceIdInOrderByCreatedAtDesc(any());
+    }
+  }
+
+  // =====================================================================
   // GET /api/documents/attachments/{aid}/download-url
   // =====================================================================
 
