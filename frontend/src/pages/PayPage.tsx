@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Check, Lock } from 'lucide-react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Check, Lock } from 'lucide-react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { checkout, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatCurrency } from '../i18n/format';
@@ -150,6 +150,12 @@ export default function PayPage() {
               <dd>{translateBackendName(t, status.recipient)}</dd>
             </div>
           </dl>
+          {/* Signed-in applicants land on their cases; anyone else falls through
+              the catch-all route to the services page. */}
+          <Link to="/my-processes" className="btn btn-primary pay-home">
+            {t('paid.toMyCases')}
+            <ArrowRight aria-hidden="true" />
+          </Link>
         </div>
       </div>
     );

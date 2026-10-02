@@ -30,7 +30,8 @@
   },
   "paid": {
     "title": "Payment received",
-    "body": "Thank you. Your state fee of <strong>{{amount}}</strong> has been credited to {{issuer}}. The case will continue to the next step automatically."
+    "body": "Thank you. Your state fee of <strong>{{amount}}</strong> has been credited to {{issuer}}. The case will continue to the next step automatically.",
+    "toMyCases": "Go to my cases"
   },
   "summary": {
     "for": "For",

@@ -211,6 +211,10 @@
   text-align: start;
 }
 
+.pay-success .pay-home {
+  margin-top: 28px;
+}
+
 @media (max-width: 720px) {
   .pay-grid {
     grid-template-columns: minmax(0, 1fr);
