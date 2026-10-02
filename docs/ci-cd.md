@@ -58,14 +58,17 @@ Inputs, all optional:
 | `ship_realm` | off | Also overwrite `keycloak/realm-export.json` on the host. Off by default because the host's copy holds that deployment's real client secrets. |
 | `recreate_keycloak` | off | Recreate Keycloak so an edited realm is re-imported. Drops every session and every runtime-registered user. |
 | `skip_backup` | off | Skip the rustfs volume backup (uploaded documents, generated PDFs). |
-| `preflight_only` | off | Run only the reachability diagnosis, deploy nothing. |
+| `preflight_only` | off | Run only the reachability and host-readiness checks, deploy nothing. |
 
 What the run does:
 
 1. **Preflight.** Prints the runner's egress IP, resolves the host,
    checks TCP 22, then logs in and reports the Docker version, the
-   deploy directory and whether a `.env` is there. Always runs; a deploy
-   never starts against a host it cannot reach.
+   deploy directory and whether a `.env` is there. Then it runs this
+   commit's `deploy.sh --check` from a temp dir against the live bundle
+   (see below), so a host whose `routes.yml` or `.env` is not ready for
+   this commit fails here, before the bundle is shipped. Always runs; a
+   deploy never starts against a host it cannot reach or is not ready.
 2. **Verifies the images exist** under the tag it is about to deploy. The
    image names are read out of `deploy/docker-compose.yml` itself, so
    this check cannot drift from what compose will pull, and a tag nobody
@@ -240,9 +243,16 @@ below.
   (`sed -i`, no `.bak`), and the run deletes a `.env.bak` that older runs
   left behind: a backup file would be a second, forgotten copy of every
   secret.
-- **Upgrading a TLS host from before the non-root images.** The frontend
-  and mobile containers now listen on 8080. `traefik/dynamic/routes.yml` on
-  the host is host-owned and never shipped, so `deploy.sh` refuses to run
-  while it still points at `frontend:80` or `mobile:80`. Re-copy
-  `routes.yml.example` (it also brings the header and rate-limit
-  middlewares) and re-apply your `Host()` rules.
+- **Host checks.** `traefik/dynamic/routes.yml` and `.env` are host-owned
+  and never shipped, so they can fall behind the bundle. `deploy.sh`
+  checks them before it touches anything, and `deploy.sh --check` runs
+  only the checks. It fails when `routes.yml` still points at
+  `frontend:80` or `mobile:80` (both listen on 8080 since the non-root
+  images), lacks a middleware `routes.yml.example` defines, or is missing
+  while the `tls` profile is on. On a public deployment
+  (`PUBLIC_FRONTEND_URL` not localhost) it also fails when a secret that
+  `deploy/docker-compose.yml` gives a dev default (`:-…change-me`, or any
+  `*_SECRET`) is unset in `.env` or still that default: compose would
+  otherwise run silently on a value published in this repo. The list is
+  read from the compose file, so a new secret is covered automatically,
+  and only variable names are printed.

@@ -43,7 +43,7 @@ on:
         type: boolean
         default: false
       preflight_only:
-        description: "Only diagnose whether this runner can reach the VM. Deploys nothing."
+        description: "Only diagnose whether this runner can reach the VM and whether the host is ready (routes.yml, secrets in .env). Deploys nothing."
         type: boolean
         default: false
 
@@ -58,10 +58,11 @@ concurrency:
 
 jobs:
   # Runs before every deploy, and on its own via preflight_only. Cheap, and it
-  # answers the one question with no other source: whether a GitHub-hosted
-  # runner can open port 22 on that host at all.
+  # answers the questions with no other source: whether a GitHub-hosted runner
+  # can open port 22 on that host at all, and whether the host's own files
+  # (routes.yml, .env) are ready for this commit.
   preflight:
-    name: VM reachability
+    name: VM reachability and host readiness
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -123,6 +124,22 @@ jobs:
           ssh vm "test -f '$DEPLOY_DIR/.env' \
             && echo '.env present (this workflow never overwrites it)' \
             || echo 'no .env - the stack would come up on the localhost defaults; write one before deploying to a real hostname'"
+
+      # The commit's own deploy.sh and reference files, run from a temp dir
+      # against the live bundle: the host's copies are the previous deploy's,
+      # and shipping first would overwrite them on a host that is not ready.
+      # Only variable names are printed; .env never leaves the host.
+      - name: Host readiness
+        if: env.VM_SSH_PRIVATE_KEY != ''
+        run: |
+          if ! ssh vm "test -d '$DEPLOY_DIR'"; then
+            echo "no $DEPLOY_DIR yet - first deploy; deploy.sh checks again once the bundle is there"
+            exit 0
+          fi
+          TMP=$(ssh vm 'mktemp -d')
+          tar -C deploy -cf - deploy.sh docker-compose.yml traefik/dynamic/routes.yml.example \
+            | ssh vm "tar -C '$TMP' -xf -"
+          ssh vm "bash '$TMP/deploy.sh' --check --host-dir '$DEPLOY_DIR'; rc=\$?; rm -rf '$TMP'; exit \$rc"
 
       - name: No key configured
         if: env.VM_SSH_PRIVATE_KEY == ''

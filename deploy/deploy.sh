@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 # Update-in-place for the pull-only bundle. Run ON the deployment host, from
 # anywhere:   /path/to/deploy/deploy.sh [--realm] [--yes] [--no-backup] [--no-git] [--profile <p>]...
+#             /path/to/deploy/deploy.sh --check [--host-dir <dir>]
+#
+# --check only runs the host checks below and changes nothing. --host-dir
+# reads the host's own files (.env, traefik/dynamic/routes.yml) from <dir>
+# while the reference files (docker-compose.yml, routes.yml.example) stay the
+# ones beside this script: the deploy workflow's preflight runs the commit's
+# copy of this script from a temp dir against the live bundle, before
+# anything is shipped.
+#
+# Host checks (every run; a deploy refuses to start while one fails):
+#   * routes.yml does not point at the old frontend:80 / mobile:80 and
+#     defines every middleware routes.yml.example defines; with the tls
+#     profile active, routes.yml must exist at all.
+#   * On a public deployment (PUBLIC_FRONTEND_URL set and not localhost),
+#     every secret docker-compose.yml gives a dev default must be set in .env
+#     to something other than that default. Otherwise compose silently runs
+#     on the published value. Only variable names are ever printed.
 #
 # What it does, in order:
 #   1. git pull — only when the bundle lives in a git clone and --no-git was
@@ -29,6 +46,8 @@ DO_GIT=1
 DO_REALM=0
 ASSUME_YES=0
 DO_BACKUP=1
+CHECK_ONLY=0
+HOST_DIR=$PWD
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)   PROFILES+=(--profile "$2"); shift 2 ;;
@@ -36,11 +55,120 @@ while [ $# -gt 0 ]; do
     --yes|-y)    ASSUME_YES=1; shift ;;
     --no-backup) DO_BACKUP=0; shift ;;
     --no-git)    DO_GIT=0; shift ;;
-    *) echo "usage: deploy.sh [--realm] [--yes] [--no-backup] [--no-git] [--profile <p>]" >&2; exit 2 ;;
+    --check)     CHECK_ONLY=1; shift ;;
+    --host-dir)  HOST_DIR=$(cd "$2" && pwd); shift 2 ;;
+    *) echo "usage: deploy.sh [--realm] [--yes] [--no-backup] [--no-git] [--profile <p>]" >&2
+       echo "       deploy.sh --check [--host-dir <dir>]" >&2; exit 2 ;;
   esac
 done
+if [ "$HOST_DIR" != "$PWD" ] && [ "$CHECK_ONLY" != 1 ]; then
+  echo "--host-dir is only for --check: a deploy always runs on the bundle it sits in" >&2
+  exit 2
+fi
 
 say() { printf '\n==> %s\n' "$*"; }
+
+# env_get <VAR>: the value docker compose would substitute, i.e. the process
+# environment first, then the last assignment in the host's .env. Prints
+# nothing when the variable is unset or empty.
+env_get() {
+  if [ -n "${!1:-}" ]; then printf '%s' "${!1}"; return; fi
+  local line
+  line=$(grep -E "^[[:space:]]*(export[[:space:]]+)?$1=" "$HOST_DIR/.env" 2>/dev/null | tail -1) || true
+  line=${line#*=}
+  line=${line%$'\r'}
+  case "$line" in
+    \"*\") line=${line#\"}; line=${line%\"} ;;
+    \'*\') line=${line#\'}; line=${line%\'} ;;
+  esac
+  printf '%s' "$line"
+}
+
+# host_checks: prints one line per finding and returns non-zero if any failed.
+host_checks() {
+  local bad=0 routes="$HOST_DIR/traefik/dynamic/routes.yml"
+  local example="traefik/dynamic/routes.yml.example"
+
+  # --- routes.yml ---
+  local profiles
+  profiles="$(env_get COMPOSE_PROFILES) ${PROFILES[*]:-}"
+  if [ ! -f "$routes" ]; then
+    case ",$profiles," in
+      *tls*) echo "FAIL  routes.yml missing while the tls profile is on: Traefik would route nothing."
+             echo "      cp $example $routes and add your Host() rules"; bad=1 ;;
+      *)     echo "ok    no routes.yml (tls profile off)" ;;
+    esac
+  else
+    # The frontend and mobile images run nginx unprivileged on 8080 (they used
+    # to listen on 80). A routes.yml copied from the old example leaves every
+    # TLS route answering 502 while the localhost smoke tests still pass.
+    if grep -qE 'https?://(frontend|mobile):80"' "$routes"; then
+      echo "FAIL  routes.yml still points at frontend:80 / mobile:80; both listen on 8080 now"
+      bad=1
+    else
+      echo "ok    routes.yml backend ports"
+    fi
+    # A middleware the example defines but routes.yml lacks means the example
+    # was changed (security headers, rate limits) and not merged into the host.
+    local mw missing=""
+    for mw in $(awk '/^  middlewares:/{m=1;next} /^  [^ ]/{m=0}
+                     m && /^    [A-Za-z0-9_-]+:[[:space:]]*$/{sub(/^ +/,"");sub(/:.*/,"");print}' "$example"); do
+      grep -qE "^[[:space:]]+$mw:[[:space:]]*$" "$routes" || missing="$missing $mw"
+    done
+    if [ -n "$missing" ]; then
+      echo "FAIL  routes.yml lacks middleware(s) from routes.yml.example:$missing"
+      echo "      merge the example's middlewares section and add them to each router"
+      bad=1
+    else
+      echo "ok    routes.yml middlewares"
+    fi
+  fi
+
+  # --- secrets ---
+  local public
+  public=$(env_get PUBLIC_FRONTEND_URL)
+  case "$public" in
+    ""|*://localhost*|*://127.0.0.1*)
+      echo "ok    secrets not enforced: PUBLIC_FRONTEND_URL is '${public:-unset}', a local run"
+      return "$bad" ;;
+  esac
+  # Read the candidates out of the compose file the host will run, so a new
+  # secret is covered without anyone remembering to list it here: every
+  # ${VAR:-default} whose default says change-me, plus every *_SECRET.
+  local m var def seen=" " value unset="" defaulted=""
+  while IFS= read -r m; do
+    var=${m#\$\{}; var=${var%%:-*}
+    def=${m#*:-}; def=${def%\}}
+    case "$def" in
+      *change-me*) ;;
+      *) case "$var" in *_SECRET) ;; *) continue ;; esac ;;
+    esac
+    case "$seen" in *" $var "*) continue ;; esac
+    seen="$seen$var "
+    value=$(env_get "$var")
+    if [ -z "$value" ]; then unset="$unset $var"
+    elif [ "$value" = "$def" ]; then defaulted="$defaulted $var"
+    fi
+  done < <(grep -oE '\$\{[A-Z0-9_]+:-[^}]*\}' docker-compose.yml)
+  if [ -n "$unset$defaulted" ]; then
+    [ -n "$unset" ] && echo "FAIL  not set in .env:$unset"
+    [ -n "$defaulted" ] && echo "FAIL  still the committed dev default:$defaulted"
+    echo "      compose would run $public on secrets published in the repo; set each"
+    echo "      to a fresh value, e.g. openssl rand -hex 32"
+    bad=1
+  else
+    echo "ok    secrets ($(echo $seen | wc -w) checked, none default)"
+  fi
+  return "$bad"
+}
+
+if [ "$CHECK_ONLY" = 1 ]; then
+  say "host checks against $HOST_DIR"
+  if host_checks; then say "ready to deploy"; exit 0; fi
+  echo >&2
+  echo "NOT ready: fix the FAIL lines above on the host, then re-run." >&2
+  exit 1
+fi
 
 # --- 1. refresh the bundle from git (when it is a clone, not a tarball) ----
 # --no-git is for a bundle that arrives by other means — the GitHub Actions
@@ -70,6 +198,16 @@ if [ "$DO_GIT" = 1 ] && git -C .. rev-parse --git-dir >/dev/null 2>&1; then
   fi
 fi
 
+# After the pull, so the checks read the reference files being deployed, and
+# before the backup and the confirmation, so a host that is not ready is told
+# so before anything is touched.
+say "host checks"
+if ! host_checks; then
+  echo >&2
+  echo "REFUSING to deploy: fix the FAIL lines above on the host, then re-run." >&2
+  exit 1
+fi
+
 # --- 2. back up the one persistent piece -----------------------------------
 if [ "$DO_BACKUP" = 1 ]; then
   vol=$(docker volume ls -q | grep -E '_rustfs-data$' | head -1 || true)
@@ -91,18 +229,6 @@ if [ "$ASSUME_YES" != 1 ]; then
   printf 'Continue? [y/N] '
   read -r answer
   case "$answer" in y|Y|yes|YES) ;; *) echo "aborted"; exit 1 ;; esac
-fi
-
-# The frontend and mobile images run nginx unprivileged on 8080 (they used to
-# listen on 80). routes.yml is host-owned and never shipped, so a copy made
-# from the old example would leave every TLS route answering 502 while the
-# localhost smoke tests below still pass.
-if [ -f traefik/dynamic/routes.yml ] \
-   && grep -qE 'https?://(frontend|mobile):80"' traefik/dynamic/routes.yml; then
-  echo "REFUSING to deploy: traefik/dynamic/routes.yml still points at frontend:80 / mobile:80." >&2
-  echo "Both now listen on 8080. Re-copy routes.yml.example (it also adds the security" >&2
-  echo "headers and rate limits) or change the two URLs to :8080, then re-run." >&2
-  exit 1
 fi
 
 say "docker compose pull"

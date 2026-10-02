@@ -232,8 +232,9 @@ nosniff, `X-Frame-Options`, `Referrer-Policy`), per-IP rate limits on
 commented routers for serving Keycloak (with a login rate limit) and RustFS
 through Traefik. **Upgrading an older `routes.yml`:** the frontend and
 mobile containers now listen on 8080, not 80. `deploy.sh` refuses to run
-while `routes.yml` still points at `frontend:80` or `mobile:80`; re-copy the
-example and re-apply your `Host()` rules.
+while `routes.yml` still points at `frontend:80` or `mobile:80`, or lacks a
+middleware the example defines; re-copy the example and re-apply your
+`Host()` rules.
 
 ### 4. Set up TLS certificates
 
@@ -395,7 +396,14 @@ pulls images, restarts what changed, and smoke-tests the public endpoints:
                              # edited realm-export.json (drops runtime users)
 ./deploy.sh --no-git         # skip the git refresh — for a bundle that
                              # arrived some other way (what CI passes)
+./deploy.sh --check          # only the host checks; changes nothing
 ```
+
+Every run starts with the host checks and stops before touching anything if
+one fails: `routes.yml` out of step with `routes.yml.example`, or, when
+`PUBLIC_FRONTEND_URL` is not localhost, a secret from
+`docker-compose.yml` that is unset in `.env` or still its committed
+`change-me` default. Fix the `FAIL` lines and re-run.
 
 Set `COMPOSE_PROFILES=tls` in `.env` once and every compose command —
 including the script's — picks the TLS profile up automatically;
