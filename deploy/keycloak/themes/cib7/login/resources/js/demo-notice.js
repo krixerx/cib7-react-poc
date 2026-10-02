@@ -71,7 +71,7 @@
       a.href = mailUrl;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
-      a.textContent = T.openInbox + " →";
+      a.textContent = T.openInbox;
       box.appendChild(a);
     }
     return box;

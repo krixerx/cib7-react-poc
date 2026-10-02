@@ -1,13 +1,15 @@
 <#--
   CIB seven login layout — a verbatim copy of the stock keycloak/base
-  login/template.ftl, with ONLY the `#kc-header` block (the page header above
-  the card) replaced by the civic-building logo + two-line brand, mirroring the
-  app shell in frontend/src/App.tsx. Everything else is byte-for-byte the base
-  macro so the FreeMarker contract (nested "header"/"form"/"info"/... sections,
-  locale dropdown, alerts, footer) keeps working across inherited pages.
+  login/template.ftl with three additions that mirror the SPA shell
+  (frontend/src/App.tsx, components/OfficialBanner.tsx, SiteFooter.tsx):
+  the official-portal banner and mesh backdrop at the top of <body>, the
+  `#kc-header` brand bar, and the support line under the card. Everything else
+  is byte-for-byte the base macro so the FreeMarker contract (nested
+  "header"/"form"/"info"/... sections, locale dropdown, alerts, footer) keeps
+  working across inherited pages.
 
   If you bump the Keycloak image, re-diff against the new base template.ftl and
-  re-apply just the header swap below (search for "cib7-brand").
+  re-apply the blocks marked "cib7-".
 -->
 <#import "footer.ftl" as loginFooter>
 <#macro registrationLayout bodyClass="" displayInfo=false displayMessage=true displayRequiredFields=false>
@@ -26,10 +28,10 @@
     </#if>
     <title>${msg("loginTitle",(realm.displayName!''))}</title>
     <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" />
-    <#-- Same Google Fonts the SPA loads (frontend/index.html): Inter + Noto Sans Arabic. -->
+    <#-- Same Google Fonts the SPA loads (frontend/index.html). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Instrument+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <#if properties.stylesCommon?has_content>
         <#list properties.stylesCommon?split(' ') as style>
             <link href="${url.resourcesCommonPath}/${style}" rel="stylesheet" />
@@ -77,19 +79,36 @@
 </head>
 
 <body class="${properties.kcBodyClass!}">
+<#-- cib7-banner: official-portal strip + demo tag, as OfficialBanner.tsx. -->
+<div class="cib7-official">
+    <div class="cib7-official-row">
+        <svg class="cib7-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+            <path d="m9 12 2 2 4-4" />
+        </svg>
+        <span>${msg("cib7Official")}</span>
+        <span class="cib7-official-demo">
+            <span class="cib7-official-tag">${msg("cib7DemoTag")}</span>
+            <span class="cib7-official-demo-text">${msg("cib7DemoWarning")}</span>
+        </span>
+    </div>
+</div>
+<#-- cib7-mesh: the SPA's drifting colour backdrop (shell.css .app-mesh). -->
+<div class="cib7-mesh" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="${properties.kcLoginClass!}">
-    <#-- cib7-brand: civic-building logo + brand, matching frontend/src/App.tsx app-header. -->
+    <#-- cib7-brand: glass brand bar with the Lucide landmark mark, as the SPA header. -->
     <div id="kc-header" class="${properties.kcHeaderClass!}">
         <div id="kc-header-wrapper" class="${properties.kcHeaderWrapperClass!}">
             <span class="cib7-logo" aria-hidden="true">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m3 9 9-6 9 6" />
-                    <path d="M4 21h16" />
-                    <path d="M6 21v-8" />
-                    <path d="M10 21v-8" />
-                    <path d="M14 21v-8" />
-                    <path d="M18 21v-8" />
+                    <path d="M10 18v-7" />
+                    <path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z" />
+                    <path d="M14 18v-7" />
+                    <path d="M18 18v-7" />
+                    <path d="M3 22h18" />
+                    <path d="M6 18v-7" />
                 </svg>
             </span>
             <span class="cib7-brand-text">
@@ -207,6 +226,8 @@
 
       <@loginFooter.content/>
     </div>
+    <#-- cib7-support: the SiteFooter support line. -->
+    <p class="cib7-support">${msg("cib7SupportBy")} <strong>Tulepaak OÜ</strong> · <a href="https://www.tulepaak.ee/contact" target="_blank" rel="noopener noreferrer">${msg("cib7Contact")}</a></p>
   </div>
 </body>
 </html>
