@@ -276,6 +276,17 @@ check "frontend        " "$base/"
 check "mobile app      " "$base/mobile/"
 check "MCP manifest    " "$base/.well-known/mcp.json" "mcp"
 
+# The demo inbox must never answer an anonymous request: mailpit-auth sends it
+# to the Keycloak login (302), or refuses it. A 200 here means the login gate
+# is gone and every capability link is public.
+if [ -f traefik/dynamic/routes.yml ] && grep -q 'mailpit-auth' traefik/dynamic/routes.yml; then
+  code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$base/mailpit/" || echo 000)
+  case "$code" in
+    302|401|403) echo "PASS  mailpit gate     (anonymous -> $code)" ;;
+    *)           echo "FAIL  mailpit gate     (anonymous -> $code, expected a redirect to login)"; fail=1 ;;
+  esac
+fi
+
 if [ "$fail" = 1 ]; then
   echo
   echo "Deploy finished but smoke tests FAILED — inspect: docker compose logs -f" >&2

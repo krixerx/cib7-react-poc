@@ -310,6 +310,53 @@
       "defaultClientScopes": ["cib7-claims"]
     },
     {
+      "clientId": "cib7-mailpit",
+      "name": "Mailpit demo inbox (oauth2-proxy in front of /mailpit)",
+      "description": "Login gate only: any authenticated user may read the demo inbox. Used by the mailpit-auth service in deploy/docker-compose.yml (tls profile).",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${KEYCLOAK_MAILPIT_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["${PUBLIC_FRONTEND_URL}/mailpit/oauth2/callback"],
+      "webOrigins": ["${PUBLIC_FRONTEND_URL}"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "email-verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "emailVerified",
+            "claim.name": "email_verified",
+            "jsonType.label": "boolean",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ],
+      "defaultClientScopes": ["cib7-claims"]
+    },
+    {
       "clientId": "cib7-mcp",
       "name": "CIB seven MCP (Claude Desktop / agent host)",
       "enabled": true,

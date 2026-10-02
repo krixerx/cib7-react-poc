@@ -372,6 +372,10 @@ services:
       KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:-cib7-webapps-secret}
       KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET:-cib7-business-secret}
+      # Only the deploy bundle runs the oauth2-proxy that uses this client
+      # (mailpit-auth), but the realm file is shared, so the placeholder must
+      # resolve here too.
+      KEYCLOAK_MAILPIT_CLIENT_SECRET: ${KEYCLOAK_MAILPIT_CLIENT_SECRET:-cib7-mailpit-secret}
     ports:
       - "8180:8080"
     volumes:

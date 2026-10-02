@@ -77,13 +77,19 @@ with `docker compose logs -f` until things go quiet, then open
 | Mobile applicant app (Flutter, POC) | <http://localhost:3000/mobile/> | `bart` / `bart` |
 | CIB seven Cockpit / Tasklist / Admin | <http://localhost:3000/camunda/> | `admin` / `admin` |
 | Keycloak admin console | <http://localhost:8180/admin/> | `admin` / `admin` |
-| Process-sent emails (Mailpit) | <http://localhost:8025> — needs `docker compose --profile mail up -d mailpit-ui` | — |
+| Process-sent emails (Mailpit) | <http://localhost:8025/mailpit/> — needs `docker compose --profile mail up -d mailpit-ui`; on a TLS host `${PUBLIC_FRONTEND_URL}/mailpit/` behind a Keycloak login | — locally; any account on TLS |
 | MCP endpoint for AI clients | `http://localhost:3000/mcp` | OAuth2 (browser pops; log in as `bart`) |
 | Graylog (logs from every service) | <http://localhost:9900> — loopback only; SSH-tunnel it on a real server | `admin` / `admin` |
 
 The emails the processes send (approvals, owner confirmations with
 clickable links, reminders) never leave the machine — they land in the
-Mailpit inbox above. Enable it for any end-to-end walkthrough.
+Mailpit inbox above. Enable it for any end-to-end walkthrough. On a TLS
+host the `mailpit-auth` service (oauth2-proxy) serves the inbox at
+`/mailpit/` to any logged-in user, and every such user sees every message,
+capability links included. That is a deliberate demo exemption, see
+`docs/security.md`. Route it with the `mailpit` router from
+`routes.yml.example`, and set `KEYCLOAK_MAILPIT_CLIENT_SECRET` and
+`MAILPIT_PROXY_COOKIE_SECRET` in `.env`.
 
 ### Smoke test
 
@@ -119,6 +125,8 @@ docker compose up -d        # recreates only the affected containers
 | `KEYCLOAK_BACKEND_CLIENT_SECRET` | dev value | OAuth client secret. Written into the realm at import time, so this file is its only home. |
 | `KEYCLOAK_WEBAPPS_CLIENT_SECRET` | dev value | Same, for the Cockpit/Tasklist SSO client. |
 | `KEYCLOAK_BUSINESS_CLIENT_SECRET` | dev value | Same, for the backend's service account. |
+| `KEYCLOAK_MAILPIT_CLIENT_SECRET` | dev value | Same, for the `cib7-mailpit` client that `mailpit-auth` logs users in with (tls profile). |
+| `MAILPIT_PROXY_COOKIE_SECRET` | dev value | Encrypts `mailpit-auth`'s session cookie. Exactly 32 characters: `openssl rand -hex 16`. |
 | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` | dev values | Object-storage root credentials. |
 | `INTERNAL_TASK_TOKEN` | dev value | Shared secret for the internal document-write calls; the integration bus (`esb`) injects it as `X-Internal-Token`, the backend verifies it. |
 | `GRAYLOG_PASSWORD_SECRET` | dev value | Encrypts secrets Graylog stores in MongoDB. At least 16 characters; must NOT change once there is data. |

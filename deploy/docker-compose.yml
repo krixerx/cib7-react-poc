@@ -48,11 +48,19 @@ services:
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      # UI and API live under /mailpit, the path mailpit-auth publishes them on
+      # (the esb's MAILPIT_SEND_URL and mailpit-ui's URL follow it).
+      MP_WEBROOT: mailpit
+      # Any logged-in demo visitor can open the inbox; one click must not
+      # empty it for everyone. Traefik also refuses DELETE (routes.yml).
+      MP_HIDE_DELETE_ALL_BUTTON: "true"
 
   mailpit-ui:
     # Publishes Mailpit's web UI on host port 8025, but only when the `mail`
     # profile is active:  docker compose --profile mail up -d mailpit-ui
     # Off by default so the stack never exposes an unauthenticated inbox.
+    # The UI is at http://localhost:8025/mailpit/ (MP_WEBROOT). On a TLS host
+    # use mailpit-auth instead, which puts a Keycloak login in front.
     image: alpine/socat:1.8.1.3
     container_name: cib7-poc-mailpit-ui
     profiles: ["mail"]
@@ -170,6 +178,7 @@ services:
       KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:-cib7-webapps-secret}
       KEYCLOAK_BUSINESS_CLIENT_SECRET: ${KEYCLOAK_BUSINESS_CLIENT_SECRET:-cib7-business-secret}
+      KEYCLOAK_MAILPIT_CLIENT_SECRET: ${KEYCLOAK_MAILPIT_CLIENT_SECRET:-cib7-mailpit-secret}
     ports:
       # Bind to loopback (127.0.0.1:8180) in TLS mode when Keycloak is served
       # through Traefik or another terminator on its own hostname.
@@ -232,10 +241,11 @@ services:
       # Must match the backend's INTERNAL_TASK_TOKEN — the bus sends it, the
       # backend verifies it.
       INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
-      # Mailpit send endpoint the notification route forwards to. If you serve
-      # Mailpit under a webroot (MP_WEBROOT on the mailpit service), the path
-      # here must move with it or process email silently breaks.
-      MAILPIT_SEND_URL: http://mailpit:8025/api/v1/send
+      # Mailpit send endpoint the notification route forwards to. It carries
+      # the mailpit service's MP_WEBROOT (/mailpit); if one moves, the other
+      # must too, or process email silently breaks. The bus talks to Mailpit
+      # directly on the `mail` network, never through mailpit-auth.
+      MAILPIT_SEND_URL: http://mailpit:8025/mailpit/api/v1/send
       # Central logging. TCP, not UDP: Log4j2's GelfLayout cannot chunk
       # datagrams, so a large message would be lost.
       GRAYLOG_HOST: graylog
@@ -363,6 +373,9 @@ services:
     environment:
       # Where MCP clients reach the sidecar from outside.
       MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-http://localhost:3000/mcp}
+      # The inbox the agent points users at for invitation / verification
+      # mail: the login-gated /mailpit on a TLS host (mailpit-auth).
+      MCP_MAILPIT_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}/mailpit/
       # Full issuer INCLUDING the realm path — the sidecar string-compares
       # the JWT `iss` claim against this exact value.
       KEYCLOAK_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}/realms/cib7-poc
@@ -511,6 +524,60 @@ services:
       - mcp
       - frontend
 
+  mailpit-auth:
+    # oauth2-proxy in front of the demo inbox at ${PUBLIC_FRONTEND_URL}/mailpit:
+    # anonymous visitors are sent to the Keycloak login, and any logged-in
+    # user may then read every message. That is a deliberate demo exemption
+    # (docs/security.md): the inbox holds capability links for every case.
+    # Routed by the host's routes.yml (see routes.yml.example), which also
+    # keeps Mailpit's send API and DELETE requests unreachable from outside.
+    #
+    # OIDC discovery is skipped so the browser is sent to Keycloak's public
+    # URL while the code is redeemed and the keys fetched on the internal
+    # network; the issuer is the public one stamped into every token.
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    container_name: cib7-poc-mailpit-auth
+    profiles: ["tls"]
+    restart: unless-stopped
+    # Distroless image; restated so the non-root guarantee (docs/security.md
+    # rule 11) does not hinge on a base image default.
+    user: "65532:65532"
+    # ingress-idp: Traefik in, Keycloak out. mail: the upstream Mailpit.
+    networks: [ingress-idp, mail]
+    expose:
+      - "4180"
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_CLIENT_ID: cib7-mailpit
+      OAUTH2_PROXY_CLIENT_SECRET: ${KEYCLOAK_MAILPIT_CLIENT_SECRET:-cib7-mailpit-secret}
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}/realms/cib7-poc
+      OAUTH2_PROXY_SKIP_OIDC_DISCOVERY: "true"
+      OAUTH2_PROXY_LOGIN_URL: ${PUBLIC_KEYCLOAK_URL:-http://localhost:8180}/realms/cib7-poc/protocol/openid-connect/auth
+      OAUTH2_PROXY_REDEEM_URL: http://keycloak:8080/realms/cib7-poc/protocol/openid-connect/token
+      OAUTH2_PROXY_OIDC_JWKS_URL: http://keycloak:8080/realms/cib7-poc/protocol/openid-connect/certs
+      OAUTH2_PROXY_REDIRECT_URL: ${PUBLIC_FRONTEND_URL:-http://localhost:3000}/mailpit/oauth2/callback
+      OAUTH2_PROXY_PROXY_PREFIX: /mailpit/oauth2
+      OAUTH2_PROXY_UPSTREAMS: http://mailpit:8025/
+      OAUTH2_PROXY_SCOPE: openid
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      # Every logged-in user, whatever their address: the gate is "has an
+      # account", not "owns this mail" (see above).
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      # Exactly 32 characters (oauth2-proxy accepts 16, 24 or 32 bytes):
+      #   openssl rand -hex 16
+      OAUTH2_PROXY_COOKIE_SECRET: ${MAILPIT_PROXY_COOKIE_SECRET:-mailpit-cookie-secret-change-me!}
+      OAUTH2_PROXY_COOKIE_NAME: _mailpit_auth
+      OAUTH2_PROXY_COOKIE_PATH: /mailpit
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+    depends_on:
+      - mailpit
+      - keycloak
+
   # --------------------------------------------------------------------------
   # Centralised logging — Graylog + its two stores.
   #
@@ -632,7 +699,7 @@ networks:
     name: cib7-poc-bus
   esb-backend:  # esb -> backend (+ graylog)
     name: cib7-poc-esb-backend
-  mail:         # esb -> mailpit (+ mailpit-ui)
+  mail:         # esb, mailpit-auth -> mailpit (+ mailpit-ui)
     name: cib7-poc-mail
   pdf:          # esb -> pdf-renderer (+ graylog)
     name: cib7-poc-pdf
@@ -644,7 +711,7 @@ networks:
   logstore:     # graylog <-> mongodb, opensearch; graylog-init
     name: cib7-poc-logstore
     internal: true
-  ingress-idp:  # traefik -> keycloak (only used when routes.yml routes it)
+  ingress-idp:  # traefik -> keycloak (when routes.yml routes it); traefik -> mailpit-auth -> keycloak
     name: cib7-poc-ingress-idp
   ingress-s3:   # traefik -> rustfs (only used when routes.yml routes it)
     name: cib7-poc-ingress-s3

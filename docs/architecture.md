@@ -235,6 +235,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 | Backend `/api/internal/**` | engine-only endpoints, called by the ESB with `X-Internal-Token` | `esb-backend` network only; nginx and Traefik answer 404 |
 | ESB, Gotenberg, pdf-renderer, Mailpit API | integration plumbing | only from the one service that calls each, see [Networks](#networks) |
 | Mailpit web UI | unauthenticated inbox | opt-in `dev` compose profile |
+| Mailpit at `/mailpit` (deploy bundle, `tls` profile) | shared demo inbox: any logged-in user reads every mail | `mailpit-auth` (oauth2-proxy, Keycloak client `cib7-mailpit`); `DELETE` and the send API unrouted; a demo exemption in `docs/security.md` |
 | Traefik dashboard | auth-free | `127.0.0.1:8081` only |
 
 ## Deployment topology

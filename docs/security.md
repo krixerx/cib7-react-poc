@@ -38,6 +38,16 @@ findings:
   start.
 - Self-signed TLS certificates.
 - In-memory H2 (tracked as `TODOS.md` T1).
+- The shared demo inbox. On a TLS deployment, `/mailpit` serves Mailpit
+  behind a Keycloak login (`mailpit-auth`, oauth2-proxy), and **any**
+  logged-in user reads **every** process mail, including the capability
+  links in it (owner confirmations, founder signatures, payment links). This
+  knowingly breaks rule 3's "never returned to other parties" so visitors can
+  watch the mail flow. The bounds that still hold: anonymous visitors get the
+  login page, never the inbox (`deploy.sh` smoke-tests this), and Traefik
+  routes neither `DELETE` nor Mailpit's send API, so a visitor cannot empty
+  the inbox or plant a fake process mail. Mail never leaves the stack.
+  A real deployment drops Mailpit for an SMTP relay.
 
 Everything below applies regardless. In particular, a self-registered user is
 an ordinary applicant, so the authorization rules must hold against anyone on

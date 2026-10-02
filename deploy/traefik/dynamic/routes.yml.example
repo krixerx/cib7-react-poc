@@ -62,6 +62,16 @@ http:
       rateLimit:
         average: 5
         burst: 20
+    # The demo inbox renders each message in a same-origin iframe, which
+    # frameDeny would blank; Mailpit sends its own CSP.
+    mailpit-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        customFrameOptionsValue: "SAMEORIGIN"
+        referrerPolicy: "no-referrer"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     # Keycloak's login and token endpoints, for the commented keycloak router
     # below. Keycloak's own brute-force detection (realm setting) still applies
     # per account; this caps requests per IP.
@@ -133,6 +143,20 @@ http:
       middlewares: [mcp-ratelimit, api-headers]
       tls: true
 
+    mailpit:
+      # The demo inbox behind a Keycloak login (mailpit-auth, oauth2-proxy):
+      # any logged-in user reads every message, a documented demo exemption.
+      # DELETE and Mailpit's send API are left unrouted, so a visitor can
+      # neither empty the inbox for everyone nor plant a fake process mail;
+      # those requests fall through to the frontend, which refuses them. The
+      # bus sends mail to Mailpit directly, not through here.
+      rule: "PathPrefix(`/mailpit`) && !Method(`DELETE`) && !PathPrefix(`/mailpit/api/v1/send`)"
+      entryPoints: ["websecure"]
+      service: mailpit-auth
+      middlewares: [mailpit-headers]
+      priority: 40
+      tls: true
+
     # Keycloak on its own hostname through Traefik (then bind
     # KEYCLOAK_HTTP_PORT to 127.0.0.1 in .env). Keycloak sends its own CSP for
     # the login pages, so it gets security-headers, not api-headers.
@@ -189,3 +213,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://rustfs:9000"
+    mailpit-auth:
+      loadBalancer:
+        servers:
+          - url: "http://mailpit-auth:4180"
