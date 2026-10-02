@@ -1,0 +1,40 @@
+{
+  "head": {
+    "title": "ملفاتي",
+    "files_zero": "لا توجد ملفات",
+    "files_one": "ملف واحد",
+    "files_two": "ملفان",
+    "files_few": "{{count}} ملفات",
+    "files_many": "{{count}} ملفًا",
+    "files_other": "{{count}} ملف",
+    "cases_zero": "من دون معاملات",
+    "cases_one": "من معاملة واحدة",
+    "cases_two": "من معاملتين",
+    "cases_few": "من {{count}} معاملات",
+    "cases_many": "من {{count}} معاملة",
+    "cases_other": "من {{count}} معاملة"
+  },
+  "filters": {
+    "label": "عرض",
+    "issued": "الشهادات والمستندات الصادرة",
+    "uploaded": "ما رفعته",
+    "all": "كل الملفات"
+  },
+  "search": {
+    "label": "البحث في الملفات",
+    "placeholder": "ابحث بالاسم أو الخدمة"
+  },
+  "row": {
+    "openCase": "فتح المعاملة"
+  },
+  "empty": {
+    "title": "لا توجد ملفات بعد",
+    "body": "ستظهر هنا الشهادات والمستندات الأخرى الخاصة بمعاملاتك.",
+    "cta": "تصفح الخدمات",
+    "filtered": "لا توجد ملفات تطابق هذا العرض."
+  },
+  "errors": {
+    "loadFailed": "تعذر تحميل ملفاتك: {{message}}",
+    "downloadFailed": "تعذر تنزيل الملف: {{message}}"
+  }
+}

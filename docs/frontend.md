@@ -64,7 +64,7 @@ frontend/src/
 ├── api/
 │   ├── camundaClient.ts           — typed /engine-rest client + interfaces (attaches Bearer JWT)
 │   ├── bpmn.ts                    — BPMN XML parsing: user tasks, activity names, flow graph + nextSteps()
-│   ├── documentsApi.ts            — /api/documents client (upload-url, attachments, download-url)
+│   ├── documentsApi.ts            — /api/documents client (upload-url, attachments, mine, download-url)
 │   ├── paymentsApi.ts             — /api/public/payments client (pay page: status + checkout)
 │   ├── paymentLinkApi.ts          — /api/cases/{id}/payment-link (pay link for the signed-in applicant)
 │   ├── draftCaseApi.ts            — /api/cases/drafts + DELETE /api/cases/{id} (applicant's unsubmitted cases)
@@ -88,6 +88,7 @@ frontend/src/
 ├── pages/
 │   ├── ServicesPage.tsx           — PartA route "/" (search, life events, live services, help)
 │   ├── MyProcessesPage.tsx        — PartA route "/my-processes" (action-first inbox)
+│   ├── MyFilesPage.tsx            — PartA route "/my-files" (documents across all own cases)
 │   ├── TasksPage.tsx              — PartB route "/" (two-pane worklist)
 │   ├── IncidentsPage.tsx          — PartB route "/incidents" (cross-service overview)
 │   ├── StatisticsPage.tsx         — route "/statistics" for the statistics-viewer role
@@ -148,6 +149,7 @@ route sets. The TaskDetail and CompletedProcess pages are shared.
 |---|---|---|
 | `/` | `ServicesPage` | Pick a service and start a new instance |
 | `/my-processes` | `MyProcessesPage` | The applicant's own instances + live status pill |
+| `/my-files` | `MyFilesPage` | Every document of the applicant's own cases, certificates first |
 
 ### PartB — civil servant / back office (`isCivilServant === true`)
 
@@ -240,6 +242,23 @@ the service specs; an unknown key falls back to `live.info.default`.
   with no applicant task — the row links to `/processes/{instanceId}`
   (read-only form + case-progress stepper), so an applicant can always see
   where the case is while the back office holds it.
+
+### `MyFilesPage` (`src/pages/MyFilesPage.tsx`) — PartA
+
+- One place to find certificates without opening each case. `GET
+  /api/documents/mine` returns every document of every case the caller
+  started, running or ended, newest first, each with its
+  `processInstanceId`. The backend picks the cases from the engine's
+  `startedBy` history for the token's user, never from an id the client
+  sends, and reviewers get only cases they started themselves.
+- Service names come from `listHistoricProcessInstancesByStarter` plus
+  `listProcessDefinitions`; if either fails the rows still render, just
+  without the service name.
+- Filter chips: **Certificates and issued documents** (the `generated-*`
+  categories, the default), **Uploaded by me** and **All files**, each with
+  its count, plus a search over file name, category and service.
+- Each row downloads through the same 60-second presigned URL as the
+  case's Documents card and links to `/processes/{instanceId}`.
 
 ### `TasksPage` (`src/pages/TasksPage.tsx`) — PartB
 

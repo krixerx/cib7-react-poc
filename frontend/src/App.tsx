@@ -12,13 +12,14 @@ import TaskDetailPage from './pages/TaskDetailPage';
 import CompletedProcessPage from './pages/CompletedProcessPage';
 import IncidentsPage from './pages/IncidentsPage';
 import MyProcessesPage from './pages/MyProcessesPage';
+import MyFilesPage from './pages/MyFilesPage';
 import StatisticsPage from './pages/StatisticsPage';
 import { useAuth } from './auth/AuthProvider';
 import { countHistoricProcessInstancesByStarter } from './api/camundaClient';
 
 /**
  * Role-based shell. Anonymous visitors see Services only (catalogue browsing).
- * Applicants (PartA) see Services + My processes. Civil servants (PartB) see
+ * Applicants (PartA) see Services, My cases and My files. Civil servants (PartB) see
  * Tasks + Incidents. Statistics follow the `statistics-viewer` role rather
  * than the PartB role, so Keycloak alone decides who sees them. The task-detail and completed-process pages are shared —
  * both roles open the same form pages, just for tasks they're allowed to touch.
@@ -87,6 +88,7 @@ export default function App() {
         {t('app.nav.myProcesses')}
         {myProcessCount !== null && <span className="nav-badge">{myProcessCount}</span>}
       </NavLink>
+      <NavLink to="/my-files">{t('app.nav.myFiles')}</NavLink>
       {statisticsLink}
     </>
   );
@@ -170,6 +172,7 @@ export default function App() {
             <>
               <Route path="/" element={<ServicesPage />} />
               <Route path="/my-processes" element={<MyProcessesPage />} />
+              <Route path="/my-files" element={<MyFilesPage />} />
             </>
           )}
           {canViewStatistics && <Route path="/statistics" element={<StatisticsPage />} />}

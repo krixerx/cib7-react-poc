@@ -67,6 +67,18 @@ public class CaseAccessService {
         && me.equals(engine.getHistoricStartUserId(processInstanceId));
   }
 
+  /** Upper bound on the cases {@link #ownCaseIds} reads from the engine's history. */
+  public static final int MAX_OWN_CASES = 1000;
+
+  /**
+   * Ids of the cases the caller started, running or ended. Deliberately the starter rule for every
+   * role: a reviewer may read any case, but "my" cases are only the ones they applied for.
+   */
+  public List<String> ownCaseIds() {
+    String me = callerUsername();
+    return me == null ? List.of() : engine.instanceIdsStartedBy(me, MAX_OWN_CASES);
+  }
+
   /** The caller's Keycloak username, or {@code null} without a JWT that names one. */
   public String callerUsername() {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();

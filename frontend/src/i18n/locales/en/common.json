@@ -10,6 +10,7 @@
       "incidents": "Incidents",
       "statistics": "Statistics",
       "myProcesses": "My cases",
+      "myFiles": "My files",
       "label": "Main"
     },
     "auth": {
