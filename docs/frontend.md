@@ -67,6 +67,7 @@ frontend/src/
 │   ├── documentsApi.ts            — /api/documents client (upload-url, attachments, download-url)
 │   ├── paymentsApi.ts             — /api/public/payments client (pay page: status + checkout)
 │   ├── paymentLinkApi.ts          — /api/cases/{id}/payment-link (pay link for the signed-in applicant)
+│   ├── draftCaseApi.ts            — /api/cases/drafts + DELETE /api/cases/{id} (applicant's unsubmitted cases)
 │   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
 │   ├── ownerConfirmationsApi.ts   — /api/public/owner-confirmations client (confirm page)
 │   ├── founderSignaturesApi.ts    — /api/public/founder-signatures client (signing page)
@@ -223,6 +224,14 @@ the service specs; an unknown key falls back to `live.info.default`.
   | back-office task open | — | **Under review** | In progress |
   | none (service task in flight) | — | **Processing** | In progress |
 
+- **Drafts.** Opening a service starts the process instance at once, so an
+  abandoned form would otherwise sit in the list for good. `GET
+  /api/cases/drafts` names the applicant's cases with no completed task yet;
+  their card reads "Draft, not submitted yet" and carries a **Delete**
+  button with an inline confirmation. `DELETE /api/cases/{id}` removes the
+  case from the engine runtime and history, so it leaves the list entirely.
+  A sent-back case is never a draft, because its first task was completed
+  once. If the drafts call fails the page renders without Delete buttons.
 - Finished instances are labelled **Approved** if `endActivityId === 'EndEvent_Approved'`,
   otherwise **Ended**.
 - Every row is clickable. When the applicant task is active, the row links to

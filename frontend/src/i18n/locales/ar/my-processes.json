@@ -40,7 +40,8 @@
     "awaitingSubmission": "بانتظار تقديمك للطلب",
     "reason": "«{{reason}}»",
     "ctaPay": "السداد",
-    "ctaOpen": "فتح"
+    "ctaOpen": "فتح",
+    "draft": "مسودة، لم تُقدَّم بعد"
   },
   "meta": {
     "started": "بدأت في {{date}}",
@@ -57,5 +58,11 @@
   },
   "errors": {
     "loadFailed": "تعذّر تحميل معاملاتك: {{message}}"
+  },
+  "draft": {
+    "delete": "حذف",
+    "keep": "إبقاء",
+    "confirm": "حذف هذه المسودة؟",
+    "deleteFailed": "تعذّر حذف المسودة: {{message}}"
   }
 }

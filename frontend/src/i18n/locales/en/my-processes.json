@@ -28,7 +28,8 @@
     "awaitingSubmission": "Awaiting your submission",
     "reason": "“{{reason}}”",
     "ctaPay": "Pay",
-    "ctaOpen": "Open"
+    "ctaOpen": "Open",
+    "draft": "Draft, not submitted yet"
   },
   "meta": {
     "started": "Started {{date}}",
@@ -45,5 +46,11 @@
   },
   "errors": {
     "loadFailed": "Could not load your cases: {{message}}"
+  },
+  "draft": {
+    "delete": "Delete",
+    "keep": "Keep",
+    "confirm": "Delete this draft?",
+    "deleteFailed": "Could not delete the draft: {{message}}"
   }
 }

@@ -67,6 +67,16 @@ public class CaseAccessService {
         && me.equals(engine.getHistoricStartUserId(processInstanceId));
   }
 
+  /** The caller's Keycloak username, or {@code null} without a JWT that names one. */
+  public String callerUsername() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    if (!(auth instanceof JwtAuthenticationToken jwt)) {
+      return null;
+    }
+    String me = jwt.getToken().getClaimAsString("preferred_username");
+    return me == null || me.isBlank() ? null : me;
+  }
+
   private static List<String> realmRoles(JwtAuthenticationToken jwt) {
     Map<String, Object> realmAccess = jwt.getToken().getClaimAsMap("realm_access");
     if (realmAccess == null) {
