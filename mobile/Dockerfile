@@ -51,9 +51,12 @@ COPY --from=build /app/build/web /usr/share/nginx/html/mobile
 # at container start.
 COPY docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
 USER root
+# Pull Alpine security fixes newer than the base tag (Trivy blocks publishing
+# on fixable HIGH/CRITICAL findings, e.g. pcre2 CVE-2026-103111).
 # The script runs as uid 101 at start, so the files it rewrites must be
 # writable by it; running it once here bakes localhost defaults.
-RUN chmod 755 /docker-entrypoint.d/40-runtime-env.sh \
+RUN apk upgrade --no-cache \
+ && chmod 755 /docker-entrypoint.d/40-runtime-env.sh \
  && /docker-entrypoint.d/40-runtime-env.sh \
  && chown 101:0 /usr/share/nginx/html/mobile/env.js /etc/nginx/snippets /etc/nginx/snippets/headers-app.conf
 USER 101
