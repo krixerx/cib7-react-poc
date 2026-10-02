@@ -56,21 +56,26 @@ review, the send-back loop — works end-to-end over chat.
 
 ## Auto-approval rule
 
-The business-auto-approval DMN evaluates `applicantAge` and `shareCapital`
-with FIRST hit policy:
+**Demo mode is on: every registration goes to civil-servant review.** The
+first rule of the business-auto-approval DMN matches every case, so
+autoDecision is always "review". Tell the user their application will be
+reviewed by a civil servant; never promise auto-approval.
+
+The underlying policy (inactive while demo mode is on) evaluates
+`applicantAge`, `shareCapital` and `applicantResidency` with FIRST hit policy:
 
 - `shareCapital < 2500` → autoDecision = "review" (manual review)
 - `applicantAge < 18` → autoDecision = "review"
-- `applicantAge >= 18 AND shareCapital >= 2500` → autoDecision = "approve"
+- `applicantResidency = "foreign"` → autoDecision = "review"
+- adult citizen or e-resident with `shareCapital >= 2500` → autoDecision = "approve"
+- anything else → autoDecision = "review"
 
 Auto-approved cases skip the civil-servant queue and end immediately with
 an approval email. Reviewed cases route to a civil servant who can accept
 or send back with a reason.
 
-You can predict the auto-approval outcome from the start_process input
-alone (no service-task lookup like personRegistration's price), so you can
-tell the user "this should be auto-approved" or "this will need civil-
-servant review" up front.
+Outside demo mode you could predict the outcome from the start_process
+input alone (no service-task lookup like personRegistration's price).
 
 ## After start_process
 

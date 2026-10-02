@@ -10,6 +10,9 @@ import org.cibseven.bpm.dmn.engine.DmnEngine;
 import org.cibseven.bpm.dmn.engine.DmnEngineConfiguration;
 import org.cibseven.bpm.engine.variable.VariableMap;
 import org.cibseven.bpm.engine.variable.Variables;
+import org.cibseven.bpm.model.dmn.Dmn;
+import org.cibseven.bpm.model.dmn.DmnModelInstance;
+import org.cibseven.bpm.model.xml.instance.ModelElementInstance;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +24,10 @@ import org.junit.jupiter.api.Test;
  * <p>Both tables use hit policy FIRST with a final catch-all {@code Rule_DefaultReview}, so every
  * possible input combination must produce exactly one {@code autoDecision} entry — the regression
  * tests at the bottom pin that contract for out-of-band inputs.
+ *
+ * <p>The business table currently opens with {@code Rule_DemoAlwaysReview}, which sends every case
+ * to review for demos. The policy tests evaluate a copy with that rule removed, so the real rules
+ * stay covered and are correct the moment the demo rule is deleted.
  */
 class DmnEvaluationTest {
 
@@ -30,6 +37,7 @@ class DmnEvaluationTest {
   private static DmnEngine dmnEngine;
   private static DmnDecision vehicleDecision;
   private static DmnDecision businessDecision;
+  private static DmnDecision businessPolicyDecision;
 
   @BeforeAll
   static void parseDecisions() {
@@ -39,12 +47,27 @@ class DmnEvaluationTest {
     businessDecision =
         parse(
             "processes/business-registration/business-auto-approval.dmn", "business-auto-approval");
+    businessPolicyDecision =
+        parseWithoutRule(
+            "processes/business-registration/business-auto-approval.dmn",
+            "business-auto-approval",
+            "Rule_DemoAlwaysReview");
   }
 
   private static DmnDecision parse(String resource, String decisionKey) {
     InputStream stream = DmnEvaluationTest.class.getClassLoader().getResourceAsStream(resource);
     assertNotNull(stream, resource + " must be on the test classpath");
     return dmnEngine.parseDecision(decisionKey, stream);
+  }
+
+  private static DmnDecision parseWithoutRule(String resource, String decisionKey, String ruleId) {
+    InputStream stream = DmnEvaluationTest.class.getClassLoader().getResourceAsStream(resource);
+    assertNotNull(stream, resource + " must be on the test classpath");
+    DmnModelInstance model = Dmn.readModelFromStream(stream);
+    ModelElementInstance rule = model.getModelElementById(ruleId);
+    assertNotNull(rule, ruleId + " must exist in " + resource);
+    rule.getParentElement().removeChildElement(rule);
+    return dmnEngine.parseDecision(decisionKey, model);
   }
 
   private static String evaluateVehicle(Object age, Object price, Object vehicleAgeYears) {
@@ -57,12 +80,21 @@ class DmnEvaluationTest {
   }
 
   private static String evaluateBusiness(Object age, Object capital, Object residency) {
+    return evaluateBusiness(businessDecision, age, capital, residency);
+  }
+
+  private static String evaluateBusinessPolicy(Object age, Object capital, Object residency) {
+    return evaluateBusiness(businessPolicyDecision, age, capital, residency);
+  }
+
+  private static String evaluateBusiness(
+      DmnDecision decision, Object age, Object capital, Object residency) {
     VariableMap variables =
         Variables.createVariables()
             .putValue("applicantAge", age)
             .putValue("shareCapital", capital)
             .putValue("applicantResidency", residency);
-    return singleEntry(dmnEngine.evaluateDecisionTable(businessDecision, variables));
+    return singleEntry(dmnEngine.evaluateDecisionTable(decision, variables));
   }
 
   /** Hit policy FIRST: every evaluation must yield exactly one result row. */
@@ -108,29 +140,36 @@ class DmnEvaluationTest {
   // --- business-auto-approval -----------------------------------------------
 
   @Test
+  void businessDemoModeReviewsEvenAnAutoApprovableCase() {
+    // Rule_DemoAlwaysReview: the deployed table sends every case to the civil servant.
+    assertEquals(REVIEW, evaluateBusiness(30, 5000.0, "citizen"));
+    assertEquals(REVIEW, evaluateBusiness(25, 2500.0, "e-resident"));
+  }
+
+  @Test
   void businessAdultCitizenWithSufficientCapitalIsAutoApproved() {
     // Rule_CitizenOrEResidentAdult, capital boundary 2500 included.
-    assertEquals(APPROVE, evaluateBusiness(30, 2500.0, "citizen"));
+    assertEquals(APPROVE, evaluateBusinessPolicy(30, 2500.0, "citizen"));
   }
 
   @Test
   void businessAdultEResidentWithSufficientCapitalIsAutoApproved() {
-    assertEquals(APPROVE, evaluateBusiness(25, 5000.0, "e-resident"));
+    assertEquals(APPROVE, evaluateBusinessPolicy(25, 5000.0, "e-resident"));
   }
 
   @Test
   void businessUnderageFounderIsReviewed() {
-    assertEquals(REVIEW, evaluateBusiness(17, 5000.0, "citizen"));
+    assertEquals(REVIEW, evaluateBusinessPolicy(17, 5000.0, "citizen"));
   }
 
   @Test
   void businessBelowMinimumCapitalIsReviewed() {
-    assertEquals(REVIEW, evaluateBusiness(30, 1000.0, "citizen"));
+    assertEquals(REVIEW, evaluateBusinessPolicy(30, 1000.0, "citizen"));
   }
 
   @Test
   void businessForeignFounderIsReviewed() {
-    assertEquals(REVIEW, evaluateBusiness(40, 10000.0, "foreign"));
+    assertEquals(REVIEW, evaluateBusinessPolicy(40, 10000.0, "foreign"));
   }
 
   @Test
@@ -138,13 +177,13 @@ class DmnEvaluationTest {
     // REGRESSION: before Rule_DefaultReview was added, an adult founder with
     // sufficient capital and an unknown residency value matched NO rule and
     // hit policy FIRST returned an EMPTY result instead of a decision.
-    assertEquals(REVIEW, evaluateBusiness(30, 5000.0, "martian"));
+    assertEquals(REVIEW, evaluateBusinessPolicy(30, 5000.0, "martian"));
   }
 
   @Test
   void businessMissingResidencyFallsThroughToDefaultReview() {
     // REGRESSION: a null residency matches neither "foreign" nor the
     // citizen/e-resident list; only the catch-all Rule_DefaultReview fires.
-    assertEquals(REVIEW, evaluateBusiness(30, 5000.0, null));
+    assertEquals(REVIEW, evaluateBusinessPolicy(30, 5000.0, null));
   }
 }

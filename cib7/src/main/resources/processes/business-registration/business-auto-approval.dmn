@@ -28,6 +28,9 @@
 
     Policy summary (matches Äriregister POC framing):
 
+      DEMO MODE                        → review (Rule_DemoAlwaysReview matches
+                                         every case; delete it to restore
+                                         auto-approval)
       Below minimum capital            → review (statutory €2500 floor)
       Underage founder                 → review (no corporate-signing capacity)
       Foreign founder                  → review (always — KYB depth varies)
@@ -56,6 +59,16 @@
         </inputExpression>
       </input>
       <output id="Output_Decision" label="Decision" name="autoDecision" typeRef="string" />
+
+      <!-- Demo mode: every case goes to civil-servant review so the PartB step
+           shows in every demo. FIRST hit policy means the rules below never
+           fire while this one is here; delete it to restore auto-approval. -->
+      <rule id="Rule_DemoAlwaysReview">
+        <inputEntry id="Rule_DemoAlwaysReview_Age"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DemoAlwaysReview_Capital"><text>-</text></inputEntry>
+        <inputEntry id="Rule_DemoAlwaysReview_Residency"><text>-</text></inputEntry>
+        <outputEntry id="Rule_DemoAlwaysReview_Out"><text>"review"</text></outputEntry>
+      </rule>
 
       <!-- Share capital below the statutory €2500 floor always needs human review. -->
       <rule id="Rule_BelowMinimumCapital">

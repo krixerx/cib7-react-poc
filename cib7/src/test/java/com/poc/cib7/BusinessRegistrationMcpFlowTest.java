@@ -36,7 +36,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * </ul>
  *
  * <p>This test completes the applicant task with ONLY the six manifest fields and pins both fixes:
- * the complete call must not throw, and the case must auto-approve (skip the civil-servant queue).
+ * the complete call must not throw, and the case must get a decision. While the DMN's demo rule
+ * ({@code Rule_DemoAlwaysReview}) is in place that decision is always "review", so the residency
+ * default is only observable once the demo rule is removed; then assert "approve" and no review
+ * task again, as this test did before demo mode.
  */
 // Job execution off: completing the applicant task parks at the asyncBefore
 // B-card service task. We assert on the synchronous result (autoDecision,
@@ -51,7 +54,7 @@ class BusinessRegistrationMcpFlowTest {
   @Autowired private ProcessEngine processEngine;
 
   @Test
-  void soleFounderCompletedWithMcpVariablesAutoApproves() {
+  void soleFounderCompletedWithMcpVariablesReachesCivilServantReview() {
     var runtimeService = processEngine.getRuntimeService();
     var taskService = processEngine.getTaskService();
 
@@ -80,7 +83,7 @@ class BusinessRegistrationMcpFlowTest {
     // Cannot resolve identifier 'additionalFounders') — the HTTP500 the user hit.
     taskService.complete(task.getId(), mcpVars);
 
-    // Task_AutoDecide ran with the defaulted residency and auto-approved. autoDecision
+    // Task_AutoDecide ran and, in demo mode, chose review. autoDecision
     // is committed synchronously before the async B-card PDF job, so it is readable here
     // regardless of whether the job executor is running.
     Object autoDecision =
@@ -91,15 +94,15 @@ class BusinessRegistrationMcpFlowTest {
             .variableName("autoDecision")
             .singleResult()
             .getValue();
-    assertEquals("approve", autoDecision, "sole-founder adult with >= EUR 2500 must auto-approve");
+    assertEquals("review", autoDecision, "demo mode sends every case to civil-servant review");
 
-    // And it did NOT land in the civil-servant review queue.
+    // And it landed in the civil-servant review queue.
     long reviewTasks =
         taskService
             .createTaskQuery()
             .processInstanceId(pi.getId())
             .taskDefinitionKey("Task_ReviewBusinessRegistration")
             .count();
-    assertEquals(0, reviewTasks, "auto-approved case must skip Business Register review");
+    assertEquals(1, reviewTasks, "case must wait for Business Register review");
   }
 }

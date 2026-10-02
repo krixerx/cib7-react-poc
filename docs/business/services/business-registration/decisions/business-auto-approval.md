@@ -11,6 +11,7 @@
 |---|---|---|
 | Applicant age | `integer` | `applicantAge` |
 | Share capital | `double` | `shareCapital` |
+| Applicant residency | `string` | `applicantResidency` |
 
 ## Output
 
@@ -25,17 +26,23 @@ output is returned (mapped to `autoDecision` via `singleEntry`).
 
 ## Rules
 
-| # | Applicant age | Share capital | Decision |
-|---|---|---|---|
-| 1 | `-` | `< 2500` | `"review"` |
-| 2 | `< 18` | `-` | `"review"` |
-| 3 | `>= 18` | `>= 2500` | `"approve"` |
+| # | Rule id | Applicant age | Share capital | Residency | Decision |
+|---|---|---|---|---|---|
+| 0 | `Rule_DemoAlwaysReview` | `-` | `-` | `-` | `"review"` |
+| 1 | `Rule_BelowMinimumCapital` | `-` | `< 2500` | `-` | `"review"` |
+| 2 | `Rule_UnderageFounder` | `< 18` | `-` | `-` | `"review"` |
+| 3 | `Rule_ForeignFounder` | `-` | `-` | `"foreign"` | `"review"` |
+| 4 | `Rule_CitizenOrEResidentAdult` | `>= 18` | `>= 2500` | `"citizen", "e-resident"` | `"approve"` |
+| 5 | `Rule_DefaultReview` | `-` | `-` | `-` | `"review"` |
 
-The default-fallthrough case (no rule matches, which can only happen for
-malformed inputs like negative share capital) returns `null` —
-`mapDecisionResult="singleEntry"` writes `null` into `autoDecision`, which
-falls through to the gateway's default branch (manual review). The engine
-never throws on no-match.
+**Demo mode:** rule 0 matches every case, so with hit policy `FIRST` every
+registration currently goes to civil-servant review and rules 1 to 5 never
+fire. It exists so the PartB review step can be shown in every demo. Delete
+rule 0 to restore auto-approval; rules 1 to 5 are the real policy.
+
+Rule 5 is the catch-all for anything rules 1 to 4 do not cover (an
+unexpected or missing residency value). Without it, hit policy `FIRST`
+yields an empty result for unmatched inputs instead of a decision.
 
 ## Why these rules
 
@@ -44,6 +51,8 @@ never throws on no-match.
   this floor for demo clarity. Real-world: relaxed in 2023.
 - **Adult applicant (Rule 2)** — corporate-law signing capacity. Below 18
   always needs a guardian's countersignature and human review.
-- **Auto-approval (Rule 3)** — adult + sufficient capital. No upper bound
+- **Foreign founder (Rule 3)** — KYB depth and statutory representation
+  rules differ from Estonian residents, so a person always reviews.
+- **Auto-approval (Rule 4)** — adult + sufficient capital. No upper bound
   in the POC; in production we'd cap at e.g. €25000 and require KYC review
   above that.

@@ -18,7 +18,9 @@ An applicant registers a new Estonian limited liability company (OÜ) by
 providing the company name, board members (with personal codes), and share
 capital amount. Adults submitting at least the legal minimum share capital
 (€2500) are auto-approved by a DMN rule and notified by email; everyone else
-is routed to a civil-servant queue for manual review. If the case is sent
+is routed to a civil-servant queue for manual review. **Demo mode:** the DMN
+currently sends every case to review, so the civil-servant step shows in every
+demo (see [`decisions/business-auto-approval.md`](decisions/business-auto-approval.md)). If the case is sent
 back for corrections, the applicant fixes the data and resubmits — the loop
 reuses the same applicant task. This service is also the showcase of the
 spec-first × MCP pipeline: the same markdown spec drives BPMN, React forms,
@@ -81,6 +83,7 @@ flow               send-approval-email -> approved
 | `applicantFirstName` | `Task_SubmitBusinessDetails` | String | Applicant's first name. Autofilled by the MCP agent from `query_user_history('firstName')` when available; the user is asked to confirm. |
 | `applicantLastName` | `Task_SubmitBusinessDetails` | String | Applicant's last name. Autofill pattern same as above. |
 | `applicantAge` | `Task_SubmitBusinessDetails` | Integer | Applicant's age. Autofill pattern same as above. Used by the auto-approval DMN. |
+| `applicantResidency` | `Task_SubmitBusinessDetails` | String | `"citizen"`, `"e-resident"` or `"foreign"`. SPA-only; `Task_AutoDecide` defaults it to `"citizen"` when absent (MCP path). Used by the auto-approval DMN. |
 | `autoDecision` | `Task_AutoDecide` (DMN) | String | `"approve"` or `"review"`. |
 | `decision` | `Task_ReviewBusinessRegistration` | String | `"approve"` or `"sendback"`. |
 | `sendBackReason` | `Task_ReviewBusinessRegistration` | String | Reason for the loop-back. The applicant sees this as a banner above the form on resubmit; the React form clears it on next submit so a future cycle starts clean. |

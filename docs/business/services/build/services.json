@@ -4,7 +4,7 @@
     {
       "key": "businessRegistration",
       "name": "Business Registration",
-      "description": "Register a new Estonian limited liability company (OÜ). Adult applicants with at least €2500 share capital are auto-approved by DMN; everyone else routes to a civil-servant review queue.",
+      "description": "Register a new Estonian limited liability company (OÜ). Adult applicants with at least €2500 share capital are auto-approved by DMN; everyone else routes to a civil-servant review queue. Demo mode: currently every case goes to review.",
       "audience": "applicant",
       "manifestPath": "business-registration/build/mcp-service.json"
     },
