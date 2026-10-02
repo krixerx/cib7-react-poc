@@ -43,7 +43,7 @@ RUN sed -i 's#</head>#  <script src="env.js"></script>\n</head>#' \
 # stripping needed in either path.
 # nginx-unprivileged runs as uid 101 and listens on 8080 (docs/security.md
 # rule 11: no image we build runs as root).
-FROM nginxinc/nginx-unprivileged:1.30.5-alpine
+FROM nginxinc/nginx-unprivileged:1.31.6-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/build/web /usr/share/nginx/html/mobile
