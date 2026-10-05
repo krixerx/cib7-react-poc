@@ -294,6 +294,13 @@ export function listHistoricTasks(processInstanceId: string): Promise<HistoricTa
   );
 }
 
+/** How many user tasks of a process instance have been completed. */
+export async function countFinishedTasks(processInstanceId: string): Promise<number> {
+  const qs = new URLSearchParams({ processInstanceId, finished: 'true' });
+  const res: { count: number } = await request(`/history/task/count?${qs}`);
+  return res.count;
+}
+
 /**
  * Lists every historic user task with a given `taskDefinitionKey` across all
  * instances of a process definition — both active (endTime null) and finished.
@@ -494,7 +501,26 @@ export interface WorklistRow {
   waitingOn: { activityId: string; name: string } | null;
   /** Open incidents on the case (mostly failedJob from service tasks). Empty when healthy. */
   incidents: Incident[];
+  /**
+   * Active and no user task completed yet: the applicant started the case but
+   * has not submitted the first form. Same rule as the backend's
+   * `/api/cases/drafts`; sitting at the first task is not enough, because
+   * send-back loops return there.
+   */
+  isDraft: boolean;
+  /**
+   * Parked on the fee-payment wait. The applicant pays; the back office has
+   * nothing to do until the provider's callback moves the case on.
+   */
+  awaitingPayment: boolean;
 }
+
+/**
+ * Payment receive tasks differ per service (`Task_WaitForPayment`,
+ * `Task_TransportWaitPermitPayment`, `Task_TransportWaitFeePayment`), all
+ * named "Wait…Payment".
+ */
+const PAYMENT_WAIT_ID = /wait\w*payment/i;
 
 /**
  * Maps a process instance plus its incident count to the worklist status.
@@ -580,10 +606,11 @@ export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
   return Promise.all(
     instances.map(async (pi): Promise<WorklistRow> => {
       const isActive = pi.endTime === null;
-      const [firstNameVar, lastNameVar, activeTasks] = await Promise.all([
+      const [firstNameVar, lastNameVar, activeTasks, finishedTasks] = await Promise.all([
         getHistoricVariable(pi.id, 'firstName'),
         getHistoricVariable(pi.id, 'lastName'),
         isActive ? listTasksByInstance(pi.id) : Promise.resolve([] as CamundaTask[]),
+        isActive ? countFinishedTasks(pi.id) : Promise.resolve(0),
       ]);
 
       const first = typeof firstNameVar?.value === 'string' ? firstNameVar.value : '';
@@ -601,6 +628,7 @@ export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
         : null;
 
       const incidents = incidentsByPI.get(pi.id) ?? [];
+      const waitingOn = isActive && !currentTask ? (waitByPI.get(pi.id) ?? null) : null;
 
       return {
         processInstanceId: pi.id,
@@ -613,8 +641,10 @@ export async function listWorklist(maxResults = 100): Promise<WorklistRow[]> {
         endTime: pi.endTime,
         status: statusFor(pi, incidents.length > 0),
         currentTask,
-        waitingOn: isActive && !currentTask ? (waitByPI.get(pi.id) ?? null) : null,
+        waitingOn,
         incidents,
+        isDraft: isActive && finishedTasks === 0,
+        awaitingPayment: !!waitingOn && PAYMENT_WAIT_ID.test(waitingOn.activityId),
       };
     }),
   );

@@ -417,6 +417,7 @@ function ActionCard({ row, onDeleted }: { row: ProcessRow; onDeleted: () => void
           >
             {t('draft.keep')}
           </button>
+          {deleteError && <p className="form-error">{deleteError}</p>}
         </div>
       ) : (
         <button
@@ -428,7 +429,6 @@ function ActionCard({ row, onDeleted }: { row: ProcessRow; onDeleted: () => void
           {t('draft.delete')}
         </button>
       )}
-      {deleteError && <p className="form-error">{deleteError}</p>}
     </div>
   );
 }

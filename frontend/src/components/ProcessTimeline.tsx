@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowRight, Check, CreditCard } from 'lucide-react';
+import { ArrowRight, Bot, Check, CreditCard, Hourglass, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getPaymentLink } from '../api/paymentLinkApi';
 import { formatDateTime } from '../i18n/format';
@@ -52,6 +52,29 @@ const DISPLAY_TYPES = new Set([
   'errorEndEvent',
   'terminateEndEvent',
 ]);
+
+/**
+ * Who does the work in a step: a person (user task), the system on its own
+ * (service, send, script and DMN tasks), or an outside party the case waits
+ * for (receive tasks such as the payment callback or a co-owner's consent).
+ * Events, gateways and subprocesses have no kind.
+ */
+type StepKind = 'human' | 'system' | 'external';
+
+const KIND_BY_TYPE: Record<string, StepKind> = {
+  userTask: 'human',
+  serviceTask: 'system',
+  sendTask: 'system',
+  scriptTask: 'system',
+  businessRuleTask: 'system',
+  receiveTask: 'external',
+};
+
+const KIND_ICONS = { human: UserRound, system: Bot, external: Hourglass } as const;
+
+function stepKind(type: string): StepKind | null {
+  return KIND_BY_TYPE[type] ?? null;
+}
 
 /** The payment wait state in both shipped BPMNs — drives the pay CTA. */
 const PAYMENT_ACTIVITY_ID = 'Task_WaitForPayment';
@@ -250,7 +273,10 @@ export default function ProcessTimeline({ processInstanceId }: ProcessTimelinePr
               <li key={`up-${step.id}`} className="tl-item upcoming">
                 <span className="tl-dot" aria-hidden="true" />
                 <span className="tl-body">
-                  <span className="tl-name">{translateBackendName(t, step.name)}</span>
+                  <span className="tl-name">
+                    <KindBadge type={step.type} />
+                    {translateBackendName(t, step.name)}
+                  </span>
                 </span>
               </li>
             ))}
@@ -318,12 +344,14 @@ function Stepper({ state }: { state: LoadedState }) {
           : row.type === 'userTask' && row.assignee
             ? `${row.assignee} · ${stepTime(row.endTime ?? row.startTime)}`
             : stepTime(row.endTime ?? row.startTime);
+        const kind = stepKind(row.type);
         return (
           <li key={row.key} className={`step ${row.open ? 'active' : 'done'}`}>
             <span className="step-dot" aria-hidden="true">
-              {!row.open && <CheckIcon />}
+              {kind ? <KindIcon kind={kind} size={16} /> : !row.open && <CheckIcon />}
             </span>
             <span className="step-label">
+              <KindLabel kind={kind} />
               {translateBackendName(t, row.name)}
               {row.count > 1 && (
                 <span className="tl-count"> {t('timeline.repeat', { count: row.count })}</span>
@@ -340,21 +368,56 @@ function Stepper({ state }: { state: LoadedState }) {
           </li>
         );
       })}
-      {future.map((step, i) => (
-        <li key={`up-${step.id}`} className="step upcoming">
-          <span className="step-dot" aria-hidden="true">
-            <span className="step-num">{past.length + i + 1}</span>
-          </span>
-          <span className="step-label">{translateBackendName(t, step.name)}</span>
-          <span className="step-meta">{t('timeline.upcoming')}</span>
-        </li>
-      ))}
+      {future.map((step, i) => {
+        const kind = stepKind(step.type);
+        return (
+          <li key={`up-${step.id}`} className="step upcoming">
+            <span className="step-dot" aria-hidden="true">
+              {kind ? (
+                <KindIcon kind={kind} size={16} />
+              ) : (
+                <span className="step-num">{past.length + i + 1}</span>
+              )}
+            </span>
+            <span className="step-label">
+              <KindLabel kind={kind} />
+              {translateBackendName(t, step.name)}
+            </span>
+            <span className="step-meta">{t('timeline.upcoming')}</span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
 function CheckIcon() {
   return <Check size={13} strokeWidth={3.5} aria-hidden="true" />;
+}
+
+function KindIcon({ kind, size }: { kind: StepKind; size: number }) {
+  const Icon = KIND_ICONS[kind];
+  return <Icon size={size} strokeWidth={2.25} aria-hidden="true" />;
+}
+
+/** The icon is decorative, so screen readers get the kind as text instead. */
+function KindLabel({ kind }: { kind: StepKind | null }) {
+  const { t } = useTranslation('components');
+  if (!kind) return null;
+  return <span className="sr-only">{t(`timeline.kind.${kind}`)}: </span>;
+}
+
+/** Small kind badge beside a name in the full-history list. */
+function KindBadge({ type }: { type: string }) {
+  const { t } = useTranslation('components');
+  const kind = stepKind(type);
+  if (!kind) return null;
+  return (
+    <span className={`tl-kind ${kind}`} title={t(`timeline.kind.${kind}`)}>
+      <KindIcon kind={kind} size={13} />
+      <span className="sr-only">{t(`timeline.kind.${kind}`)}: </span>
+    </span>
+  );
 }
 
 function TimelineItem({ row }: { row: TimelineRow }) {
@@ -380,6 +443,7 @@ function TimelineItem({ row }: { row: TimelineRow }) {
       <span className="tl-dot" aria-hidden="true" />
       <span className="tl-body">
         <span className="tl-name">
+          <KindBadge type={row.type} />
           {translateBackendName(t, row.name)}
           {row.count > 1 && (
             <span className="tl-count"> {t('timeline.repeat', { count: row.count })}</span>

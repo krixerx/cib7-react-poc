@@ -123,6 +123,11 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<Set<StatusFilter>>(new Set());
   const [applicantQuery, setApplicantQuery] = useState('');
   const [myCasesOnly, setMyCasesOnly] = useState(false);
+  // Drafts are cases the applicant has not submitted yet; there is nothing for
+  // the back office to do on them, so they stay out of the queue unless asked.
+  const [showDrafts, setShowDrafts] = useState(false);
+  // Same for cases waiting on the applicant's fee payment.
+  const [showPayments, setShowPayments] = useState(false);
 
   // Open-dropdown state — only one panel open at a time.
   const [openMenu, setOpenMenu] = useState<'service' | 'task' | 'status' | null>(null);
@@ -186,11 +191,31 @@ export default function TasksPage() {
     );
   }, [rows]);
 
+  // A case stuck on an incident still needs the back office, so it is never hidden.
+  const draftCount = useMemo(
+    () => rows.filter((r) => r.isDraft && r.incidents.length === 0).length,
+    [rows],
+  );
+  const paymentCount = useMemo(
+    () => rows.filter((r) => r.awaitingPayment && r.incidents.length === 0).length,
+    [rows],
+  );
+  const baseRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (r.incidents.length > 0) return true;
+        if (r.isDraft && !showDrafts) return false;
+        if (r.awaitingPayment && !showPayments) return false;
+        return true;
+      }),
+    [rows, showDrafts, showPayments],
+  );
+
   // Applied rows after filters + search + sort. The base list is already
   // server-sorted by startTime desc, so we only re-sort if needed (we don't).
   const filteredRows = useMemo(() => {
     const q = applicantQuery.trim().toLowerCase();
-    return rows.filter((r) => {
+    return baseRows.filter((r) => {
       if (serviceFilter.size > 0 && !serviceFilter.has(r.processDefinitionKey)) return false;
       if (taskFilter.size > 0) {
         if (!r.currentTask) return false;
@@ -201,7 +226,7 @@ export default function TasksPage() {
       if (q && !r.applicantName.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rows, serviceFilter, taskFilter, statusFilter, applicantQuery, myCasesOnly, username]);
+  }, [baseRows, serviceFilter, taskFilter, statusFilter, applicantQuery, myCasesOnly, username]);
 
   const resetFilters = () => {
     setServiceFilter(new Set());
@@ -356,9 +381,9 @@ export default function TasksPage() {
               : filtersActive
                 ? t('list.countFiltered', {
                     shown: formatNumber(filteredRows.length),
-                    total: formatNumber(rows.length),
+                    total: formatNumber(baseRows.length),
                   })
-                : formatNumber(rows.length)}
+                : formatNumber(baseRows.length)}
           </span>
           <button
             type="button"
@@ -474,6 +499,23 @@ export default function TasksPage() {
               onChange={(e) => setApplicantQuery(e.target.value)}
             />
           </div>
+
+          <label className="worklist-check">
+            <input
+              type="checkbox"
+              checked={showDrafts}
+              onChange={(e) => setShowDrafts(e.target.checked)}
+            />
+            {t('filters.showDrafts', { n: formatNumber(draftCount) })}
+          </label>
+          <label className="worklist-check">
+            <input
+              type="checkbox"
+              checked={showPayments}
+              onChange={(e) => setShowPayments(e.target.checked)}
+            />
+            {t('filters.showPayments', { n: formatNumber(paymentCount) })}
+          </label>
         </div>
 
         <div className="worklist-sort-line">
@@ -489,7 +531,7 @@ export default function TasksPage() {
         <ul className="worklist-rows">
           {!loading && filteredRows.length === 0 && (
             <li className="empty worklist-empty">
-              {rows.length === 0 ? t('empty.noProcesses') : t('empty.noMatches')}
+              {baseRows.length === 0 ? t('empty.noProcesses') : t('empty.noMatches')}
             </li>
           )}
           {filteredRows.map((r) => (
@@ -536,6 +578,7 @@ export default function TasksPage() {
                   </span>
                 </span>
                 <span className="worklist-right">
+                  {r.isDraft && <span className="worklist-draft-tag">{t('list.draft')}</span>}
                   <span className={`status-tag status-${r.status}`}>
                     <span className="status-dot" aria-hidden="true" />
                     {statusLabel(t, r.status)}

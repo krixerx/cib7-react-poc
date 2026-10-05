@@ -133,6 +133,11 @@ how did it get here" without opening Cockpit:
 - a collapsed **Full history** disclosure with every named activity,
   including the service-task machinery (emails, PDF generation, storage),
   consecutive repeats collapsed to one row with a ×N count;
+- in both, a **kind icon** for who does the step: a person (`UserRound`,
+  user tasks), the system (`Bot`, service, send, script and DMN tasks) or an
+  outside party the case waits for (`Hourglass`, receive tasks). In the
+  stepper the icon fills the dot and the dot's colour still shows the state;
+  events keep the check mark or step number;
 - a **payment-required alert** whenever the case is parked on
   `Task_WaitForPayment`; its button asks the backend for a pay link
   (`GET /api/cases/{id}/payment-link`, only for the user who started the
@@ -273,6 +278,18 @@ full width; the open form keeps its state, and the choice is remembered in
   - **Status** — `pending` · `incident` · `confirmed` · `rejected`
   - **Applicant name** — substring match
   - **My cases** toggle — filters to `currentTask.assignee === username`
+  - **Show drafts** checkbox, off by default — drafts (active, no user task
+    completed yet, so the applicant has not submitted the first form) are
+    hidden from the list and its count; a draft with an open incident is
+    always shown. `listWorklist()` sets `isDraft` from
+    `GET /history/task/count?finished=true`, the same rule the backend's
+    `/api/cases/drafts` uses. Shown drafts carry a dashed "Draft" tag.
+  - **Show payments** checkbox, off by default — cases parked on the fee
+    payment receive task (`awaitingPayment`, any activity id matching
+    `wait…payment`: `Task_WaitForPayment`, `Task_TransportWaitPermitPayment`,
+    `Task_TransportWaitFeePayment`) are hidden the same way, since the
+    applicant pays and the back office has nothing to do; one with an open
+    incident is always shown.
 - **Status** is computed in `statusFor()` from the instance state:
   - active + ≥1 open incident → `incident` (row gets soft red wash)
   - active + no incidents → `pending`

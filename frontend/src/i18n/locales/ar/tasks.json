@@ -10,6 +10,7 @@
     "sortPill": "تاريخ التقديم",
     "caseRef": "CASE-{{id}}",
     "noName": "(بدون اسم)",
+    "draft": "مسودة",
     "age": {
       "minutes": "{{value}} د",
       "hours": "{{value}} س",
@@ -26,7 +27,9 @@
     "noServices": "لا توجد خدمات معروضة حالياً.",
     "noTasks": "لا توجد مهام نشطة معروضة.",
     "reset": "إعادة تعيين",
-    "searchPlaceholder": "البحث باسم مقدم الطلب…"
+    "searchPlaceholder": "البحث باسم مقدم الطلب…",
+    "showDrafts": "عرض المسودات التي لم تُقدَّم بعد ({{n}})",
+    "showPayments": "عرض المعاملات بانتظار سداد مقدم الطلب ({{n}})"
   },
   "empty": {
     "noProcesses": "لا توجد معاملات بعد.",

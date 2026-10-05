@@ -10,6 +10,7 @@
     "sortPill": "Date submitted",
     "caseRef": "CASE-{{id}}",
     "noName": "(no name)",
+    "draft": "Draft",
     "age": {
       "minutes": "{{value}}m",
       "hours": "{{value}}h",
@@ -26,7 +27,9 @@
     "noServices": "No services in view yet.",
     "noTasks": "No active tasks in view.",
     "reset": "Reset",
-    "searchPlaceholder": "Search by applicant name…"
+    "searchPlaceholder": "Search by applicant name…",
+    "showDrafts": "Show drafts not yet submitted ({{n}})",
+    "showPayments": "Show cases waiting for the applicant's payment ({{n}})"
   },
   "empty": {
     "noProcesses": "No processes yet.",
