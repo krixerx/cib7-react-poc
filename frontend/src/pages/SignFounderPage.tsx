@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import {
   approve,
+  getArticlesDownloadUrl,
   getStatus,
   reject,
   submitToRegister,
@@ -32,7 +34,7 @@ import {
 const POLL_INTERVAL_MS = 3000;
 
 export default function SignFounderPage() {
-  const { t } = useTranslation('sign-founder');
+  const { t, i18n } = useTranslation('sign-founder');
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<FounderStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,6 +123,19 @@ export default function SignFounderPage() {
     }
   }
 
+  async function handleDownloadArticles() {
+    if (!token) return;
+    try {
+      const d = await getArticlesDownloadUrl(token);
+      window.open(d.url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      setError({
+        code: e instanceof FounderSignatureError ? e.code : 'network',
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
   function handleActionError(e: unknown) {
     if (e instanceof FounderSignatureError) {
       setError({ code: e.code, message: e.message });
@@ -199,6 +214,50 @@ export default function SignFounderPage() {
           </p>
         )}
 
+        <h2 className="card-subtitle">{t('details.title')}</h2>
+        <dl className="summary">
+          <div className="summary-row">
+            <dt>{t('details.companyName')}</dt>
+            <dd>{status.companyName || '—'}</dd>
+          </div>
+          <div className="summary-row">
+            <dt>{t('details.shareCapital')}</dt>
+            <dd>
+              {status.shareCapital != null
+                ? new Intl.NumberFormat(i18n.language, {
+                    style: 'currency',
+                    currency: 'EUR',
+                  }).format(status.shareCapital)
+                : '—'}
+            </dd>
+          </div>
+          <div className="summary-row">
+            <dt>{t('details.boardMembers')}</dt>
+            <dd>
+              {status.boardMembers.length > 0
+                ? status.boardMembers.map((m) => m.name).join(', ')
+                : '—'}
+            </dd>
+          </div>
+          <div className="summary-row">
+            <dt>{t('details.articles')}</dt>
+            <dd>
+              {status.articlesFilename ? (
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={handleDownloadArticles}
+                  title={status.articlesFilename}
+                >
+                  <Download size={14} aria-hidden="true" /> {t('details.downloadArticles')}
+                </button>
+              ) : (
+                t('details.noArticles')
+              )}
+            </dd>
+          </div>
+        </dl>
+
         {status.state === 'rejected' && (
           <div className="form-banner form-banner-warn">
             <strong>
@@ -251,6 +310,11 @@ export default function SignFounderPage() {
           current.status === 'pending' &&
           !current.isApplicant && (
             <>
+              <p className="muted">
+                {t('details.consent', {
+                  company: status.companyName || t('summary.companyFallback'),
+                })}
+              </p>
               {!showRejectForm ? (
                 <div className="form-actions">
                   <button

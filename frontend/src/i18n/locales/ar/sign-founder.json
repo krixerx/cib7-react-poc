@@ -22,6 +22,16 @@
     "reason": "السبب: {{reason}}",
     "signed": "تم التوقيع"
   },
+  "details": {
+    "title": "ما الذي توقّع عليه",
+    "companyName": "اسم الشركة",
+    "shareCapital": "رأس المال",
+    "boardMembers": "مجلس الإدارة",
+    "articles": "عقد التأسيس",
+    "downloadArticles": "تنزيل وقراءة",
+    "noArticles": "غير مرفق",
+    "consent": "بموافقتك فإنك توافق على تأسيس {{company}} برأس المال ومجلس الإدارة المذكورين أعلاه، وفق عقد التأسيس المرفق."
+  },
   "banners": {
     "rejectedBy": "تم الرفض من قبل {{name}}.",
     "coFounderFallback": "أحد الشركاء المؤسسين",

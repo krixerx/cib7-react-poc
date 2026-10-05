@@ -107,6 +107,15 @@ party and case the verified token names, and their status shows the other
 founders' names and states, never their email or link
 (docs/security.md rule 3).
 
+The status also carries what the founder is signing: `companyName`,
+`shareCapital`, the board members by name (personal codes are left out of
+this unauthenticated page) and the Articles of Association file name.
+`GET /api/public/founder-signatures/{token}/articles/download-url` returns a
+60-second presigned GET for the articles. It resolves the document from the
+token's case via `aoaDocumentAttachmentId` and serves it only when that
+document belongs to the same case and has category
+`founder-articles-of-association`.
+
 | Receive task | Message | Correlation | Triggered by |
 |---|---|---|---|
 | `ReceiveTask_FounderSignature` (in subprocess) | `FounderSignature` | local `partyId` (from `founder.partyId`) | `POST /api/public/founder-signatures/{token}` |

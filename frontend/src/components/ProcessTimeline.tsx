@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Check, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -295,9 +295,23 @@ function Stepper({ state }: { state: LoadedState }) {
   const future = state.upcoming.filter(
     (s) => MILESTONE_MODEL_TYPES.has(s.type) && !past.some((p) => p.activityId === s.id),
   );
+  const listRef = useRef<HTMLOListElement>(null);
+
+  // A long case overflows the horizontal stepper, and the step the case is
+  // parked on is usually past the visible edge. Scroll the list itself (not
+  // the page) so that step sits in the middle.
+  useEffect(() => {
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>('.step.active');
+    if (!list || !active || list.scrollWidth <= list.clientWidth) return;
+    const centred = active.offsetLeft + active.offsetWidth / 2 - list.clientWidth / 2;
+    // RTL scroll offsets run from 0 at the start edge down to negative values.
+    const rtl = getComputedStyle(list).direction === 'rtl';
+    list.scrollLeft = rtl ? centred - (list.scrollWidth - list.clientWidth) : centred;
+  }, [state]);
 
   return (
-    <ol className="stepper">
+    <ol className="stepper" ref={listRef}>
       {past.map((row) => {
         const meta = row.open
           ? t('timeline.since', { time: stepTime(row.startTime) })

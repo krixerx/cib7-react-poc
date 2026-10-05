@@ -18,6 +18,16 @@
     "reason": "Reason: {{reason}}",
     "signed": "Signed"
   },
+  "details": {
+    "title": "What you are signing",
+    "companyName": "Company name",
+    "shareCapital": "Share capital",
+    "boardMembers": "Management board",
+    "articles": "Articles of Association",
+    "downloadArticles": "Download and read",
+    "noArticles": "Not attached",
+    "consent": "By approving you agree to found {{company}} with the share capital and management board above, under the attached Articles of Association."
+  },
   "banners": {
     "rejectedBy": "Rejected by {{name}}.",
     "coFounderFallback": "a co-founder",

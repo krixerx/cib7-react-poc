@@ -35,6 +35,12 @@ export interface FounderStatus {
   processInstanceId: string;
   applicantName: string;
   companyName: string;
+  /** Share capital in EUR as submitted by the applicant. */
+  shareCapital: number | null;
+  /** Board members by name; personal codes are never sent to this page. */
+  boardMembers: { name: string }[];
+  /** File name of the Articles of Association, or null when none is on file. */
+  articlesFilename: string | null;
   /** The founder whose token was used to reach this page (the viewer). */
   currentFounder: FounderEntry | null;
   founders: FounderEntry[];
@@ -95,6 +101,11 @@ export function reject(token: string, reason: string): Promise<FounderStatus> {
     method: 'POST',
     body: JSON.stringify({ decision: 'reject', reason }),
   });
+}
+
+/** A 60-second presigned GET for the case's Articles of Association. */
+export function getArticlesDownloadUrl(token: string): Promise<{ url: string; expiresIn: number }> {
+  return request(`/${encodeURIComponent(token)}/articles/download-url`);
 }
 
 export function submitToRegister(token: string): Promise<FounderStatus> {

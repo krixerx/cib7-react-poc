@@ -442,8 +442,12 @@ html[dir='rtl'] .case-detail-back svg.lucide {
   align-items: start;
 }
 
+/* An implicit grid column is sized to its widest child's min-content, so a
+   long stepper would widen the column under the Documents sidebar. The
+   explicit shrinkable column keeps the stepper scrolling inside its card. */
 .case-detail-main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   min-width: 0;
 }
@@ -465,7 +469,10 @@ html[dir='rtl'] .case-detail-back svg.lucide {
   margin-bottom: 4px;
 }
 
+/* position: relative makes the stepper the offsetParent of its steps, which
+   the scroll-to-current-step effect in ProcessTimeline.tsx measures against. */
 .stepper {
+  position: relative;
   list-style: none;
   display: flex;
   align-items: flex-start;
@@ -1061,6 +1068,71 @@ html[dir='rtl'] .step.active::before {
 
   .mp-row-right {
     grid-column: 2;
+  }
+
+  /* On a phone the horizontal stepper would need sideways scrolling, so it
+     turns into a vertical list: dot on the inline-start side, label, chip
+     and time beside it, and the connector running down to the next dot. */
+  .stepper {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+    justify-items: start;
+    min-width: 0;
+    padding: 0 0 18px;
+    text-align: start;
+  }
+
+  .step:last-child {
+    padding-bottom: 0;
+  }
+
+  .step-dot {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+
+  .step > :not(.step-dot) {
+    grid-column: 2;
+  }
+
+  .step-label {
+    margin-top: 6px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .step::before {
+    display: none;
+  }
+
+  /* Connector below each step, coloured for the step it leads to. */
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 36px;
+    bottom: 4px;
+    inset-inline-start: 14.5px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--ok);
+  }
+
+  .step.done:has(+ .step.active)::after {
+    background: linear-gradient(180deg, var(--ok), var(--primary));
+  }
+
+  .step.active:not(:last-child)::after,
+  .step.upcoming:not(:last-child)::after {
+    background: repeating-linear-gradient(180deg, var(--border-strong) 0 5px, transparent 5px 10px);
   }
 }
 

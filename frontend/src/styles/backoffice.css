@@ -617,8 +617,10 @@
 
 /* ---- detail pane -------------------------------------------------------- */
 
+/* Explicit shrinkable column for the same reason as .case-detail-main. */
 .worklist-detail {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   min-width: 0;
   align-content: start;
