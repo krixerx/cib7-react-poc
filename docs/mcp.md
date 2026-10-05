@@ -280,7 +280,10 @@ scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
   for claude.ai, Claude Desktop and mobile connectors. Default scopes:
   `cib7-claims`, `cib7-rest-api-audience`. Optional scope: `offline_access`,
   because Claude's connector asks for it and Keycloak answers a
-  request for a scope the client lacks with `invalid_scope`.
+  request for a scope the client lacks with `invalid_scope`. The user also
+  needs the `offline_access` realm role, or the code exchange fails with
+  `not_allowed` after a successful login; the realm defines that role and
+  grants it through all three groups.
 - **Client `cib7-frontend`** — public SPA client, PKCE required. Default
   scope: `cib7-claims`. Carries the audience mapper inline (legacy from
   before `cib7-rest-api-audience` was extracted).
