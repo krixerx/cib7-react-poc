@@ -14,6 +14,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.poc.backend.documents.Document;
+import com.poc.backend.documents.DocumentDownloads;
+import com.poc.backend.documents.DocumentDownloads.DownloadUrl;
+import com.poc.backend.documents.DocumentRepository;
 import com.poc.backend.engine.EngineClient;
 import com.poc.backend.engine.EngineClient.ProcessInstanceRef;
 import com.poc.backend.founder.FounderSignatureController;
@@ -22,6 +26,7 @@ import com.poc.backend.links.TestLinks;
 import com.poc.backend.owner.OwnerConfirmationController;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -57,8 +62,12 @@ class SignatureFlowWebTest {
   private static final long ROUND = 5L;
   private static final String NOT_FOUND_BODY = "unknown_token";
 
+  private static final String ARTICLES = "founder-articles-of-association";
+
   @Autowired MockMvc mvc;
   @MockitoBean EngineClient engine;
+  @MockitoBean DocumentRepository documents;
+  @MockitoBean DocumentDownloads downloads;
 
   final ObjectMapper json = new ObjectMapper();
 
@@ -383,6 +392,102 @@ class SignatureFlowWebTest {
       mvc.perform(get(BASE + "/{token}/status", TestLinks.mint(PI, "p1", "owner", ROUND)))
           .andExpect(status().isNotFound())
           .andExpect(jsonPath("$.code").value(NOT_FOUND_BODY));
+    }
+
+    void stubFoundingDetails(Document articles) {
+      ArrayNode board = json.createArrayNode();
+      ObjectNode member = board.addObject();
+      member.put("firstName", "Mari");
+      member.put("lastName", "Juhataja");
+      member.put("personalCode", "49001010000");
+      when(engine.getRawVariable(PI, "shareCapital")).thenReturn(2500.0);
+      when(engine.getJsonVariable(PI, "boardMembers")).thenReturn(board);
+      when(engine.getStringVariable(PI, "aoaDocumentAttachmentId")).thenReturn(articles.getId());
+      when(documents.findById(articles.getId())).thenReturn(Optional.of(articles));
+    }
+
+    Document articlesOf(String pi, String category) {
+      return new Document(
+          pi, category, "pohikiri.pdf", "application/pdf", "process/" + pi + "/u/x.pdf", "bart");
+    }
+
+    @Test
+    void statusShowsWhatTheFounderIsSigningWithoutPersonalCodes() throws Exception {
+      stubCase(json.createObjectNode());
+      stubFoundingDetails(articlesOf(PI, ARTICLES));
+
+      String body =
+          mvc.perform(get(BASE + "/{token}/status", TestLinks.mint(PI, "p1", "founder", ROUND)))
+              .andExpect(status().isOk())
+              .andExpect(jsonPath("$.shareCapital").value(2500.0))
+              .andExpect(jsonPath("$.boardMembers.length()").value(1))
+              .andExpect(jsonPath("$.boardMembers[0].name").value("Mari Juhataja"))
+              .andExpect(jsonPath("$.articlesFilename").value("pohikiri.pdf"))
+              .andReturn()
+              .getResponse()
+              .getContentAsString();
+
+      assertThat(body).doesNotContain("49001010000").doesNotContain("process/");
+    }
+
+    @Test
+    void articlesDownloadIsMintedForTheCaseInTheToken() throws Exception {
+      stubCase(json.createObjectNode());
+      Document articles = articlesOf(PI, ARTICLES);
+      stubFoundingDetails(articles);
+      when(downloads.mint(articles)).thenReturn(new DownloadUrl("https://s3/presigned", 60));
+
+      mvc.perform(
+              get(
+                  BASE + "/{token}/articles/download-url",
+                  TestLinks.mint(PI, "p1", "founder", ROUND)))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.url").value("https://s3/presigned"));
+    }
+
+    @Test
+    void articlesOfAnotherCaseAreNotServed() throws Exception {
+      stubCase(json.createObjectNode());
+      stubFoundingDetails(articlesOf(OTHER_PI, ARTICLES));
+
+      mvc.perform(
+              get(
+                  BASE + "/{token}/articles/download-url",
+                  TestLinks.mint(PI, "p1", "founder", ROUND)))
+          .andExpect(status().isNotFound());
+      verify(downloads, never()).mint(any());
+    }
+
+    @Test
+    void onlyTheArticlesUploadIsServed() throws Exception {
+      stubCase(json.createObjectNode());
+      stubFoundingDetails(articlesOf(PI, "applicant-id-document"));
+
+      mvc.perform(
+              get(
+                  BASE + "/{token}/articles/download-url",
+                  TestLinks.mint(PI, "p1", "founder", ROUND)))
+          .andExpect(status().isNotFound());
+      verify(downloads, never()).mint(any());
+    }
+
+    @Test
+    void articlesDownloadNeedsAValidFounderToken() throws Exception {
+      stubCase(json.createObjectNode());
+      stubFoundingDetails(articlesOf(PI, ARTICLES));
+
+      mvc.perform(
+              get(
+                  BASE + "/{token}/articles/download-url",
+                  TestLinks.mint(PI, "p1", "owner", ROUND)))
+          .andExpect(status().isNotFound())
+          .andExpect(jsonPath("$.code").value(NOT_FOUND_BODY));
+      mvc.perform(
+              get(
+                  BASE + "/{token}/articles/download-url",
+                  TestLinks.mint(PI, "p1", "founder", ROUND - 1)))
+          .andExpect(status().isNotFound());
+      verify(downloads, never()).mint(any());
     }
   }
 

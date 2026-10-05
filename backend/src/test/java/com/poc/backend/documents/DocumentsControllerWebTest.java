@@ -64,7 +64,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  */
 @WebMvcTest(controllers = DocumentsController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(DocumentsControllerWebTest.Props.class)
+@Import({DocumentsControllerWebTest.Props.class, DocumentDownloads.class})
 @TestPropertySource(properties = {"app.s3.bucket=test-bucket", "app.s3.max-bytes=1024"})
 class DocumentsControllerWebTest {
 

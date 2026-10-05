@@ -27,11 +27,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -67,25 +64,27 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 public class DocumentsController {
 
   private static final Duration PUT_TTL = Duration.ofMinutes(5);
-  private static final Duration GET_TTL = Duration.ofSeconds(60);
 
   private final S3Client s3;
   private final S3Presigner presigner;
   private final S3Properties props;
   private final DocumentRepository documents;
   private final CaseAccessService caseAccess;
+  private final DocumentDownloads downloads;
 
   public DocumentsController(
       S3Client s3,
       S3Presigner presigner,
       S3Properties props,
       DocumentRepository documents,
-      CaseAccessService caseAccess) {
+      CaseAccessService caseAccess,
+      DocumentDownloads downloads) {
     this.s3 = s3;
     this.presigner = presigner;
     this.props = props;
     this.documents = documents;
     this.caseAccess = caseAccess;
+    this.downloads = downloads;
   }
 
   // ----------------- JWT-authenticated endpoints (SPA) -----------------
@@ -298,22 +297,7 @@ public class DocumentsController {
       return ResponseEntity.status(HttpStatus.NOT_FOUND)
           .body(new ErrorResponse("not_found", "No such attachment."));
     }
-
-    GetObjectRequest get =
-        GetObjectRequest.builder()
-            .bucket(props.getBucket())
-            .key(doc.getS3Key())
-            .responseContentDisposition(
-                "attachment; filename=\"" + safeFilename(doc.getFilename()) + "\"")
-            .build();
-    PresignedGetObjectRequest presigned =
-        presigner.presignGetObject(
-            GetObjectPresignRequest.builder()
-                .signatureDuration(GET_TTL)
-                .getObjectRequest(get)
-                .build());
-    return ResponseEntity.ok(
-        new DownloadUrlResponse(presigned.url().toString(), GET_TTL.toSeconds()));
+    return ResponseEntity.ok(downloads.mint(doc));
   }
 
   // ----------------- helpers -----------------
@@ -367,8 +351,6 @@ public class DocumentsController {
       String filename,
       String contentType,
       String createdAt) {}
-
-  public record DownloadUrlResponse(String url, long expiresIn) {}
 
   public record StagePendingRequest(
       String filename, String contentType, String category, String base64) {}
