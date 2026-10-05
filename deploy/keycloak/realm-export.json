@@ -374,7 +374,8 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://127.0.0.1/*##http://localhost/*"
       },
-      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
+      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"],
+      "optionalClientScopes": ["offline_access"]
     }
   ]
 }

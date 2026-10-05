@@ -253,11 +253,14 @@ challenges, verifies JWTs at the door, then forwards them.
 ```
 
 **Session length.** Access tokens live 5 minutes and the client refreshes
-them. The realm's SSO idle timeout is 30 minutes and there is no
-`offline_access`, so after about half an hour without use the refresh fails
-and Claude marks the connector as needing sign-in. The user reconnects it in
-the connector settings, which opens the login again. That is accepted for
-now; `SERVER_INSTRUCTIONS` tells the agent to explain it.
+them. Claude's connector requests `offline_access` (as
+`scope=openid offline_access`), so it gets an offline refresh token that
+outlives the realm's 30-minute SSO idle timeout and lasts until Keycloak's
+offline session idle limit (the realm default, 30 days). A client that asks
+only for `openid`, such as mcp-remote, gets an ordinary refresh token: after
+about half an hour without use the refresh fails and Claude marks the
+connector as needing sign-in, and the user reconnects it in the connector
+settings. `SERVER_INSTRUCTIONS` tells the agent to explain that case.
 
 **Why scope is just `openid`.** The realm export doesn't define the
 built-in `profile` / `email` client scopes (Keycloak's realm import
@@ -275,7 +278,9 @@ scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
   loopback wildcards (`http://127.0.0.1/*`, `http://localhost/*`, any port)
   for Claude Code and mcp-remote, and `https://claude.ai/api/mcp/auth_callback`
   for claude.ai, Claude Desktop and mobile connectors. Default scopes:
-  `cib7-claims`, `cib7-rest-api-audience`.
+  `cib7-claims`, `cib7-rest-api-audience`. Optional scope: `offline_access`,
+  because Claude's connector asks for it and Keycloak answers a
+  request for a scope the client lacks with `invalid_scope`.
 - **Client `cib7-frontend`** — public SPA client, PKCE required. Default
   scope: `cib7-claims`. Carries the audience mapper inline (legacy from
   before `cib7-rest-api-audience` was extracted).
