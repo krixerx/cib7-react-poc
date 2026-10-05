@@ -18,6 +18,11 @@ COPY analysis_options.yaml ./
 RUN flutter create --platforms web,android,ios \
       --project-name cib7_applicant --org com.cib7 .
 
+# Replace the generated web shell (title, PWA manifest, icons) with our
+# CompanyLab branding; otherwise browsers offer to install "cib7_applicant".
+# The icon is the SPA's brand mark (lucide Landmark on --primary).
+COPY web-overrides/ ./web/
+
 # Now overwrite the generated pubspec with ours (adds the http dependency),
 # resolve, and build. --base-href /mobile/ makes every asset URL resolve under
 # the Traefik PathPrefix(`/mobile`) route on the server.
