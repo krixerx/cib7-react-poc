@@ -11,7 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.poc.backend.engine.EngineClient;
 import com.poc.backend.security.RealmRoleAuthorities;
+import com.poc.backend.statistics.StatisticsReport.BackOffice;
 import com.poc.backend.statistics.StatisticsReport.Counts;
+import com.poc.backend.statistics.StatisticsReport.Flow;
+import com.poc.backend.statistics.StatisticsReport.Outcomes;
+import com.poc.backend.statistics.StatisticsReport.PathCounts;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -90,10 +94,13 @@ class StatisticsAccessTest {
                 "UTC",
                 false,
                 zero,
+                new Outcomes(0, 0, 0, 0, 0, null),
                 List.of(),
                 List.of(),
                 List.of(),
                 List.of(),
+                new Flow(new PathCounts(0, 0, 0, 0, 0), new PathCounts(0, 0, 0, 0, 0)),
+                new BackOffice(0, 0, null, null),
                 List.of(),
                 List.of()));
 

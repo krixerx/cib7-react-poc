@@ -42,6 +42,18 @@ export function presetRange(preset: RangePreset, now: Date): { from: string; to:
   }
 }
 
+/**
+ * The period of equal length that ends the day before `range` starts, so the
+ * page can say how a number changed. Today compares with all of yesterday.
+ */
+export function previousRange(range: { from: string; to: string }): { from: string; to: string } {
+  const [fy, fm, fd] = range.from.split('-').map(Number);
+  const [ty, tm, td] = range.to.split('-').map(Number);
+  const from = new Date(fy, fm - 1, fd);
+  const days = Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000) + 1;
+  return { from: isoDate(addDays(from, -days)), to: isoDate(addDays(from, -1)) };
+}
+
 /** Compact human duration: "45 s", "12 min", "3 h 20 min", "2 d 4 h". */
 export function formatDuration(ms: number): string {
   const s = Math.round(ms / 1000);

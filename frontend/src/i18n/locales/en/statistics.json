@@ -1,7 +1,8 @@
 {
   "title": "Statistics",
-  "intro": "Cases started in the selected period and where they stand now. Each case is counted once, so the four statuses add up to Started. Refreshes every 5 minutes.",
+  "intro": "Cases started in the selected period, what happened to them and how that compares with the period before.",
   "refresh": "Refresh",
+  "updated": "Updated {{time}}",
   "empty": "No cases were started in this period.",
   "truncated": "The period holds more cases than one view can count, so the numbers are incomplete. Choose a shorter period or fewer services.",
   "filters": {
@@ -11,16 +12,82 @@
     "to": "To",
     "service": "Service",
     "task": "Task",
-    "all": "All",
-    "selected": "{{count}} selected"
+    "allServices": "All services",
+    "allTasks": "All tasks",
+    "selected": "{{count}} tasks selected"
   },
   "presets": {
     "today": "Today",
     "yesterday": "Yesterday",
-    "last7": "Last 7 days",
-    "last30": "Last 30 days",
+    "last7": "7 days",
+    "last30": "30 days",
     "thisMonth": "This month",
-    "custom": "Custom range"
+    "custom": "Custom"
+  },
+  "attention": {
+    "title": "Needs attention",
+    "none": "Nothing needs attention: no failed cases, no back-office queue and no large change for the worse.",
+    "critical": "Critical",
+    "warn": "Warning",
+    "info": "Info",
+    "failed": "Failed cases waiting for a fix",
+    "queue": "Back-office tasks waiting",
+    "oldest": "Oldest has waited {{age}}"
+  },
+  "kpi": {
+    "title": "Key indicators",
+    "subtitle": "Compared with the previous period of the same length. Choose an indicator to see it per day."
+  },
+  "metrics": {
+    "started": "Started",
+    "completed": "Completed",
+    "leadTime": "Average lead time",
+    "approval": "Approval rate",
+    "returned": "Returned for correction",
+    "touchless": "Without back office",
+    "failed": "Failed"
+  },
+  "change": {
+    "pct": "{{value}}%",
+    "pp": "{{value}} pp",
+    "vsPrevious": "vs previous period",
+    "none": "No earlier figure to compare"
+  },
+  "trend": {
+    "subtitle": "Per day, by the day the case started",
+    "current": "This period",
+    "previous": "Previous period"
+  },
+  "mix": {
+    "title": "Services",
+    "subtitle": "Cases started, by status now. Choose a service to focus on it."
+  },
+  "flow": {
+    "title": "Case flow",
+    "subtitle": "From start, through the back office or straight through, to where each case stands now. Band width is the number of cases.",
+    "returned": "Cases returned to the applicant for correction at least once: {{count}}",
+    "nodes": {
+      "started": "Started",
+      "backOffice": "Back office",
+      "direct": "No back office",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "inProgress": "In progress",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    }
+  },
+  "services": {
+    "title": "Service comparison",
+    "subtitle": "Choose a service to focus the whole page on it."
+  },
+  "backOffice": {
+    "title": "Back office",
+    "subtitle": "The team as a whole: tasks for civil servants in the selected cases. Task time runs from the task being created to it being done, so it includes time in the queue.",
+    "done": "Tasks done",
+    "waiting": "Waiting now",
+    "avgTask": "Average task time",
+    "oldest": "Oldest waiting"
   },
   "status": {
     "started": "Started",
@@ -30,10 +97,6 @@
     "cancelled": "Cancelled"
   },
   "panels": {
-    "status": "Status",
-    "perService": "Per service",
-    "perDay": "Per day",
-    "tasks": "Tasks",
     "failures": "Open failures"
   },
   "tasks": {

@@ -2,7 +2,10 @@ package com.poc.backend.statistics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.poc.backend.statistics.StatisticsReport.BackOffice;
 import com.poc.backend.statistics.StatisticsReport.Counts;
+import com.poc.backend.statistics.StatisticsReport.Outcomes;
+import com.poc.backend.statistics.StatisticsReport.PathCounts;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -159,6 +162,89 @@ class StatisticsAggregatorTest {
     assertThat(report.totals()).isEqualTo(new Counts(2, 1, 1, 0, 0));
     assertThat(report.tasks()).hasSize(3);
     assertThat(report.failures()).isEmpty();
+  }
+
+  private static JsonNode startedBy(String id, String key, String state, String user, Long ms) {
+    return json(
+        "{'id':'"
+            + id
+            + "','processDefinitionKey':'"
+            + key
+            + "','startTime':'2026-10-01T08:00:00.000+0000','state':'"
+            + state
+            + "','startUserId':'"
+            + user
+            + "','durationInMillis':"
+            + ms
+            + "}");
+  }
+
+  private static JsonNode userTask(String root, String activityId, String assignee, String end) {
+    return json(
+        "{'rootProcessInstanceId':'"
+            + root
+            + "','processInstanceId':'"
+            + root
+            + "','processDefinitionKey':'vehicle','activityId':'"
+            + activityId
+            + "','activityType':'userTask','assignee':"
+            + (assignee == null ? "null" : "'" + assignee + "'")
+            + ",'startTime':'2026-10-01T09:00:00.000+0000','endTime':"
+            + (end == null ? "null" : "'" + end + "'")
+            + ",'durationInMillis':"
+            + (end == null ? "null" : "60000")
+            + ",'canceled':false}");
+  }
+
+  private static JsonNode endEvent(String root, String pi, String activityId) {
+    return json(
+        "{'rootProcessInstanceId':'"
+            + root
+            + "','processInstanceId':'"
+            + pi
+            + "','processDefinitionKey':'vehicle','activityId':'"
+            + activityId
+            + "','activityType':'noneEndEvent','endTime':'2026-10-01T12:00:00.000+0000'}");
+  }
+
+  @Test
+  void outcomesComeFromEndEventsAndTaskAssignees() {
+    String done = "2026-10-01T10:00:00.000+0000";
+    List<JsonNode> cases =
+        List.of(
+            // Approved after a back-office review, the applicant corrected the form once.
+            startedBy("a", "vehicle", "COMPLETED", "bart", 4000L),
+            // Rejected by the back office.
+            startedBy("r", "vehicle", "COMPLETED", "bart", 2000L),
+            // Completed with no back-office task at all.
+            startedBy("t", "vehicle", "COMPLETED", "bart", 1000L),
+            // Waiting in the back-office queue, unclaimed.
+            startedBy("w", "vehicle", "ACTIVE", "bart", null));
+    List<JsonNode> rows =
+        List.of(
+            userTask("a", "Task_Submit", "bart", done),
+            userTask("a", "Task_Submit", "bart", done),
+            userTask("a", "Task_Review", "homer", done),
+            endEvent("a", "a", "EndEvent_Approved"),
+            userTask("r", "Task_Submit", "bart", done),
+            userTask("r", "Task_Review", "homer", done),
+            endEvent("r", "r", "EndEvent_Rejected"),
+            userTask("t", "Task_Submit", "bart", done),
+            // A sub-process ending on a "rejected" end event does not reject the case.
+            endEvent("t", "sub-t", "EndEvent_OwnerRejected"),
+            endEvent("t", "t", "EndEvent_Approved"),
+            userTask("w", "Task_Submit", "bart", done),
+            userTask("w", "Task_Review", null, null));
+
+    StatisticsReport report =
+        StatisticsAggregator.aggregate(query(Set.of()), definitions, cases, rows, List.of(), false);
+
+    assertThat(report.outcomes()).isEqualTo(new Outcomes(2, 1, 1, 1, 3, (4000L + 2000 + 1000) / 3));
+    assertThat(report.flow().backOffice()).isEqualTo(new PathCounts(1, 1, 1, 0, 0));
+    assertThat(report.flow().direct()).isEqualTo(new PathCounts(1, 0, 0, 0, 0));
+    assertThat(report.backOffice())
+        .isEqualTo(new BackOffice(2, 1, 60000L, "2026-10-01T09:00:00.000+0000"));
+    assertThat(report.perDay().get(0).outcomes().approved()).isEqualTo(2);
   }
 
   @Test
