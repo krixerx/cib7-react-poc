@@ -30,6 +30,11 @@
     "completedBy": "أنجزها {{assignee}}",
     "skipped": "تم تجاوزها",
     "upcoming": "قادمة",
+    "kind": {
+      "human": "يُنجزها شخص",
+      "system": "يُنجزها النظام تلقائيًا",
+      "external": "بانتظار رد من جهة خارجية"
+    },
     "repeat_zero": "×{{count}}",
     "repeat_one": "×{{count}}",
     "repeat_two": "×{{count}}",

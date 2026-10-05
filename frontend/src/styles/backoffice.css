@@ -199,6 +199,16 @@
   border-bottom: 1px solid var(--border);
 }
 
+.worklist-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
 .filter-row {
   display: flex;
   flex-wrap: wrap;
@@ -545,6 +555,15 @@
   display: grid;
   justify-items: end;
   gap: 4px;
+}
+
+.worklist-draft-tag {
+  padding: 1px 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 .worklist-age {

@@ -30,6 +30,11 @@
     "completedBy": "Completed by {{assignee}}",
     "skipped": "Skipped",
     "upcoming": "upcoming",
+    "kind": {
+      "human": "Done by a person",
+      "system": "Automated by the system",
+      "external": "Waiting for an outside response"
+    },
     "repeat_one": "×{{count}}",
     "repeat_other": "×{{count}}"
   },

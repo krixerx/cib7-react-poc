@@ -560,7 +560,16 @@ html[dir='rtl'] .step.active::before {
   animation: pulse-ring 1.8s ease-in-out infinite;
 }
 
-.step.active .step-dot::after {
+.step.active .step-dot svg.lucide {
+  color: var(--primary);
+}
+
+.step.upcoming .step-dot svg.lucide {
+  color: var(--muted);
+}
+
+/* The inner disc marks the current step only when no kind icon fills the dot. */
+.step.active .step-dot:empty::after {
   content: '';
   width: 12px;
   height: 12px;
@@ -711,6 +720,36 @@ html[dir='rtl'] .step.active::before {
 .tl-name {
   font-size: 14px;
   font-weight: 600;
+}
+
+/* Who does the step: person, system (robot) or an outside party. */
+.tl-kind {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  vertical-align: -4px;
+}
+
+.tl-kind.human {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.tl-kind.system {
+  background: var(--cat-social-soft);
+  color: var(--cat-social);
+}
+
+.tl-kind.external {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.tl-item.upcoming .tl-kind {
+  opacity: 0.7;
 }
 
 .tl-item.upcoming .tl-name,
@@ -1137,10 +1176,11 @@ html[dir='rtl'] .step.active::before {
 }
 
 /* Draft cards carry a Delete control beside the card link. */
+/* The card fills the wrapper, which the grid stretches to the row height, so
+   the Delete button pinned to the wrapper's bottom stays inside the card. */
 .mp-action-wrap {
   position: relative;
   display: grid;
-  align-content: start;
 }
 
 .mp-draft-delete {
@@ -1173,4 +1213,9 @@ html[dir='rtl'] .step.active::before {
 
 .mp-draft-confirm span {
   margin-inline-end: auto;
+}
+
+.mp-draft-confirm .form-error {
+  flex-basis: 100%;
+  margin: 0;
 }

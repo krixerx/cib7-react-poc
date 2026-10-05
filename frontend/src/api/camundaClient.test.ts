@@ -212,6 +212,9 @@ describe('listWorklist', () => {
     'pi-waiting': { firstName: 38_000, lastName: 'Kask' },
   };
 
+  // pi-waiting has had its first form submitted; pi-active-task has not.
+  const finishedTasksByInstance: Record<string, number> = { 'pi-waiting': 1 };
+
   beforeEach(() => {
     fetchMock.mockImplementation(async (url: string) => {
       if (url.startsWith('/engine-rest/process-definition')) return jsonResponse(definitions);
@@ -242,6 +245,10 @@ describe('listWorklist', () => {
         ]);
       }
       if (url.startsWith('/engine-rest/task?processInstanceId=')) return jsonResponse([]);
+      if (url.startsWith('/engine-rest/history/task/count?')) {
+        const qs = new URLSearchParams(url.split('?')[1]);
+        return jsonResponse({ count: finishedTasksByInstance[qs.get('processInstanceId')!] ?? 0 });
+      }
       throw new Error(`Unrouted test URL: ${url}`);
     });
   });
@@ -287,15 +294,44 @@ describe('listWorklist', () => {
     });
   });
 
-  it('does not query open tasks for ended instances', async () => {
+  it('marks active cases with no completed user task as drafts', async () => {
+    const [active, ended, waiting] = await listWorklist();
+    expect(active.isDraft).toBe(true);
+    expect(ended.isDraft).toBe(false);
+    expect(waiting.isDraft).toBe(false);
+  });
+
+  it.each([
+    'Task_WaitForPayment',
+    'Task_TransportWaitPermitPayment',
+    'Task_TransportWaitFeePayment',
+  ])('flags a case parked on %s as awaiting payment', async (activityId) => {
+    const base = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string) =>
+      url.startsWith('/engine-rest/history/activity-instance')
+        ? jsonResponse([{ ...openWaits[0], activityId, activityName: 'Wait for fee payment' }])
+        : base(url),
+    );
+    const [active, ended, waiting] = await listWorklist();
+    expect(waiting.awaitingPayment).toBe(true);
+    expect(active.awaitingPayment).toBe(false);
+    expect(ended.awaitingPayment).toBe(false);
+  });
+
+  it('does not flag a signature wait as awaiting payment', async () => {
+    const rows = await listWorklist();
+    expect(rows.some((r) => r.awaitingPayment)).toBe(false);
+  });
+
+  it('does not query open or finished tasks for ended instances', async () => {
     await listWorklist();
 
-    const taskQueries = fetchMock.mock.calls
-      .map((c) => c[0] as string)
-      .filter((u) => u.startsWith('/engine-rest/task?processInstanceId='));
+    const urls = fetchMock.mock.calls.map((c) => c[0] as string);
+    const taskQueries = urls.filter((u) => u.startsWith('/engine-rest/task?processInstanceId='));
     expect(taskQueries.sort()).toEqual([
       '/engine-rest/task?processInstanceId=pi-active-task',
       '/engine-rest/task?processInstanceId=pi-waiting',
     ]);
+    expect(urls.filter((u) => u.includes('processInstanceId=pi-ended&finished'))).toEqual([]);
   });
 });
