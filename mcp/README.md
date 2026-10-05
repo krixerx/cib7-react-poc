@@ -26,22 +26,19 @@ credentials:
 `get_started`, `get_signup_url`, `get_password_reset_url`,
 `send_account_invitation`.
 
-Five of them work signed out (lazy authentication): `get_started`,
-`list_services`, `describe_service`, `get_signup_url` and
-`get_password_reset_url`. Any other tool called without a token gets HTTP 401,
-so the MCP client shows its sign-in prompt and retries the call afterwards.
+Every request needs the user's own token, the handshake included, so the MCP
+client opens the Keycloak login when the connector is added or connected.
 
 The full per-tool table with engine endpoints and behavior lives in
 `docs/mcp.md` §[The sixteen tools](../docs/mcp.md#the-sixteen-tools).
 
 ## Endpoints
 
-| Path                                        | Purpose                                                                                                                                                                                                                                                                                                                        |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /.well-known/oauth-protected-resource` | RFC 9728 / MCP auth-spec resource metadata. Tells the MCP client which authorization server to use (Keycloak). Also served at `/.well-known/oauth-protected-resource/mcp`, the path-suffixed form Claude tries first.                                                                                                          |
-| `POST /mcp`                                 | MCP Streamable HTTP transport. Signed out, only the handshake, `tools/list` and the five public tools pass; anything else gets 401 + `WWW-Authenticate: Bearer error="invalid_token"`, which the client treats as "sign in". A token that is sent is always verified against Keycloak JWKS, and a stale one gets the same 401. |
-| `GET /mcp`                                  | 405 without a token: this stateless server pushes nothing on a server-to-client stream.                                                                                                                                                                                                                                        |
-| `GET /health`                               | Liveness probe for docker-compose.                                                                                                                                                                                                                                                                                             |
+| Path                                        | Purpose                                                                                                                                                                                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /.well-known/oauth-protected-resource` | RFC 9728 / MCP auth-spec resource metadata. Tells the MCP client which authorization server to use (Keycloak). Also served at `/.well-known/oauth-protected-resource/mcp`, the path-suffixed form Claude tries first.               |
+| `POST /mcp`                                 | MCP Streamable HTTP transport. Without a valid token (verified against Keycloak JWKS) every request, `initialize` included, gets 401 + `WWW-Authenticate: Bearer error="invalid_token"`, which makes the client run the OAuth flow. |
+| `GET /health`                               | Liveness probe for docker-compose.                                                                                                                                                                                                  |
 
 ## Build & run
 
@@ -101,12 +98,12 @@ unless `CIB7_MCP_URL` says otherwise. Add it to
 Fully quit Claude Desktop (tray > Quit; closing the window keeps the old
 mcp-remote child alive) and reopen.
 
-Whichever way you connect, nothing asks you to sign in until Claude calls a
-tool that needs your account. Then Claude shows a sign-in prompt that opens
-Keycloak's login page: log in as a seeded user (`bart` / `bart`,
-`homer` / `homer`) or click **Register**. A new account works immediately;
-there is no email verification step. After about 30 minutes without use the
-session expires and the prompt shows again.
+Whichever way you connect, connecting opens Keycloak's login page: log in as
+a seeded user (`bart` / `bart`, `homer` / `homer`) or click **Register**. A
+new account works immediately; there is no email verification step. After
+about 30 minutes without use the session expires and Claude marks the
+connector as needing sign-in; reconnect it in the connector settings
+(Settings > Connectors > Connect) to log in again.
 
 ## Verify the connection end-to-end
 
@@ -117,18 +114,12 @@ docker compose ps
 # 2. Discovery endpoint
 curl http://localhost:3000/.well-known/oauth-protected-resource
 
-# 3. A public tool works without a Bearer
+# 3. The handshake without a Bearer gets the sign-in challenge
 curl -i -X POST http://localhost:3000/mcp -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_started","arguments":{}}}'
-# → HTTP/1.1 200 OK, result with "signedIn": false
-
-# 3b. A protected tool without a Bearer gets the sign-in challenge
-curl -i -X POST http://localhost:3000/mcp -H "Content-Type: application/json" \
-  -H "Accept: application/json, text/event-stream" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_my_processes","arguments":{}}}'
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
 # → HTTP/1.1 401 Unauthorized
-# → WWW-Authenticate: Bearer resource_metadata="...", error="invalid_token", error_description="Sign in required for this tool", scope="openid"
+# → WWW-Authenticate: Bearer resource_metadata="...", error="invalid_token", error_description="missing", scope="openid"
 
 # 4. 401 with WWW-Authenticate on a bogus token
 curl -i -X POST http://localhost:3000/mcp -H "Authorization: Bearer not.a.real.token" -H "Content-Type: application/json" -d '{}'
@@ -140,20 +131,18 @@ In Claude, on a fresh chat:
 
 > What services are available on the cib7 server?
 
-Expected: 16 tools listed; `get_started` or `list_services` answers without
-signing in and lists the four services (`businessRegistration`,
-`vehicleRegistration`, `transportVehicleRegistration`,
-`transportLearningPermit`).
+Expected: `get_started` or `list_services` lists the four services
+(`businessRegistration`, `vehicleRegistration`,
+`transportVehicleRegistration`, `transportLearningPermit`).
 
-> Register Acme OÜ for me. I'm Bart Simpson, age 35, share capital €3000, board member Bart Simpson 38501010001 and Lisa Simpson 39102020002.
+> Register Acme OÜ for me. I'm 35, share capital €3000, board member Bart Simpson 38501010001.
 
 Expected: Claude calls `describe_service('businessRegistration')`, then
-`start_process`, which needs your account: the sign-in prompt shows, and after
-you sign in Claude retries the call. DMN auto-approves
-(share capital ≥ €2500 and applicant adult), approval email lands at
-http://localhost:8025 (bring the inbox online with `docker compose
---profile dev up -d mailpit-ui`; the default profile keeps it
-network-internal), and `list_my_processes` reports `state: COMPLETED`.
+`start_process` and, after you confirm the values, `complete_task`. Demo mode
+routes every case to civil-servant review: approve it as `homer` in the SPA,
+and the approval email lands at http://localhost:8025 (bring the inbox online
+with `docker compose --profile dev up -d mailpit-ui`; the default profile keeps
+it network-internal). The case then waits for payment on the web.
 
 ## Try the registration / invitation flow
 
@@ -167,13 +156,13 @@ password in Keycloak's form, and lands in the SPA signed in.
 
 > Where do I sign up?
 
-Expected: Claude calls `get_signup_url` (works signed out) and returns the
+Expected: Claude calls `get_signup_url` and returns the
 portal sign-up link (`/?auth=register`), which starts Keycloak registration. The user fills the form themselves and
 is signed in at once.
 
 > I forgot my password.
 
-Expected: Claude calls `get_password_reset_url` (works signed out) and returns
+Expected: Claude calls `get_password_reset_url` and returns
 Keycloak's standalone reset page (`/login-actions/reset-credentials`). The user resets it themselves.
 The reset email goes to Mailpit, which on the public deployment sits behind a
 login, so there a reset is effectively admin-assisted.
@@ -215,7 +204,7 @@ startup banner. Details in [`../docs/logging.md`](../docs/logging.md).
 | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Claude Desktop says "not valid MCP server configuration" and skips cib7                          | `claude_desktop_config.json` does not take the `{"url":...}` form. Add the server as a custom connector in the app instead, or use the `cib7-bridge.mjs` stdio bridge for a local stack (see above).                                                                                                   |
 | Custom connector: "Couldn't reach the MCP server" or sign-in fails                               | The URL must be the public HTTPS deployment (Anthropic's cloud cannot reach localhost), the Advanced settings OAuth Client ID must be `cib7-mcp`, and the realm must list `https://claude.ai/api/mcp/auth_callback` on `cib7-mcp` (re-import a realm imported before that change).                     |
-| Claude answers with "please sign in" text but shows no sign-in prompt                            | The 401 never reached the client, typically an old mcp image. Rebuild `mcp`; protected tools must answer HTTP 401, not a tool error.                                                                                                                                                                   |
+| Claude connects without a login and then tells you to sign in or reconnect                       | An old mcp image that still lets a tokenless handshake through (lazy auth). Rebuild `mcp`; `initialize` without a token must answer HTTP 401.                                                                                                                                                          |
 | `InsufficientScopeError: Policy 'Trusted Hosts' rejected request to client-registration service` | The client tried Dynamic Client Registration, which Keycloak refuses anonymously. Give it the client id: `cib7-mcp` under Advanced settings, `--client-id cib7-mcp` for Claude Code. The bridge already passes it; if the bridge shows this, update `mcp-remote` (`npm install -g mcp-remote@latest`). |
 | Bridge exits with `mcp-remote not found at ...`                                                  | Run `npm install -g mcp-remote` with the same npm that is on Claude Desktop's PATH.                                                                                                                                                                                                                    |
 | mcp-remote bridge: `SyntaxError: Expected property name or '}' in JSON`                          | Windows shell stripped quotes from the inline JSON. Make sure Claude Desktop is invoking `cib7-bridge.mjs` via `node`, not piping through `cmd /c npx ...`.                                                                                                                                            |
@@ -237,7 +226,7 @@ startup banner. Details in [`../docs/logging.md`](../docs/logging.md).
 - `Dockerfile` — `node:24-alpine`, no multi-stage; installs runtime dependencies only (`npm ci --omit=dev`), then removes npm, so the container starts with `node --import tsx src/server.ts`, the same thing `npm start` runs locally. COPYs from repo root so it can include both `mcp/src` and `docs/business/services`.
 - `cib7-bridge.mjs` — Node launcher for a local stack, used by Claude Desktop's `claude_desktop_config.json`. Finds `mcp-remote` through `npm root -g` and imports its entry directly with assembled `process.argv` to avoid shell-quoting issues; `CIB7_MCP_URL` overrides the target.
 - `src/server.ts` — Express + per-request MCP `Server` + `StreamableHTTPServerTransport`. Tool registry, `SERVER_INSTRUCTIONS` LLM playbook, AsyncLocalStorage bearer-context.
-- `src/auth/lazyAuth.ts` — the `/mcp` door: allowlist of public JSON-RPC methods and tools, 401 + `WWW-Authenticate` for anything else without a token, 405 for an anonymous GET.
+- `src/auth/requireBearer.ts` — the `/mcp` door: 401 + `WWW-Authenticate` for every request without a valid token, so the client signs in at connect time.
 - `src/auth/verify.ts` — JOSE `jwtVerify` against Keycloak JWKS (signature, expiry, issuer, audience).
 - `src/auth/identity.ts` — parse-only `preferred_username` extraction for query construction (assignee / startedBy).
 - `src/engine/client.ts` — Bearer-forward `/engine-rest` fetch wrapper. `{ ok, status, code, message, retryable, data }` envelope. Stateless A2.

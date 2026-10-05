@@ -244,12 +244,9 @@ stays.
 
 - The MCP sidecar validates the token's signature, issuer and audience before
   forwarding it.
-- Only reference-data tools answer without a token: ones that read the
-  service manifests or build a public URL, and never touch user data or call
-  the engine, the backend or Keycloak. The list is an allowlist
-  (`mcp/src/auth/lazyAuth.ts`), so a new tool or method needs a token until it
-  is added on purpose. Every other call without a token gets HTTP 401 before
-  any tool runs, and a token that is present must be valid whatever it calls.
+- Every `/mcp` request needs a valid token, the handshake included
+  (`mcp/src/auth/requireBearer.ts`). A request without one gets HTTP 401
+  before any tool runs, so a new tool or method can never answer anonymously.
 - Applicant-written text returned to an LLM is wrapped as untrusted data and
   never placed where it reads as instructions.
 - Tools that complete a task tell the agent, in the tool description, to show
