@@ -56,6 +56,12 @@ mvn -f cib7/pom.xml test -Dtest=DmnEvaluationTest
 cd frontend && npm test -- --run src/api/bpmn.test.ts
 ```
 
+End-to-end (Playwright, against the public VM by default; see `e2e/README.md`):
+
+```bash
+cd e2e && npm install && npx playwright install chromium && npm test
+```
+
 `npm run typecheck` is the cheapest correctness check after a TypeScript change.
 Node 24 for `frontend` (npm 10 crashes resolving vitest 4's peers, so write
 locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
