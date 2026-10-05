@@ -67,6 +67,7 @@ The committed source is platform-agnostic. To run it locally:
 ```bash
 cd mobile
 flutter create --platforms web,android,ios --project-name cib7_applicant --org com.cib7 .
+cp -r web-overrides/. web/     # CompanyLab title, PWA manifest and icons
 flutter pub get
 flutter run -d chrome          # web
 # Native iOS build requires macOS + Xcode (later step).

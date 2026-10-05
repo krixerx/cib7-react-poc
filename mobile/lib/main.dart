@@ -26,7 +26,7 @@ class ApplicantApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'eRegistrations Applicant (POC)',
+      title: 'CompanyLab',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorSchemeSeed: const Color(0xFF1F6F43),
