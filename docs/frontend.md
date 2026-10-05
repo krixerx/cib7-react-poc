@@ -157,7 +157,7 @@ route sets. The TaskDetail and CompletedProcess pages are shared.
 |---|---|---|
 | `/` | `TasksPage` | Two-pane worklist: filterable case list on the left, embedded form / history / incident block on the right |
 | `/incidents` | `IncidentsPage` | Open engine incidents across all services; retry (the worklist also shows incidents inline; this page is the cross-service overview) |
-| `/statistics` | `StatisticsPage` | Started / completed / in progress / failed / cancelled cases per period, service, day and task. Follows the `statistics-viewer` realm role (`canViewStatistics`), not `isCivilServant`; all PartB users have it through their group. See [`statistics.md`](statistics.md). |
+| `/statistics` | `StatisticsPage` | Case indicators against the previous period, case flow, per-service comparison, back-office team figures and open failures. Follows the `statistics-viewer` realm role (`canViewStatistics`), not `isCivilServant`; all PartB users have it through their group. See [`statistics.md`](statistics.md). |
 
 ### Shared
 
@@ -302,11 +302,17 @@ full width; the open form keeps its state, and the choice is remembered in
 ### `StatisticsPage` (`src/pages/StatisticsPage.tsx`) — `statistics-viewer`
 
 - Calls `GET /api/statistics` (`api/statisticsApi.ts`), never `/engine-rest`:
-  the backend aggregates the engine history. Filters: period preset or custom
-  dates in the browser's timezone, services and tasks (checkbox lists; none
-  ticked means all). Refreshes every 5 minutes.
-- Charts are plain HTML/SVG coloured by the `--stat-*` tokens; every value
-  is also in text (tiles, legend, tables, tooltips).
+  the backend aggregates the engine history. It fetches the chosen period and
+  the one of equal length before it (`previousRange`), so every indicator
+  shows its change. Refreshes every 5 minutes.
+- Layout: a dark hero band (`--banner-*` tokens, dark in both schemes) with
+  the period buttons, service chips, task filter and a "needs attention"
+  strip; then indicator tiles with sparklines (a tile picks the metric in the
+  per-day chart), service mix, a case-flow Sankey, a service comparison table
+  (a row focuses the page on that service), back-office team figures and the
+  open failures.
+- Charts are plain HTML/SVG coloured by the `--stat-*` and `--flow-*` tokens;
+  every value is also in text (tiles, node labels, legends, tables, tooltips).
 
 ### `TaskDetailView` + `TaskDetailPage` — shared
 

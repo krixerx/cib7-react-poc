@@ -14,6 +14,36 @@ export interface StatusCounts {
   cancelled: number;
 }
 
+/**
+ * What happened to the cases beyond their status. Approved and rejected split
+ * the completed cases; touchless cases completed without a back-office task;
+ * returned cases had the applicant redo a task.
+ */
+export interface Outcomes {
+  approved: number;
+  rejected: number;
+  returned: number;
+  touchless: number;
+  reachedBackOffice: number;
+  avgLeadTimeMs: number | null;
+}
+
+export interface PathCounts {
+  approved: number;
+  rejected: number;
+  inProgress: number;
+  failed: number;
+  cancelled: number;
+}
+
+/** Back-office user tasks as a team; there are no per-person figures. */
+export interface BackOffice {
+  done: number;
+  waiting: number;
+  avgTaskMs: number | null;
+  oldestWaitingSince: string | null;
+}
+
 export interface ServiceOption {
   key: string;
   name: string;
@@ -49,10 +79,13 @@ export interface StatisticsReport {
   zone: string;
   truncated: boolean;
   totals: StatusCounts;
+  outcomes: Outcomes;
   services: ServiceOption[];
   tasks: TaskOption[];
-  perService: { key: string; name: string; counts: StatusCounts }[];
-  perDay: { date: string; counts: StatusCounts }[];
+  perService: { key: string; name: string; counts: StatusCounts; outcomes: Outcomes }[];
+  perDay: { date: string; counts: StatusCounts; outcomes: Outcomes }[];
+  flow: { backOffice: PathCounts; direct: PathCounts };
+  backOffice: BackOffice;
   taskStats: TaskStats[];
   failures: Failure[];
 }

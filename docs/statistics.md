@@ -20,14 +20,35 @@ moving the stack to a database with real volume.
 users who find Cockpit too technical. For the cases **started** in a period,
 filtered by service and task, it shows:
 
-- tiles: started, completed, in progress, failed, cancelled;
-- a status donut, stacked bars per service and per day;
-- a task table: done, waiting now, average time;
-- the open failures: time, service, case, task, error.
+- **Needs attention**, in the dark band at the top: failed cases, the
+  back-office queue with the age of its oldest task, and any indicator that
+  moved notably the wrong way against the previous period (5 percentage
+  points for a rate, 25% for a count or time, only when both periods have at
+  least 5 cases).
+- **Indicators**, each with a sparkline and its change against the previous
+  period of the same length: started, completed, average lead time, approval
+  rate, returned for correction, without back office, failed. Choosing one
+  shows it per day, with the previous period as a tick on each day.
+- **Services**: stacked status bars, and a table of every indicator per
+  service. Clicking a service focuses the page on it.
+- **Case flow**: a Sankey from started, through "back office" or "no back
+  office", to approved, rejected, in progress, failed or cancelled.
+- **Back office**, as a team only: tasks done, waiting now, average task time
+  (creation to completion, so queue time included), oldest waiting; then the
+  per-task table. There are deliberately no per-person figures.
+- **Open failures**: time, service, case, task, error.
 
 The period is a set of calendar days in the browser's own timezone (Today,
-Yesterday, Last 7 days, Last 30 days, This month, or a custom range up to 366
-days). The page refreshes every 5 minutes.
+Yesterday, 7 days, 30 days, This month, or a custom range up to 366 days).
+The page makes two requests, one for the period and one for the period
+before it, and refreshes every 5 minutes.
+
+The design follows a "control room" dashboard mock-up, keeping only what the
+engine history can back. Left out on purpose: forecasts and z-score baselines
+(history is wiped on restart, so there is no baseline to trust), citizen
+satisfaction, appeals, registry defects and SLA targets (no data source), and
+the MCP-vs-portal share (the engine cannot yet tell an MCP start from a web
+start; that needs a channel marker set server-side).
 
 ## Who may see it
 
@@ -100,6 +121,22 @@ this order:
 - The task filter keeps cases that reached at least one selected task. The
   task list itself is computed before that filter, so picking a task does not
   hide the others.
+
+Indicators beyond the status, all from activity rows, never from process
+variables:
+
+| Indicator | Rule |
+|---|---|
+| Approved / rejected | A completed case is rejected when its top-level definition ended on an end event whose id contains `Rejected` (`EndEvent_Rejected`), otherwise approved. A sub-process's end event does not count. |
+| Approval rate | approved ÷ (approved + rejected) |
+| Back-office task | A user task not assigned to the user who started the case (`startUserId`), including unclaimed ones. Applicant tasks are assigned to `${initiator}`. |
+| Without back office | completed cases that never had a back-office task, ÷ completed |
+| Returned for correction | cases in which the applicant did the same user task more than once, ÷ started |
+| Average lead time | mean `durationInMillis` of the completed cases |
+
+Vehicle registration and business registration have no rejected end event
+today, so their approval rate is always 100%. A spec that adds a rejection
+path should name its end event `EndEvent_Rejected` to be counted.
 
 ## Limits
 

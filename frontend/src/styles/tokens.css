@@ -56,6 +56,11 @@
   --stat-in-progress: #0b57c9;
   --stat-failed: #c4282d;
   --stat-cancelled: #6b7889;
+  /* Case-flow chart: rejected joins the status hues above (validated as one set of four with
+     completed, in progress and failed); the two paths are validated as their own pair. */
+  --stat-rejected: #b45309;
+  --flow-back-office: #6a44c2;
+  --flow-direct: #00899e;
 
   --glass: rgba(255, 255, 255, 0.7);
   --glass-edge: rgba(255, 255, 255, 0.95);
@@ -68,6 +73,16 @@
   --banner-bg: #0b1b2f;
   --banner-fg: #dfe7f1;
   --banner-strong: #ffffff;
+  /* The dark statistics hero band; it stays dark in both schemes, so its accents are the
+     dark-scheme status hues in both. */
+  --banner-bg-2: #17345a;
+  --banner-muted: #9fb2c8;
+  --banner-line: rgba(255, 255, 255, 0.14);
+  --banner-fill: rgba(255, 255, 255, 0.06);
+  --banner-fill-hover: rgba(255, 255, 255, 0.12);
+  --banner-critical: #ff8a8f;
+  --banner-warn: #f0b45c;
+  --banner-info: #6aa5ff;
 
   --font-display: 'Sora', 'Segoe UI', system-ui, sans-serif;
   --font-body: 'Instrument Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -136,6 +151,9 @@
   --stat-in-progress: #4a8cf0;
   --stat-failed: #ec5f68;
   --stat-cancelled: #7d8ca0;
+  --stat-rejected: #b98226;
+  --flow-back-office: #9b7df0;
+  --flow-direct: #1d9db0;
 
   --glass: rgba(14, 26, 42, 0.66);
   --glass-edge: rgba(120, 160, 210, 0.18);
@@ -148,6 +166,7 @@
   --banner-bg: #030a14;
   --banner-fg: #b9c6d6;
   --banner-strong: #e7eef7;
+  --banner-bg-2: #0c2240;
 
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239aabbf' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");

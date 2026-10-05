@@ -1,9 +1,13 @@
 package com.poc.backend.statistics;
 
+import com.poc.backend.statistics.StatisticsReport.BackOffice;
 import com.poc.backend.statistics.StatisticsReport.Counts;
 import com.poc.backend.statistics.StatisticsReport.DayCounts;
 import com.poc.backend.statistics.StatisticsReport.Failure;
+import com.poc.backend.statistics.StatisticsReport.Flow;
 import com.poc.backend.statistics.StatisticsReport.Option;
+import com.poc.backend.statistics.StatisticsReport.Outcomes;
+import com.poc.backend.statistics.StatisticsReport.PathCounts;
 import com.poc.backend.statistics.StatisticsReport.ServiceCounts;
 import com.poc.backend.statistics.StatisticsReport.TaskOption;
 import com.poc.backend.statistics.StatisticsReport.TaskStats;
@@ -12,9 +16,11 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -29,8 +35,15 @@ import tools.jackson.databind.JsonNode;
  * case that failed, was retried and then completed is therefore completed. Activities and incidents
  * of call-activity sub-processes are attributed to their top-level instance through {@code
  * rootProcessInstanceId}, so a sub-process never counts as a service of its own.
+ *
+ * <p>Outcomes come from the activity rows, never from process variables: a completed case is
+ * rejected when its top-level definition ended on an end event whose id contains {@code Rejected}
+ * (the spec convention, e.g. {@code EndEvent_Rejected}), otherwise approved. A user task assigned
+ * to the case's starter is the applicant's; any other user task is back-office work.
  */
 final class StatisticsAggregator {
+
+  private static final String REJECTED_MARKER = "rejected";
 
   /** The engine REST date format, e.g. {@code 2026-10-02T09:15:00.000+0000}. */
   static final DateTimeFormatter ENGINE_DATE =
@@ -47,9 +60,27 @@ final class StatisticsAggregator {
   }
 
   private record Instance(
-      String id, String serviceKey, String businessKey, LocalDate startDate, String state) {}
+      String id,
+      String serviceKey,
+      String businessKey,
+      LocalDate startDate,
+      String state,
+      String startUserId,
+      Long durationMs) {}
 
-  private record Activity(String taskId, String name, boolean ended, boolean canceled, Long ms) {}
+  private record Activity(
+      String taskId,
+      String name,
+      boolean ended,
+      boolean canceled,
+      Long ms,
+      boolean userTask,
+      String assignee,
+      String startTime) {}
+
+  /** Per-case facts beyond the status, derived from the case's activities. */
+  private record CaseFacts(
+      Status status, boolean rejected, boolean returned, boolean backOffice, Long leadMs) {}
 
   private StatisticsAggregator() {}
 
@@ -82,15 +113,32 @@ final class StatisticsAggregator {
               text(row, "processDefinitionKey"),
               text(row, "businessKey"),
               day,
-              text(row, "state")));
+              text(row, "state"),
+              text(row, "startUserId"),
+              row.path("durationInMillis").isNumber()
+                  ? row.path("durationInMillis").asLong()
+                  : null));
     }
 
     // Task names keyed by task id, from every activity row, so failure rows can name the task.
     Map<String, String> taskNames = new LinkedHashMap<>();
     Map<String, List<Activity>> activitiesByRoot = new LinkedHashMap<>();
+    Set<String> rejectedRoots = new HashSet<>();
     for (JsonNode row : activityRows) {
       String type = text(row, "activityType");
-      if (type == null || !(type.endsWith("Task") || type.equals("task"))) continue;
+      if (type == null) continue;
+      if (type.endsWith("EndEvent")) {
+        // Only the top-level definition's own end event says how the case ended.
+        String root = rootOf(row);
+        String activityId = text(row, "activityId");
+        if (root.equals(text(row, "processInstanceId"))
+            && activityId != null
+            && activityId.toLowerCase(Locale.ROOT).contains(REJECTED_MARKER)) {
+          rejectedRoots.add(root);
+        }
+        continue;
+      }
+      if (!(type.endsWith("Task") || type.equals("task"))) continue;
       String taskId = text(row, "processDefinitionKey") + ":" + text(row, "activityId");
       String name = firstNonBlank(text(row, "activityName"), text(row, "activityId"));
       taskNames.putIfAbsent(taskId, name);
@@ -106,7 +154,10 @@ final class StatisticsAggregator {
                   row.path("canceled").asBoolean(false),
                   row.path("durationInMillis").isNumber()
                       ? row.path("durationInMillis").asLong()
-                      : null));
+                      : null,
+                  type.equals("userTask"),
+                  text(row, "assignee"),
+                  text(row, "startTime")));
     }
 
     // Task options come from the service-filtered set, before the task filter narrows it, so
@@ -141,15 +192,21 @@ final class StatisticsAggregator {
     for (LocalDate d = query.from(); !d.isAfter(query.to()); d = d.plusDays(1)) {
       perDay.put(d, new CountBuilder());
     }
+    PathBuilder backOfficePath = new PathBuilder();
+    PathBuilder directPath = new PathBuilder();
     for (Instance instance : selected) {
-      Status status = statusOf(instance, openIncidentRoots);
-      statuses.put(instance.id(), status);
-      totals.add(status);
-      perService.computeIfAbsent(instance.serviceKey(), k -> new CountBuilder()).add(status);
-      perDay.get(instance.startDate()).add(status);
+      List<Activity> activities = activitiesByRoot.getOrDefault(instance.id(), List.of());
+      CaseFacts facts =
+          factsOf(instance, activities, statusOf(instance, openIncidentRoots), rejectedRoots);
+      statuses.put(instance.id(), facts.status());
+      totals.add(facts);
+      perService.computeIfAbsent(instance.serviceKey(), k -> new CountBuilder()).add(facts);
+      perDay.get(instance.startDate()).add(facts);
+      (facts.backOffice() ? backOfficePath : directPath).add(facts);
     }
 
     Map<String, TaskAccumulator> tasks = new LinkedHashMap<>();
+    TaskAccumulator backOffice = new TaskAccumulator(null, null, null);
     for (Instance instance : selected) {
       for (Activity activity : activitiesByRoot.getOrDefault(instance.id(), List.of())) {
         tasks
@@ -157,6 +214,9 @@ final class StatisticsAggregator {
                 activity.taskId(),
                 id -> new TaskAccumulator(id, instance.serviceKey(), activity.name()))
             .add(activity);
+        if (isBackOffice(activity, instance)) {
+          backOffice.add(activity);
+        }
       }
     }
 
@@ -205,18 +265,24 @@ final class StatisticsAggregator {
         query.zone().getId(),
         truncated,
         totals.build(),
+        totals.outcomes(),
         serviceOptions,
         taskOptionList,
         perService.entrySet().stream()
             .map(
                 e ->
                     new ServiceCounts(
-                        e.getKey(), serviceName(serviceNames, e.getKey()), e.getValue().build()))
+                        e.getKey(),
+                        serviceName(serviceNames, e.getKey()),
+                        e.getValue().build(),
+                        e.getValue().outcomes()))
             .sorted(Comparator.comparing(ServiceCounts::name, String.CASE_INSENSITIVE_ORDER))
             .toList(),
         perDay.entrySet().stream()
-            .map(e -> new DayCounts(e.getKey(), e.getValue().build()))
+            .map(e -> new DayCounts(e.getKey(), e.getValue().build(), e.getValue().outcomes()))
             .toList(),
+        new Flow(backOfficePath.build(), directPath.build()),
+        backOffice.buildBackOffice(),
         tasks.values().stream()
             .map(TaskAccumulator::build)
             .sorted(
@@ -235,6 +301,36 @@ final class StatisticsAggregator {
       case "EXTERNALLY_TERMINATED", "INTERNALLY_TERMINATED" -> Status.CANCELLED;
       default -> openIncidentRoots.contains(instance.id()) ? Status.FAILED : Status.IN_PROGRESS;
     };
+  }
+
+  /**
+   * A user task is the applicant's own when it is assigned to the user who started the case; every
+   * other user task, assigned to someone else or still unclaimed, is back-office work.
+   */
+  private static boolean isBackOffice(Activity activity, Instance instance) {
+    return activity.userTask()
+        && (activity.assignee() == null || !activity.assignee().equals(instance.startUserId()));
+  }
+
+  private static CaseFacts factsOf(
+      Instance instance, List<Activity> activities, Status status, Set<String> rejectedRoots) {
+    boolean backOffice = false;
+    Map<String, Integer> applicantTaskRuns = new HashMap<>();
+    for (Activity activity : activities) {
+      if (isBackOffice(activity, instance)) {
+        backOffice = true;
+      } else if (activity.userTask()) {
+        applicantTaskRuns.merge(activity.taskId(), 1, Integer::sum);
+      }
+    }
+    boolean returned = applicantTaskRuns.values().stream().anyMatch(n -> n > 1);
+    boolean completed = status == Status.COMPLETED;
+    return new CaseFacts(
+        status,
+        completed && rejectedRoots.contains(instance.id()),
+        returned,
+        backOffice,
+        completed ? instance.durationMs() : null);
   }
 
   private static String rootOf(JsonNode row) {
@@ -268,19 +364,70 @@ final class StatisticsAggregator {
     private int inProgress;
     private int failed;
     private int cancelled;
+    private int rejected;
+    private int returned;
+    private int touchless;
+    private int reachedBackOffice;
+    private long leadMs;
+    private int timed;
 
-    void add(Status status) {
-      switch (status) {
+    void add(CaseFacts facts) {
+      switch (facts.status()) {
         case COMPLETED -> completed++;
         case IN_PROGRESS -> inProgress++;
         case FAILED -> failed++;
         case CANCELLED -> cancelled++;
+      }
+      if (facts.rejected()) rejected++;
+      if (facts.returned()) returned++;
+      if (facts.backOffice()) {
+        reachedBackOffice++;
+      } else if (facts.status() == Status.COMPLETED) {
+        touchless++;
+      }
+      if (facts.leadMs() != null) {
+        leadMs += facts.leadMs();
+        timed++;
       }
     }
 
     Counts build() {
       return new Counts(
           completed + inProgress + failed + cancelled, completed, inProgress, failed, cancelled);
+    }
+
+    Outcomes outcomes() {
+      return new Outcomes(
+          completed - rejected,
+          rejected,
+          returned,
+          touchless,
+          reachedBackOffice,
+          timed == 0 ? null : leadMs / timed);
+    }
+  }
+
+  private static final class PathBuilder {
+    private int approved;
+    private int rejected;
+    private int inProgress;
+    private int failed;
+    private int cancelled;
+
+    void add(CaseFacts facts) {
+      switch (facts.status()) {
+        case COMPLETED -> {
+          if (facts.rejected()) rejected++;
+          else approved++;
+        }
+        case IN_PROGRESS -> inProgress++;
+        case FAILED -> failed++;
+        case CANCELLED -> cancelled++;
+      }
+    }
+
+    PathCounts build() {
+      return new PathCounts(approved, rejected, inProgress, failed, cancelled);
     }
   }
 
@@ -292,6 +439,7 @@ final class StatisticsAggregator {
     private int waiting;
     private long totalMs;
     private int timed;
+    private String oldestWaitingSince;
 
     TaskAccumulator(String id, String serviceKey, String name) {
       this.id = id;
@@ -302,6 +450,11 @@ final class StatisticsAggregator {
     void add(Activity activity) {
       if (!activity.ended()) {
         waiting++;
+        if (activity.startTime() != null
+            && (oldestWaitingSince == null
+                || parse(activity.startTime()).isBefore(parse(oldestWaitingSince)))) {
+          oldestWaitingSince = activity.startTime();
+        }
       } else if (!activity.canceled()) {
         completed++;
         if (activity.ms() != null) {
@@ -314,6 +467,11 @@ final class StatisticsAggregator {
     TaskStats build() {
       return new TaskStats(
           id, serviceKey, name, completed, waiting, timed == 0 ? null : totalMs / timed);
+    }
+
+    BackOffice buildBackOffice() {
+      return new BackOffice(
+          completed, waiting, timed == 0 ? null : totalMs / timed, oldestWaitingSince);
     }
   }
 }

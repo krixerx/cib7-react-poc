@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, isoDate, presetRange } from './statisticsRange';
+import { formatDuration, isoDate, presetRange, previousRange } from './statisticsRange';
 
 describe('presetRange', () => {
   // 2 Oct 2026, 00:30 local time: late enough in UTC terms to be 1 Oct in some zones.
@@ -15,6 +15,27 @@ describe('presetRange', () => {
     expect(presetRange('last7', now)).toEqual({ from: '2026-09-26', to: '2026-10-02' });
     expect(presetRange('last30', now)).toEqual({ from: '2026-09-03', to: '2026-10-02' });
     expect(presetRange('thisMonth', now)).toEqual({ from: '2026-10-01', to: '2026-10-02' });
+  });
+});
+
+describe('previousRange', () => {
+  it('is the same number of days, ending the day before', () => {
+    expect(previousRange({ from: '2026-10-02', to: '2026-10-02' })).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-01',
+    });
+    expect(previousRange({ from: '2026-09-26', to: '2026-10-02' })).toEqual({
+      from: '2026-09-19',
+      to: '2026-09-25',
+    });
+  });
+
+  it('crosses the daylight-saving change without losing a day', () => {
+    // Most of Europe leaves summer time on 25 Oct 2026.
+    expect(previousRange({ from: '2026-10-26', to: '2026-11-01' })).toEqual({
+      from: '2026-10-19',
+      to: '2026-10-25',
+    });
   });
 });
 
