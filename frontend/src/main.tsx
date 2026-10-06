@@ -12,6 +12,7 @@ import PayPage from './pages/PayPage';
 import MockBankPage from './pages/MockBankPage';
 import './theme/colorScheme';
 import i18n, { SUPPORTED_LANGS } from './i18n';
+import { loadBrand } from './pack/brand';
 import { loadPack } from './pack/catalog';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -50,11 +51,12 @@ function Standalone({ children }: { children: React.ReactNode }) {
 const root = ReactDOM.createRoot(document.getElementById('root')!);
 
 /**
- * The service pack (catalog, form texts, display names) is read before the
- * first render, so no screen ever shows a pack text key. loadPack never
- * throws: without a pack the SPA still starts, on core texts only.
+ * The service pack (catalog, form texts, display names, branding) is read
+ * before the first render, so no screen shows a pack text key or the core
+ * colours first. Neither loader throws: without a pack the SPA still starts,
+ * on core texts and the core look.
  */
-void loadPack(i18n, SUPPORTED_LANGS).then(() =>
+void Promise.all([loadPack(i18n, SUPPORTED_LANGS), loadBrand(i18n, SUPPORTED_LANGS)]).then(() =>
   root.render(
     <React.StrictMode>
       <BrowserRouter>

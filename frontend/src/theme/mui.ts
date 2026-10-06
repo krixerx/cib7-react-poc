@@ -3,37 +3,59 @@ import type { ColorScheme } from './colorScheme';
 
 /**
  * MUI theme for the one place MUI still renders (the Incidents DataGrid).
- * MUI v5 computes hover and selection shades from hex values, so it cannot
- * take the CSS tokens directly; these hexes repeat `styles/tokens.css` and
- * must change with it. `fontFamily: inherit` keeps MUI text in the page font.
+ * MUI v5 computes hover and selection shades from concrete colour values, so
+ * it cannot take `var(--primary)`; instead the theme reads the tokens'
+ * resolved values from <html> for the scheme that is on it. That picks up a
+ * service pack's brand colours too, with no hex repeated here.
+ * `fontFamily: inherit` keeps MUI text in the page font.
  */
-const themes: Record<ColorScheme, Theme> = {
-  light: createTheme({
-    palette: {
-      mode: 'light',
-      primary: { main: '#0b57c9' },
-      error: { main: '#c4282d' },
-      background: { default: '#f5f7fa', paper: '#ffffff' },
-      text: { primary: '#0b1b2f', secondary: '#4c5d70' },
-      divider: '#dbe3ec',
-    },
-    typography: { fontFamily: 'inherit' },
-    shape: { borderRadius: 10 },
-  }),
-  dark: createTheme({
-    palette: {
-      mode: 'dark',
-      primary: { main: '#6aa5ff' },
-      error: { main: '#ff8a8f' },
-      background: { default: '#07101c', paper: '#0e1a2a' },
-      text: { primary: '#e7eef7', secondary: '#9aabbf' },
-      divider: '#1f3047',
-    },
-    typography: { fontFamily: 'inherit' },
-    shape: { borderRadius: 10 },
-  }),
-};
+const PALETTE = {
+  primary: '--primary',
+  error: '--danger',
+  backgroundDefault: '--bg',
+  backgroundPaper: '--surface',
+  textPrimary: '--text',
+  textSecondary: '--muted',
+  divider: '--border',
+} as const;
 
+const cache = new Map<ColorScheme, Theme>();
+
+/** The token's value now on <html>, or undefined when no style sheet sets it (tests). */
+function token(name: string): string | undefined {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || undefined;
+}
+
+/**
+ * The theme for `scheme`. Call it while that scheme is on <html data-theme>
+ * (useColorScheme() reads exactly that), so the values read are that
+ * scheme's; the result is kept per scheme because the pack's tokens are
+ * applied once, before the first render.
+ */
 export function muiTheme(scheme: ColorScheme): Theme {
-  return themes[scheme];
+  const cached = cache.get(scheme);
+  if (cached) return cached;
+  const v = Object.fromEntries(
+    Object.entries(PALETTE).map(([key, name]) => [key, token(name)]),
+  ) as Record<keyof typeof PALETTE, string | undefined>;
+  const theme = createTheme({
+    palette: {
+      mode: scheme,
+      ...(v.primary && { primary: { main: v.primary } }),
+      ...(v.error && { error: { main: v.error } }),
+      background: {
+        ...(v.backgroundDefault && { default: v.backgroundDefault }),
+        ...(v.backgroundPaper && { paper: v.backgroundPaper }),
+      },
+      text: {
+        ...(v.textPrimary && { primary: v.textPrimary }),
+        ...(v.textSecondary && { secondary: v.textSecondary }),
+      },
+      ...(v.divider && { divider: v.divider }),
+    },
+    typography: { fontFamily: 'inherit' },
+    shape: { borderRadius: 10 },
+  });
+  cache.set(scheme, theme);
+  return theme;
 }

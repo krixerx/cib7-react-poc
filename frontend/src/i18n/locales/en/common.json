@@ -1,7 +1,5 @@
 {
   "app": {
-    "brandName": "eRegistrations",
-    "brandSub": "Public services portal",
     "roleApplicant": "Applicant",
     "roleBackOffice": "Back office",
     "nav": {
@@ -97,7 +95,6 @@
     }
   },
   "official": {
-    "text": "The digital public services portal.",
     "howYouKnow": "Here's how you know",
     "signInTitle": "Secure sign-in",
     "signInBody": "You sign in once with your state ID. The portal never sees your password.",

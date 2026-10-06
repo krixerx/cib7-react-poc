@@ -43,7 +43,10 @@ files in `src/styles/` style one area each. Generated forms keep the
 service-builder class contract (`field`, `field-input`, `form-banner`,
 `btn btn-primary`), so restyling never requires regenerating a form.
 MUI v5 renders only the `pages/IncidentsPage.tsx` DataGrid, wrapped in a
-`ThemeProvider` whose palette follows the active scheme (`src/theme/mui.ts`).
+`ThemeProvider` whose palette reads the resolved token values for the
+active scheme (`src/theme/mui.ts`), so it follows a pack's brand colours
+with no hex repeated. A service pack overrides the brand tokens (see
+"Branding").
 
 There are no state libraries; state is local React state.
 
@@ -56,7 +59,7 @@ frontend/src/
 ├── styles/                        — tokens, base, shell, landing, cases, forms, backoffice, public
 ├── theme/
 │   ├── colorScheme.ts             — light/dark scheme: resolve, toggle, useColorScheme()
-│   └── mui.ts                     — MUI theme per scheme (Incidents DataGrid only)
+│   └── mui.ts                     — MUI theme per scheme from the resolved tokens (Incidents DataGrid only)
 ├── vite-env.d.ts                  — Vite client types + VITE_KEYCLOAK_* env vars
 ├── auth/
 │   ├── keycloak.ts                — keycloak-js singleton + ensureFreshToken()
@@ -405,6 +408,29 @@ from their specs.
 | `vehicle-review` | submitted data + registry values + `sendBackReason` (read-only) | **Accept:** `decision: 'approve'` / **Send back:** `decision: 'sendback'` + `sendBackReason: String` |
 | `business-details` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
 | `review-business-registration` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
+
+## Branding
+
+The core look is the default; a service pack's `branding/` folder, served
+at `/pack/branding/`, overrides parts of it. `src/pack/brand.ts` reads it
+before the first render, together with the catalog:
+
+| File | What it sets | Core default |
+|---|---|---|
+| `tokens.json` | brand colour tokens per scheme (`primary`, `primary-hover`, `primary-ink`, `primary-soft`, `primary-soft-border`, `mesh-1`..`mesh-4`, `banner-bg`, `banner-fg`, `banner-strong`) and the `display` and `body` font families | `src/styles/tokens.css` |
+| `brand.json` | `logo` (`light`, optional `dark`) and `favicon`, image files beside it | the Landmark mark (`components/BrandMark.tsx`), no favicon |
+| `locales/<lang>/brand.json` | `name`, `sub` (header and footer), `portal` (official banner); `name` is also the page title | `src/i18n/locales/<lang>/brand.json` |
+
+Format v1 is strict: only those token names, hex colours (`#rrggbb`), font
+family names, and image file names without a path. An invalid file is
+refused whole and logged; the core default stays, so a broken pack never
+blanks the page. Tokens become one `<style id="pack-theme">` after
+`tokens.css`, with the same selectors. A brand font must be one the page
+loads; today that is the Google Fonts link in `index.html` (Sora,
+Instrument Sans), so loading pack font files is still open.
+`src/pack/brand.test.ts` checks the reference pack, including WCAG AA
+contrast of `primary` against `primary-ink` and the page surface in both
+schemes. The colour category accents and status hues stay core.
 
 ## Service pack catalog and texts
 

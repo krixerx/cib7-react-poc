@@ -32,7 +32,7 @@ export default function OfficialBanner() {
     <div className="official">
       <div className="official-row shell-wrap">
         <ShieldCheck aria-hidden="true" />
-        <span>{t('official.text')}</span>
+        <span>{t('brand:portal')}</span>
         <button
           type="button"
           className="official-toggle"

@@ -273,7 +273,11 @@ containers. The short form:
   fails on a missing key or an untranslated BPMN name.
 - **Styling is plain CSS on tokens; no component library.** Every colour is a
   token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
-  literal colour in a rule breaks one scheme. Area styles live in
+  literal colour in a rule breaks one scheme. The pack's
+  `packs/reference/branding/tokens.json` overrides the brand tokens listed in
+  `frontend/src/pack/brand.ts` (and logo, favicon and portal name come from
+  `brand.json` and `locales/<lang>/brand.json` beside it); every other token
+  is core. Area styles live in
   `frontend/src/styles/*.css`, one sheet per area (base, shell, landing,
   cases, forms, backoffice, public). Generated forms rely on the class contract in the service-builder
   template (`field`, `field-input`, `form-banner`, `btn`), so restyle those

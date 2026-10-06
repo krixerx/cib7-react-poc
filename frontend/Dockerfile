@@ -36,6 +36,9 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # customer pack replaces this directory
 # (a bind mount or a thin image layer) without rebuilding the SPA.
 COPY packs/reference/frontend/ /usr/share/nginx/html/pack/
+# The pack's branding (logo, favicon, tokens.json, brand texts) under
+# /pack/branding/, read by src/pack/brand.ts before the first render.
+COPY packs/reference/branding/ /usr/share/nginx/html/pack/branding/
 # Runtime config injection: regenerates /env.js and the SPA's CSP snippet from
 # KEYCLOAK_URL / KEYCLOAK_REALM / KEYCLOAK_CLIENT_ID / S3_PUBLIC_URL at
 # container start, so the image published to Docker Hub works on any hostname

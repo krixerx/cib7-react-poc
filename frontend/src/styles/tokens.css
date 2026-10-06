@@ -3,7 +3,10 @@
  * dark schemes stay complete: a rule that uses a literal colour reads in one
  * scheme only. <html data-theme> is always set (public/theme-init.js, then
  * src/theme/colorScheme.ts), so the dark block needs no media query.
- * src/theme/mui.ts repeats a few of these hexes for MUI; keep them in step.
+ * src/theme/mui.ts reads the resolved values, so MUI follows these tokens.
+ * A service pack may override the brand tokens listed in src/pack/brand.ts
+ * (its branding/tokens.json, laid over these rules before the first render);
+ * every other token is core.
  */
 :root {
   color-scheme: light;

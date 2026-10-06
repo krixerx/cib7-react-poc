@@ -1,7 +1,5 @@
 {
   "app": {
-    "brandName": "eRegistrations",
-    "brandSub": "بوابة الخدمات العامة",
     "roleApplicant": "مقدم الطلب",
     "roleBackOffice": "المكتب الخلفي",
     "nav": {
@@ -97,7 +95,6 @@
     }
   },
   "official": {
-    "text": "بوابة الخدمات العامة الرقمية.",
     "howYouKnow": "كيف تتحقق من ذلك",
     "signInTitle": "تسجيل دخول آمن",
     "signInBody": "تسجّل الدخول مرة واحدة بهويتك الرقمية. لا ترى البوابة كلمة مرورك أبدًا.",

@@ -262,6 +262,17 @@
   transform: rotate(-6deg) scale(1.05);
 }
 
+/* A pack's logo in the brand slot (components/BrandMark.tsx). Its height
+   matches the core mark; the width follows the image, up to a wide wordmark. */
+.brand-logo {
+  display: block;
+  height: 36px;
+  width: auto;
+  max-width: 160px;
+  flex: none;
+  object-fit: contain;
+}
+
 .brand-mark svg.lucide {
   width: 20px;
   height: 20px;

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
-import { Landmark, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import BrandMark from './components/BrandMark';
 import OfficialBanner from './components/OfficialBanner';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import ThemeToggle from './components/ThemeToggle';
@@ -109,13 +110,11 @@ export default function App() {
         <div className="shell-wrap">
           <div className="app-bar glass">
             <Link to="/" className="brand">
-              <span className="brand-mark" aria-hidden="true">
-                <Landmark />
-              </span>
+              <BrandMark />
               <span className="brand-text">
-                <span className="brand-name">{t('app.brandName')}</span>
+                <span className="brand-name">{t('brand:name')}</span>
                 <span className="brand-sub">
-                  {authenticated && isCivilServant ? t('app.roleBackOffice') : t('app.brandSub')}
+                  {authenticated && isCivilServant ? t('app.roleBackOffice') : t('brand:sub')}
                 </span>
               </span>
             </Link>

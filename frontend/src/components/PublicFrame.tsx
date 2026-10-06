@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Landmark } from 'lucide-react';
+import BrandMark from './BrandMark';
 import OfficialBanner from './OfficialBanner';
 import LanguageSwitcher from './LanguageSwitcher';
 import ThemeToggle from './ThemeToggle';
@@ -30,12 +30,10 @@ export default function PublicFrame({ children }: { children: ReactNode }) {
         <div className="shell-wrap">
           <div className="app-bar glass">
             <span className="brand">
-              <span className="brand-mark" aria-hidden="true">
-                <Landmark />
-              </span>
+              <BrandMark />
               <span className="brand-text">
-                <span className="brand-name">{t('app.brandName')}</span>
-                <span className="brand-sub">{t('app.brandSub')}</span>
+                <span className="brand-name">{t('brand:name')}</span>
+                <span className="brand-sub">{t('brand:sub')}</span>
               </span>
             </span>
             <div className="app-bar-end">
