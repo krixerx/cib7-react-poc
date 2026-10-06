@@ -25,7 +25,7 @@ jobs:
       matrix:
         include:
           - image: cib7-poc-frontend
-            context: ./frontend
+            context: .
             dockerfile: ./frontend/Dockerfile
           - image: cib7-poc-mobile
             context: ./mobile

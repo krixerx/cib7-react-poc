@@ -4,23 +4,41 @@
 **BPMN task:** `Task_Review`
 **Audience:** `civil-servant`
 **Mode:** `review` (read-only data display with two action buttons)
+**Renderer:** `schema` (JSON definition drawn by the core form renderer)
+**Texts:** i18n namespace `vehicle-review`
 
 ## Intro
 
-"Transport Authority review. Check the owner details and the vehicle value
-from the registry. Accept the registration, or send it back to the owner
-with a reason."
+| When | Text key | English |
+|---|---|---|
+| editing | `intro.edit` | Transport Authority review. Check the owner details and the vehicle value from the registry. Accept the registration, or send it back to the owner with a reason. |
+| read-only | `intro.readOnly` | A read-only view of the owner details, the vehicle value from the registry, and the reviewer's decision. |
+
+## Summary
+
+Read-only `label: value` rows above the fields.
+
+| Label key | Variable | Format | Shown |
+|---|---|---|---|
+| `summary.firstName` | `firstName` | text | always |
+| `summary.lastName` | `lastName` | text | always |
+| `summary.age` | `age` | text | always |
+| `summary.decision` | `decision` | decision | read-only |
+| `summary.sendBackReason` | `sendBackReason` | text | read-only |
 
 ## Fields
 
-All data inputs are `disabled`; the reviewer only views them. Only the
-decision and the send-back reason are written.
-
-| Field name | UI label | Input type | Required | Default (from variable) | Validation |
+| Field name | UI label key | Input type | Required | Default (from variable) | Validation |
 |---|---|---|---|---|---|
-| `price` | `Vehicle value (from registry)` | `number` (read-only) | n/a | `data.price` | — |
+| `price` | `fields.vehicleValue.label` | `display`, format currency | n/a | `data.price` | — |
 | `decision` | — (set by the action buttons) | hidden | yes | — | one of approve, sendback |
-| `sendBackReason` | `Reason to send back` | `textarea` | only when sending back | `''` | — |
+| `sendBackReason` | `fields.sendBackReason.label`, placeholder `fields.sendBackReason.placeholder` | `textarea` (3 rows), revealed by `sendback` | only when sending back (message `errors.reasonRequired`) | `data.sendBackReason` | — |
+
+## Notices
+
+| Label key | Variable | Shown |
+|---|---|---|
+| `previousReason` | `sendBackReason` | editing |
 
 ## Conditional rules
 
@@ -30,10 +48,12 @@ decision and the send-back reason are written.
 
 ## Actions
 
-| Button label | When enabled | complete-with |
-|---|---|---|
-| `Accept` | not submitting | `decision="approve":String` |
-| `Send back…` → `Confirm send back` | reason non-empty AND not submitting | `decision="sendback":String, sendBackReason:String` |
+| Id | Button label key | Style | Confirm label key | complete-with |
+|---|---|---|---|---|
+| `approve` | `actions.accept` | primary | — | `decision="approve":String` |
+| `sendback` | `actions.sendBackEllipsis` | danger | `actions.confirmSendBack` | `decision="sendback":String, sendBackReason:String` (from the field) |
+
+While a completion is in flight every button shows `actions.working`.
 
 ## Send-back loop
 
@@ -43,7 +63,8 @@ round.
 
 ## Read-only mode
 
-When `readOnly` is true, the action row and the reason textarea are hidden.
+When `readOnly` is true, the action row and the reason textarea are hidden;
+the decision and the reason appear in the summary.
 
 ## Notes
 

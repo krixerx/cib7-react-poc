@@ -4,6 +4,7 @@
 **BPMN task:** `Task_ReviewBusinessRegistration`
 **Audience:** `civil-servant`
 **Mode:** `review` (read-only data display with two action buttons)
+**Renderer:** `tsx` until migrated to a form definition (core/pack split, task S44)
 
 ## Intro
 

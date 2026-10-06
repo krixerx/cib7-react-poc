@@ -11,7 +11,8 @@ import {
 } from '../api/camundaClient';
 import { useAuth } from '../auth/AuthProvider';
 import { parseProcessName } from '../api/bpmn';
-import { formRegistry, parseFormId } from '../forms/registry';
+import { parseFormId } from '../forms/registry';
+import { formFor } from '../forms/resolve';
 import { translateBackendName } from '../i18n/backendNames';
 import DocumentsCard from '../components/DocumentsCard';
 import ProcessTimeline from '../components/ProcessTimeline';
@@ -155,7 +156,7 @@ export default function TaskDetailView({
   }
 
   const formId = parseFormId(task.formKey);
-  const Form = formId ? formRegistry[formId] : undefined;
+  const Form = formId ? formFor(formId) : undefined;
 
   return (
     <>

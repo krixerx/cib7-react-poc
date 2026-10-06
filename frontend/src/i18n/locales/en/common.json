@@ -138,6 +138,11 @@
     "toLight": "Switch to light theme"
   },
   "footer": {
-    "demoNote": "Demo environment. Data is reset when the system restarts."
+    "demoNote": "Demo environment. Do not enter real personal data."
+  },
+  "schemaForm": {
+    "loading": "Loading the form…",
+    "missing": "No form definition found for {{formId}}.",
+    "invalid": "The form definition for {{formId}} is invalid: {{message}}"
   }
 }

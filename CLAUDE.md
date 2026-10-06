@@ -155,7 +155,9 @@ Generated from the spec:
 - `packs/reference/backend/registry/<entity>.yaml` and
   `db/registry/V<n>__*.sql` from `data/<entity>.md`
 - `packs/reference/backend/consent/<purpose>.yaml` from `consent.md`
-- `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` (full rewrite)
+- `packs/reference/frontend/forms/<form-id>.json` (form definition, the default);
+  `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` only for
+  `Renderer: tsx` forms
 - `docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
   plus the aggregated `docs/business/services/build/services.json`
 - the mermaid block between the `bpmn-diagram:start` / `bpmn-diagram:end` markers
@@ -196,10 +198,13 @@ containers. The short form:
 
 ## Contracts and gotchas that bite
 
-- **`formKey` to registry.** A user task carries
-  `camunda:formKey="react:<form-id>"`; the SPA strips `react:` and looks the id up
-  in `frontend/src/forms/registry.ts`. Nothing validates this at deploy time, so a
-  wrong id only shows up as a runtime error on the task page.
+- **`formKey` to form.** A user task carries `camunda:formKey="react:<form-id>"`;
+  the SPA strips `react:` and `forms/resolve.ts` picks the form: a TSX component
+  from `frontend/src/forms/registry.ts` if the spec says `Renderer: tsx`,
+  otherwise the schema renderer, which fetches the pack's
+  `/pack/forms/<form-id>.json` (nginx serves `packs/reference/frontend` there;
+  the Vite dev server does the same). Nothing validates the id at deploy time,
+  so a wrong id shows up only on the task page, as "No form definition found".
 - **One engine deployment per `processes/<service>/` folder.**
   `ServiceDeployments.java` scans `classpath*:processes/*/` (the pack directory
   is on the classpath, the jar holds none) in `@PostConstruct`

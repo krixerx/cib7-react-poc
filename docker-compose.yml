@@ -621,7 +621,10 @@ services:
         condition: service_started
 
   frontend:
-    build: ./frontend
+    # Repo root as context: the image serves packs/reference/frontend at /pack/.
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: cib7-poc-frontend
     # WORKAROUND for the Traefik docker-provider "Error response from daemon: "
     # bug on Docker Desktop + new daemon API. Until Traefik gets healthy we

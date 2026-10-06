@@ -1,0 +1,9 @@
+# Dockerfile-specific ignore file: BuildKit uses it instead of the repo-root
+# .dockerignore when building frontend/Dockerfile with the repo root as context.
+# Only the frontend module and the service packs go into the context.
+*
+!frontend
+!packs
+frontend/node_modules
+frontend/dist
+frontend/.idea

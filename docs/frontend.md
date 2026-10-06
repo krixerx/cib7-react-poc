@@ -412,6 +412,34 @@ export function parseFormId(formKey: string | null | undefined): string | null {
 | `business-details` | `BusinessDetailsForm.tsx` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
 | `review-business-registration` | `ReviewBusinessRegistrationForm.tsx` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
 
+## Schema-driven forms
+
+Forms are data, not code. A spec with `Renderer: schema` becomes a JSON form
+definition (format v1) in the service pack,
+`packs/reference/frontend/forms/<form-id>.json`. `forms/resolve.ts` gives
+every form id without a TSX entry in `registry.ts` to
+`forms/schema/SchemaForm.tsx`, which fetches `/pack/forms/<form-id>.json`,
+checks it with `parseDefinition` (`forms/schema/definition.ts`) and draws it
+with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
+`form-error`), so it looks like the generated TSX forms.
+
+- **Elements:** intro texts, a read-only summary, fields of type `display`,
+  `text` or `textarea`, notices, and actions that complete the task with
+  fixed values or field input. An action that reveals fields (for example
+  "Send back…" with a reason) works in two steps: show the fields, then
+  confirm or cancel.
+- **Texts** are i18n keys in the form's own namespace, so `en` and `ar` stay
+  in `src/i18n/locales`.
+- **Strict:** an unknown key, element type or a reference to a missing field
+  or action refuses the whole definition with "The form definition … is
+  invalid", instead of drawing half a form.
+- **Serving:** nginx serves the pack at `/pack/` (`location ^~ /pack/`, an
+  honest 404 for a missing file); `npm run dev` does the same through the
+  `serve-pack` plugin in `vite.config.ts`. A customer pack replaces the
+  directory without rebuilding the SPA.
+- **Migrated so far:** `vehicle-review`. The other forms stay TSX until their
+  turn (`Renderer: tsx` in their specs).
+
 ## REST client (`api/`)
 
 ### `camundaClient.ts`

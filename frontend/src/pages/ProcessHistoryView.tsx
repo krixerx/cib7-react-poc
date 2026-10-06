@@ -11,7 +11,8 @@ import {
   type HistoricVariableInstance,
 } from '../api/camundaClient';
 import { parseActivityNames, parseProcessName, parseUserTasks } from '../api/bpmn';
-import { formRegistry, parseFormId } from '../forms/registry';
+import { parseFormId } from '../forms/registry';
+import { formFor } from '../forms/resolve';
 import DocumentsCard from '../components/DocumentsCard';
 import ProcessTimeline from '../components/ProcessTimeline';
 import { translateBackendName } from '../i18n/backendNames';
@@ -163,7 +164,7 @@ export default function ProcessHistoryView({
 
   const isInFlight = state.pi.endTime === null;
   const formId = parseFormId(state.formKey);
-  const Form = formId ? formRegistry[formId] : undefined;
+  const Form = formId ? formFor(formId) : undefined;
   const stubTask = synthesizeTask(state.lastTask, state.formKey);
   const stampDate = isInFlight ? (state.lastTask.endTime ?? state.pi.startTime) : state.pi.endTime!;
 

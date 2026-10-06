@@ -88,7 +88,8 @@ and ask** rather than guessing.
 | `<service>/README.md` (flow section) | `packs/reference/engine/processes/<service>/<service>.bpmn` |
 | `<service>/decisions/<id>.md` | `packs/reference/engine/processes/<service>/<id>.dmn` |
 | `<service>/service-tasks/<id>.md` with payload-template body | `packs/reference/engine/templates/<id>.json.ftl` |
-| `<service>/forms/<id>.md` | `frontend/src/forms/<id>/<PascalCase>Form.tsx` |
+| `<service>/forms/<id>.md` with `Renderer: schema` (the default) | `packs/reference/frontend/forms/<id>.json` (form definition v1; § 8.0) |
+| `<service>/forms/<id>.md` with `Renderer: tsx` (escape hatch only) | `frontend/src/forms/<id>/<PascalCase>Form.tsx` (§ 8) |
 | Every form across every service | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
 | `<service>.bpmn` after regeneration | mermaid block inside `<service>/README.md` |
 | `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest + JSON Schemas; § 11) |
@@ -150,8 +151,11 @@ generated files get rewritten in place; idempotent runs are a no-op.
    `packs/reference/engine/templates/<id>.json.ftl`. Inline payloads
    (short, no template marker) go inside the BPMN as `<camunda:inputParameter
    name="payload">…</camunda:inputParameter>` instead.
-7. **Emit React forms.** One folder per `forms/<id>.md` at
-   `frontend/src/forms/<id>/<PascalCase>Form.tsx`. Follow the template in
+7. **Emit the forms.** A spec with `Renderer: schema` (the default) becomes a
+   JSON definition at `packs/reference/frontend/forms/<id>.json` following
+   [§ 8.0](#80-form-definition-v1); no React code is written for it. Only a
+   spec that says `Renderer: tsx` gets a React component at
+   `frontend/src/forms/<id>/<PascalCase>Form.tsx`, following
    [§ 8](#8-react-form-template). Always handle the `readOnly` prop, the
    `data` defaults, the typed `onComplete` variables, and (for forms on the
    send-back loop) the `sendBackReason` banner pattern.
@@ -533,6 +537,29 @@ Rules:
 - For `byte[]` attachments, re-encode with `${pdf.encode(varName)}`.
 
 ---
+
+## 8.0 Form definition v1
+
+The default output for a form. The core renderer
+(`frontend/src/forms/schema/SchemaForm.tsx`, format in `definition.ts`)
+fetches it as `/pack/forms/<id>.json` and refuses a definition outside v1 as
+a whole. Map the spec one to one:
+
+| Spec | Definition |
+|---|---|
+| header `Form id`, `Texts` (i18n namespace), the process id | `form`, `i18n`, `process`; `"version": 1` |
+| Intro table | `intro: {edit, readOnly}` (text keys) |
+| Summary table | `summary: [{label, variable, format, show}]`; format `text` `number` `currency` `decision`; show `always` `readOnly` `editing` (a non-`always` row is hidden while its value is empty) |
+| Fields table, input types `display` `text` `textarea` | `fields: [{name, label, type, format, placeholder, rows, revealedBy, requiredMessage}]`; `revealedBy` = the action id that reveals the field |
+| Notices table | `notices: [{label, variable, show}]` |
+| Actions table | `actions: [{id, label, style, workingLabel, confirmLabel, complete}]`; `complete` maps each `complete-with` variable to `{value, type}` or `{field, type}` |
+
+Texts are keys in the form's locale namespace; write the English text into
+`frontend/src/i18n/locales/en/<namespace>.json` and the Arabic into
+`ar/<namespace>.json`. A spec that needs an input type, format or behaviour
+outside this table is a spec gap: stop and ask. The answer is either a new
+renderer feature in core (a platform API change) or, rarely,
+`Renderer: tsx`.
 
 ## 8. React form template
 

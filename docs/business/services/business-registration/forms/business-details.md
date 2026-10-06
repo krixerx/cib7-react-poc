@@ -4,6 +4,7 @@
 **BPMN task:** `Task_SubmitBusinessDetails`
 **Audience:** `initiator`
 **Mode:** `entry` (collects new data; supports send-back resubmit too)
+**Renderer:** `tsx` until migrated to a form definition (core/pack split, task S44)
 
 ## Intro
 

@@ -1,8 +1,9 @@
 <!--
   Form spec — one file per BPMN user task. Filename = form id (kebab-case).
-  The service-builder skill reads this file to emit:
-    frontend/src/forms/<form-id>/<PascalCase>Form.tsx
-  …and a registry entry in frontend/src/forms/registry.ts.
+  The service-builder skill reads this file to emit the form definition
+    packs/reference/frontend/forms/<form-id>.json
+  drawn by the core form renderer (Renderer: schema). Only a spec that says
+  Renderer: tsx gets React code (frontend/src/forms/<form-id>/) instead.
 
   The corresponding BPMN user task gets camunda:formKey="react:<form-id>".
 
@@ -14,6 +15,8 @@
 **Form id:** `<form-id>` (kebab-case, globally unique)
 **BPMN task:** `<task-id>` (the user task this form is mounted on)
 **Audience:** `<initiator>` | `<group-name>` (e.g. `civil-servant`)
+**Renderer:** `schema` (default) | `tsx` (escape hatch, needs a reason in Notes)
+**Texts:** i18n namespace `<form-id>`
 **Mode:** `entry` (collects new data) | `review` (read-only with action buttons)
 
 ## Intro
