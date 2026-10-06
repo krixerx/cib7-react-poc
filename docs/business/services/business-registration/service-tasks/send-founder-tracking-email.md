@@ -61,4 +61,4 @@ None: fire-and-forget. The case does not depend on the response body; a failed c
 ## Notes
 
 - Sent once, when the case has co-founders, before the signing subprocess starts.
-- The link carries a capability token from `links.founder(execution, "applicant")` (docs/security.md rule 3).
+- The link carries a capability token from `links.consent(execution, "founder", "applicant")` (docs/security.md rule 3).

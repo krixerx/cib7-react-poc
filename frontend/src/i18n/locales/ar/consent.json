@@ -1,0 +1,45 @@
+{
+  "linkTitle": "رابط التوقيع",
+  "applicantFallback": "مقدم الطلب",
+  "signingAs": "أنت توقّع بصفتك <strong>{{name}}</strong>.",
+  "signingAsApplicant": "أنت توقّع بصفتك <strong>{{name}}</strong> (مقدم الطلب).",
+  "applicantTag": "· مقدم الطلب",
+  "reason": "السبب: {{reason}}",
+  "detailsTitle": "ما الذي توقّع عليه",
+  "downloadDocument": "تنزيل وقراءة",
+  "noDocument": "غير مرفق",
+  "waitingOthers_zero": "تم تسجيل توقيعك، ولا توجد توقيعات متبقية.",
+  "waitingOthers_one": "تم تسجيل توقيعك. في انتظار توقيع واحد آخر.",
+  "waitingOthers_two": "تم تسجيل توقيعك. في انتظار توقيعين آخرين.",
+  "waitingOthers_few": "تم تسجيل توقيعك. في انتظار {{count}} توقيعات أخرى.",
+  "waitingOthers_many": "تم تسجيل توقيعك. في انتظار {{count}} توقيعًا آخر.",
+  "waitingOthers_other": "تم تسجيل توقيعك. في انتظار {{count}} توقيع آخر.",
+  "states": {
+    "awaitingSignatures": "في انتظار التوقيعات",
+    "readyToSend": "جاهز للإرسال",
+    "sent": "تم الإرسال",
+    "rejected": "مرفوض"
+  },
+  "partyStatus": {
+    "signed": "تم التوقيع",
+    "rejected": "مرفوض",
+    "pending": "قيد الانتظار"
+  },
+  "banners": {
+    "rejectedBy": "رفضه {{name}}.",
+    "rejectedByUnknown": "رفضه أحد الموقّعين."
+  },
+  "actions": {
+    "approveAndSign": "الموافقة والتوقيع",
+    "signing": "جارٍ التوقيع…",
+    "reasonLabel": "سبب الرفض",
+    "reasonPlaceholder": "يرجى توضيح ما يلزم تعديله قبل أن توقّع.",
+    "sendRejection": "إرسال الرفض",
+    "sending": "جارٍ الإرسال…"
+  },
+  "errors": {
+    "missingReason": "يرجى توضيح سبب الرفض.",
+    "network": "تعذّر الاتصال بالخادم: {{message}}",
+    "unknownLink": "رابط التوقيع غير معروف أو انتهت صلاحيته."
+  }
+}

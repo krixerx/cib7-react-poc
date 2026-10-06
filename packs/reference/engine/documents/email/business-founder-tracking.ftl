@@ -4,7 +4,7 @@
   frontendBaseUrl, links and brand (DocumentRenderer).
 -->
 <#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
-<#assign signUrl = frontendBaseUrl + "/sign-founder/" + links.consent(execution, "founder", "applicant")>
+<#assign signUrl = frontendBaseUrl + "/consent/founder/" + links.consent(execution, "founder", "applicant")>
 <#assign extraCount = additionalFounders.elements()?size>
 Tere ${applicantFirstName!""},
 

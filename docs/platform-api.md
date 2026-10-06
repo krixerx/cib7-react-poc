@@ -6,7 +6,8 @@
 the reference pack, it may still change without a major bump. Changes since
 it was first written: `links.consent(execution, purpose, partyId)` replaced
 `links.owner` / `links.founder`, policies gained `identity`, packs gained
-`backend/payment/` and `backend/documents.json`.
+`backend/payment/` and `backend/documents.json`, and the two consent pages
+became one, `/consent/<purpose>/<token>`, worded by the pack.
 
 **When to read this:** before writing or changing anything in a service pack,
 before changing core code that reads pack files, and before a core release.
@@ -86,7 +87,7 @@ Until the pack has its own repository, its specs live in this repository's
 | `engine/documents/` | `pdf/<name>.ftlh` (HTML, escaped), `email/<name>.ftl` (text), shared `_brand.ftlh` | `DocumentRenderer` (`documents` bean) | `PackConformanceTest` |
 | `backend/registry/<entity>.yaml` | registry descriptor, `platform: 2`: entity, table, key, sort, typed fields, derived fields, operations with access `public` or `internal` | `RegistryCatalog`, `RegistryController` | `BackendApplicationSmokeTest` |
 | `backend/db/registry/V<n>__*.sql` | Flyway migrations in the `registry` schema, own history table | `RegistryMigrations` | `BackendApplicationSmokeTest` (columns against descriptors) |
-| `backend/consent/<purpose>.yaml` | co-signing descriptor, `platform: 2`: process, variables, messages, wording | `ConsentCatalog`, `ConsentController` | `BackendApplicationSmokeTest` |
+| `backend/consent/<purpose>.yaml` | co-signing descriptor, `platform: 2`: process, variables, messages, wording | `ConsentCatalog`, `ConsentController` | `ConsentCatalogTest`; `ConsentTextsTest` (the page texts in `frontend/locales/<lang>/consent.json` for every purpose, detail and document) |
 | `backend/payment/<service>.yaml` | state fee, `platform: 2`: process, fee name, recipient, currency, `amount` flat or tiered by one engine-set variable | `FeeCatalog`, `FeeSchedule` (checkout, callback, `/api/internal/payments/quote/<id>`) | `FeeCatalogTest`; `PackConformanceTest` (tier variable not client-writable) |
 | `backend/documents.json` | document categories, `platform: 2`: `by: applicant` (a signed-in user may upload) or `by: system` (only the engine files it; name starts `generated-`); the core adds `generated-certificate` | `DocumentCategories` (user endpoints accept only applicant categories, `server-upload` only system ones) | `DocumentCategoriesTest`; `PackConformanceTest` and `src/pack/pack.test.ts` (every category used is declared and labelled) |
 | `frontend/catalog.json` | catalog v1: namespaces, services (category, issuer), issuers (tone) | `src/pack/catalog.ts` | `src/pack/pack.test.ts` |

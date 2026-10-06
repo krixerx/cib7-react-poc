@@ -66,5 +66,5 @@ None: fire-and-forget. The case does not depend on the response body; a failed c
 ## Notes
 
 - Runs inside the co-owner signatures subprocess, once per element of `additionalOwners` (parallel multi-instance, element variable `owner`).
-- The link carries a capability token from `links.owner(execution, owner.partyId)`; the token, never a stored id, is the credential of the public confirmation page (docs/security.md rule 3).
+- The link carries a capability token from `links.consent(execution, "owner", owner.partyId)`; the token, never a stored id, is the credential of the public consent page (`/consent/owner/<token>`) (docs/security.md rule 3).
 - Co-owner names are user input; the document is plain text and the payload escapes it with `?json_string`.

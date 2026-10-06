@@ -17,7 +17,7 @@
         -> <Need owner confirmations?> exclusive gateway
              additionalOwners empty -> (Get price) [skip whole confirmation block]
              else                   -> (Send applicant tracking email)
-        -> (Send applicant tracking email)  service task  (Mailpit; applicant's own /confirm-owner/{token} link,
+        -> (Send applicant tracking email)  service task  (Mailpit; applicant's own /consent/owner/{token} link,
                                                             token minted by the `links` bean)
         -> [Owner confirmations]       subprocess (parallel multi-instance over additionalOwners)
               per instance:

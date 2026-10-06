@@ -7,7 +7,7 @@
 <#assign ownerEmail = owner.prop("email").stringValue()>
 <#assign ownerToken = links.consent(execution, "owner", owner.prop("partyId").stringValue())>
 <#assign applicantName = (firstName!"") + " " + (lastName!"")>
-<#assign confirmUrl = frontendBaseUrl + "/confirm-owner/" + ownerToken>
+<#assign confirmUrl = frontendBaseUrl + "/consent/owner/" + ownerToken>
 Hello ${ownerName},
 
 ${applicantName} has named you as a co-owner of a vehicle registration

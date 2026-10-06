@@ -2,7 +2,7 @@
 
 Every co-owner the applicant lists must confirm the registration through a
 link in their email before the case reaches Transport Authority. The page is
-the SPA's `/confirm-owner/{token}`; its API is the backend's generic
+the SPA's one consent page, `/consent/owner/{token}`, worded by the pack's `consent:owner.*` texts; its API is the backend's generic
 co-signing endpoint `/api/public/consent/owner/{token}`.
 
 **Purpose:** `owner` (the capability token's purpose and the URL segment)

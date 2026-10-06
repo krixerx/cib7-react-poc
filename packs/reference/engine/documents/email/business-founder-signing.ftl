@@ -7,7 +7,7 @@
 <#assign founderEmail = founder.prop("email").stringValue()>
 <#assign founderToken = links.consent(execution, "founder", founder.prop("partyId").stringValue())>
 <#assign applicantName = (applicantFirstName!"") + " " + (applicantLastName!"")>
-<#assign signUrl = frontendBaseUrl + "/sign-founder/" + founderToken>
+<#assign signUrl = frontendBaseUrl + "/consent/founder/" + founderToken>
 Tere ${founderName},
 
 ${applicantName} has named you as a co-founder of ${companyName!""} and

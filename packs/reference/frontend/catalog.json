@@ -4,6 +4,7 @@
   "namespaces": [
     "catalog",
     "names",
+    "consent",
     "business-details",
     "owner-vehicle",
     "review-business-registration",

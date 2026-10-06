@@ -25,7 +25,7 @@
              additionalFounders empty -> [Auto-approval policy]  (skip whole signing block)
              else                     -> (Send applicant tracking email)
         -> (Send applicant tracking email) service task    (Mailpit; applicant's own
-                                                              /sign-founder/{token} link)
+                                                              /consent/founder/{token} link)
         -> [Co-founder signatures]        subprocess        (parallel multi-instance
                                                               over additionalFounders)
               per instance:

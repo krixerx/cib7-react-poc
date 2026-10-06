@@ -1,0 +1,41 @@
+{
+  "linkTitle": "Signing link",
+  "applicantFallback": "The applicant",
+  "signingAs": "You are signing as <strong>{{name}}</strong>.",
+  "signingAsApplicant": "You are signing as <strong>{{name}}</strong> (the applicant).",
+  "applicantTag": "· applicant",
+  "reason": "Reason: {{reason}}",
+  "detailsTitle": "What you are signing",
+  "downloadDocument": "Download and read",
+  "noDocument": "Not attached",
+  "waitingOthers_one": "Your signature is on file. Waiting for {{count}} more signature.",
+  "waitingOthers_other": "Your signature is on file. Waiting for {{count}} more signatures.",
+  "states": {
+    "awaitingSignatures": "Awaiting signatures",
+    "readyToSend": "Ready to send",
+    "sent": "Sent",
+    "rejected": "Rejected"
+  },
+  "partyStatus": {
+    "signed": "Signed",
+    "rejected": "Rejected",
+    "pending": "Pending"
+  },
+  "banners": {
+    "rejectedBy": "Rejected by {{name}}.",
+    "rejectedByUnknown": "Rejected by a co-signer."
+  },
+  "actions": {
+    "approveAndSign": "Approve and sign",
+    "signing": "Signing…",
+    "reasonLabel": "Reason for rejection",
+    "reasonPlaceholder": "Explain what needs to change before you'd sign.",
+    "sendRejection": "Send rejection",
+    "sending": "Sending…"
+  },
+  "errors": {
+    "missingReason": "Please describe why you are rejecting.",
+    "network": "Could not reach the server: {{message}}",
+    "unknownLink": "This signing link is unknown or has expired."
+  }
+}

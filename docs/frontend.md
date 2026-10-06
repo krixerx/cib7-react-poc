@@ -72,8 +72,7 @@ frontend/src/
 │   ├── paymentLinkApi.ts          — /api/cases/{id}/payment-link (pay link for the signed-in applicant)
 │   ├── draftCaseApi.ts            — /api/cases/drafts + DELETE /api/cases/{id} (applicant's unsubmitted cases)
 │   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
-│   ├── ownerConfirmationsApi.ts   — /api/public/consent/owner client (confirm page)
-│   └── founderSignaturesApi.ts    — /api/public/consent/founder client (signing page)
+│   └── consentApi.ts              — /api/public/consent/<purpose> client (the consent page)
 ├── services/
 │   ├── categories.ts              — PartA life-event categories (the pack's catalog maps services to them)
 │   └── CategoryIcon.tsx           — Lucide icon per category
@@ -99,8 +98,7 @@ frontend/src/
 │   ├── TaskDetailView.tsx         — embeddable form host (route page + worklist right pane)
 │   ├── CompletedProcessPage.tsx   — shared route "/processes/:processInstanceId" (thin route wrapper)
 │   ├── ProcessHistoryView.tsx     — embeddable read-only history view (route page + worklist right pane)
-│   ├── ConfirmOwnerPage.tsx       — public route "/confirm-owner/:token" (no Keycloak; token is the credential)
-│   ├── SignFounderPage.tsx        — public route "/sign-founder/:token" (no Keycloak)
+│   ├── ConsentPage.tsx            — public route "/consent/:purpose/:token": co-signing for every purpose the pack declares (no Keycloak; token is the credential)
 │   ├── PayPage.tsx                — public route "/pay/:token" (no Keycloak)
 │   └── MockBankPage.tsx           — public route "/mock-bank/:sessionId" (demo payment provider)
 └── forms/
@@ -444,6 +442,14 @@ in every language, `/pack/locales/<lang>/<namespace>.json`, into i18next:
   category its label (`documents.<category>`; `documentLabel()` in
   `api/documentsApi.ts` falls back to the core's label for
   `generated-certificate`, then to the code).
+- **`consent`**: the wording of the co-signing page per purpose
+  (`<purpose>.title`, `intro`, `consent`, `partiesHeading`, `send`,
+  `sentTitle`, `sentBody`, `rejectedBody`, a label per detail and document,
+  and optionally `values.<detail>` to format a value, e.g.
+  `{{value, currency(EUR)}}`). It merges with the core `consent` namespace,
+  which holds what every purpose shares. One page,
+  `/consent/:purpose/:token`, serves every purpose; the backend's status
+  response carries the descriptor's details and documents by name.
 - **`names`**: translations of the English display names the engine returns
   (process, task and activity names), keyed by the English name.
   `translateBackendName()` looks them up; an unknown name, such as free text
@@ -540,14 +546,14 @@ Just one export: `parseUserTasks(bpmnXml)`. Uses `DOMParser` and matches by
 `localName === 'userTask'`, so it works regardless of the BPMN namespace prefix
 (`bpmn:userTask` vs. `userTask`).
 
-### Backend API clients (`documentsApi.ts`, `paymentsApi.ts`, `ownerConfirmationsApi.ts`, `founderSignaturesApi.ts`)
+### Backend API clients (`documentsApi.ts`, `paymentsApi.ts`, `consentApi.ts`)
 
 Thin typed clients for the business microservice's `/api/**` surface (same
 origin, routed to `backend:8085` by Vite/nginx/Traefik). `documentsApi`
 attaches the Keycloak Bearer (uploads stage via presigned PUT directly to
 RustFS — the one browser call that leaves the SPA origin); the others are
 deliberately unauthenticated: they serve the public token-link pages
-(`/confirm-owner`, `/sign-founder`, `/pay`) and the vehicle dropdown, where
+(`/consent/<purpose>`, `/pay`) and the vehicle dropdown, where
 the engine-signed capability token in the URL is the credential. The SPA
 treats the token as opaque and never creates one
 ([security rule 3](security.md#3-capability-links)). The pay page can only

@@ -124,7 +124,7 @@ When `additionalFounders` is non-empty, the engine emails the applicant a
 tracking link and each co-founder a signing link
 (`templates/founder-tracking-email.json.ftl`,
 `templates/founder-signing-email.json.ftl`). Each link is
-`${frontendBaseUrl}/sign-founder/${links.founder(execution, partyId)}`: a
+`${frontendBaseUrl}/consent/founder/${links.consent(execution, "founder", partyId)}`: a
 capability token the `links` bean (`CapabilityLinks`) signs over the case,
 the party, the consent round and a 14-day expiry. Nothing stores it. The
 public `/api/public/consent/founder/{token}` endpoints act only for the

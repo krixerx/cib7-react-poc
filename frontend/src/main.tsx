@@ -6,8 +6,7 @@ import { AuthProvider } from './auth/AuthProvider';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import ThemeToggle from './components/ThemeToggle';
 import PublicFrame from './components/PublicFrame';
-import ConfirmOwnerPage from './pages/ConfirmOwnerPage';
-import SignFounderPage from './pages/SignFounderPage';
+import ConsentPage from './pages/ConsentPage';
 import PayPage from './pages/PayPage';
 import MockBankPage from './pages/MockBankPage';
 import './theme/colorScheme';
@@ -40,8 +39,8 @@ function Standalone({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The `/confirm-owner/:token`, `/sign-founder/:token` and `/pay/:token`
- * routes bypass AuthProvider so the pages are reachable from email links
+ * The `/consent/:purpose/:token` (co-signing, one page for every purpose the
+ * pack declares) and `/pay/:token` routes bypass AuthProvider so the pages are reachable from email links
  * without a Keycloak session: the engine-signed capability token in the URL
  * is the credential (docs/security.md rule 3). `/mock-bank/:sessionId` is
  * the demo payment provider's page, which stands in for an external site.
@@ -62,18 +61,10 @@ void Promise.all([loadPack(i18n, SUPPORTED_LANGS), loadBrand(i18n, SUPPORTED_LAN
       <BrowserRouter>
         <Routes>
           <Route
-            path="/confirm-owner/:token"
+            path="/consent/:purpose/:token"
             element={
               <PublicFrame>
-                <ConfirmOwnerPage />
-              </PublicFrame>
-            }
-          />
-          <Route
-            path="/sign-founder/:token"
-            element={
-              <PublicFrame>
-                <SignFounderPage />
+                <ConsentPage />
               </PublicFrame>
             }
           />

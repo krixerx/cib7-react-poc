@@ -67,4 +67,4 @@ None: fire-and-forget. The case does not depend on the response body; a failed c
 ## Notes
 
 - Runs inside the co-founder signatures subprocess, once per element of `additionalFounders` (parallel multi-instance, element variable `founder`).
-- The link carries a capability token from `links.founder(execution, founder.partyId)` (docs/security.md rule 3).
+- The link carries a capability token from `links.consent(execution, "founder", founder.partyId)` (docs/security.md rule 3).

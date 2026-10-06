@@ -114,7 +114,7 @@ Vehicle Registration (BPMN + DMN)
     │  ◀───────────────────────────────────────────────────────────────────┐
     ▼  Attach owner ID document   service task → backend /api/internal     │
     ▼  Co-owner signatures        multi-instance subprocess (email links,  │
-    │    public /confirm-owner/{token} pages, message correlation)         │
+    │    public /consent/<purpose>/{token} pages, message correlation)     │
     ▼  Look up vehicle in registry  service task (http-connector)          │
     │    GET {busBaseUrl}/api/public/registry/vehicles/{vin}       │
     │    → price, vehicleAgeYears, make/model/year/fuelType                │
@@ -132,7 +132,7 @@ Vehicle Registration (BPMN + DMN)
 ```
 
 The OÜ flow swaps vehicle semantics for company founding (Articles of
-Association upload, co-founder signing via `/sign-founder/{token}`, a flat
+Association upload, co-founder signing via `/consent/founder/{token}`, a flat
 €265 fee, B-card extract at the end) — same building blocks throughout. Both
 SPAs surface the case's position live: a **case-progress stepper** on every
 case view, payment-required alerts in the applicant inbox, and wait-state

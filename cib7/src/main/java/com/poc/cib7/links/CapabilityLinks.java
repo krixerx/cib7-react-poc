@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Mints the capability tokens that email templates put into public links (docs/security.md rule 3):
- * {@code ${frontendBaseUrl}/confirm-owner/${links.consent(execution, "owner", partyId)}}.
+ * {@code ${frontendBaseUrl}/consent/owner/${links.consent(execution, "owner", partyId)}}.
  *
  * <p>A token is never stored. It is {@code base64url(payload) + "." + base64url(hmac)} where the
  * payload is {@code processInstanceId|partyId|purpose|round|expiresAtEpochSeconds} and the HMAC is

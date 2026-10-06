@@ -333,7 +333,7 @@ class FreemarkerTemplateRenderTest {
             .path("Text")
             .asText();
     String ownerToken = LINKS.consent(fakeExecution(), "owner", "p1");
-    assertTrue(owner.contains("/confirm-owner/" + ownerToken), owner);
+    assertTrue(owner.contains("/consent/owner/" + ownerToken), owner);
 
     String tracking =
         MAPPER
@@ -341,7 +341,7 @@ class FreemarkerTemplateRenderTest {
             .path("Text")
             .asText();
     String applicantToken = LINKS.consent(fakeExecution(), "owner", "applicant");
-    assertTrue(tracking.contains("/confirm-owner/" + applicantToken), tracking);
+    assertTrue(tracking.contains("/consent/owner/" + applicantToken), tracking);
 
     for (String template : List.of("approval-email.json.ftl", "business-approval-email.json.ftl")) {
       String text = MAPPER.readTree(render(template, cleanModel())).path("Text").asText();

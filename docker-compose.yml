@@ -591,7 +591,7 @@ services:
       # mints; the backend verifies them with the same value.
       LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET:-link-signing-secret-change-me}
       # Browser-visible base URL for the SPA. Owner-confirmation emails
-      # embed ${frontendBaseUrl}/confirm-owner/{token}, so this must be
+      # embed ${frontendBaseUrl}/consent/<purpose>/{token}, so this must be
       # the URL the recipient's browser can open — NOT the docker
       # internal alias. Exposed via FrontendConfiguration as
       # ${frontendBaseUrl} in BPMN/FreeMarker.

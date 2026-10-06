@@ -2,7 +2,7 @@
 
 Every co-founder the applicant lists must sign the Articles of Association
 through a link in their email before the case goes to the Business Register.
-The page is the SPA's `/sign-founder/{token}`; its API is the backend's
+The page is the SPA's one consent page, `/consent/founder/{token}`, worded by the pack's `consent:founder.*` texts; its API is the backend's
 generic co-signing endpoint `/api/public/consent/founder/{token}`.
 
 **Purpose:** `founder` (the capability token's purpose and the URL segment)

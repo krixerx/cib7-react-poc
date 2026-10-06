@@ -141,12 +141,12 @@ flowchart LR
 |---|---|---|---|
 | `owner-vehicle` | `Task_SubmitDetails` | applicant (initiator) | [`forms/owner-vehicle.md`](forms/owner-vehicle.md) |
 | `vehicle-review` | `Task_Review` | `civil-servant` group | [`forms/vehicle-review.md`](forms/vehicle-review.md) |
-| n/a (public page) | n/a — public REST | each co-owner (email link) | [`frontend/src/pages/ConfirmOwnerPage.tsx`](../../../../frontend/src/pages/ConfirmOwnerPage.tsx) |
+| n/a (public page) | n/a — public REST | each co-owner (email link) | [`frontend/src/pages/ConsentPage.tsx`](../../../../frontend/src/pages/ConsentPage.tsx) (`/consent/owner/<token>`) |
 
 Form contract: see [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
 Registry resolution lives in `frontend/src/forms/registry.ts`. The owner
 confirmation page is NOT a BPMN form — it's a public, unauthenticated SPA
-route reached from `${frontendBaseUrl}/confirm-owner/{token}` email links
+route reached from `${frontendBaseUrl}/consent/owner/{token}` email links
 and backed by `/api/public/consent/owner/**`, the backend's generic co-signing
 endpoint configured by [`consent.md`](consent.md)
 ([`ConsentController`](../../../../backend/src/main/java/com/poc/backend/consent/ConsentController.java)).

@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
  * Exposes the public SPA base URL to the engine's JUEL/FreeMarker context.
  *
  * <p>Owner-confirmation emails embed a link of the form {@code
- * ${frontendBaseUrl}/confirm-owner/${token}} so each recipient can open the public confirmation
+ * ${frontendBaseUrl}/consent/<purpose>/${token}} so each recipient can open the public confirmation
  * page without logging in. The value MUST be the browser-visible URL (not the internal docker
  * network alias), because the link is opened by humans, not by services.
  *
