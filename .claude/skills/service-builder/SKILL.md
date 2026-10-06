@@ -88,7 +88,9 @@ and ask** rather than guessing.
 | `<service>/README.md` (flow section) | `packs/reference/engine/processes/<service>/<service>.bpmn` |
 | `<service>/decisions/<id>.md` | `packs/reference/engine/processes/<service>/<id>.dmn` |
 | `<service>/service-tasks/<id>.md` with payload-template body | `packs/reference/engine/templates/<id>.json.ftl` |
-| `<service>/forms/<id>.md` with `Renderer: schema` (the default) | `packs/reference/frontend/forms/<id>.json` (form definition v1; § 8.0) |
+| `<service>/forms/<id>.md` with `Renderer: schema` (the default) | `packs/reference/frontend/forms/<id>.json` (form definition v1; § 8.0) and its texts `packs/reference/frontend/locales/{en,ar}/<namespace>.json` |
+| Every `<service>/README.md` § Catalog, plus every form's namespace | `packs/reference/frontend/catalog.json` and `packs/reference/frontend/locales/{en,ar}/catalog.json` (catalog format v1; § 8.1) |
+| Every `name=` in every generated BPMN | `packs/reference/frontend/locales/{en,ar}/names.json` (display names; § 8.1) |
 | `<service>/forms/<id>.md` with `Renderer: tsx` (escape hatch only) | `frontend/src/forms/<id>/<PascalCase>Form.tsx` (§ 8) |
 | Every form across every service | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
 | `<service>.bpmn` after regeneration | mermaid block inside `<service>/README.md` |
@@ -556,11 +558,52 @@ a whole. Map the spec one to one:
 | Actions table | `actions: [{id, label, resubmitLabel, style, workingLabel, confirmLabel, complete}]`; `complete` maps each `complete-with` variable to `{value, type}` or `{field, type}`; `contacts`, `file` and `rows` fields complete as `Json` |
 
 Texts are keys in the form's locale namespace; write the English text into
-`frontend/src/i18n/locales/en/<namespace>.json` and the Arabic into
-`ar/<namespace>.json`. A spec that needs an input type, format or behaviour
+`packs/reference/frontend/locales/en/<namespace>.json` and the Arabic into
+`ar/<namespace>.json`, and list the namespace in `catalog.json` (§ 8.1). A
+key with a namespace prefix (`common:actions.submit`) is a core text and
+stays in the core. A spec that needs an input type, format or behaviour
 outside this table is a spec gap: stop and ask. The answer is either a new
 renderer feature in core (a platform API change) or, rarely,
 `Renderer: tsx`.
+
+## 8.1 Catalog and display names
+
+The SPA holds nothing service-specific. At startup it reads the pack's
+`/pack/catalog.json` (`frontend/src/pack/catalog.ts`, catalog format v1,
+strict like the form definitions) and the texts of every namespace it lists,
+before the first render.
+
+`packs/reference/frontend/catalog.json`, rewritten in full from every service:
+
+```json
+{
+  "$comment": "Generated from the Catalog sections of docs/business/services/*/README.md. Do not hand-edit. Read by frontend/src/pack/catalog.ts (catalog format v1).",
+  "version": 1,
+  "namespaces": ["catalog", "names", "<every form namespace, alphabetical>"],
+  "services": { "<processKey>": { "category": "<category>", "issuer": "<issuer-id>" } },
+  "issuers": { "<issuer-id>": { "tone": "primary | ok" } }
+}
+```
+
+- **Category** is one of `business` `family` `property` `travel` `social`
+  `other` (the core's life-event tiles). A service the catalog does not
+  list falls under `other`.
+- **Issuer** is the authority that bills the state fee; the `tone` colours
+  its payment header. Several services can share one issuer.
+- **`locales/<lang>/catalog.json`** holds the texts:
+  `services.<processKey>.summary` (the line under the service name),
+  `services.<processKey>.fee` (the fee name on the payment page) and
+  `issuers.<issuer-id>.name` / `.sub`.
+- **`locales/<lang>/names.json`** translates display names: every `name=`
+  of a process, task or activity in the generated BPMN, the English name
+  as the key (dots and colons are fine), e.g.
+  `{"Vehicle Registration": "تسجيل المركبات"}`. Write the English name as
+  the `en` value. A name without an entry shows in English.
+
+The README's Catalog section gives category, summary, fee name and issuer
+in both languages. If it is missing, stop and ask. `frontend/src/pack/pack.test.ts`
+checks that every namespace exists in both languages with the same keys
+and that every text a form definition uses exists.
 
 ## 8. React form template
 

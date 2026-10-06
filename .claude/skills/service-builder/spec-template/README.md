@@ -21,6 +21,22 @@ its integrations. Cross-cutting topics live in
 [`../../../frontend.md`](../../../frontend.md), and
 [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
 
+## Catalog
+
+How the services page and the payment page present the service. Generated
+into the pack's `frontend/catalog.json` and `frontend/locales/<lang>/catalog.json`.
+
+| Item | Value |
+|---|---|
+| Category | `<business | family | property | travel | social | other>` |
+| Summary | en: <one line under the service name> · ar: <the same in Arabic> |
+| Fee name | en: <the state fee's name on the payment page> · ar: <…> |
+| Issuer | `<issuer-id>`, tone `<primary | ok>`: name <authority name>; sub en: <…> · ar: <…> |
+
+Display names (process, task and activity `name=` in the BPMN) are
+translated in the pack's `names` namespace; see the service-builder
+skill §8.1.
+
 ## What this service does
 
 <One short paragraph. Who starts it, what happens, when it ends. Plain language —

@@ -56,11 +56,11 @@
   color: #ffffff;
 }
 
-.pay-header-vehicle {
+.pay-header-primary {
   background: linear-gradient(135deg, #0a2f66, #0b57c9);
 }
 
-.pay-header-business {
+.pay-header-ok {
   background: linear-gradient(135deg, #064a36, #0d7f57);
 }
 
@@ -146,7 +146,7 @@
   border-inline-start: 4px solid var(--primary);
 }
 
-.pay-header-business + .pay-grid .pay-amount {
+.pay-header-ok + .pay-grid .pay-amount {
   background: var(--ok-soft);
   border-inline-start-color: var(--ok);
 }

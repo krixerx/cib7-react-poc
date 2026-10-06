@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { catalog } from '../pack/catalog';
 import { ArrowRight } from 'lucide-react';
 import {
   listProcessDefinitions,
@@ -50,11 +51,9 @@ export default function ServicesPage() {
     [services],
   );
 
-  const infoKeys = useMemo(
-    () => new Set(Object.keys(t('info', { returnObjects: true }) as Record<string, unknown>)),
-    [t],
-  );
-  const summary = (key: string) => t(`info.${infoKeys.has(key) ? key : 'default'}.summary`);
+  const infoKeys = useMemo(() => new Set(Object.keys(catalog()?.services ?? {})), []);
+  // Summaries come from the service pack's catalog texts; unknown services get none.
+  const summary = (key: string) => (infoKeys.has(key) ? t(`catalog:services.${key}.summary`) : '');
 
   async function startService(key: string) {
     if (!authenticated) {

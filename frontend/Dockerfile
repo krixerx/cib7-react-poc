@@ -31,8 +31,9 @@ FROM nginxinc/nginx-unprivileged:1.30.5-alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY frontend/docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/dist /usr/share/nginx/html
-# The service pack's form definitions, fetched by the schema form renderer as
-# /pack/forms/<id>.json. Data only; a customer pack replaces this directory
+# The service pack's data, fetched by the SPA under /pack/: catalog.json and
+# the texts in locales/ at startup, forms/<id>.json per task. Data only; a
+# customer pack replaces this directory
 # (a bind mount or a thin image layer) without rebuilding the SPA.
 COPY packs/reference/frontend/ /usr/share/nginx/html/pack/
 # Runtime config injection: regenerates /env.js and the SPA's CSP snippet from

@@ -1,0 +1,22 @@
+{
+  "services": {
+    "businessRegistration": {
+      "summary": "أسّس شركة ذات مسؤولية محدودة وسجّلها في السجل التجاري.",
+      "fee": "الرسوم الحكومية لتسجيل الشركة (OÜ)"
+    },
+    "vehicleRegistration": {
+      "summary": "سجّل مركبة من الدليل الوطني.",
+      "fee": "الرسوم الحكومية لتسجيل المركبة"
+    }
+  },
+  "issuers": {
+    "business-register": {
+      "name": "Äriregister POC",
+      "sub": "السجل التجاري الإستوني"
+    },
+    "transport-authority": {
+      "name": "Transpordiamet POC",
+      "sub": "هيئة النقل الإستونية"
+    }
+  }
+}

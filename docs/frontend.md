@@ -72,7 +72,7 @@ frontend/src/
 │   ├── ownerConfirmationsApi.ts   — /api/public/consent/owner client (confirm page)
 │   └── founderSignaturesApi.ts    — /api/public/consent/founder client (signing page)
 ├── services/
-│   ├── categories.ts              — PartA life-event categories + service-key → category mapping
+│   ├── categories.ts              — PartA life-event categories (the pack's catalog maps services to them)
 │   └── CategoryIcon.tsx           — Lucide icon per category
 ├── components/
 │   ├── OfficialBanner.tsx         — "official portal" strip + demo warning and Mailpit link
@@ -185,8 +185,9 @@ underlying HTTP methods and paths, see the canonical
 Landing page: a heading and one list of the live services, each with its
 category icon, name, one-line summary and a start button. Nothing else sits
 on the page, so the services are the first thing an applicant sees. The
-summary lives in `services.json` under `info.<processDefinitionKey>.summary`,
-taken from the service specs; an unknown key falls back to `info.default`.
+summary comes from the service pack (`catalog:services.<processDefinitionKey>.summary`,
+see "Service pack catalog and texts"); a service the pack does not list
+shows none.
 
 - `listProcessDefinitions()` populates the list; services are ordered by
   `categoryOf(s.key)` in `CATEGORIES` order (see `services/categories.ts`).
@@ -405,6 +406,31 @@ from their specs.
 | `business-details` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
 | `review-business-registration` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
 
+## Service pack catalog and texts
+
+The SPA holds no service-specific code or text. Before the first render,
+`main.tsx` calls `loadPack()` (`src/pack/catalog.ts`), which reads
+`/pack/catalog.json` (catalog format v1) and then every namespace it lists
+in every language, `/pack/locales/<lang>/<namespace>.json`, into i18next:
+
+- **`catalog`**: per service a summary for the services page and a fee name
+  for the payment page, per issuer a name and subtitle.
+- **`names`**: translations of the English display names the engine returns
+  (process, task and activity names), keyed by the English name.
+  `translateBackendName()` looks them up; an unknown name, such as free text
+  from a civil servant, shows as it is.
+- **one namespace per form** (see below).
+
+`catalog.json` also says which category each service belongs to
+(`categoryOf()`) and which issuer bills it, with the issuer's colour tone
+(`issuerOf()`, the payment header's `pay-header-primary` / `pay-header-ok`).
+The catalog is strict: an unknown key or value refuses it as a whole, and so
+does a missing or unreadable file. The SPA then still starts, on core texts
+only, and logs why. nginx serves `/pack/` with `Cache-Control: no-cache`, so
+a pack update shows at the next page load. `src/pack/pack.test.ts` checks
+the reference pack: both languages have the same keys, and every text a
+form definition uses exists.
+
 ## Schema-driven forms
 
 Forms are data, not code. A spec with `Renderer: schema` becomes a JSON form
@@ -427,8 +453,8 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   fixed values or field input. An action that reveals fields (for example
   "Send back…" with a reason) works in two steps: show the fields, then
   confirm or cancel.
-- **Texts** are i18n keys in the form's own namespace, so `en` and `ar` stay
-  in `src/i18n/locales`.
+- **Texts** are i18n keys in the form's own namespace, shipped by the pack
+  in `packs/reference/frontend/locales/<lang>/<namespace>.json`.
 - **Strict:** an unknown key, element type or a reference to a missing field
   or action refuses the whole definition with "The form definition … is
   invalid", instead of drawing half a form.

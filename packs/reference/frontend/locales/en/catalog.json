@@ -1,0 +1,22 @@
+{
+  "services": {
+    "businessRegistration": {
+      "summary": "Found a limited company and enter it in the registry.",
+      "fee": "OÜ registration state fee"
+    },
+    "vehicleRegistration": {
+      "summary": "Register a vehicle from the national catalog.",
+      "fee": "Vehicle registration state fee"
+    }
+  },
+  "issuers": {
+    "business-register": {
+      "name": "Äriregister POC",
+      "sub": "Estonian Business Register"
+    },
+    "transport-authority": {
+      "name": "Transpordiamet POC",
+      "sub": "Estonian Transport Authority"
+    }
+  }
+}

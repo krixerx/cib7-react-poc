@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react';
 
 /**
  * Serves the reference service pack's data (`packs/reference/frontend`) at
- * /pack/ during `npm run dev`, as nginx does in the image, so the schema form
- * renderer finds /pack/forms/<id>.json. Dev only; refuses paths that leave
+ * /pack/ during `npm run dev`, as nginx does in the image, so the SPA finds
+ * the catalog, texts and form definitions. Dev only; refuses paths that leave
  * the pack directory.
  */
 function servePack(): Plugin {

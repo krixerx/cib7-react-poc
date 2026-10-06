@@ -12,6 +12,22 @@ forms, or its integrations. Cross-cutting topics live in
 [`../../../frontend.md`](../../../frontend.md), and
 [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
 
+## Catalog
+
+How the services page and the payment page present the service. Generated
+into the pack's `frontend/catalog.json` and `frontend/locales/<lang>/catalog.json`.
+
+| Item | Value |
+|---|---|
+| Category | `business` |
+| Summary | en: Found a limited company and enter it in the registry. · ar: أسّس شركة ذات مسؤولية محدودة وسجّلها في السجل التجاري. |
+| Fee name | en: OÜ registration state fee · ar: الرسوم الحكومية لتسجيل الشركة (OÜ) |
+| Issuer | `business-register`, tone `ok`: name Äriregister POC (both languages); sub en: Estonian Business Register · ar: السجل التجاري الإستوني |
+
+Display names (process, task and activity `name=` in the BPMN) are
+translated in the pack's `names` namespace; see the service-builder
+skill §8.1.
+
 ## What this service does
 
 An applicant registers a new Estonian limited liability company (OÜ) by

@@ -4,20 +4,6 @@
     "title": "رابط السداد",
     "unknown": "رابط السداد هذا غير معروف أو انتهت صلاحيته."
   },
-  "issuer": {
-    "vehicle": {
-      "name": "Transpordiamet POC",
-      "sub": "هيئة النقل الإستونية"
-    },
-    "business": {
-      "name": "Äriregister POC",
-      "sub": "السجل التجاري الإستوني"
-    }
-  },
-  "services": {
-    "vehicleRegistration": "الرسوم الحكومية لتسجيل المركبة",
-    "businessRegistration": "الرسوم الحكومية لتسجيل الشركة (OÜ)"
-  },
   "header": {
     "title": "سداد الرسوم الحكومية",
     "awaitingPayment": "في انتظار السداد"

@@ -4,16 +4,5 @@
   "empty": "No services are available right now.",
   "start": "Start",
   "signInToStart": "Sign in to start",
-  "starting": "Starting…",
-  "info": {
-    "vehicleRegistration": {
-      "summary": "Register a vehicle from the national catalog."
-    },
-    "businessRegistration": {
-      "summary": "Found a limited company and enter it in the registry."
-    },
-    "default": {
-      "summary": ""
-    }
-  }
+  "starting": "Starting…"
 }

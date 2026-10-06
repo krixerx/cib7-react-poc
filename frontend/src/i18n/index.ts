@@ -7,7 +7,9 @@ import { initReactI18next } from 'react-i18next';
  * a translated screen = dropping two JSON files (en + ar) into locales/.
  * The file name becomes the i18next namespace; components opt in with
  * `useTranslation('<namespace>')`. `common` (app shell, shared actions,
- * categories, backend activity names) is the default namespace.
+ * categories) is the default namespace. These are the core's texts only:
+ * service texts (form texts, the catalog, BPMN display names) come from the
+ * service pack, added by pack/catalog.ts before the first render.
  */
 const files = import.meta.glob('./locales/*/*.json', { eager: true }) as Record<
   string,

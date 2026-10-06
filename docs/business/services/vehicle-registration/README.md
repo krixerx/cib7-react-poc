@@ -11,6 +11,22 @@ form contract) live in [`../../../architecture.md`](../../../architecture.md),
 [`../../../cib7.md`](../../../cib7.md), [`../../../frontend.md`](../../../frontend.md),
 and [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
 
+## Catalog
+
+How the services page and the payment page present the service. Generated
+into the pack's `frontend/catalog.json` and `frontend/locales/<lang>/catalog.json`.
+
+| Item | Value |
+|---|---|
+| Category | `travel` |
+| Summary | en: Register a vehicle from the national catalog. · ar: سجّل مركبة من الدليل الوطني. |
+| Fee name | en: Vehicle registration state fee · ar: الرسوم الحكومية لتسجيل المركبة |
+| Issuer | `transport-authority`, tone `primary`: name Transpordiamet POC (both languages); sub en: Estonian Transport Authority · ar: هيئة النقل الإستونية |
+
+Display names (process, task and activity `name=` in the BPMN) are
+translated in the pack's `names` namespace; see the service-builder
+skill §8.1.
+
 ## What this service does
 
 An applicant submits personal details and optionally a list of co-owners.

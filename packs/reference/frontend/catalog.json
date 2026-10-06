@@ -1,0 +1,30 @@
+{
+  "$comment": "Generated from the Catalog sections of docs/business/services/*/README.md. Do not hand-edit. Read by frontend/src/pack/catalog.ts (catalog format v1).",
+  "version": 1,
+  "namespaces": [
+    "catalog",
+    "names",
+    "business-details",
+    "owner-vehicle",
+    "review-business-registration",
+    "vehicle-review"
+  ],
+  "services": {
+    "businessRegistration": {
+      "category": "business",
+      "issuer": "business-register"
+    },
+    "vehicleRegistration": {
+      "category": "travel",
+      "issuer": "transport-authority"
+    }
+  },
+  "issuers": {
+    "business-register": {
+      "tone": "ok"
+    },
+    "transport-authority": {
+      "tone": "primary"
+    }
+  }
+}

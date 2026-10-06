@@ -11,7 +11,8 @@ import SignFounderPage from './pages/SignFounderPage';
 import PayPage from './pages/PayPage';
 import MockBankPage from './pages/MockBankPage';
 import './theme/colorScheme';
-import './i18n';
+import i18n, { SUPPORTED_LANGS } from './i18n';
+import { loadPack } from './pack/catalog';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
@@ -46,51 +47,60 @@ function Standalone({ children }: { children: React.ReactNode }) {
  * Every other route falls through to the catch-all, which mounts the
  * authenticated SPA.
  */
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/confirm-owner/:token"
-          element={
-            <PublicFrame>
-              <ConfirmOwnerPage />
-            </PublicFrame>
-          }
-        />
-        <Route
-          path="/sign-founder/:token"
-          element={
-            <PublicFrame>
-              <SignFounderPage />
-            </PublicFrame>
-          }
-        />
-        <Route
-          path="/pay/:token"
-          element={
-            <PublicFrame>
-              <PayPage />
-            </PublicFrame>
-          }
-        />
-        <Route
-          path="/mock-bank/:sessionId"
-          element={
-            <Standalone>
-              <MockBankPage />
-            </Standalone>
-          }
-        />
-        <Route
-          path="*"
-          element={
-            <AuthProvider>
-              <App />
-            </AuthProvider>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
-  </React.StrictMode>,
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+
+/**
+ * The service pack (catalog, form texts, display names) is read before the
+ * first render, so no screen ever shows a pack text key. loadPack never
+ * throws: without a pack the SPA still starts, on core texts only.
+ */
+void loadPack(i18n, SUPPORTED_LANGS).then(() =>
+  root.render(
+    <React.StrictMode>
+      <BrowserRouter>
+        <Routes>
+          <Route
+            path="/confirm-owner/:token"
+            element={
+              <PublicFrame>
+                <ConfirmOwnerPage />
+              </PublicFrame>
+            }
+          />
+          <Route
+            path="/sign-founder/:token"
+            element={
+              <PublicFrame>
+                <SignFounderPage />
+              </PublicFrame>
+            }
+          />
+          <Route
+            path="/pay/:token"
+            element={
+              <PublicFrame>
+                <PayPage />
+              </PublicFrame>
+            }
+          />
+          <Route
+            path="/mock-bank/:sessionId"
+            element={
+              <Standalone>
+                <MockBankPage />
+              </Standalone>
+            }
+          />
+          <Route
+            path="*"
+            element={
+              <AuthProvider>
+                <App />
+              </AuthProvider>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </React.StrictMode>,
+  ),
 );

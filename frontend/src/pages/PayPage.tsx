@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { checkout, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatCurrency } from '../i18n/format';
+import { issuerOf } from '../pack/catalog';
 
 /**
  * Public, unauthenticated page reached from the approval email's pay link
@@ -25,11 +26,6 @@ import { formatCurrency } from '../i18n/format';
 
 const POLL_MS = 2000;
 const POLL_LIMIT = 15;
-
-const ISSUERS: Record<string, string> = {
-  vehicleRegistration: 'vehicle',
-  businessRegistration: 'business',
-};
 
 export default function PayPage() {
   const { t } = useTranslation('pay');
@@ -115,10 +111,11 @@ export default function PayPage() {
     );
   }
 
-  const issuerKey = ISSUERS[status.processDefinitionKey] ?? 'vehicle';
-  const issuer = t(`issuer.${issuerKey}.name`);
-  const issuerSub = t(`issuer.${issuerKey}.sub`);
-  const service = t(`services.${status.processDefinitionKey}`, {
+  // Issuer and fee name come from the service pack's catalog.
+  const issuerInfo = issuerOf(status.processDefinitionKey);
+  const issuer = issuerInfo ? t(`catalog:issuers.${issuerInfo.id}.name`) : '';
+  const issuerSub = issuerInfo ? t(`catalog:issuers.${issuerInfo.id}.sub`) : '';
+  const service = t(`catalog:services.${status.processDefinitionKey}.fee`, {
     defaultValue: status.serviceName,
   });
 
@@ -162,9 +159,7 @@ export default function PayPage() {
   return (
     <div className="pay-page">
       <div className="card pay-card">
-        <header
-          className={`pay-header ${issuerKey === 'business' ? 'pay-header-business' : 'pay-header-vehicle'}`}
-        >
+        <header className={`pay-header pay-header-${issuerInfo?.tone ?? 'primary'}`}>
           <div>
             <h1 className="pay-title">{t('header.title')}</h1>
             <p className="pay-subtitle">

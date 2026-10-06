@@ -4,20 +4,6 @@
     "title": "Payment link",
     "unknown": "This payment link is unknown or has expired."
   },
-  "issuer": {
-    "vehicle": {
-      "name": "Transpordiamet POC",
-      "sub": "Estonian Transport Authority"
-    },
-    "business": {
-      "name": "Äriregister POC",
-      "sub": "Estonian Business Register"
-    }
-  },
-  "services": {
-    "vehicleRegistration": "Vehicle registration state fee",
-    "businessRegistration": "OÜ registration state fee"
-  },
   "header": {
     "title": "Pay state fee",
     "awaitingPayment": "Awaiting payment"

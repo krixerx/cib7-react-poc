@@ -4,16 +4,5 @@
   "empty": "لا توجد خدمات متاحة حاليًا.",
   "start": "ابدأ",
   "signInToStart": "سجّل الدخول للبدء",
-  "starting": "جارٍ البدء…",
-  "info": {
-    "vehicleRegistration": {
-      "summary": "سجّل مركبة من الدليل الوطني."
-    },
-    "businessRegistration": {
-      "summary": "أسّس شركة ذات مسؤولية محدودة وسجّلها في السجل التجاري."
-    },
-    "default": {
-      "summary": ""
-    }
-  }
+  "starting": "جارٍ البدء…"
 }

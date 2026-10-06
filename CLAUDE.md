@@ -263,10 +263,14 @@ containers. The short form:
 - **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
 - **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
   namespace.
-- **New form means new locale files.** `frontend/src/i18n/index.ts` globs
-  `locales/<lang>/<namespace>.json`; the file name is the i18next namespace and a
-  component opts in with `useTranslation('<namespace>')`. Supported languages are
-  `en` and `ar` (RTL), so a translated screen needs both files.
+- **Service texts live in the pack, core texts in the SPA.** A form's texts,
+  service summaries, fee and issuer names and the BPMN display names are
+  `packs/reference/frontend/locales/<lang>/<namespace>.json`, loaded before the
+  first render for every namespace `packs/reference/frontend/catalog.json`
+  lists; a new form namespace must be listed there. Core screens glob
+  `frontend/src/i18n/locales/<lang>/<namespace>.json`. Supported languages are
+  `en` and `ar` (RTL), so every namespace needs both files; `src/pack/pack.test.ts`
+  fails on a missing key or an untranslated BPMN name.
 - **Styling is plain CSS on tokens; no component library.** Every colour is a
   token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
   literal colour in a rule breaks one scheme. Area styles live in

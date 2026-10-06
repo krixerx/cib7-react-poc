@@ -1,15 +1,16 @@
 /**
- * Service catalog metadata for the PartA applicant landing.
- *
- * Process definitions ship without a category tag in the BPMN model, so the
- * frontend keeps a static map from process-definition key to category. Add a
- * new service: register its key here too. Unknown keys fall through to
- * `other` so the catalog never hides a deployed service.
+ * The life-event categories of the PartA applicant landing (core). Which
+ * service belongs to which category is the service pack's business: its
+ * `catalog.json` says so, read by pack/catalog.ts. Unknown keys fall through
+ * to `other` so the page never hides a deployed service.
  *
  * Each id maps to a Lucide icon in CategoryIcon.tsx; keep the two in sync.
  */
 
-export type CategoryId = 'business' | 'family' | 'property' | 'travel' | 'social' | 'other';
+import type { CategoryId } from '../pack/catalog';
+
+export type { CategoryId } from '../pack/catalog';
+export { categoryOf } from '../pack/catalog';
 
 export interface Category {
   id: CategoryId;
@@ -46,16 +47,3 @@ export const CATEGORIES: Category[] = [
     blurb: 'Anything that does not fit the categories above.',
   },
 ];
-
-/**
- * Process definition key → category. Add new services here as the BPMN model
- * grows. Keys not listed fall through to `other`.
- */
-const SERVICE_CATEGORY: Record<string, CategoryId> = {
-  businessRegistration: 'business',
-  vehicleRegistration: 'travel',
-};
-
-export function categoryOf(processDefinitionKey: string): CategoryId {
-  return SERVICE_CATEGORY[processDefinitionKey] ?? 'other';
-}
