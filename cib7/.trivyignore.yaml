@@ -1,0 +1,21 @@
+# Accepted Trivy findings for the engine: the cib7-poc-cib7 image
+# (docker-publish.yml) and cib7/pom.xml in the filesystem scan (security.yml).
+#
+# Every entry is scoped to the path the finding sits in and expires, so the
+# build turns red again on expiry and someone checks for a fix on the Spring
+# Framework 6.2 line, or moves the engine to Spring Boot 4 (Spring 7) once
+# CIB seven supports it. Accepted 2026-10-06.
+
+vulnerabilities:
+  # Spring MVC XsltView: SSRF/RCE when an app renders views through XsltView
+  # behind a "/**" mapping without an explicit view name. The fix exists only
+  # in Spring 7.0.9; Maven Central has no 6.2.x release past 6.2.19.
+  # Not reachable here: neither the engine nor the backend uses XsltView (or
+  # XSLT at all), and the engine's MVC endpoints are REST controllers and the
+  # CIB seven webapps.
+  - id: CVE-2026-47884
+    paths:
+      - "app/app.jar/BOOT-INF/lib/spring-webmvc-*.jar"
+      - "cib7/pom.xml"
+    statement: No XsltView in the engine; no Spring 6.2 fix; Spring 7 needs Boot 4
+    expired_at: 2026-11-05

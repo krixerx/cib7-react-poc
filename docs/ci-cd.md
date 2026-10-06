@@ -40,9 +40,16 @@ Accepted image-scan findings go in a per-image Trivy YAML ignore file that
 `trivyignores` field). Each entry names the CVE, the path it sits in, a
 `statement` saying why, and an `expired_at` date, so the build turns red
 again when the exception lapses. An image without a file is scanned with no
-exceptions. The only one is `esb/.trivyignore.yaml`: Jackson and FreeMarker
-in Camel JBang's dependency cache and libraries inside `jbang.jar`, which
-our Dockerfile cannot upgrade. It expires 2026-11-13.
+exceptions. There are two:
+
+- `esb/.trivyignore.yaml`: Jackson and FreeMarker in Camel JBang's
+  dependency cache and libraries inside `jbang.jar` (jsoup among them),
+  which our Dockerfile cannot upgrade. Expires 2026-11-13.
+- `cib7/.trivyignore.yaml`: Spring MVC's XsltView RCE (CVE-2026-47884). The
+  engine uses no XsltView, the Spring 6.2 line has no fixed release, and the
+  fix in Spring 7 needs the engine on Spring Boot 4. `security.yml` passes the
+  same file to the filesystem scan, where the finding sits in
+  `cib7/pom.xml`. Expires 2026-11-05.
 
 The deploy is manual on purpose: a deploy restarts the engine and can run
 schema migrations against the live Postgres data, which is not something a

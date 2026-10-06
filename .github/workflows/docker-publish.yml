@@ -33,6 +33,7 @@ jobs:
           - image: cib7-poc-cib7
             context: .
             dockerfile: ./cib7/Dockerfile
+            trivyignores: cib7/.trivyignore.yaml
           - image: cib7-poc-backend
             context: .
             dockerfile: ./backend/Dockerfile

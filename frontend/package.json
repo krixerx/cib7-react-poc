@@ -46,6 +46,7 @@
     "vitest": "^4.1.11"
   },
   "overrides": {
-    "immutable": "^3.8.4"
+    "immutable": "^3.8.4",
+    "proxy-addr": "^2.0.8"
   }
 }

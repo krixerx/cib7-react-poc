@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "express": "^4.21.2"
+  },
+  "overrides": {
+    "proxy-addr": "^2.0.8"
   }
 }

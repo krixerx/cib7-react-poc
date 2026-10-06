@@ -60,3 +60,5 @@ jobs:
           exit-code: "1"
           format: table
           skip-dirs: "**/node_modules,**/target,**/dist"
+          # Accepted findings, each with a reason, a path scope and an expiry.
+          trivyignores: cib7/.trivyignore.yaml

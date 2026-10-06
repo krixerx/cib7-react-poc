@@ -19,6 +19,16 @@
   <description>CIB seven 2.2 process engine module for the React human-tasks POC</description>
 
   <properties>
+    <!-- Security fixes over the Spring Boot 3.5.16 BOM (Trivy image scan,
+         2026-10-06). Drop each line once the BOM manages the same or newer.
+         postgresql: CVE-2026-54291 (SCRAM channel-binding downgrade, HIGH);
+         commons-lang3 (via the CIB seven starter): CVE-2025-48924; httpclient5
+         (via the CIB seven http connector): CVE-2026-64607; log4j-api (via
+         log4j-to-slf4j): CVE-2026-49844. -->
+    <postgresql.version>42.7.13</postgresql.version>
+    <commons-lang3.version>3.18.0</commons-lang3.version>
+    <httpclient5.version>5.6.4</httpclient5.version>
+    <log4j2.version>2.25.5</log4j2.version>
     <java.version>21</java.version>
     <logback-gelf.version>6.1.2</logback-gelf.version>
     <cibseven.version>2.2.0</cibseven.version>

@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "fast-xml-parser": "^4.5.0"
+  },
+  "overrides": {
+    "proxy-addr": "^2.0.8"
   }
 }

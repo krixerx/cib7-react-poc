@@ -9,10 +9,12 @@
 FROM apache/camel-jbang:4.22.1-21-jdk
 
 # The base image lags Ubuntu's security pocket; OpenSSL had fixed HIGH CVEs
-# (Trivy in docker-publish.yml) that a package upgrade picks up.
+# (Trivy in docker-publish.yml) that a package upgrade picks up, and curl,
+# expat and SQLite had fixed MEDIUM ones (Trivy, 2026-10-06).
 USER root
 RUN apt-get update \
   && apt-get install -y --only-upgrade --no-install-recommends openssl libssl3t64 openssl-provider-legacy \
+       curl libcurl4t64 libexpat1 libsqlite3-0 \
   && rm -rf /var/lib/apt/lists/*
 
 # NOTE: startup logs one benign warning — "Failed to create working directory:

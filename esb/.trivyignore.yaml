@@ -63,3 +63,9 @@ vulnerabilities:
     paths: ["opt/jbang/jbang.jar"]
     statement: Inside jbang.jar; used only to fetch dependencies at startup
     expired_at: 2026-11-13
+  # jsoup in the launcher (DoS on deeply nested XML); no fixed jsoup release
+  # yet, and camel-jbang 4.22.1 is still the newest image. Added 2026-10-06.
+  - id: CVE-2026-75140
+    paths: ["opt/jbang/jbang.jar"]
+    statement: Inside jbang.jar; used only to fetch dependencies at startup
+    expired_at: 2026-11-13
