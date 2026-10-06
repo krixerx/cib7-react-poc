@@ -1,5 +1,3 @@
-import type { CamundaVariables } from '../../api/camundaClient';
-
 /**
  * Form definition format v1: what the service builder emits from a
  * `forms/<id>.md` spec with `Renderer: schema`, and what {@link SchemaForm}
@@ -9,6 +7,8 @@ import type { CamundaVariables } from '../../api/camundaClient';
  * Texts are i18n keys in the definition's own namespace (`i18n`), so `en` and
  * `ar` stay in the locale files. The parser below is strict on purpose: a
  * definition outside this shape is refused as a whole instead of half-drawn.
+ * New elements are added as optional keys, so every older definition stays
+ * valid (the format stays v1).
  */
 export interface FormDefinition {
   version: 1;
@@ -18,7 +18,15 @@ export interface FormDefinition {
   process: string;
   /** i18n namespace holding every key below. */
   i18n: string;
-  intro: { edit: string; readOnly: string };
+  intro: { edit: string; readOnly: string; resubmission?: string };
+  /**
+   * The variable whose value marks a resubmission (a send-back reason): while
+   * it is set and the task is open, the resubmission intro, the banner and the
+   * actions' `resubmitLabel` are used.
+   */
+  resubmittedWhen?: string;
+  /** Warning banner on a resubmission: a title and the variable's text. */
+  banner?: { title: string; variable: string };
   summary: SummaryItem[];
   fields: Field[];
   notices: Notice[];
@@ -28,8 +36,8 @@ export interface FormDefinition {
 /** When an element is shown: always, only on a finished case, or only while the task is open. */
 export type Show = 'always' | 'readOnly' | 'editing';
 
-/** How a value is displayed. */
-export type Format = 'text' | 'number' | 'currency' | 'decision';
+/** How a value is displayed. `currencyWhole` drops the cents. */
+export type Format = 'text' | 'number' | 'currency' | 'currencyWhole' | 'decision';
 
 /**
  * A read-only `label: value` row above the fields. Besides a plain variable
@@ -50,18 +58,79 @@ export interface SummaryItem {
   item?: string;
 }
 
-/** A field: `display` shows a variable; `text` and `textarea` take input. */
+export type FieldType =
+  'display' | 'text' | 'textarea' | 'number' | 'email' | 'select' | 'file' | 'contacts';
+
+/** Upload categories a form may file under; the backend checks them again. */
+export const FILE_CATEGORIES = [
+  'applicant-id-document',
+  'founder-articles-of-association',
+] as const;
+export type FileCategory = (typeof FILE_CATEGORIES)[number];
+
+/** A field. `display` shows a variable; every other type takes input. */
 export interface Field {
   name: string;
   label: string;
-  type: 'display' | 'text' | 'textarea';
+  type: FieldType;
   format: Format;
+  /** A hint line under the label. */
+  hint?: string;
   placeholder?: string;
   rows?: number;
+  /** Filled from the signed-in account: shown disabled with a "from your account" hint. */
+  identity?: boolean;
+  min?: number;
+  max?: number;
   /** Shown only after the action with this id was pressed (a two-step action). */
   revealedBy?: string;
-  /** Key of the message shown when the field is blank on submit; absent = optional. */
+  /** Message when the field is empty on submit; absent = optional. */
   requiredMessage?: string;
+  /** `number`: message when the value is no integer within min..max. */
+  rangeMessage?: string;
+  /** `email`: message when a non-empty value is no email address. */
+  emailMessage?: string;
+  /** `email`: required (and valid) as soon as this contacts field has a row. */
+  requiredWhenListed?: { field: string; message: string };
+  /** `select`: options read from a backend registry. */
+  source?: {
+    registry: string;
+    value: string;
+    /** Text key interpolating the entry's properties. */
+    label: string;
+    /** Formats applied to entry properties before interpolation. */
+    formats: Record<string, Format>;
+    /** Message when the registry cannot be read (`{{message}}`). */
+    error: string;
+  };
+  /** `file`: one upload. */
+  file?: {
+    category: FileCategory;
+    accept: string;
+    maxBytes: number;
+    dropLabel: string;
+    /** Variable holding the attachment id of an earlier round's upload. */
+    existingVariable: string;
+    /** Text key naming that earlier upload. */
+    existingFilename: string;
+  };
+  /** `contacts`: repeating `{name, email}` rows (co-owners, co-founders). */
+  contacts?: {
+    /** Legend text key; `{{count}}` is the number of rows. */
+    legend: string;
+    namePlaceholder: string;
+    emailPlaceholder: string;
+    add: string;
+    /** Aria label of a row's remove button; `{{index}}` is the row number. */
+    removeAria: string;
+    nameMessage: string;
+    /** `{{name}}` is the row's name. */
+    emailMessage: string;
+    /** `{{email}}` is the repeated address. */
+    duplicateMessage: string;
+    /** The rows must not repeat this email field's value. */
+    notField?: { field: string; message: string };
+  };
 }
 
 /** A hint line showing a variable's value next to a label, for example a previous reason. */
@@ -71,7 +140,7 @@ export interface Notice {
   show: Show;
 }
 
-export type VariableType = 'String' | 'Integer' | 'Double' | 'Boolean';
+export type VariableType = 'String' | 'Integer' | 'Double' | 'Boolean' | 'Json';
 
 /** One variable an action completes the task with: a fixed value, or a field's input. */
 export type Completion =
@@ -80,6 +149,8 @@ export type Completion =
 export interface Action {
   id: string;
   label: string;
+  /** Label on a resubmission (see `resubmittedWhen`). */
+  resubmitLabel?: string;
   style: 'primary' | 'danger' | 'default';
   workingLabel: string;
   /** Label of the second, confirming button when the action reveals fields. */
@@ -90,11 +161,23 @@ export interface Action {
 const ID = /^[a-z][a-z0-9-]{0,62}$/;
 const NAME = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
 const KEY = /^([a-z][a-z0-9-]*:)?[A-Za-z][A-Za-z0-9_.]{0,120}$/;
+const ACCEPT =
+  /^(application\/pdf|image\/jpeg|image\/png)(,(application\/pdf|image\/jpeg|image\/png))*$/;
 const SHOWS: Show[] = ['always', 'readOnly', 'editing'];
-const FORMATS: Format[] = ['text', 'number', 'currency', 'decision'];
-const FIELD_TYPES: Field['type'][] = ['display', 'text', 'textarea'];
+const FORMATS: Format[] = ['text', 'number', 'currency', 'currencyWhole', 'decision'];
+const FIELD_TYPES: FieldType[] = [
+  'display',
+  'text',
+  'textarea',
+  'number',
+  'email',
+  'select',
+  'file',
+  'contacts',
+];
 const STYLES: Action['style'][] = ['primary', 'danger', 'default'];
-const VARIABLE_TYPES: VariableType[] = ['String', 'Integer', 'Double', 'Boolean'];
+const VARIABLE_TYPES: VariableType[] = ['String', 'Integer', 'Double', 'Boolean', 'Json'];
+const MAX_UPLOAD = 25 * 1024 * 1024;
 
 /** Thrown for a definition outside format v1; the form is then not drawn at all. */
 export class InvalidDefinition extends Error {}
@@ -112,21 +195,51 @@ function record(value: unknown, what: string, allowed: string[]): Record<string,
   return value as Record<string, unknown>;
 }
 
+/** A mapping whose keys are free (checked by the caller), not a fixed set. */
+function mapping(value: unknown, what: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    fail(`${what} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
 function text(value: unknown, pattern: RegExp, what: string): string {
   if (typeof value !== 'string' || !pattern.test(value)) fail(`${what} is invalid`);
   return value;
 }
 
-function oneOf<T extends string>(value: unknown, allowed: T[], fallback: T, what: string): T {
+function optionalText(value: unknown, pattern: RegExp, what: string): string | undefined {
+  return value === undefined ? undefined : text(value, pattern, what);
+}
+
+function oneOf<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+  what: string,
+): T {
   if (value === undefined) return fallback;
   if (!allowed.includes(value as T)) fail(`${what} must be one of ${allowed.join(', ')}`);
   return value as T;
+}
+
+function integer(value: unknown, what: string, min: number, max: number): number {
+  if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) {
+    fail(`${what} must be an integer from ${min} to ${max}`);
+  }
+  return value as number;
 }
 
 function list(value: unknown, what: string): unknown[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) fail(`${what} must be a list`);
   return value;
+}
+
+function only(field: Record<string, unknown>, type: FieldType, keys: string[], what: string) {
+  for (const key of keys) {
+    if (field[key] !== undefined && field.type !== type) fail(`${what}.${key} needs type ${type}`);
+  }
 }
 
 /** Checks a fetched definition against format v1 and fills in defaults. */
@@ -138,6 +251,8 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
     'process',
     'i18n',
     'intro',
+    'resubmittedWhen',
+    'banner',
     'summary',
     'fields',
     'notices',
@@ -146,7 +261,19 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
   if (root.version !== 1) fail('version must be 1');
   const form = text(root.form, ID, 'form');
   if (form !== expectedForm) fail(`definition is for '${form}', not '${expectedForm}'`);
-  const intro = record(root.intro, 'intro', ['edit', 'readOnly']);
+  const intro = record(root.intro, 'intro', ['edit', 'readOnly', 'resubmission']);
+  const resubmittedWhen = optionalText(root.resubmittedWhen, NAME, 'resubmittedWhen');
+  let banner: FormDefinition['banner'];
+  if (root.banner !== undefined) {
+    const b = record(root.banner, 'banner', ['title', 'variable']);
+    banner = {
+      title: text(b.title, KEY, 'banner.title'),
+      variable: text(b.variable, NAME, 'banner.variable'),
+    };
+  }
+  if ((intro.resubmission !== undefined || banner) && !resubmittedWhen) {
+    fail('a resubmission intro or banner needs resubmittedWhen');
+  }
 
   const summary = list(root.summary, 'summary').map((item, i): SummaryItem => {
     const what = `summary[${i}]`;
@@ -182,7 +309,7 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
     if (s.variables !== undefined) fail(`${what}.variables needs a template`);
     const variable = text(s.variable, NAME, `${what}.variable`);
     if (s.options !== undefined) {
-      const options = record(s.options, `${what}.options`, Object.keys(s.options ?? {}));
+      const options = mapping(s.options, `${what}.options`);
       const mapped: Record<string, string> = {};
       for (const [value, key] of Object.entries(options)) {
         mapped[text(value, ID, `${what}.options key`)] = text(key, KEY, `${what}.options.${value}`);
@@ -200,24 +327,21 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
     const a = record(item, `actions[${i}]`, [
       'id',
       'label',
+      'resubmitLabel',
       'style',
       'workingLabel',
       'confirmLabel',
       'complete',
     ]);
-    // Keys here are variable names, checked one by one below, not a fixed set.
-    const complete = record(a.complete, `actions[${i}].complete`, Object.keys(a.complete ?? {}));
     return {
-      raw: complete,
+      raw: mapping(a.complete, `actions[${i}].complete`),
       action: {
         id: text(a.id, ID, `actions[${i}].id`),
         label: text(a.label, KEY, `actions[${i}].label`),
+        resubmitLabel: optionalText(a.resubmitLabel, KEY, `actions[${i}].resubmitLabel`),
         style: oneOf(a.style, STYLES, 'default', `actions[${i}].style`),
         workingLabel: text(a.workingLabel, KEY, `actions[${i}].workingLabel`),
-        confirmLabel:
-          a.confirmLabel === undefined
-            ? undefined
-            : text(a.confirmLabel, KEY, `actions[${i}].confirmLabel`),
+        confirmLabel: optionalText(a.confirmLabel, KEY, `actions[${i}].confirmLabel`),
         complete: {} as Record<string, Completion>,
       },
     };
@@ -226,43 +350,160 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
   const actionIds = new Set(actions.map((a) => a.action.id));
   if (actionIds.size !== actions.length) fail('action ids must be unique');
 
-  const fields = list(root.fields, 'fields').map((item, i) => {
-    const f = record(item, `fields[${i}]`, [
+  const fields = list(root.fields, 'fields').map((item, i): Field => {
+    const what = `fields[${i}]`;
+    const f = record(item, what, [
       'name',
       'label',
       'type',
       'format',
+      'hint',
       'placeholder',
       'rows',
+      'identity',
+      'min',
+      'max',
       'revealedBy',
       'requiredMessage',
+      'rangeMessage',
+      'emailMessage',
+      'requiredWhenListed',
+      'source',
+      'file',
+      'contacts',
     ]);
-    const revealedBy =
-      f.revealedBy === undefined ? undefined : text(f.revealedBy, ID, `fields[${i}].revealedBy`);
-    if (revealedBy !== undefined && !actionIds.has(revealedBy)) {
-      fail(`fields[${i}].revealedBy names no action`);
+    const type = oneOf(f.type, FIELD_TYPES, 'text', `${what}.type`);
+    only(f, 'number', ['min', 'max', 'rangeMessage'], what);
+    only(f, 'email', ['emailMessage', 'requiredWhenListed'], what);
+    only(f, 'select', ['source'], what);
+    only(f, 'file', ['file'], what);
+    only(f, 'contacts', ['contacts'], what);
+    only(f, 'textarea', ['rows'], what);
+    if (f.identity !== undefined && (f.identity !== true || !['text', 'email'].includes(type))) {
+      fail(`${what}.identity must be true on a text or email field`);
     }
-    if (f.rows !== undefined && !(Number.isInteger(f.rows) && (f.rows as number) > 0)) {
-      fail(`fields[${i}].rows must be a positive integer`);
-    }
-    return {
-      name: text(f.name, NAME, `fields[${i}].name`),
-      label: text(f.label, KEY, `fields[${i}].label`),
-      type: oneOf(f.type, FIELD_TYPES, 'text', `fields[${i}].type`),
-      format: oneOf(f.format, FORMATS, 'text', `fields[${i}].format`),
-      placeholder:
-        f.placeholder === undefined
-          ? undefined
-          : text(f.placeholder, KEY, `fields[${i}].placeholder`),
-      rows: f.rows as number | undefined,
+    const revealedBy = optionalText(f.revealedBy, ID, `${what}.revealedBy`);
+    if (revealedBy !== undefined && !actionIds.has(revealedBy))
+      fail(`${what}.revealedBy names no action`);
+    const field: Field = {
+      name: text(f.name, NAME, `${what}.name`),
+      label: text(f.label, KEY, `${what}.label`),
+      type,
+      format: oneOf(f.format, FORMATS, 'text', `${what}.format`),
+      hint: optionalText(f.hint, KEY, `${what}.hint`),
+      placeholder: optionalText(f.placeholder, KEY, `${what}.placeholder`),
+      rows: f.rows === undefined ? undefined : integer(f.rows, `${what}.rows`, 1, 50),
+      identity: f.identity === true ? true : undefined,
+      min: f.min === undefined ? undefined : integer(f.min, `${what}.min`, -1e9, 1e9),
+      max: f.max === undefined ? undefined : integer(f.max, `${what}.max`, -1e9, 1e9),
       revealedBy,
-      requiredMessage:
-        f.requiredMessage === undefined
-          ? undefined
-          : text(f.requiredMessage, KEY, `fields[${i}].requiredMessage`),
+      requiredMessage: optionalText(f.requiredMessage, KEY, `${what}.requiredMessage`),
+      rangeMessage: optionalText(f.rangeMessage, KEY, `${what}.rangeMessage`),
+      emailMessage: optionalText(f.emailMessage, KEY, `${what}.emailMessage`),
     };
+    if (
+      type === 'number' &&
+      field.rangeMessage &&
+      (field.min === undefined || field.max === undefined)
+    ) {
+      fail(`${what}.rangeMessage needs min and max`);
+    }
+    if (f.requiredWhenListed !== undefined) {
+      const r = record(f.requiredWhenListed, `${what}.requiredWhenListed`, ['field', 'message']);
+      field.requiredWhenListed = {
+        field: text(r.field, NAME, `${what}.requiredWhenListed.field`),
+        message: text(r.message, KEY, `${what}.requiredWhenListed.message`),
+      };
+    }
+    if (type === 'select') {
+      const s = record(f.source, `${what}.source`, [
+        'registry',
+        'value',
+        'label',
+        'formats',
+        'error',
+      ]);
+      const formats: Record<string, Format> = {};
+      if (s.formats !== undefined) {
+        for (const [prop, format] of Object.entries(mapping(s.formats, `${what}.source.formats`))) {
+          formats[text(prop, NAME, `${what}.source.formats key`)] = oneOf(
+            format,
+            FORMATS,
+            'text',
+            `${what}.source.formats.${prop}`,
+          );
+        }
+      }
+      field.source = {
+        registry: text(s.registry, ID, `${what}.source.registry`),
+        value: text(s.value, NAME, `${what}.source.value`),
+        label: text(s.label, KEY, `${what}.source.label`),
+        formats,
+        error: text(s.error, KEY, `${what}.source.error`),
+      };
+    }
+    if (type === 'file') {
+      const u = record(f.file, `${what}.file`, [
+        'category',
+        'accept',
+        'maxBytes',
+        'dropLabel',
+        'existingVariable',
+        'existingFilename',
+      ]);
+      field.file = {
+        category: oneOf(u.category, FILE_CATEGORIES, FILE_CATEGORIES[0], `${what}.file.category`),
+        accept: text(u.accept, ACCEPT, `${what}.file.accept`),
+        maxBytes: integer(u.maxBytes, `${what}.file.maxBytes`, 1, MAX_UPLOAD),
+        dropLabel: text(u.dropLabel, KEY, `${what}.file.dropLabel`),
+        existingVariable: text(u.existingVariable, NAME, `${what}.file.existingVariable`),
+        existingFilename: text(u.existingFilename, KEY, `${what}.file.existingFilename`),
+      };
+      if (u.category === undefined) fail(`${what}.file.category is required`);
+    }
+    if (type === 'contacts') {
+      const c = record(f.contacts, `${what}.contacts`, [
+        'legend',
+        'namePlaceholder',
+        'emailPlaceholder',
+        'add',
+        'removeAria',
+        'nameMessage',
+        'emailMessage',
+        'duplicateMessage',
+        'notField',
+      ]);
+      field.contacts = {
+        legend: text(c.legend, KEY, `${what}.contacts.legend`),
+        namePlaceholder: text(c.namePlaceholder, KEY, `${what}.contacts.namePlaceholder`),
+        emailPlaceholder: text(c.emailPlaceholder, KEY, `${what}.contacts.emailPlaceholder`),
+        add: text(c.add, KEY, `${what}.contacts.add`),
+        removeAria: text(c.removeAria, KEY, `${what}.contacts.removeAria`),
+        nameMessage: text(c.nameMessage, KEY, `${what}.contacts.nameMessage`),
+        emailMessage: text(c.emailMessage, KEY, `${what}.contacts.emailMessage`),
+        duplicateMessage: text(c.duplicateMessage, KEY, `${what}.contacts.duplicateMessage`),
+      };
+      if (c.notField !== undefined) {
+        const n = record(c.notField, `${what}.contacts.notField`, ['field', 'message']);
+        field.contacts.notField = {
+          field: text(n.field, NAME, `${what}.contacts.notField.field`),
+          message: text(n.message, KEY, `${what}.contacts.notField.message`),
+        };
+      }
+    }
+    return field;
   });
-  const inputs = new Set(fields.filter((f) => f.type !== 'display').map((f) => f.name));
+
+  const byName = new Map(fields.map((f) => [f.name, f]));
+  if (byName.size !== fields.length) fail('field names must be unique');
+  for (const f of fields) {
+    if (f.requiredWhenListed && byName.get(f.requiredWhenListed.field)?.type !== 'contacts') {
+      fail(`${f.name}.requiredWhenListed must name a contacts field`);
+    }
+    if (f.contacts?.notField && byName.get(f.contacts.notField.field)?.type !== 'email') {
+      fail(`${f.name}.contacts.notField must name an email field`);
+    }
+  }
 
   for (const { raw: complete, action } of actions) {
     for (const [variable, entry] of Object.entries(complete)) {
@@ -274,10 +515,17 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
       ]);
       const type = oneOf(c.type, VARIABLE_TYPES, 'String', `${action.id}.${variable}.type`);
       if (c.field !== undefined) {
-        const field = text(c.field, NAME, `${action.id}.${variable}.field`);
-        if (!inputs.has(field)) fail(`${action.id}.${variable} takes a field that is no input`);
-        action.complete[variable] = { field, type };
-      } else if (['string', 'number', 'boolean'].includes(typeof c.value)) {
+        const name = text(c.field, NAME, `${action.id}.${variable}.field`);
+        const field = byName.get(name);
+        if (!field || field.type === 'display') {
+          fail(`${action.id}.${variable} takes a field that is no input`);
+        }
+        const json = field.type === 'contacts' || field.type === 'file';
+        if (json !== (type === 'Json')) {
+          fail(`${action.id}.${variable}: contacts and file fields complete as Json, others not`);
+        }
+        action.complete[variable] = { field: name, type };
+      } else if (['string', 'number', 'boolean'].includes(typeof c.value) && type !== 'Json') {
         action.complete[variable] = { value: c.value as string | number | boolean, type };
       } else {
         fail(`${action.id}.${variable} needs a value or a field`);
@@ -302,7 +550,10 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
     intro: {
       edit: text(intro.edit, KEY, 'intro.edit'),
       readOnly: text(intro.readOnly, KEY, 'intro.readOnly'),
+      resubmission: optionalText(intro.resubmission, KEY, 'intro.resubmission'),
     },
+    resubmittedWhen,
+    banner,
     summary,
     fields,
     notices,
@@ -358,33 +609,11 @@ export function revealedFields(definition: FormDefinition, actionId: string): Fi
   return definition.fields.filter((f) => f.revealedBy === actionId);
 }
 
-/**
- * The typed variables an action completes the task with, or the i18n key of
- * the first missing required input among the fields it uses.
- */
-export function completion(
+/** True while the task is open and the definition's resubmission marker is set. */
+export function isResubmission(
   definition: FormDefinition,
-  action: Action,
-  inputs: Record<string, string>,
-): { variables: CamundaVariables } | { missing: string } {
-  const variables: CamundaVariables = {};
-  for (const [name, entry] of Object.entries(action.complete)) {
-    if ('field' in entry) {
-      const field = definition.fields.find((f) => f.name === entry.field);
-      const raw = (inputs[entry.field] ?? '').trim();
-      if (!raw && field?.requiredMessage) return { missing: field.requiredMessage };
-      variables[name] = { value: convert(raw, entry.type), type: entry.type };
-    } else {
-      variables[name] = { value: entry.value, type: entry.type };
-    }
-  }
-  return { variables };
-}
-
-function convert(raw: string, type: VariableType): string | number | boolean | null {
-  if (type === 'String') return raw;
-  if (raw === '') return null;
-  if (type === 'Boolean') return raw === 'true';
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : null;
+  data: Record<string, unknown>,
+  readOnly: boolean,
+): boolean {
+  return !readOnly && !!definition.resubmittedWhen && present(data[definition.resubmittedWhen]);
 }

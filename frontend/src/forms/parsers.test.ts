@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // The form modules import the Keycloak singleton (via FileUpload →
-// documentsApi and vehicleRegistryApi) whose initialiser needs real
+// documentsApi) whose initialiser needs real
 // browser plumbing — stub it; the parsers under test are pure.
 vi.mock('../auth/keycloak', () => ({
   keycloak: { authenticated: false },
@@ -15,7 +15,24 @@ import {
   parseAdditionalFounders,
   parseBoardMembers,
 } from './business-details/BusinessDetailsForm';
-import { parseAdditionalOwners } from './owner-vehicle/OwnerVehicleForm';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { parseDefinition } from './schema/definition';
+import { initialInputs } from './schema/values';
+
+// owner-vehicle is a schema form now: its co-owner rows are read by the
+// renderer's initialInputs, which must keep the old parser's behaviour.
+const ownerVehicle = parseDefinition(
+  JSON.parse(
+    readFileSync(
+      resolve(__dirname, '../../../packs/reference/frontend/forms/owner-vehicle.json'),
+      'utf-8',
+    ),
+  ),
+  'owner-vehicle',
+);
+const parseAdditionalOwners = (value: unknown) =>
+  initialInputs(ownerVehicle, { additionalOwners: value }, (k) => k).additionalOwners;
 
 describe('normaliseResidency', () => {
   it('passes through the three valid values', () => {
@@ -63,8 +80,8 @@ describe('parseBoardMembers', () => {
   });
 });
 
-// parseAdditionalFounders and parseAdditionalOwners are the same defensive
-// shape over two processes — exercise them with a shared table.
+// parseAdditionalFounders (TSX) and the schema renderer's contact rows are the
+// same defensive shape over two processes — exercise them with a shared table.
 describe.each([
   ['parseAdditionalFounders', parseAdditionalFounders],
   ['parseAdditionalOwners', parseAdditionalOwners],

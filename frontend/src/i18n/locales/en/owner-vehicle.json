@@ -29,7 +29,8 @@
     },
     "vehicle": {
       "label": "Vehicle (from registry)",
-      "placeholder": "— choose a vehicle —"
+      "placeholder": "— choose a vehicle —",
+      "option": "{{make}} {{model}} {{year}} · {{value}}"
     },
     "coOwnerName": {
       "placeholder": "Name"
@@ -61,7 +62,6 @@
     "applicantEmailRequiredWithCoOwners": "Your own email is required when adding co-owners — we send you a tracking link.",
     "coOwnerNameRequired": "Every co-owner needs a name.",
     "coOwnerEmailInvalid": "Co-owner \"{{name}}\" needs a valid email address.",
-    "coOwnerUnnamed": "(unnamed)",
     "duplicateCoOwnerEmail": "Two co-owners share the email \"{{email}}\". Each owner needs a unique address.",
     "applicantEmailInCoOwners": "Your own email cannot also appear in the co-owner list — the applicant is already counted as an owner.",
     "registryLoadFailed": "Could not load the vehicle registry: {{message}}"

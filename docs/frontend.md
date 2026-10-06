@@ -70,8 +70,7 @@ frontend/src/
 │   ├── draftCaseApi.ts            — /api/cases/drafts + DELETE /api/cases/{id} (applicant's unsubmitted cases)
 │   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
 │   ├── ownerConfirmationsApi.ts   — /api/public/consent/owner client (confirm page)
-│   ├── founderSignaturesApi.ts    — /api/public/consent/founder client (signing page)
-│   └── vehicleRegistryApi.ts      — /api/public/registry/vehicles client (vehicle dropdown)
+│   └── founderSignaturesApi.ts    — /api/public/consent/founder client (signing page)
 ├── services/
 │   ├── categories.ts              — PartA life-event categories + service-key → category mapping
 │   └── CategoryIcon.tsx           — Lucide icon per category
@@ -103,11 +102,11 @@ frontend/src/
 │   └── MockBankPage.tsx           — public route "/mock-bank/:sessionId" (demo payment provider)
 └── forms/
     ├── types.ts                   — FormProps contract
-    ├── registry.ts                — formId → React component map
-    ├── owner-vehicle/OwnerVehicleForm.tsx
-    ├── vehicle-review/VehicleReviewForm.tsx
-    ├── business-details/BusinessDetailsForm.tsx
-    └── review-business-registration/ReviewBusinessRegistrationForm.tsx
+    ├── registry.ts                — formId → React component, only for `Renderer: tsx` forms
+    ├── resolve.ts                 — formId → TSX component or the schema renderer
+    ├── schema/                    — form definition v1 (definition.ts), inputs and checks
+    │                                (values.ts), fields (fields.tsx), renderer (SchemaForm.tsx)
+    └── business-details/BusinessDetailsForm.tsx — last TSX form, until its migration
 ```
 
 One folder per form, named after the form id. The form component lives inside.
@@ -423,10 +422,13 @@ checks it with `parseDefinition` (`forms/schema/definition.ts`) and draws it
 with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
 `form-error`), so it looks like the generated TSX forms.
 
-- **Elements:** intro texts, a read-only summary (plain values, a template
-  over several variables, a coded value shown as text, or a list), fields of
-  type `display`,
-  `text` or `textarea`, notices, and actions that complete the task with
+- **Elements:** intro texts (with a resubmission variant and a send-back
+  banner), a read-only summary (plain values, a template over several
+  variables, a coded value shown as text, or a list), fields of type
+  `display`, `text`, `textarea`, `number`, `email` (text and email also as
+  identity fields from the account), `select` (options from a backend
+  registry), `file` (one upload through `FileUpload`) and `contacts`
+  (repeating name and email rows), notices, and actions that complete the task with
   fixed values or field input. An action that reveals fields (for example
   "Send back…" with a reason) works in two steps: show the fields, then
   confirm or cancel.
@@ -439,8 +441,12 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   honest 404 for a missing file); `npm run dev` does the same through the
   `serve-pack` plugin in `vite.config.ts`. A customer pack replaces the
   directory without rebuilding the SPA.
-- **Migrated so far:** `vehicle-review`, `review-business-registration`. The
-  other forms stay TSX until their turn (`Renderer: tsx` in their specs).
+- **Checks** before completing (`values.ts`) give the same messages the TSX
+  forms gave: required, integer ranges, email, the email required once
+  contacts are listed, contact rows (name, email, repeats, not the own
+  email). The engine checks the values again against the value schema.
+- **Migrated so far:** `vehicle-review`, `review-business-registration`,
+  `owner-vehicle`. `business-details` stays TSX until its turn.
 
 ## REST client (`api/`)
 
@@ -478,7 +484,7 @@ Just one export: `parseUserTasks(bpmnXml)`. Uses `DOMParser` and matches by
 `localName === 'userTask'`, so it works regardless of the BPMN namespace prefix
 (`bpmn:userTask` vs. `userTask`).
 
-### Backend API clients (`documentsApi.ts`, `paymentsApi.ts`, `ownerConfirmationsApi.ts`, `founderSignaturesApi.ts`, `vehicleRegistryApi.ts`)
+### Backend API clients (`documentsApi.ts`, `paymentsApi.ts`, `ownerConfirmationsApi.ts`, `founderSignaturesApi.ts`)
 
 Thin typed clients for the business microservice's `/api/**` surface (same
 origin, routed to `backend:8085` by Vite/nginx/Traefik). `documentsApi`

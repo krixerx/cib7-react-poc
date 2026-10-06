@@ -2,11 +2,10 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { FormProps } from '../types';
-import { formatCurrency, formatNumber } from '../../i18n/format';
 import {
-  completion,
   interpolation,
   InvalidDefinition,
+  isResubmission,
   listEntries,
   parseDefinition,
   present,
@@ -18,6 +17,8 @@ import {
   type FormDefinition,
   type SummaryItem,
 } from './definition';
+import { FieldInput, formatted } from './fields';
+import { completion, initialInputs, type FormError, type InputValue, type Inputs } from './values';
 
 /** Where the service pack's form definitions are served (nginx in the image, Vite in dev). */
 export const DEFINITIONS_PATH = '/pack/forms';
@@ -36,7 +37,8 @@ type Loaded =
  *
  * An action whose fields are revealed by it (for example "Send back…" with a
  * reason) works in two steps: the first press shows the fields and a confirm
- * and a cancel button; the confirm completes the task.
+ * and a cancel button; the confirm completes the task. Inputs are checked
+ * before completing (`values.ts`), and the engine checks the values again.
  */
 export default function SchemaForm({
   formId,
@@ -107,15 +109,12 @@ function DefinedForm({
   readOnly,
 }: Omit<FormProps, 'task'> & { definition: FormDefinition; readOnly: boolean }) {
   const { t } = useTranslation([definition.i18n, 'common']);
-  const [inputs, setInputs] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      definition.fields
-        .filter((f) => f.type !== 'display')
-        .map((f) => [f.name, present(data[f.name]) ? String(data[f.name]) : '']),
-    ),
+  const [inputs, setInputs] = useState<Inputs>(() =>
+    initialInputs(definition, data, (key) => t(key)),
   );
   const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<FormError | null>(null);
+  const resubmission = isResubmission(definition, data, readOnly);
 
   function run(action: Action) {
     setError(null);
@@ -124,8 +123,8 @@ function DefinedForm({
       return;
     }
     const result = completion(definition, action, inputs);
-    if ('missing' in result) {
-      setError(t(result.missing));
+    if ('error' in result) {
+      setError(result.error);
       return;
     }
     return onComplete(result.variables);
@@ -134,12 +133,22 @@ function DefinedForm({
   const visibleFields = definition.fields.filter(
     (f) => !f.revealedBy || (!readOnly && pending === f.revealedBy),
   );
+  const introKey = readOnly
+    ? definition.intro.readOnly
+    : resubmission && definition.intro.resubmission
+      ? definition.intro.resubmission
+      : definition.intro.edit;
 
   return (
     <div className="form">
-      <p className="form-intro">
-        {t(readOnly ? definition.intro.readOnly : definition.intro.edit)}
-      </p>
+      {resubmission && definition.banner && present(data[definition.banner.variable]) && (
+        <div className="form-banner form-banner-warn">
+          <strong>{t(definition.banner.title)}</strong>
+          <p className="form-banner-body">{String(data[definition.banner.variable])}</p>
+        </div>
+      )}
+
+      <p className="form-intro">{t(introKey)}</p>
 
       {definition.summary.length > 0 && (
         <dl className="summary">
@@ -159,35 +168,16 @@ function DefinedForm({
       )}
 
       {visibleFields.map((f) => (
-        <label className="field" key={f.name}>
-          <span className="field-label">{t(f.label)}</span>
-          {f.type === 'display' ? (
-            <input
-              className="field-input"
-              value={formatted(data[f.name], f.format, t)}
-              disabled
-              readOnly
-            />
-          ) : f.type === 'textarea' ? (
-            <textarea
-              className="field-input"
-              rows={f.rows ?? 3}
-              value={inputs[f.name] ?? ''}
-              onChange={(e) => setInputs((prev) => ({ ...prev, [f.name]: e.target.value }))}
-              placeholder={f.placeholder ? t(f.placeholder) : undefined}
-              disabled={readOnly}
-              autoFocus={pending === f.revealedBy}
-            />
-          ) : (
-            <input
-              className="field-input"
-              value={inputs[f.name] ?? ''}
-              onChange={(e) => setInputs((prev) => ({ ...prev, [f.name]: e.target.value }))}
-              placeholder={f.placeholder ? t(f.placeholder) : undefined}
-              disabled={readOnly}
-            />
-          )}
-        </label>
+        <FieldInput
+          key={f.name}
+          field={f}
+          value={inputs[f.name] ?? null}
+          data={data}
+          onChange={(value: InputValue) => setInputs((prev) => ({ ...prev, [f.name]: value }))}
+          readOnly={readOnly}
+          autoFocus={pending !== null && pending === f.revealedBy}
+          t={t}
+        />
       ))}
 
       {definition.notices
@@ -198,7 +188,7 @@ function DefinedForm({
           </p>
         ))}
 
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{t(error.key, error.values)}</p>}
 
       {!readOnly && (
         <div className="form-actions">
@@ -211,7 +201,9 @@ function DefinedForm({
                   disabled={submitting}
                   onClick={() => run(a)}
                 >
-                  {submitting ? t(a.workingLabel) : t(a.label)}
+                  {submitting
+                    ? t(a.workingLabel)
+                    : t(resubmission && a.resubmitLabel ? a.resubmitLabel : a.label)}
                 </button>
               ))
             : definition.actions
@@ -265,7 +257,7 @@ function SummaryValue({
   }
   if (item.item) {
     const entries = listEntries(value);
-    if (entries.length === 0) return <>{'—'}</>;
+    if (entries.length === 0) return <>—</>;
     const itemKey = item.item;
     return (
       <ul className="board-list">
@@ -289,20 +281,4 @@ function buttonClass(action: Action): string {
 function decisionClass(format: Format, value: unknown): string | undefined {
   if (format !== 'decision' || !present(value)) return undefined;
   return value === 'approve' ? 'decision-approve' : 'decision-reject';
-}
-
-/** A variable as displayed: `—` when absent, otherwise per format. */
-export function formatted(value: unknown, format: Format, t: TFunction): string {
-  if (!present(value)) return '—';
-  const n = Number(value);
-  switch (format) {
-    case 'currency':
-      return Number.isFinite(n) ? formatCurrency(n) : String(value);
-    case 'number':
-      return Number.isFinite(n) ? formatNumber(n) : String(value);
-    case 'decision':
-      return value === 'approve' ? t('common:status.approved') : t('common:status.sentBack');
-    default:
-      return String(value);
-  }
 }

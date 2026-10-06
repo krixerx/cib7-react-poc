@@ -29,7 +29,8 @@
     },
     "vehicle": {
       "label": "المركبة (من السجل)",
-      "placeholder": "— اختر مركبة —"
+      "placeholder": "— اختر مركبة —",
+      "option": "{{make}} {{model}} {{year}} · {{value}}"
     },
     "coOwnerName": {
       "placeholder": "الاسم"
@@ -65,7 +66,6 @@
     "applicantEmailRequiredWithCoOwners": "بريدك الإلكتروني إلزامي عند إضافة ملاك شركاء — إذ نرسل إليك رابط متابعة الطلب.",
     "coOwnerNameRequired": "يجب إدخال اسم لكل مالك شريك.",
     "coOwnerEmailInvalid": "يلزم إدخال عنوان بريد إلكتروني صحيح للمالك الشريك «{{name}}».",
-    "coOwnerUnnamed": "(بدون اسم)",
     "duplicateCoOwnerEmail": "يتشارك مالكان شريكان عنوان البريد الإلكتروني «{{email}}». يجب أن يكون لكل مالك عنوان بريد فريد.",
     "applicantEmailInCoOwners": "لا يجوز أن يظهر بريدك الإلكتروني أيضًا في قائمة الملاك الشركاء — فمقدم الطلب محسوب أصلًا ضمن الملاك.",
     "registryLoadFailed": "تعذر تحميل سجل المركبات: {{message}}"

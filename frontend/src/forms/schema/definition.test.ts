@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { completion } from './values';
 import {
-  completion,
   interpolation,
   InvalidDefinition,
   listEntries,
@@ -49,7 +49,7 @@ describe('vehicle-review behaves like the former TSX form', () => {
     const sendBack = d.actions.find((a) => a.id === 'sendback')!;
     expect(revealedFields(d, 'sendback').map((f) => f.name)).toEqual(['sendBackReason']);
     expect(completion(d, sendBack, { sendBackReason: '   ' })).toEqual({
-      missing: 'errors.reasonRequired',
+      error: { key: 'errors.reasonRequired' },
     });
     expect(completion(d, sendBack, { sendBackReason: '  ID unreadable ' })).toEqual({
       variables: {

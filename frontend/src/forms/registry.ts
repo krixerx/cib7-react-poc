@@ -1,7 +1,6 @@
 import type { ComponentType } from 'react';
 import type { FormProps } from './types';
 import BusinessDetailsForm from './business-details/BusinessDetailsForm';
-import OwnerVehicleForm from './owner-vehicle/OwnerVehicleForm';
 
 /**
  * Maps a logical form id to a React component. The form id is the part of the
@@ -14,7 +13,6 @@ import OwnerVehicleForm from './owner-vehicle/OwnerVehicleForm';
  */
 export const formRegistry: Record<string, ComponentType<FormProps>> = {
   'business-details': BusinessDetailsForm,
-  'owner-vehicle': OwnerVehicleForm,
 };
 
 /** Parses a BPMN formKey ("react:owner-vehicle") into a form id. */

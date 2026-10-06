@@ -80,7 +80,7 @@ export function parseBoardMembers(raw: unknown): BoardMember[] {
 }
 
 /**
- * Same defensive shape as vehicleRegistration's parseAdditionalOwners —
+ * Same defensive shape as the schema renderer's contact rows (initialInputs) —
  * CIB seven returns Spin Json variables as either JS arrays or JSON
  * strings depending on the storage path; handle both.
  */
