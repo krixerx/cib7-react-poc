@@ -72,30 +72,41 @@ subprocess completes early as soon as any instance writes
 flowchart LR
   %% Vehicle Registration
   StartEvent_1(("Registration started"))
-  Task_SubmitDetails["👤 Submit personal details"]
-  Task_Review["👤 Review application"]
-  Gateway_NeedsConfirmation{"Need owner confirmations?"}
+  Task_SubmitDetails["👤 Submit owner & vehicle details"]
+  Task_Review["👤 Transport Authority review"]
+  Gateway_HasPendingUpload{"New ID document?"}
+  Gateway_NeedsConfirmation{"Co-owner signatures needed?"}
   Gateway_AllConfirmed{"Anyone rejected?"}
   Gateway_AutoApproval{"Auto-approve?"}
   Gateway_Decision{"Decision?"}
   Gateway_SendApprovalEmail{"Has applicant email?"}
-  Task_SendApplicantTrackingEmail[["🔌 Send applicant tracking email"]]
-  Task_GetPrice[["🔌 Get price"]]
-  Task_SendReminderEmail[["🔌 Send reminder email"]]
-  Task_GeneratePdf[["🔌 Generate approval PDF"]]
-  Task_SendApprovalEmail[["🔌 Send approval email"]]
+  Gateway_BeforeCertificate{"(merge)"}
+  Task_AttachIdDocument[["🔌 Attach owner ID document"]]
+  Task_SendApplicantTrackingEmail[["🔌 Send owner tracking email"]]
+  Task_GetPrice[["🔌 Look up vehicle in registry"]]
+  Task_SendReminderEmail[["🔌 Send reviewer reminder email"]]
+  Task_QuoteFee[["🔌 Quote state fee"]]
+  Task_GeneratePdf[["🔌 Generate state fee invoice"]]
+  Task_StoreApprovalPdf[["🔌 Store fee invoice"]]
+  Task_GenerateCertificatePdf[["🔌 Generate vehicle registration certificate"]]
+  Task_StoreCertificatePdf[["🔌 Store registration certificate"]]
+  Task_SendApprovalEmail[["🔌 Send state fee invoice email"]]
   Task_SendBackEmail[["🔌 Send &quot;sent back&quot; email"]]
-  SubProcess_OwnerConfirmations[["⊞ Owner confirmations"]]
-  Task_WaitSendToProcess[["📥 Wait for send-to-process"]]
-  Task_AutoDecide[/"📋 Auto approval?"/]
+  SubProcess_OwnerConfirmations[["⊞ Co-owner signatures"]]
+  Task_WaitSendToProcess[["📥 Wait for owner to submit"]]
+  Task_WaitForPayment[["📥 Wait for state fee payment"]]
+  Task_AutoDecide[/"📋 Auto-approval policy"/]
   BoundaryEvent_ReviewReminder(("⏱ Every 2 min"))
   EndEvent_ReminderSent((("Reminder sent")))
-  EndEvent_Approved((("Application approved")))
+  EndEvent_Approved((("Vehicle registered")))
   Task_Review -. attached (non-interrupting) .-> BoundaryEvent_ReviewReminder
   StartEvent_1 --> Task_SubmitDetails
-  Task_SubmitDetails --> Gateway_NeedsConfirmation
-  Gateway_NeedsConfirmation -- "no extra owners" --> Task_GetPrice
-  Gateway_NeedsConfirmation -. "needs confirmations (default)" .-> Task_SendApplicantTrackingEmail
+  Task_SubmitDetails --> Gateway_HasPendingUpload
+  Gateway_HasPendingUpload -- "yes" --> Task_AttachIdDocument
+  Gateway_HasPendingUpload -. "no (default)" .-> Gateway_NeedsConfirmation
+  Task_AttachIdDocument --> Gateway_NeedsConfirmation
+  Gateway_NeedsConfirmation -- "sole owner" --> Task_GetPrice
+  Gateway_NeedsConfirmation -. "has co-owners (default)" .-> Task_SendApplicantTrackingEmail
   Task_SendApplicantTrackingEmail --> SubProcess_OwnerConfirmations
   SubProcess_OwnerConfirmations --> Gateway_AllConfirmed
   Gateway_AllConfirmed -- "rejected" --> Task_SendBackEmail
@@ -109,10 +120,16 @@ flowchart LR
   Task_SendReminderEmail --> EndEvent_ReminderSent
   Task_Review --> Gateway_Decision
   Gateway_Decision -- "approved" --> Gateway_SendApprovalEmail
-  Gateway_SendApprovalEmail -- "valid email" --> Task_GeneratePdf
-  Task_GeneratePdf --> Task_SendApprovalEmail
-  Gateway_SendApprovalEmail -. "default" .-> EndEvent_Approved
-  Task_SendApprovalEmail --> EndEvent_Approved
+  Gateway_SendApprovalEmail -- "valid email" --> Task_QuoteFee
+  Task_QuoteFee --> Task_GeneratePdf
+  Task_GeneratePdf --> Task_StoreApprovalPdf
+  Task_StoreApprovalPdf --> Task_SendApprovalEmail
+  Gateway_SendApprovalEmail -. "default" .-> Gateway_BeforeCertificate
+  Gateway_BeforeCertificate --> Task_GenerateCertificatePdf
+  Task_GenerateCertificatePdf --> Task_StoreCertificatePdf
+  Task_StoreCertificatePdf --> EndEvent_Approved
+  Task_SendApprovalEmail --> Task_WaitForPayment
+  Task_WaitForPayment --> Gateway_BeforeCertificate
   Gateway_Decision -. "sent back (default)" .-> Task_SendBackEmail
   Task_SendBackEmail --> Task_SubmitDetails
 ```
@@ -144,6 +161,7 @@ One spec per BPMN service task; each gives the request, the payload template and
 | `Task_GenerateCertificatePdf` | Generate vehicle registration certificate | PDF (pdf-renderer) | [`service-tasks/generate-certificate-pdf.md`](service-tasks/generate-certificate-pdf.md) |
 | `Task_GeneratePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-fee-invoice-pdf.md`](service-tasks/generate-fee-invoice-pdf.md) |
 | `Task_GetPrice` | Look up vehicle in registry | registry read (backend) | [`service-tasks/look-up-vehicle.md`](service-tasks/look-up-vehicle.md) |
+| `Task_QuoteFee` | Quote state fee | fee quote (backend) | [`service-tasks/quote-state-fee.md`](service-tasks/quote-state-fee.md) |
 | `Task_SendApprovalEmail` | Send state fee invoice email | email (Mailpit) | [`service-tasks/send-fee-invoice-email.md`](service-tasks/send-fee-invoice-email.md) |
 | `Task_SendOwnerConfirmEmail` | Send co-owner signing email | email (Mailpit) | [`service-tasks/send-owner-signing-email.md`](service-tasks/send-owner-signing-email.md) |
 | `Task_SendApplicantTrackingEmail` | Send owner tracking email | email (Mailpit) | [`service-tasks/send-owner-tracking-email.md`](service-tasks/send-owner-tracking-email.md) |
@@ -202,6 +220,24 @@ wiring.
 | `approvalPdfBytes` | `Task_GeneratePdf` | byte[] | Raw PDF bytes. Bytes-typed so the engine spills it to `ACT_GE_BYTEARRAY` instead of the 4000-char `TEXT_` column. |
 | `approvalPdfFilename` | `Task_GeneratePdf` | String | Suggested attachment filename (e.g. `approval-<objectId>.pdf`). |
 
+## State fee
+
+What the applicant pays after approval. Generated into the pack's
+`backend/payment/vehicle-registration.yaml`; the backend computes the fee
+from it for the checkout, the provider callback and the engine's quote
+([`quote-state-fee`](service-tasks/quote-state-fee.md)), so the invoice and
+the charge cannot differ.
+
+| Item | Value |
+|---|---|
+| Fee name | Vehicle registration state fee |
+| Recipient | Transpordiamet |
+| Currency | EUR |
+| Amount | by `price` (the registry value, set by `look-up-vehicle`): below 5000: 25; below 20000: 75; otherwise 150 |
+
+The tier variable must be one the engine sets, never one a client writes
+(docs/security.md rule 4); `PackConformanceTest` checks this.
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
@@ -215,6 +251,10 @@ table and `VariableWritePolicyFilter` refuses anything else with 403
 | start | `age`, `objectId` | MCP `start_process` prefill; the SPA starts with no variables. |
 | `owner-vehicle` | `firstName`, `lastName`, `applicantEmail`, `age`, `objectId`, `additionalOwners`, `pendingIdDocument`, `sendBackReason` | Identity fields re-validated by `IdentityValidationListener`. `sendBackReason` is only cleared. SPA-only (not in the MCP schema): `firstName`, `lastName`, `applicantEmail`, `sendBackReason`. |
 | `vehicle-review` | `decision`, `sendBackReason` | The reviewer's decision; never on the applicant form. |
+
+**Identity** (set from the signed-in account at start, re-checked on every
+completion; `identity` in the policy): `firstName` = given name, `lastName`
+= family name, `applicantEmail` = email.
 
 System-owned: `initiator`, `ownerConfirmations`,
 `rejectedByOwner`, `sentToProcess`, consent round and party ids, `price`,

@@ -40,7 +40,7 @@ payload-template: founder-tracking-email.json.ftl
   Scope: process variables applicantFirstName, applicantLastName,
   applicantEmail, additionalFounders, companyName; reserved beans
   frontendBaseUrl and links. The token is minted by
-  links.founder(execution, "applicant") and never stored (docs/security.md
+  links.consent(execution, "founder", "applicant") and never stored (docs/security.md
   rule 3).
 
   The body is the pack document documents/email/business-founder-tracking.ftl.

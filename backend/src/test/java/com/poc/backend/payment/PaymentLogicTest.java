@@ -82,7 +82,16 @@ class PaymentLogicTest {
   // --- fee tiers (FeeSchedule with a mocked EngineClient) ---------------
 
   private final EngineClient engine = mock(EngineClient.class);
-  private final FeeSchedule fees = new FeeSchedule(engine);
+  private final FeeSchedule fees = new FeeSchedule(engine, referencePackFees());
+
+  /** The fee rules of the pack on the test classpath (the reference pack's payment/*.yaml). */
+  private static FeeCatalog referencePackFees() {
+    try {
+      return new FeeCatalog(new String[] {"classpath*:payment/*.yaml"});
+    } catch (java.io.IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
+  }
 
   private BigDecimal vehicleFeeForPrice(Object rawPrice) {
     when(engine.getRawVariable(PI, "price")).thenReturn(rawPrice);

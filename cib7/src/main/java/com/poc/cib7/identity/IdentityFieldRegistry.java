@@ -1,19 +1,23 @@
 package com.poc.cib7.identity;
 
+import com.poc.cib7.policy.VariablePolicy;
+import com.poc.cib7.policy.VariablePolicyRegistry;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.cibseven.bpm.engine.identity.User;
 
 /**
- * Single source of truth for which process variables on each service are "trusted identity" fields
- * — values we derive from the signed-in user's Keycloak profile instead of letting the applicant
- * type them.
+ * Which process variables of each service are "trusted identity" fields: values derived from the
+ * signed-in user's Keycloak profile instead of typed by the applicant.
  *
- * <p>Keyed by BPMN process definition key. Field names are deliberately NOT unified across services
- * ({@code businessRegistration} uses {@code applicantFirstName}/{@code applicantLastName}, {@code
- * vehicleRegistration} uses {@code firstName}/{@code lastName}); we keep each service's existing
- * names and map them here.
+ * <p>The service pack declares them per process in the {@code identity} section of its {@code
+ * variable-policy.json} (variable to {@code givenName}, {@code familyName} or {@code email}),
+ * generated from the spec's variable write policy; field names differ per service. Read once from
+ * the classpath, like the policies themselves.
  *
  * <p>Both halves of the feature read this map:
  *
@@ -23,9 +27,7 @@ import org.cibseven.bpm.engine.identity.User;
  *       rejects any tampered value.
  * </ul>
  *
- * <p>Only fields Keycloak actually holds belong here (given/family name, email). Age, civil id,
- * personal code, residency, and profession stay applicant-entered and are intentionally absent.
- * Personal code can join this map once it exists as a Keycloak user attribute.
+ * <p>Only attributes Keycloak actually holds can be sources (given/family name, email).
  */
 public final class IdentityFieldRegistry {
 
@@ -34,6 +36,16 @@ public final class IdentityFieldRegistry {
     GIVEN_NAME,
     FAMILY_NAME,
     EMAIL;
+
+    /** The source for a policy's attribute name ({@link VariablePolicy#IDENTITY_SOURCES}). */
+    static Source of(String attribute) {
+      return switch (attribute) {
+        case "givenName" -> GIVEN_NAME;
+        case "familyName" -> FAMILY_NAME;
+        case "email" -> EMAIL;
+        default -> throw new IllegalArgumentException("Not an identity attribute: " + attribute);
+      };
+    }
 
     /** The trusted value for this source from a Keycloak user; never null, always trimmed. */
     public String resolve(User user) {
@@ -53,36 +65,37 @@ public final class IdentityFieldRegistry {
     }
   }
 
-  private static final Map<String, Map<String, Source>> BINDINGS = new LinkedHashMap<>();
+  /** Loaded on first use: the listeners are not Spring beans; the policies are on the classpath. */
+  private static final class Holder {
+    static final Map<String, Map<String, Source>> BINDINGS = fromPolicies(load());
 
-  static {
-    BINDINGS.put(
-        "vehicleRegistration",
-        ordered(
-            "firstName", Source.GIVEN_NAME,
-            "lastName", Source.FAMILY_NAME,
-            "applicantEmail", Source.EMAIL));
-    BINDINGS.put(
-        "businessRegistration",
-        ordered(
-            "applicantFirstName", Source.GIVEN_NAME,
-            "applicantLastName", Source.FAMILY_NAME,
-            "applicantEmail", Source.EMAIL));
+    private static Collection<VariablePolicy> load() {
+      try {
+        return VariablePolicyRegistry.load(VariablePolicyRegistry.DEFAULT_LOCATION).values();
+      } catch (IOException e) {
+        throw new UncheckedIOException("variable policies are not readable", e);
+      }
+    }
+  }
+
+  /** Identity bindings per process definition key, from the policies' identity sections. */
+  static Map<String, Map<String, Source>> fromPolicies(Collection<VariablePolicy> policies) {
+    Map<String, Map<String, Source>> bindings = new LinkedHashMap<>();
+    for (VariablePolicy policy : policies) {
+      Map<String, Source> map = new LinkedHashMap<>();
+      policy.identity().forEach((variable, attribute) -> map.put(variable, Source.of(attribute)));
+      if (!map.isEmpty()) {
+        bindings.put(policy.processDefinitionKey(), Collections.unmodifiableMap(map));
+      }
+    }
+    return Collections.unmodifiableMap(bindings);
   }
 
   private IdentityFieldRegistry() {}
 
   /** Bindings for a process definition key, or {@code null} if the service has none. */
   public static Map<String, Source> bindingsFor(String processDefinitionKey) {
-    return BINDINGS.get(processDefinitionKey);
-  }
-
-  private static Map<String, Source> ordered(Object... pairs) {
-    Map<String, Source> map = new LinkedHashMap<>();
-    for (int i = 0; i < pairs.length; i += 2) {
-      map.put((String) pairs[i], (Source) pairs[i + 1]);
-    }
-    return Collections.unmodifiableMap(map);
+    return Holder.BINDINGS.get(processDefinitionKey);
   }
 
   private static String nullToEmpty(String value) {

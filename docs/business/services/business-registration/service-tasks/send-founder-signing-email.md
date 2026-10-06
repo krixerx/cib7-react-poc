@@ -39,7 +39,7 @@ payload-template: founder-signing-email.json.ftl
   companyName) and the reserved beans frontendBaseUrl and links are also in
   scope.
 
-  The signing token is minted here by links.founder(execution, partyId) and
+  The signing token is minted here by links.consent(execution, "founder", partyId) and
   never stored: an HMAC over case, party, consentRound and expiry
   (docs/security.md rule 3).
 

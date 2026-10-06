@@ -39,7 +39,7 @@ payload-template: applicant-tracking-email.json.ftl
 
   Scope: process variables firstName, lastName, applicantEmail,
   additionalOwners; reserved beans frontendBaseUrl and links. The token is
-  minted by links.owner(execution, "applicant") and never stored
+  minted by links.consent(execution, "owner", "applicant") and never stored
   (docs/security.md rule 3).
 
   The body is the pack document documents/email/vehicle-applicant-tracking.ftl.

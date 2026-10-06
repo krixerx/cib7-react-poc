@@ -41,18 +41,30 @@ class CapabilityLinksTest {
     return execution;
   }
 
+  /** A purpose is a consent descriptor's name; payment links have their own method. */
+  @Test
+  void consentRefusesPaymentAndMalformedPurposes() {
+    CapabilityLinks links = links(SECRET);
+    for (String purpose : new String[] {"payment", "Owner", "a|b", "", null}) {
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> links.consent(execution(7L), purpose, "p1"),
+          String.valueOf(purpose));
+    }
+  }
+
   @Test
   void ownerLinkMatchesTheSharedTestVector() {
-    assertEquals(TEST_VECTOR, links(SECRET).owner(execution(7L), "p1"));
+    assertEquals(TEST_VECTOR, links(SECRET).consent(execution(7L), "owner", "p1"));
   }
 
   @Test
   void tokenDependsOnSecretRoundPartyAndPurpose() {
     CapabilityLinks links = links(SECRET);
-    assertNotEquals(TEST_VECTOR, links("another-secret").owner(execution(7L), "p1"));
-    assertNotEquals(TEST_VECTOR, links.owner(execution(8L), "p1"));
-    assertNotEquals(TEST_VECTOR, links.owner(execution(7L), "p2"));
-    assertNotEquals(TEST_VECTOR, links.founder(execution(7L), "p1"));
+    assertNotEquals(TEST_VECTOR, links("another-secret").consent(execution(7L), "owner", "p1"));
+    assertNotEquals(TEST_VECTOR, links.consent(execution(8L), "owner", "p1"));
+    assertNotEquals(TEST_VECTOR, links.consent(execution(7L), "owner", "p2"));
+    assertNotEquals(TEST_VECTOR, links.consent(execution(7L), "founder", "p1"));
   }
 
   @Test
@@ -72,12 +84,15 @@ class CapabilityLinksTest {
 
   @Test
   void consentLinkNeedsARound() {
-    assertThrows(IllegalStateException.class, () -> links(SECRET).owner(execution(null), "p1"));
+    assertThrows(
+        IllegalStateException.class, () -> links(SECRET).consent(execution(null), "owner", "p1"));
   }
 
   @Test
   void rejectsFieldsThatCouldBreakThePayloadFormat() {
-    assertThrows(IllegalArgumentException.class, () -> links(SECRET).owner(execution(1L), "p1|x"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> links(SECRET).consent(execution(1L), "owner", "p1|x"));
     assertThrows(
         IllegalArgumentException.class, () -> links(SECRET).mint("a|b", "p1", "owner", 1, 1));
   }

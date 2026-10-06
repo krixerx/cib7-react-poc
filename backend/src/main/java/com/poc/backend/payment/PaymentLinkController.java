@@ -24,11 +24,17 @@ public class PaymentLinkController {
   private final EngineClient engine;
   private final CapabilityLinkVerifier links;
 
+  private final FeeSchedule fees;
+
   public PaymentLinkController(
-      CaseAccessService caseAccess, EngineClient engine, CapabilityLinkVerifier links) {
+      CaseAccessService caseAccess,
+      EngineClient engine,
+      CapabilityLinkVerifier links,
+      FeeSchedule fees) {
     this.caseAccess = caseAccess;
     this.engine = engine;
     this.links = links;
+    this.fees = fees;
   }
 
   @GetMapping("/{processInstanceId}/payment-link")
@@ -37,7 +43,7 @@ public class PaymentLinkController {
       return notFound();
     }
     ProcessInstanceRef instance = engine.findActiveById(processInstanceId);
-    if (instance == null || !FeeSchedule.PAYABLE.contains(instance.definitionKey())) {
+    if (instance == null || !fees.isPayable(instance.definitionKey())) {
       return notFound();
     }
     return ResponseEntity.ok(new PaymentLink("/pay/" + links.mintPayment(processInstanceId)));

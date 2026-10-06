@@ -507,13 +507,43 @@
 
     <bpmn:sequenceFlow id="Flow_HasEmail_GenerateFeeInvoice" name="valid email"
                        sourceRef="Gateway_SendApprovalEmail"
-                       targetRef="Task_GenerateFeeInvoicePdf">
+                       targetRef="Task_QuoteFee">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("applicantEmail") and execution.getVariable("applicantEmail") != null and execution.getVariable("applicantEmail").contains("@")}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
 
     <bpmn:sequenceFlow id="Flow_NoEmail_BeforeBcard"
                        sourceRef="Gateway_SendApprovalEmail"
                        targetRef="Gateway_BeforeBcard" />
+
+    <!--
+      Asks the backend for the case's state fee (the pack's backend/payment rule),
+      so the invoice prints exactly what the checkout will charge.
+      Spec: docs/business/services/business-registration/service-tasks/quote-business-state-fee.md
+    -->
+    <bpmn:serviceTask id="Task_QuoteFee" name="Quote state fee"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:outputParameter name="stateFee">${S(response).prop('amount').numberValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="stateFeeCurrency">${S(response).prop('currency').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasEmail_GenerateFeeInvoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_QuoteFee_Invoice</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_QuoteFee_Invoice"
+                       sourceRef="Task_QuoteFee" targetRef="Task_GenerateFeeInvoicePdf" />
 
     <!--
       Generates the state fee invoice PDF via the pdf-renderer sidecar.
@@ -542,7 +572,7 @@
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_HasEmail_GenerateFeeInvoice</bpmn:incoming>
+      <bpmn:incoming>Flow_QuoteFee_Invoice</bpmn:incoming>
       <bpmn:outgoing>Flow_GenerateFeeInvoice_Store</bpmn:outgoing>
     </bpmn:serviceTask>
 
@@ -965,6 +995,18 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_SentBackEmail_di" bpmnElement="Flow_SentBackEmail">
         <di:waypoint x="730" y="700" /><di:waypoint x="305" y="700" /><di:waypoint x="305" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Task_QuoteFee_di" bpmnElement="Task_QuoteFee">
+        <dc:Bounds x="345" y="1040" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_HasEmail_GenerateFeeInvoice_di" bpmnElement="Flow_HasEmail_GenerateFeeInvoice">
+        <di:waypoint x="270" y="985" />
+        <di:waypoint x="270" y="1080" />
+        <di:waypoint x="345" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_QuoteFee_Invoice_di" bpmnElement="Flow_QuoteFee_Invoice">
+        <di:waypoint x="420" y="1040" />
+        <di:waypoint x="420" y="1000" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

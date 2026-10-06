@@ -13,9 +13,18 @@ import java.util.Set;
  * @param start variables a start request may carry
  * @param forms form id (the task's {@code formKey} without the {@code react:} prefix) to the
  *     variables a completion of that form may carry
+ * @param identity variable to the account attribute it holds ({@code givenName}, {@code
+ *     familyName}, {@code email}): set from the signed-in user at start and checked on every
+ *     completion, so the applicant cannot change it (identity package)
  */
 public record VariablePolicy(
-    String processDefinitionKey, Set<String> start, Map<String, Set<String>> forms) {
+    String processDefinitionKey,
+    Set<String> start,
+    Map<String, Set<String>> forms,
+    Map<String, String> identity) {
+
+  /** The account attributes an identity variable may hold. */
+  public static final Set<String> IDENTITY_SOURCES = Set.of("givenName", "familyName", "email");
 
   /** Prefix the SPA's form registry uses in {@code camunda:formKey}. */
   static final String REACT_PREFIX = "react:";
@@ -23,6 +32,13 @@ public record VariablePolicy(
   public VariablePolicy {
     start = Set.copyOf(start);
     forms = Map.copyOf(forms);
+    identity = Map.copyOf(identity);
+  }
+
+  /** A policy without identity variables. */
+  public VariablePolicy(
+      String processDefinitionKey, Set<String> start, Map<String, Set<String>> forms) {
+    this(processDefinitionKey, start, forms, Map.of());
   }
 
   /** The allowlist for a task's {@code formKey}, or empty if the policy has no entry for it. */

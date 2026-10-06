@@ -124,6 +124,7 @@ class FreemarkerTemplateRenderTest {
     m.put("decision", "approve");
     m.put("applicantResidency", "e-resident");
     m.put("objectId", "VIN-1234567");
+    m.put("stateFee", 75.0);
     m.put("approvalPdfBytes", "fake-approval-pdf".getBytes(StandardCharsets.UTF_8));
     m.put("feeInvoicePdfBytes", "fake-invoice-pdf".getBytes(StandardCharsets.UTF_8));
     m.put("bcardPdfBytes", "fake-bcard-pdf".getBytes(StandardCharsets.UTF_8));
@@ -321,7 +322,7 @@ class FreemarkerTemplateRenderTest {
 
   /**
    * Consent and payment links carry a minted capability token, not a stored id: the confirmation
-   * link is the one {@code links.owner} signs for the party, and the pay link does not expose the
+   * link is the one {@code links.consent} signs for the party, and the pay link does not expose the
    * bare process instance id (docs/security.md rules 3 and 4).
    */
   @Test
@@ -331,7 +332,7 @@ class FreemarkerTemplateRenderTest {
             .readTree(render("owner-confirmation-email.json.ftl", cleanModel()))
             .path("Text")
             .asText();
-    String ownerToken = LINKS.owner(fakeExecution(), "p1");
+    String ownerToken = LINKS.consent(fakeExecution(), "owner", "p1");
     assertTrue(owner.contains("/confirm-owner/" + ownerToken), owner);
 
     String tracking =
@@ -339,7 +340,7 @@ class FreemarkerTemplateRenderTest {
             .readTree(render("applicant-tracking-email.json.ftl", cleanModel()))
             .path("Text")
             .asText();
-    String applicantToken = LINKS.owner(fakeExecution(), "applicant");
+    String applicantToken = LINKS.consent(fakeExecution(), "owner", "applicant");
     assertTrue(tracking.contains("/confirm-owner/" + applicantToken), tracking);
 
     for (String template : List.of("approval-email.json.ftl", "business-approval-email.json.ftl")) {
@@ -366,6 +367,18 @@ class FreemarkerTemplateRenderTest {
     assertTrue(
         reminder.path("Text").asText().contains(m.get("firstName") + " " + m.get("lastName")),
         reminder.toString());
+  }
+
+  /** Invoices print the fee the backend quoted (stateFee), not one of their own. */
+  @Test
+  void invoicesPrintTheQuotedFee() throws Exception {
+    Map<String, Object> m = cleanModel();
+    m.put("stateFee", 123.5);
+    withDocuments(m);
+    for (String template : List.of("approval-pdf.json.ftl", "business-fee-invoice-pdf.json.ftl")) {
+      String html = MAPPER.readTree(render(template, m)).path("html").asText();
+      assertTrue(html.contains("&euro;123.50"), template);
+    }
   }
 
   /** PDF documents are .ftlh: every value is HTML-escaped without a ?html in the document. */

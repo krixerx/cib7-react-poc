@@ -6,7 +6,7 @@
 **Connector:** `http-connector`
 **Async-before:** `true`
 
-Renders the state fee invoice (EUR 265, fast-track OÜ registration) for an approved registration.
+Renders the state fee invoice for an approved registration.
 
 ## Request
 
@@ -50,4 +50,5 @@ payload-template: business-fee-invoice-pdf.json.ftl
 
 ## Notes
 
+- The amount is `stateFee`, quoted by [`quote-business-state-fee`](quote-business-state-fee.md) just before.
 - Stored as `byte[]` (`pdf.decode`) for the history-flush size limit.

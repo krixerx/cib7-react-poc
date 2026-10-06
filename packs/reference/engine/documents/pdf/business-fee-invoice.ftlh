@@ -7,7 +7,9 @@
 <#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 <#assign reference = execution.processInstanceId>
 <#assign regCode = "1" + reference?replace("-", "")?substring(0, 7)>
-<#assign fee = 265>
+<#-- The state fee as the backend quoted it (Task_QuoteFee, from the pack's
+     backend/payment/business-registration.yaml): the amount the checkout charges. -->
+<#assign fee = stateFee>
 <#-- shareCapital can surface as a locale-formatted String ("2,500") on some
      engine→FreeMarker paths — same defensive coercion as bcard-extract.ftlh, which
      ?string("0.00") on the raw variable would crash on. -->

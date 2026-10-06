@@ -493,8 +493,9 @@ Key process variables:
 
 **Capability links (`links` bean).** `CapabilityLinks` mints the tokens the
 email templates put into public links:
-`links.owner(execution, partyId)`, `links.founder(execution, partyId)` and
-`links.payment(execution)`. A token is `base64url(payload).base64url(hmac)`
+`links.consent(execution, purpose, partyId)` for a co-signing purpose the
+pack declares (`owner`, `founder` in the reference pack; `payment` is
+reserved) and `links.payment(execution)`. A token is `base64url(payload).base64url(hmac)`
 over `processInstanceId|partyId|purpose|round|expiresAt`, HMAC-SHA256 keyed
 with `LINK_SIGNING_SECRET` (`app.links.secret`; expiry `app.links.consent-ttl`
 P14D and `app.links.payment-ttl` P30D). Consent tokens carry the case's

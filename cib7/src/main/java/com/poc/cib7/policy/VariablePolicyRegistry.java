@@ -33,6 +33,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class VariablePolicyRegistry {
 
+  /** Where the pack's policies sit on the classpath. */
+  public static final String DEFAULT_LOCATION = "classpath*:processes/*/variable-policy.json";
+
   private static final Logger LOG = LoggerFactory.getLogger(VariablePolicyRegistry.class);
 
   private static final ObjectMapper JSON = new ObjectMapper();
@@ -54,8 +57,7 @@ public class VariablePolicyRegistry {
 
   @Autowired
   public VariablePolicyRegistry(
-      @Value("${app.variable-policy.locations:classpath*:processes/*/variable-policy.json}")
-          String[] locations)
+      @Value("${app.variable-policy.locations:" + DEFAULT_LOCATION + "}") String[] locations)
       throws IOException {
     this.policies = load(locations);
   }
@@ -83,7 +85,7 @@ public class VariablePolicyRegistry {
     return policies;
   }
 
-  static Map<String, VariablePolicy> load(String... locations) throws IOException {
+  public static Map<String, VariablePolicy> load(String... locations) throws IOException {
     PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
     Map<String, VariablePolicy> loaded = new LinkedHashMap<>();
     for (String location : locations) {
@@ -110,7 +112,7 @@ public class VariablePolicyRegistry {
     return loaded;
   }
 
-  static VariablePolicy parse(JsonNode root, String source) {
+  public static VariablePolicy parse(JsonNode root, String source) {
     JsonNode key = root.get("processDefinitionKey");
     if (key == null || !key.isTextual() || key.asText().isBlank()) {
       throw new IllegalStateException(source + ": processDefinitionKey is required");
@@ -130,7 +132,32 @@ public class VariablePolicyRegistry {
             names(form.getValue(), source + " form " + form.getKey()));
       }
     }
-    return new VariablePolicy(key.asText(), start, forms);
+    Map<String, String> identity = new LinkedHashMap<>();
+    JsonNode identityNode = root.get("identity");
+    if (identityNode != null && !identityNode.isNull()) {
+      if (!identityNode.isObject()) {
+        throw new IllegalStateException(source + ": identity must be an object");
+      }
+      Iterator<Map.Entry<String, JsonNode>> fields = identityNode.fields();
+      while (fields.hasNext()) {
+        Map.Entry<String, JsonNode> entry = fields.next();
+        String attribute = entry.getValue().asText("");
+        if (!VariablePolicy.IDENTITY_SOURCES.contains(attribute)) {
+          throw new IllegalStateException(
+              source
+                  + ": identity."
+                  + entry.getKey()
+                  + " must be one of "
+                  + VariablePolicy.IDENTITY_SOURCES);
+        }
+        if (NEVER_WRITABLE.contains(entry.getKey())) {
+          throw new IllegalStateException(
+              source + ": '" + entry.getKey() + "' is reserved and cannot be an identity variable");
+        }
+        identity.put(entry.getKey(), attribute);
+      }
+    }
+    return new VariablePolicy(key.asText(), start, forms, identity);
   }
 
   private static Set<String> names(JsonNode node, String where) {

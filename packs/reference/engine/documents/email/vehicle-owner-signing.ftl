@@ -5,7 +5,7 @@
 -->
 <#assign ownerName = owner.prop("name").stringValue()>
 <#assign ownerEmail = owner.prop("email").stringValue()>
-<#assign ownerToken = links.owner(execution, owner.prop("partyId").stringValue())>
+<#assign ownerToken = links.consent(execution, "owner", owner.prop("partyId").stringValue())>
 <#assign applicantName = (firstName!"") + " " + (lastName!"")>
 <#assign confirmUrl = frontendBaseUrl + "/confirm-owner/" + ownerToken>
 Hello ${ownerName},

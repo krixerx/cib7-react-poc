@@ -18,17 +18,9 @@
 <#else>
   <#assign vehicleValue = rawPrice?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
 </#if>
-<#-- Tiered state fee schedule. POC demo — Transpordiamet's real schedule
-     is more granular and varies by CO2, fuel type, and first-registration
-     status. The brackets here are picked to be visibly different across
-     the demo's vehicle catalog. -->
-<#if vehicleValue lt 5000>
-  <#assign fee = 25>
-<#elseif vehicleValue lt 20000>
-  <#assign fee = 75>
-<#else>
-  <#assign fee = 150>
-</#if>
+<#-- The state fee as the backend quoted it (Task_QuoteFee, from the pack's
+     backend/payment/vehicle-registration.yaml): the amount the checkout charges. -->
+<#assign fee = stateFee>
 <#assign reference = execution.processInstanceId>
 <@b.page title="State fee invoice" accent="#003c7a">
   <div class="header rule">

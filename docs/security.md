@@ -159,7 +159,9 @@ server computed. A browser call saying "it happened" is never proof. The demo
 uses `MockPaymentProvider` as that authority.
 
 How it is built: `POST /api/public/payments/{token}/checkout` only creates a
-`PaymentSession` (random session id, amount from `FeeSchedule`, status
+`PaymentSession` (random session id, amount from `FeeSchedule`, which
+computes it from the pack's `backend/payment/` rule; a tiered fee may only
+depend on a variable the engine sets, checked by `PackConformanceTest`; status
 `PENDING`) and returns the provider's page. The provider reports the outcome
 to `POST /api/public/payments/callback` with `X-Provider-Signature`, the hex
 HMAC-SHA256 of the raw body (session, reference, amount, currency, status)

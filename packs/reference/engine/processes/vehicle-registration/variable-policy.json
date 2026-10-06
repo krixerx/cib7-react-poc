@@ -1,7 +1,10 @@
 {
   "$comment": "Generated from docs/business/services/vehicle-registration/README.md (Variable write policy). Top-level variables a client may write per start and per form; enforced by VariableWritePolicyFilter. Do not hand-edit.",
   "processDefinitionKey": "vehicleRegistration",
-  "start": ["age", "objectId"],
+  "start": [
+    "age",
+    "objectId"
+  ],
   "forms": {
     "owner-vehicle": [
       "firstName",
@@ -13,6 +16,14 @@
       "pendingIdDocument",
       "sendBackReason"
     ],
-    "vehicle-review": ["decision", "sendBackReason"]
+    "vehicle-review": [
+      "decision",
+      "sendBackReason"
+    ]
+  },
+  "identity": {
+    "firstName": "givenName",
+    "lastName": "familyName",
+    "applicantEmail": "email"
   }
 }

@@ -5,12 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.poc.cib7.keycloak.KeycloakIdentityProvider;
+import com.poc.cib7.policy.VariablePolicy;
+import com.poc.cib7.policy.VariablePolicyRegistry;
 import freemarker.cache.ClassTemplateLoader;
 import freemarker.template.Configuration;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -26,6 +29,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * Engine-side checks that hold for every service pack, whatever its services: the platform API's
@@ -141,6 +147,51 @@ class PackConformanceTest {
     return CAMUNDA.equals(element.getNamespaceURI())
         && element.getLocalName().endsWith("Listener")
         && element.hasAttribute(attribute);
+  }
+
+  /**
+   * A tiered fee is computed from a case variable, so that variable must be one the engine sets (a
+   * connector output in the fee's process), never one a client may write: otherwise an applicant
+   * could choose their own fee (docs/security.md rule 4). The fee rules live in the pack's backend
+   * part; the policies and the BPMN in its engine part.
+   */
+  @Test
+  void feeTiersOnlyReadVariablesTheEngineSets() throws Exception {
+    Path payment = PACK.resolve("../backend/payment").normalize();
+    Map<String, VariablePolicy> policies =
+        VariablePolicyRegistry.load(VariablePolicyRegistry.DEFAULT_LOCATION);
+    Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
+    for (Path rule : files(payment, ".yaml")) {
+      Map<?, ?> root = yaml.load(Files.readString(rule));
+      String process = String.valueOf(root.get("process"));
+      VariablePolicy policy = policies.get(process);
+      assertTrue(policy != null, rule.getFileName() + ": no service has process " + process);
+      if (!(root.get("amount") instanceof Map<?, ?> amount
+          && amount.get("tiers") instanceof Map<?, ?> tiers)) {
+        continue;
+      }
+      String variable = String.valueOf(tiers.get("variable"));
+      Set<String> writable = new TreeSet<>(policy.start());
+      policy.forms().values().forEach(writable::addAll);
+      writable.addAll(policy.identity().keySet());
+      assertFalse(
+          writable.contains(variable),
+          rule.getFileName() + ": the fee depends on " + variable + ", which a client may write");
+      String bpmn = "";
+      try (Stream<Path> dirs = Files.list(PACK.resolve("processes"))) {
+        for (Path dir : dirs.toList()) {
+          for (Path file : files(dir, ".bpmn")) {
+            String xml = Files.readString(file);
+            if (xml.contains("id=\"" + process + "\"")) {
+              bpmn = xml;
+            }
+          }
+        }
+      }
+      assertTrue(
+          bpmn.contains("<camunda:outputParameter name=\"" + variable + "\">"),
+          rule.getFileName() + ": " + variable + " is no connector output of " + process);
+    }
   }
 
   /** Every connector payload template compiles (FreeMarker syntax), as the engine loads it. */

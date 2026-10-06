@@ -4,7 +4,7 @@
   frontendBaseUrl, links and brand (DocumentRenderer).
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
-<#assign confirmUrl = frontendBaseUrl + "/confirm-owner/" + links.owner(execution, "applicant")>
+<#assign confirmUrl = frontendBaseUrl + "/confirm-owner/" + links.consent(execution, "owner", "applicant")>
 <#assign extraCount = additionalOwners.elements()?size>
 Hi ${firstName!""},
 

@@ -172,6 +172,7 @@ Generated from the spec:
 - `packs/reference/backend/registry/<entity>.yaml` and
   `db/registry/V<n>__*.sql` from `data/<entity>.md`
 - `packs/reference/backend/consent/<purpose>.yaml` from `consent.md`
+- `packs/reference/backend/payment/<service>.yaml` from the README's State fee
 - `packs/reference/frontend/forms/<form-id>.json` (form definition, the default);
   `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` only for
   `Renderer: tsx` forms

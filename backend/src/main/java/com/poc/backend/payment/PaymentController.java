@@ -145,7 +145,7 @@ public class PaymentController {
 
   private Optional<Charge> activeCharge(String pi) {
     ProcessInstanceRef instance = engine.findActiveById(pi);
-    if (instance == null || !FeeSchedule.PAYABLE.contains(instance.definitionKey())) {
+    if (instance == null || !fees.isPayable(instance.definitionKey())) {
       return Optional.empty();
     }
     return fees.chargeFor(instance);

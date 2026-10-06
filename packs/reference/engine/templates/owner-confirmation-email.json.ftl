@@ -9,7 +9,7 @@
   Process-scope variables (firstName, lastName) and the reserved beans
   frontendBaseUrl and links are also in scope.
 
-  The confirmation token is minted here by links.owner(execution, partyId)
+  The confirmation token is minted here by links.consent(execution, "owner", partyId)
   and never stored: an HMAC over case, party, consentRound and expiry
   (docs/security.md rule 3).
 

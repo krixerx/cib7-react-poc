@@ -93,6 +93,22 @@ service-builder generates for the MCP sidecar — write it for both audiences.>
 | `initiator` | start event | String | Login of the user that started the case. |
 | `<varName>` | `<task-id>` | `<String\|Integer\|Long\|Double\|Boolean\|byte[]>` | <Optional notes. byte[] for anything > 4 kB.> |
 
+## State fee (optional, only for a service with a payment step)
+
+Generated into the pack's `backend/payment/<service>.yaml`. Add a
+`quote-…` service task (GET `${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}`,
+output `stateFee`) before the invoice, and print `stateFee` in it.
+
+| Item | Value |
+|---|---|
+| Fee name | <shown on the payment page> |
+| Recipient | <the authority that receives it> |
+| Currency | <ISO code, e.g. EUR> |
+| Amount | <`N flat`, or by `<variable>`: below L1: A1; below L2: A2; otherwise A3> |
+
+The tier variable must be one the engine sets (a connector output), never
+one a client writes.
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.

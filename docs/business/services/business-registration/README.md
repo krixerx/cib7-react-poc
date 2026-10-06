@@ -83,6 +83,7 @@ One spec per BPMN service task; each gives the request, the payload template and
 | `Task_AttachAoaDocument` | Attach Articles of Association | case document (backend) | [`service-tasks/attach-aoa-document.md`](service-tasks/attach-aoa-document.md) |
 | `Task_GenerateBcardPdf` | Generate B-card extract | PDF (pdf-renderer) | [`service-tasks/generate-bcard-pdf.md`](service-tasks/generate-bcard-pdf.md) |
 | `Task_GenerateFeeInvoicePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-business-fee-invoice-pdf.md`](service-tasks/generate-business-fee-invoice-pdf.md) |
+| `Task_QuoteFee` | Quote state fee | fee quote (backend) | [`service-tasks/quote-business-state-fee.md`](service-tasks/quote-business-state-fee.md) |
 | `Task_SendApprovalEmail` | Send approval email | email (Mailpit) | [`service-tasks/send-business-approval-email.md`](service-tasks/send-business-approval-email.md) |
 | `Task_SendBackEmail` | Send sent-back email | email (Mailpit) | [`service-tasks/send-business-sendback-email.md`](service-tasks/send-business-sendback-email.md) |
 | `Task_SendFounderSigningEmail` | Send co-founder signing email | email (Mailpit) | [`service-tasks/send-founder-signing-email.md`](service-tasks/send-founder-signing-email.md) |
@@ -150,6 +151,20 @@ The approval email's pay link is `${frontendBaseUrl}/pay/${links.payment(executi
 (30-day expiry). The fee (EUR 265) is computed by the backend; the
 callback must report exactly that amount.
 
+## State fee
+
+What the applicant pays after approval. Generated into the pack's
+`backend/payment/business-registration.yaml`; the backend computes the fee
+from it for the checkout, the provider callback and the engine's quote
+([`quote-business-state-fee`](service-tasks/quote-business-state-fee.md)).
+
+| Item | Value |
+|---|---|
+| Fee name | OÜ registration state fee |
+| Recipient | Äriregister (Justiitsministeerium) |
+| Currency | EUR |
+| Amount | 265 flat |
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
@@ -163,6 +178,10 @@ table and `VariableWritePolicyFilter` refuses anything else with 403
 | start | `companyName`, `boardMembers`, `shareCapital`, `applicantAge` | MCP `start_process` prefill; the SPA starts with no variables. |
 | `business-details` | `companyName`, `boardMembers`, `shareCapital`, `applicantFirstName`, `applicantLastName`, `applicantEmail`, `applicantAge`, `applicantResidency`, `additionalFounders`, `pendingAoaDocument`, `sendBackReason` | Identity fields re-validated by `IdentityValidationListener`. `sendBackReason` is only cleared. SPA-only (not in the MCP schema): the three identity fields, `applicantResidency`, `additionalFounders`, `pendingAoaDocument`. |
 | `review-business-registration` | `decision`, `sendBackReason` | The reviewer's decision; never on the applicant form. |
+
+**Identity** (set from the signed-in account at start, re-checked on every
+completion; `identity` in the policy): `applicantFirstName` = given name,
+`applicantLastName` = family name, `applicantEmail` = email.
 
 System-owned: `initiator`, `founderSignatures`,
 `rejectedByFounder`, `sentToRegister`, consent round and party ids,
@@ -240,25 +259,59 @@ node bpmn-to-mermaid.mjs \
 <!-- bpmn-diagram:start -->
 ```mermaid
 flowchart LR
-  %% Business Registration
+  %% Estonian OÜ Registration
   StartEvent_1(("Registration started"))
-  Task_SubmitBusinessDetails["👤 Submit business details"]
-  Task_ReviewBusinessRegistration["👤 Review business registration"]
-  Task_AutoDecide[/"📋 Auto approval?"/]
+  Task_SubmitBusinessDetails["👤 Submit OÜ founding details"]
+  Task_ReviewBusinessRegistration["👤 Business Register review"]
+  Gateway_HasPendingAoa{"New Articles of Association?"}
+  Gateway_NeedsSignatures{"Co-founder signatures needed?"}
+  Gateway_AllSigned{"Anyone rejected?"}
   Gateway_AutoApproval{"Auto-approve?"}
   Gateway_Decision{"Decision?"}
+  Gateway_SendApprovalEmail{"Has applicant email?"}
+  Gateway_BeforeBcard{"(merge)"}
+  Task_AttachAoaDocument[["🔌 Attach Articles of Association"]]
+  Task_SendApplicantTrackingEmail[["🔌 Send applicant tracking email"]]
+  Task_QuoteFee[["🔌 Quote state fee"]]
+  Task_GenerateFeeInvoicePdf[["🔌 Generate state fee invoice"]]
+  Task_StoreFeeInvoicePdf[["🔌 Store fee invoice"]]
   Task_SendApprovalEmail[["🔌 Send approval email"]]
+  Task_GenerateBcardPdf[["🔌 Generate B-card extract"]]
+  Task_StoreBcardPdf[["🔌 Store B-card extract"]]
   Task_SendBackEmail[["🔌 Send sent-back email"]]
-  EndEvent_Approved((("Registration approved")))
+  SubProcess_FounderSignatures[["⊞ Co-founder signatures"]]
+  Task_WaitSubmitToRegister[["📥 Wait for submit-to-register"]]
+  Task_WaitForPayment[["📥 Wait for state fee payment"]]
+  Task_AutoDecide[/"📋 Auto-approval policy"/]
+  EndEvent_Approved((("OÜ entered in Business Register")))
+  Task_SubmitBusinessDetails --> Gateway_HasPendingAoa
+  Gateway_HasPendingAoa -- "yes" --> Task_AttachAoaDocument
+  Gateway_HasPendingAoa -. "no (default)" .-> Gateway_NeedsSignatures
+  Task_AttachAoaDocument --> Gateway_NeedsSignatures
+  Gateway_NeedsSignatures -- "sole founder" --> Task_AutoDecide
+  Gateway_NeedsSignatures -. "has co-founders (default)" .-> Task_SendApplicantTrackingEmail
+  Task_SendApplicantTrackingEmail --> SubProcess_FounderSignatures
+  SubProcess_FounderSignatures --> Gateway_AllSigned
+  Gateway_AllSigned -- "rejected" --> Task_SendBackEmail
+  Gateway_AllSigned -. "all signed (default)" .-> Task_WaitSubmitToRegister
+  Task_WaitSubmitToRegister --> Task_AutoDecide
+  Gateway_SendApprovalEmail -- "valid email" --> Task_QuoteFee
+  Gateway_SendApprovalEmail -. "default" .-> Gateway_BeforeBcard
+  Task_QuoteFee --> Task_GenerateFeeInvoicePdf
+  Task_GenerateFeeInvoicePdf --> Task_StoreFeeInvoicePdf
+  Task_StoreFeeInvoicePdf --> Task_SendApprovalEmail
+  Task_SendApprovalEmail --> Task_WaitForPayment
+  Task_WaitForPayment --> Gateway_BeforeBcard
+  Gateway_BeforeBcard --> Task_GenerateBcardPdf
+  Task_GenerateBcardPdf --> Task_StoreBcardPdf
+  Task_StoreBcardPdf --> EndEvent_Approved
   StartEvent_1 --> Task_SubmitBusinessDetails
-  Task_SubmitBusinessDetails --> Task_AutoDecide
   Task_AutoDecide --> Gateway_AutoApproval
-  Gateway_AutoApproval -- "auto-approved" --> Task_SendApprovalEmail
+  Gateway_AutoApproval -- "auto-approved" --> Gateway_SendApprovalEmail
   Gateway_AutoApproval -. "needs review (default)" .-> Task_ReviewBusinessRegistration
   Task_ReviewBusinessRegistration --> Gateway_Decision
-  Gateway_Decision -- "approved" --> Task_SendApprovalEmail
+  Gateway_Decision -- "approved" --> Gateway_SendApprovalEmail
   Gateway_Decision -. "sent back (default)" .-> Task_SendBackEmail
   Task_SendBackEmail --> Task_SubmitBusinessDetails
-  Task_SendApprovalEmail --> EndEvent_Approved
 ```
 <!-- bpmn-diagram:end -->

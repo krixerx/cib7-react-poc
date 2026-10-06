@@ -95,8 +95,9 @@ and ask** rather than guessing.
 | `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest + JSON Schemas; § 11) |
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
 | Every `<service>/build/mcp-service.json` across every service | `docs/business/services/build/services.json` (aggregated MCP index; § 11) |
-| `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2) |
+| `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2; plus `identity`: variable to `givenName`, `familyName` or `email` from the README's **Identity** line) |
 | `<service>/consent.md` | `packs/reference/backend/consent/<purpose>.yaml` (co-signing descriptor; step 10c) |
+| `<service>/README.md` § State fee | `packs/reference/backend/payment/<service>.yaml`: `platform: 2`, `process`, `service` (fee name), `recipient`, `currency`, and `amount: { flat: N }` or `amount: { tiers: { variable, below: [{limit, amount}, ...] ascending, otherwise } }`; read by the backend's `FeeCatalog` |
 | `<service>/data/<entity>.md` | `packs/reference/backend/registry/<entity>.yaml` (descriptor) and `packs/reference/backend/db/registry/V<n>__<entity>.sql` (table + seed; step 10b) |
 | `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `packs/reference/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 

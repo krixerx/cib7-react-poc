@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Mints the capability tokens that email templates put into public links (docs/security.md rule 3):
- * {@code ${frontendBaseUrl}/confirm-owner/${links.owner(execution, partyId)}}.
+ * {@code ${frontendBaseUrl}/confirm-owner/${links.consent(execution, "owner", partyId)}}.
  *
  * <p>A token is never stored. It is {@code base64url(payload) + "." + base64url(hmac)} where the
  * payload is {@code processInstanceId|partyId|purpose|round|expiresAtEpochSeconds} and the HMAC is
@@ -35,8 +35,8 @@ import org.springframework.stereotype.Component;
 @Component("links")
 public class CapabilityLinks {
 
-  public static final String PURPOSE_OWNER = "owner";
-  public static final String PURPOSE_FOUNDER = "founder";
+  private static final java.util.regex.Pattern CONSENT_PURPOSE =
+      java.util.regex.Pattern.compile("^[a-z][a-z0-9-]{0,62}$");
   public static final String PURPOSE_PAYMENT = "payment";
   public static final String APPLICANT_PARTY = "applicant";
   public static final String ROUND_VARIABLE = "consentRound";
@@ -67,23 +67,23 @@ public class CapabilityLinks {
     this.clock = clock;
   }
 
-  /** Co-owner confirmation link token for {@code partyId} in the current consent round. */
-  public String owner(DelegateExecution execution, String partyId) {
-    return consent(execution, partyId, PURPOSE_OWNER);
-  }
-
-  /** Co-founder signing link token for {@code partyId} in the current consent round. */
-  public String founder(DelegateExecution execution, String partyId) {
-    return consent(execution, partyId, PURPOSE_FOUNDER);
-  }
-
   /** State-fee payment link token for the case's applicant. */
   public String payment(DelegateExecution execution) {
     long expiresAt = clock.instant().plus(paymentTtl).getEpochSecond();
     return mint(execution.getProcessInstanceId(), APPLICANT_PARTY, PURPOSE_PAYMENT, 0L, expiresAt);
   }
 
-  private String consent(DelegateExecution execution, String partyId, String purpose) {
+  /**
+   * Co-signing link token for {@code partyId} in the current consent round. {@code purpose} is a
+   * consent purpose the pack declares ({@code backend/consent/<purpose>.yaml}); the backend refuses
+   * a token whose purpose it does not serve, so the engine only checks the shape.
+   */
+  public String consent(DelegateExecution execution, String purpose, String partyId) {
+    if (purpose == null
+        || !CONSENT_PURPOSE.matcher(purpose).matches()
+        || PURPOSE_PAYMENT.equals(purpose)) {
+      throw new IllegalArgumentException("Not a consent purpose: " + purpose);
+    }
     Object round = execution.getVariable(ROUND_VARIABLE);
     if (!(round instanceof Number number)) {
       throw new IllegalStateException(

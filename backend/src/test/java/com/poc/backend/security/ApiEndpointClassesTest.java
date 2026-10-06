@@ -49,6 +49,24 @@ class ApiEndpointClassesTest {
         .andExpect(jsonPath("$.code").value("invalid_internal_token"));
   }
 
+  /** The fee quote is engine-only: no token, no fee (docs/security.md rule 5). */
+  @Test
+  void feeQuoteWithoutTokenIs401() throws Exception {
+    mvc.perform(get("/api/internal/payments/quote/pi-1")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void feeQuoteWithTokenIsThePacksFee() throws Exception {
+    when(engine.findActiveById("pi-1"))
+        .thenReturn(new EngineClient.ProcessInstanceRef("pi-1", "businessRegistration"));
+    mvc.perform(get("/api/internal/payments/quote/pi-1").header("X-Internal-Token", TOKEN))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.amount").value(265.00))
+        .andExpect(jsonPath("$.currency").value("EUR"));
+    mvc.perform(get("/api/internal/payments/quote/pi-unknown").header("X-Internal-Token", TOKEN))
+        .andExpect(status().isNotFound());
+  }
+
   @Test
   void internalEndpointWithWrongTokenIs401() throws Exception {
     mvc.perform(

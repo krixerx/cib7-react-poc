@@ -50,5 +50,5 @@ payload-template: approval-pdf.json.ftl
 
 ## Notes
 
-- The fee tiers (EUR 25, 75 or 150 by vehicle value) live in the document `documents/pdf/vehicle-fee-invoice.ftlh`.
+- The amount is `stateFee`, quoted by [`quote-state-fee`](quote-state-fee.md) just before; the fee rule lives in the pack's `backend/payment/vehicle-registration.yaml`, nowhere else.
 - The PDF comes back base64-encoded and is stored as `byte[]` (`pdf.decode`), because a String variable over about 4 kB fails the history flush (docs/cib7.md, large process variables).

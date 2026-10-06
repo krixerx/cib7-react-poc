@@ -2,6 +2,12 @@
 
 **Platform API version:** `2.0`
 
+`2.0` is not released yet: until a core release ships it to a pack other than
+the reference pack, it may still change without a major bump. Changes since
+it was first written: `links.consent(execution, purpose, partyId)` replaced
+`links.owner` / `links.founder`, policies gained `identity`, packs gained
+`backend/payment/`.
+
 **When to read this:** before writing or changing anything in a service pack,
 before changing core code that reads pack files, and before a core release.
 This is the contract between the core (this repository's modules) and a
@@ -74,13 +80,14 @@ Until the pack has its own repository, its specs live in this repository's
 | `pack.yaml` | YAML: `name` (kebab), `version` (`x.y.z`), `platform` (`"M.m"`) | `PackManifest` (engine, backend) | `PackManifestTest` |
 | `engine/processes/<service>/*.bpmn` | BPMN 2.0, `camunda:` namespace; user tasks `camunda:formKey="react:<form-id>"`; `candidateGroups` without a leading slash; connectors only to `${busBaseUrl}`; business rule tasks `decisionRefBinding="deployment"` | `ServiceDeployments` | `PackConformanceTest`, `ServiceSpecsTest` |
 | `engine/processes/<service>/*.dmn` | DMN 1.3 with `camunda:historyTimeToLive` | the engine, in the service's deployment | `PackConformanceTest` |
-| `engine/processes/<service>/variable-policy.json` | `processDefinitionKey`, `start` and `forms.<form-id>`: the variables a client may write | `VariablePolicyRegistry`, `VariableWritePolicyFilter` | `VariablePolicyFilesTest` |
+| `engine/processes/<service>/variable-policy.json` | `processDefinitionKey`, `start` and `forms.<form-id>`: the variables a client may write; `identity`: variable to `givenName`, `familyName` or `email`, set from the account and re-checked on completion | `VariablePolicyRegistry`, `VariableWritePolicyFilter`, `IdentityFieldRegistry` | `VariablePolicyFilesTest`, `IdentityFieldRegistryTest` |
 | `engine/processes/<service>/schemas/*.json` | JSON Schema 2020-12 with `x-process` and `x-form`; may `$ref` the [shared value rules](#shared-value-rules) | `FormSchemaRegistry` | `FormSchemaRegistryTest` |
 | `engine/templates/*.json.ftl` | FreeMarker producing JSON; every string `?json_string`; no `<#include>` | the engine's FreeMarker script engine (BPMN `resource=`) | `PackConformanceTest`, `ServiceSpecsTest` |
 | `engine/documents/` | `pdf/<name>.ftlh` (HTML, escaped), `email/<name>.ftl` (text), shared `_brand.ftlh` | `DocumentRenderer` (`documents` bean) | `PackConformanceTest` |
 | `backend/registry/<entity>.yaml` | registry descriptor, `platform: 2`: entity, table, key, sort, typed fields, derived fields, operations with access `public` or `internal` | `RegistryCatalog`, `RegistryController` | `BackendApplicationSmokeTest` |
 | `backend/db/registry/V<n>__*.sql` | Flyway migrations in the `registry` schema, own history table | `RegistryMigrations` | `BackendApplicationSmokeTest` (columns against descriptors) |
 | `backend/consent/<purpose>.yaml` | co-signing descriptor, `platform: 2`: process, variables, messages, wording | `ConsentCatalog`, `ConsentController` | `BackendApplicationSmokeTest` |
+| `backend/payment/<service>.yaml` | state fee, `platform: 2`: process, fee name, recipient, currency, `amount` flat or tiered by one engine-set variable | `FeeCatalog`, `FeeSchedule` (checkout, callback, `/api/internal/payments/quote/<id>`) | `FeeCatalogTest`; `PackConformanceTest` (tier variable not client-writable) |
 | `frontend/catalog.json` | catalog v1: namespaces, services (category, issuer), issuers (tone) | `src/pack/catalog.ts` | `src/pack/pack.test.ts` |
 | `frontend/forms/<form-id>.json` | form definition v1 | `src/forms/schema/definition.ts` | `src/pack/pack.test.ts` |
 | `frontend/locales/<lang>/<ns>.json` | i18next JSON; `catalog`, `names` and one namespace per form; `en` and `ar` with the same keys | `loadPack()` | `src/pack/pack.test.ts` (also: every BPMN `name=` translated) |
@@ -100,7 +107,7 @@ class named above, and for generated files the service-builder skill
 | `execution` | templates, documents | the current execution (`processInstanceId`, …) |
 | `busBaseUrl` | BPMN, templates | the bus; the only address for outbound calls |
 | `frontendBaseUrl` | BPMN, templates, documents | the portal's public URL, for links in emails |
-| `links` | templates, documents | mints capability tokens: `owner(execution, partyId)`, `founder(…)`, `payment(execution)` |
+| `links` | templates, documents | mints capability tokens: `consent(execution, purpose, partyId)` for a purpose in `backend/consent/`, `payment(execution)` |
 | `pdf` | BPMN, templates | `decode(base64)` to `byte[]`, `encode(byte[])` to base64 |
 | `documents` | templates | `html("<name>", execution)`, `text("<name>", execution)` |
 | `brand` | documents | `name`, `primary`, `logo` (data URI or null) |
@@ -112,8 +119,9 @@ connector or a link by writing a variable.
 
 Bus paths a pack may call: `/api/v1/send` (mail), `/render` (PDF),
 `/api/internal/documents/move-pending` and `/server-upload` (case
-documents), `/api/{public,internal}/registry/<entity>` (its registries), and
-the paths of its own `pack-*` routes.
+documents), `/api/{public,internal}/registry/<entity>` (its registries),
+`/api/internal/payments/quote/<processInstanceId>` (the case's state fee, as
+`amount` and `currency`), and the paths of its own `pack-*` routes.
 
 ## Brand tokens
 
