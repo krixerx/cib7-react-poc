@@ -1,0 +1,8 @@
+# Dockerfile-specific ignore file: BuildKit uses it instead of the repo-root
+# .dockerignore when building mobile/Dockerfile with the repo root as context.
+# Only the mobile module and the service packs go into the context.
+*
+!mobile
+!packs
+mobile/build
+mobile/.dart_tool

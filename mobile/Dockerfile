@@ -1,3 +1,6 @@
+# Built from the repo root (context `.`, see mobile/Dockerfile.dockerignore) so
+# the service pack's branding and texts can go into the image, like the SPA's.
+#
 # --- build stage: Flutter web --------------------------------------------
 # Self-contained, like frontend/Dockerfile's npm build. The cirruslabs image
 # ships the Flutter SDK, so the web app is built entirely inside Docker — no
@@ -9,8 +12,8 @@ WORKDIR /app
 
 # Bring in the committed source (lib/ + analysis options). pubspec is copied
 # AFTER `flutter create` so our dependency list wins over the generated one.
-COPY lib ./lib
-COPY analysis_options.yaml ./
+COPY mobile/lib ./lib
+COPY mobile/analysis_options.yaml ./
 
 # Generate the platform scaffolding we support (web is built now; android/ios
 # are kept as targets for a later native build on a Mac). `flutter create`
@@ -18,15 +21,20 @@ COPY analysis_options.yaml ./
 RUN flutter create --platforms web,android,ios \
       --project-name cib7_applicant --org com.cib7 .
 
-# Replace the generated web shell (title, PWA manifest, icons) with our
-# CompanyLab branding; otherwise browsers offer to install "cib7_applicant".
-# The icon is the SPA's brand mark (lucide Landmark on --primary).
-COPY web-overrides/ ./web/
+# Replace the generated web shell (title, PWA manifest, icons) with ours;
+# otherwise browsers offer to install "cib7_applicant". The page title, the
+# manifest name and the theme colour are placeholders, filled from the pack's
+# branding here: a browser reads them before the app runs. The icons are the
+# core brand mark (lucide Landmark on --primary).
+COPY mobile/web-overrides/ ./web/
+COPY mobile/tool/ ./tool/
+COPY packs/reference/branding/ /pack/branding/
+RUN dart tool/brand_web_shell.dart /pack/branding web
 
 # Now overwrite the generated pubspec with ours (adds the http dependency),
 # resolve, and build. --base-href /mobile/ makes every asset URL resolve under
 # the Traefik PathPrefix(`/mobile`) route on the server.
-COPY pubspec.yaml ./
+COPY mobile/pubspec.yaml ./
 # --no-web-resources-cdn bundles CanvasKit locally and points the app at it
 # instead of https://www.gstatic.com/flutter-canvaskit — so the app is fully
 # self-contained and renders even where that CDN is blocked/slow (and on the
@@ -49,12 +57,17 @@ RUN sed -i 's#</head>#  <script src="env.js"></script>\n</head>#' \
 # nginx-unprivileged runs as uid 101 and listens on 8080 (docs/security.md
 # rule 11: no image we build runs as root).
 FROM nginxinc/nginx-unprivileged:1.30.5-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY docker/snippets/ /etc/nginx/snippets/
+COPY mobile/nginx.conf /etc/nginx/conf.d/default.conf
+COPY mobile/docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/build/web /usr/share/nginx/html/mobile
+# The service pack, read by lib/pack.dart at startup under /mobile/pack/: its
+# branding (name, colours, logo) and its texts (document labels). Data only;
+# a customer pack replaces these directories without rebuilding the app.
+COPY packs/reference/branding/ /usr/share/nginx/html/mobile/pack/branding/
+COPY packs/reference/frontend/locales/ /usr/share/nginx/html/mobile/pack/locales/
 # Regenerates /mobile/env.js and the CSP snippet from KEYCLOAK_* / S3_PUBLIC_URL
 # at container start.
-COPY docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
+COPY mobile/docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
 USER root
 # Pull Alpine security fixes newer than the base tag (Trivy blocks publishing
 # on fixable HIGH/CRITICAL findings, e.g. pcre2 CVE-2026-103111).

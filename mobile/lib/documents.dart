@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'config.dart';
+import 'pack.dart';
 
 /// A document attached to a process instance, from the backend `/api/documents`
 /// API. Mirrors the SPA's `DocumentEntry` (frontend/src/api/documentsApi.ts) —
@@ -32,16 +33,9 @@ class DocumentEntry {
   /// DocumentsCard split).
   bool get isGenerated => category.startsWith('generated-');
 
-  /// UI label for the category, mirroring `categoryLabel` in the SPA.
-  String get label => switch (category) {
-        'applicant-id-document' => 'ID document',
-        'founder-articles-of-association' => 'Articles of Association',
-        'generated-approval-pdf' => 'Approval PDF',
-        'generated-certificate' => 'Certificate of approval',
-        'generated-business-fee-invoice' => 'State fee invoice',
-        'generated-bcard' => 'B-card extract',
-        _ => category,
-      };
+  /// UI label for the category: the service pack's (its catalog texts), the
+  /// core's for `generated-certificate`, else the code (`pack.dart`).
+  String get label => Pack.current.documentLabel(category);
 
   factory DocumentEntry.fromJson(Map<String, dynamic> json) => DocumentEntry(
         id: json['id'] as String,

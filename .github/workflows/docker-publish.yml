@@ -28,7 +28,7 @@ jobs:
             context: .
             dockerfile: ./frontend/Dockerfile
           - image: cib7-poc-mobile
-            context: ./mobile
+            context: .
             dockerfile: ./mobile/Dockerfile
           - image: cib7-poc-cib7
             context: .

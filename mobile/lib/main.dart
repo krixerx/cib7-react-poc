@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'applications.dart';
 import 'auth/auth_service.dart';
+import 'pack.dart';
 import 'wallet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // The service pack's name, colours, logo and labels, before the first frame
+  // so the app never shows the core look first. Never throws.
+  Pack.current = await Pack.load();
   final auth = AuthService();
   // Completes a returning login redirect or restores a saved session before
   // the first frame, so we don't briefly flash the login screen.
@@ -25,13 +30,19 @@ class ApplicantApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pack = Pack.current;
     return MaterialApp(
-      title: 'CompanyLab',
+      title: pack.name,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1F6F43),
+      // Seeded from the pack's primary colour per scheme, and following the
+      // system's light or dark setting, as the SPA does.
+      theme: ThemeData(colorSchemeSeed: pack.primaryLight, useMaterial3: true),
+      darkTheme: ThemeData(
+        colorSchemeSeed: pack.primaryDark,
+        brightness: Brightness.dark,
         useMaterial3: true,
       ),
+      themeMode: ThemeMode.system,
       // Rebuild the gate whenever auth state changes (login/logout/refresh).
       home: ListenableBuilder(
         listenable: auth,
@@ -57,11 +68,15 @@ class LoginScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.local_police_outlined, size: 64),
+              const BrandLogo(size: 64),
               const SizedBox(height: 16),
               Text(
-                'eRegistrations',
+                Pack.current.name,
                 style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              Text(
+                Pack.current.sub,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               const SizedBox(height: 8),
               Text(
@@ -159,3 +174,22 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+/// The pack's logo for the current brightness, or the core icon when the pack
+/// has none or it fails to load.
+class BrandLogo extends StatelessWidget {
+  const BrandLogo({super.key, required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final url = dark ? Pack.current.logoDark : Pack.current.logoLight;
+    final fallback = Icon(Icons.account_balance_outlined, size: size);
+    if (url == null) return fallback;
+    final src = url.toString();
+    return src.endsWith('.svg')
+        ? SvgPicture.network(src, height: size, placeholderBuilder: (_) => SizedBox(height: size))
+        : Image.network(src, height: size, errorBuilder: (_, __, ___) => fallback);
+  }
+}

@@ -691,7 +691,11 @@ services:
       - mobile
 
   mobile:
-    build: ./mobile
+    # Repo root as context: the image carries the service pack's branding and
+    # texts (mobile/Dockerfile.dockerignore keeps the context to mobile/ and packs/).
+    build:
+      context: .
+      dockerfile: mobile/Dockerfile
     container_name: cib7-poc-mobile
     # Flutter-web applicant app (POC). nginx serves the build physically under
     # /mobile/ (the web build uses --base-href /mobile/), so no prefix stripping

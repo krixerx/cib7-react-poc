@@ -94,10 +94,10 @@ Until the pack has its own repository, its specs live in this repository's
 | `keycloak/<realm>-users-0.json` | Keycloak users file (`realm`, `users`), imported after the core realm `keycloak/cib7-poc-realm.json` from the same directory; users join core groups only (`/applicant`, `/civil-servant`, `/cib7-admin`) and get their roles from them | Keycloak (`--import-realm`) | `RealmFilesTest` |
 | `frontend/catalog.json` | catalog v1: namespaces, services (category, issuer), issuers (tone) | `src/pack/catalog.ts` | `src/pack/pack.test.ts` |
 | `frontend/forms/<form-id>.json` | form definition v1 | `src/forms/schema/definition.ts` | `src/pack/pack.test.ts` |
-| `frontend/locales/<lang>/<ns>.json` | i18next JSON; `catalog`, `names` and one namespace per form; `en` and `ar` with the same keys | `loadPack()` | `src/pack/pack.test.ts` (also: every BPMN `name=` translated) |
+| `frontend/locales/<lang>/<ns>.json` | i18next JSON; `catalog`, `names` and one namespace per form; `en` and `ar` with the same keys | `loadPack()`; the mobile app reads `catalog` (document labels) | `src/pack/pack.test.ts` (also: every BPMN `name=` translated) |
 | `branding/brand.json` | brand v1: `logo.light`, `logo.dark`, `favicon` (bare image file names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme (`keycloak/themes/cib7/login/template.ftl`) | `src/pack/brand.test.ts` |
-| `branding/tokens.json` | brand v1: [brand tokens](#brand-tokens) per scheme (hex), `fonts.display` / `fonts.body` (family names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme | `src/pack/brand.test.ts` (with WCAG AA contrast) |
-| `branding/locales/<lang>/brand.json` | `name`, `sub`, `portal` | `loadBrand()`, `DocumentBrand`, the login theme | `src/pack/brand.test.ts` |
+| `branding/tokens.json` | brand v1: [brand tokens](#brand-tokens) per scheme (hex), `fonts.display` / `fonts.body` (family names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme, the mobile app (`mobile/lib/pack.dart`) | `src/pack/brand.test.ts` (with WCAG AA contrast) |
+| `branding/locales/<lang>/brand.json` | `name`, `sub`, `portal` | `loadBrand()`, `DocumentBrand`, the login theme, the mobile app (`mobile/lib/pack.dart`) | `src/pack/brand.test.ts` |
 
 The details of each format sit with its reader: the Javadoc or JSDoc of the
 class named above, and for generated files the service-builder skill
@@ -177,7 +177,7 @@ pack.
 
 - Groups and roles of the pack's own: a pack's users join the core groups,
   because only those get engine grants (`AuthorizationBootstrap`).
-- Mobile brand and document labels (S27 to S29).
+- App icons (PNG) from the pack: the mobile app's icons are the core mark.
 - Font files from the pack: a brand font must be one the page already loads.
 - MCP manifests: read from `docs/business/services/*/build/`, which moves
   into the pack with the specs.

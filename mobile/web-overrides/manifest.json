@@ -1,11 +1,11 @@
 {
-    "name": "CompanyLab",
-    "short_name": "CompanyLab",
+    "name": "__BRAND_NAME__",
+    "short_name": "__BRAND_NAME__",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
-    "theme_color": "#0b57c9",
-    "description": "Apply for and follow your CompanyLab public services.",
+    "theme_color": "__BRAND_COLOR__",
+    "description": "Apply for and follow your __BRAND_NAME__ public services.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
