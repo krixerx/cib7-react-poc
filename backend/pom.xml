@@ -176,6 +176,30 @@
       </testResource>
     </testResources>
     <plugins>
+      <!-- The build and the tests run on the JDK production runs (eclipse-temurin
+           21 in the Dockerfile, java-version 21 in CI). A newer local JDK still
+           compiles for 21 (java.version) but runs the tests on another JVM, so
+           it is refused with a clear message instead. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>require-jdk-21</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[21,22)</version>
+                  <message>This module builds and tests on JDK 21 (as the image runs it). Set JAVA_HOME to a JDK 21.</message>
+                </requireJavaVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>

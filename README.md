@@ -508,7 +508,7 @@ applicant).
 
 ## Run locally (without Docker)
 
-Requires **Java 17+** and **Node.js 20+**.
+Requires **JDK 21** (the build refuses another JDK; set `JAVA_HOME`) and **Node.js 24**.
 
 **Engine** (terminal 1):
 

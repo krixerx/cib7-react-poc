@@ -64,7 +64,7 @@ cd e2e && npm install && npx playwright install chromium && npm test
 `npm run typecheck` is the cheapest correctness check after a TypeScript change.
 Node 24 for `frontend` (npm 10 crashes resolving vitest 4's peers, so write
 locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
-modules.
+modules (enforced: the poms refuse another JDK, so point `JAVA_HOME` at a JDK 21).
 
 Check a service pack against the platform API (docs/platform-api.md):
 

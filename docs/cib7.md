@@ -30,7 +30,7 @@ http-connector like any other external REST service.
 
 | | |
 |---|---|
-| Language | Java 17 |
+| Language | Java 21 (JDK 21 enforced by the build, `eclipse-temurin:21` in the image) |
 | Framework | Spring Boot 3.5 |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
 | Database | Postgres (`postgres` profile) in docker-compose, in-memory H2 in tests and `mvn spring-boot:run`; schema by Flyway (`db/V1__CibSevenSchema.java`) |
