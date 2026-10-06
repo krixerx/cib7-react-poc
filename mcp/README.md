@@ -222,7 +222,7 @@ startup banner. Details in [`../docs/logging.md`](../docs/logging.md).
 
 - `package.json` — `@modelcontextprotocol/sdk`, `express`, `tsx`, `ajv`, `ajv-formats`, `jose`.
 - `tsconfig.json` — strict TypeScript with `noEmit` (tsx interprets at runtime).
-- `Dockerfile` — `node:24-alpine`, no multi-stage; installs runtime dependencies only (`npm ci --omit=dev`), then removes npm, so the container starts with `node --import tsx src/server.ts`, the same thing `npm start` runs locally. COPYs from repo root so it can include both `mcp/src` and `docs/business/services`.
+- `Dockerfile` — `node:24-alpine`, no multi-stage; installs runtime dependencies only (`npm ci --omit=dev`), then removes npm, so the container starts with `node --import tsx src/server.ts`, the same thing `npm start` runs locally. COPYs from repo root so it can include both `mcp/src` and `packs/reference/docs/business/services`.
 - `cib7-bridge.mjs` — Node launcher for a local stack, used by Claude Desktop's `claude_desktop_config.json`. Finds `mcp-remote` through `npm root -g` and imports its entry directly with assembled `process.argv` to avoid shell-quoting issues; `CIB7_MCP_URL` overrides the target.
 - `src/server.ts` — Express + per-request MCP `Server` + `StreamableHTTPServerTransport`. Tool registry, `SERVER_INSTRUCTIONS` LLM playbook, AsyncLocalStorage bearer-context.
 - `src/auth/requireBearer.ts` — the `/mcp` door: 401 + `WWW-Authenticate` for every request without a valid token, so the client signs in at connect time.

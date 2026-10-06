@@ -24,9 +24,10 @@ import org.w3c.dom.NodeList;
 
 /**
  * Holds the pack to the project's spec-first rule: every BPMN service task and decision has a spec
- * under {@code docs/business/services/<service>/}, and the payload template a spec carries is the
- * one the engine runs. Services once ran with most of their integrations unspecified, which also
- * hid two inline JSON payloads that could not escape a reviewer's free text.
+ * under {@code packs/reference/docs/business/services/<service>/}, and the payload template a spec
+ * carries is the one the engine runs. Services once ran with most of their integrations
+ * unspecified, which also hid two inline JSON payloads that could not escape a reviewer's free
+ * text.
  */
 @Tag("pack")
 class ServiceSpecsTest {
@@ -36,7 +37,7 @@ class ServiceSpecsTest {
   private static final Path TEMPLATES =
       Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "templates");
   private static final Path SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
 
   private static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
   private static final String CAMUNDA_NS = "http://camunda.org/schema/1.0/bpmn";

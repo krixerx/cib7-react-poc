@@ -5,7 +5,7 @@
 // backend. Every request needs that token, the handshake included (see
 // auth/requireBearer.ts), so the client signs the user in when connecting.
 // Variable shapes come from the manifests /service-builder generates under
-// docs/business/services/.
+// packs/reference/docs/business/services/.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import express from 'express';

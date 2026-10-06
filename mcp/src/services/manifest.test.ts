@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 type ManifestModule = typeof import('./manifest');
 
-// Mirrors the real manifest shape in docs/business/services/*/build/mcp-service.json,
+// Mirrors the real manifest shape in packs/reference/docs/business/services/*/build/mcp-service.json,
 // trimmed to one user task and a two-field variables schema.
 const VALID_MANIFEST = {
   key: 'toyRegistration',

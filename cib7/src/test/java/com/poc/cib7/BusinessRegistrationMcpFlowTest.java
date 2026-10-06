@@ -19,8 +19,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * Regression test for the MCP-driven businessRegistration path, against the real deployed BPMN +
  * DMN on a full (H2-backed) engine.
  *
- * <p>The MCP manifest (docs/business/services/business-registration/build/mcp-service.json) exposes
- * a deliberately minimal six-field surface with {@code additionalProperties:false}, so a process
+ * <p>The MCP manifest
+ * (packs/reference/docs/business/services/business-registration/build/mcp-service.json) exposes a
+ * deliberately minimal six-field surface with {@code additionalProperties:false}, so a process
  * completed via MCP never sets the form-internal variables that the SPA business-details form
  * always writes (additionalFounders, applicantResidency, founderSignatures, rejectedByFounder,
  * ...). Two downstream expressions used to assume the rich SPA variable set:

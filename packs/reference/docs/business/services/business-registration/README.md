@@ -2,15 +2,15 @@
 
 **Status:** active (POC)
 **Process key:** `businessRegistration`
-**BPMN:** [`packs/reference/engine/processes/business-registration/business-registration.bpmn`](../../../../packs/reference/engine/processes/business-registration/business-registration.bpmn)
-**DMN:** [`packs/reference/engine/processes/business-registration/business-auto-approval.dmn`](../../../../packs/reference/engine/processes/business-registration/business-auto-approval.dmn)
+**BPMN:** [`packs/reference/engine/processes/business-registration/business-registration.bpmn`](../../../../engine/processes/business-registration/business-registration.bpmn)
+**DMN:** [`packs/reference/engine/processes/business-registration/business-auto-approval.dmn`](../../../../engine/processes/business-registration/business-auto-approval.dmn)
 
 **When to read this:** before changing the businessRegistration flow, its
 forms, or its integrations. Cross-cutting topics live in
-[`../../../architecture.md`](../../../architecture.md),
-[`../../../cib7.md`](../../../cib7.md),
-[`../../../frontend.md`](../../../frontend.md), and
-[`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
+[`docs/architecture.md`](../../../../../../docs/architecture.md),
+[`docs/cib7.md`](../../../../../../docs/cib7.md),
+[`docs/frontend.md`](../../../../../../docs/frontend.md), and
+[`docs/human-role-react-forms-spec.md`](../../../../../../docs/human-role-react-forms-spec.md).
 
 ## Catalog
 
@@ -257,7 +257,7 @@ Desktop / Cursor / Codex). Notes for the assistant:
 ## Flow diagram
 
 The block below is generated from the BPMN by
-[`scripts/bpmn-to-mermaid.mjs`](../../../../scripts/bpmn-to-mermaid.mjs).
+[`scripts/bpmn-to-mermaid.mjs`](../../../../../../scripts/bpmn-to-mermaid.mjs).
 Do not edit between the markers — run the script to refresh:
 
 ```sh

@@ -24,10 +24,12 @@ for part in pack.yaml engine backend frontend branding; do
   fi
 done
 
-# Specs travel with the pack once it has its own repository; until then they
-# live in this repository's docs/.
+# The pack's specs (the source of every generated file in it).
 docs="$pack/docs/business/services"
-[ -d "$docs" ] || docs="$core/docs/business/services"
+if [ ! -d "$docs" ]; then
+  echo "pack-check: $pack has no docs/business/services (the specs)" >&2
+  exit 2
+fi
 
 echo "pack-check: $pack"
 echo "pack-check: specs from $docs"

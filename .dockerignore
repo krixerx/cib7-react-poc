@@ -1,8 +1,7 @@
-# Applies to docker builds that use the repo root as context. Currently
-# only the mcp/ service does so, to access docs/business/services/<id>/build/
-# for the LLM-facing manifests and training markdown. Other services
-# (cib7/, frontend/, pdf-renderer/) each use their own subdir as context
-# and read a per-service .dockerignore.
+# Applies to docker builds that use the repo root as context and bring no
+# <module>/Dockerfile.dockerignore of their own: today only mcp/, which
+# reads the pack's packs/reference/docs/business/services/<id>/build/ (the
+# LLM-facing manifests and training markdown).
 
 # Git + per-machine state.
 .git
@@ -30,7 +29,7 @@ scripts
 README.md
 TODOS.md
 
-# Top-level docs are excluded; only docs/business/services is needed by mcp.
-# (docs/business/services intentionally NOT excluded — the matchers above
+# Top-level docs are excluded; mcp needs only the pack's specs folder.
+# (packs/ intentionally NOT excluded — the matchers above
 # don't reach into it.)
 docs/*.md

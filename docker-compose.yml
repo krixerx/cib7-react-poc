@@ -257,7 +257,7 @@ services:
     # before any production tool code lands. See mcp/README.md.
     build:
       # Build context is the repo root so the Dockerfile can COPY both
-      # mcp/ source AND docs/business/services/ (LLM manifests + training
+      # mcp/ source AND packs/reference/docs/business/services/ (LLM manifests + training
       # md). Excludes are handled by the repo-root .dockerignore.
       context: .
       dockerfile: mcp/Dockerfile

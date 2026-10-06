@@ -2,14 +2,14 @@
 
 **Status:** active (POC)
 **Process key:** `vehicleRegistration`
-**BPMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn`](../../../../packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn)
-**DMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](../../../../packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
+**BPMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn`](../../../../engine/processes/vehicle-registration/vehicle-registration.bpmn)
+**DMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](../../../../engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
 
 **When to read this:** before changing the vehicle-registration flow, its forms,
 or its integrations. Cross-cutting topics (platform architecture, engine config,
-form contract) live in [`../../../architecture.md`](../../../architecture.md),
-[`../../../cib7.md`](../../../cib7.md), [`../../../frontend.md`](../../../frontend.md),
-and [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
+form contract) live in [`docs/architecture.md`](../../../../../../docs/architecture.md),
+[`docs/cib7.md`](../../../../../../docs/cib7.md), [`docs/frontend.md`](../../../../../../docs/frontend.md),
+and [`docs/human-role-react-forms-spec.md`](../../../../../../docs/human-role-react-forms-spec.md).
 
 ## Catalog
 
@@ -44,7 +44,7 @@ also loops the case back to the applicant, with the rejection reason.
 ## Flow diagram
 
 The block below is generated from the BPMN by
-[`scripts/bpmn-to-mermaid.mjs`](../../../../scripts/bpmn-to-mermaid.mjs).
+[`scripts/bpmn-to-mermaid.mjs`](../../../../../../scripts/bpmn-to-mermaid.mjs).
 Do not edit between the markers — run the script to refresh:
 
 ```sh
@@ -141,15 +141,15 @@ flowchart LR
 |---|---|---|---|
 | `owner-vehicle` | `Task_SubmitDetails` | applicant (initiator) | [`forms/owner-vehicle.md`](forms/owner-vehicle.md) |
 | `vehicle-review` | `Task_Review` | `civil-servant` group | [`forms/vehicle-review.md`](forms/vehicle-review.md) |
-| n/a (public page) | n/a — public REST | each co-owner (email link) | [`frontend/src/pages/ConsentPage.tsx`](../../../../frontend/src/pages/ConsentPage.tsx) (`/consent/owner/<token>`) |
+| n/a (public page) | n/a — public REST | each co-owner (email link) | [`frontend/src/pages/ConsentPage.tsx`](../../../../../../frontend/src/pages/ConsentPage.tsx) (`/consent/owner/<token>`) |
 
-Form contract: see [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
+Form contract: see [`docs/human-role-react-forms-spec.md`](../../../../../../docs/human-role-react-forms-spec.md).
 Registry resolution lives in `frontend/src/forms/registry.ts`. The owner
 confirmation page is NOT a BPMN form — it's a public, unauthenticated SPA
 route reached from `${frontendBaseUrl}/consent/owner/{token}` email links
 and backed by `/api/public/consent/owner/**`, the backend's generic co-signing
 endpoint configured by [`consent.md`](consent.md)
-([`ConsentController`](../../../../backend/src/main/java/com/poc/backend/consent/ConsentController.java)).
+([`ConsentController`](../../../../../../backend/src/main/java/com/poc/backend/consent/ConsentController.java)).
 
 ## Service tasks (integrations)
 
@@ -196,7 +196,7 @@ round equals the case's current `consentRound`. Any failure is the same 404
 as JUEL variables by `BusConfiguration` and `FrontendConfiguration` in the
 engine. Outbound email/PDF/backend calls all go to `${busBaseUrl}`; the bus
 (`esb`, Apache Camel) routes each path to the real downstream system. The
-`pdf` bean is `PdfHelper`, the `links` bean `CapabilityLinks`. See [`../../../cib7.md`](../../../cib7.md) for the
+`pdf` bean is `PdfHelper`, the `links` bean `CapabilityLinks`. See [`docs/cib7.md`](../../../../../../docs/cib7.md) for the
 wiring.
 
 ## Process variables
@@ -285,7 +285,7 @@ vehicle lookup results, `autoDecision`, PDF and attachment variables.
 - **Co-owners** — NOT Keycloak users. They authorise themselves to the
   public confirmation endpoints by presenting the capability token
   embedded in their email link. The `/api/public/**` filter chain
-  ([`SecurityConfig`](../../../../backend/src/main/java/com/poc/backend/security/SecurityConfig.java))
+  ([`SecurityConfig`](../../../../../../backend/src/main/java/com/poc/backend/security/SecurityConfig.java))
   is `permitAll()`; the token IS the credential. It acts for one owner of
   one case in one round, and the status endpoint shows other owners' names
   and states only, never their email or link.

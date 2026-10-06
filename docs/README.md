@@ -23,7 +23,7 @@ The docs are split into two layers:
 - **Platform docs** (this folder) — how the platform works. Cross-cutting,
   service-agnostic.
 - **Business docs** ([`business/`](business/)) — what the platform delivers.
-  One folder per service under [`business/services/`](business/services/),
+  One folder per service under [`business/services/`](../packs/reference/docs/business/services/),
   each describing its BPMN flow, forms, integrations, and roles.
 
 | If you need to … | Read |
@@ -39,8 +39,8 @@ The docs are split into two layers:
 | Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture-poc) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
 | Add or change an endpoint, grant, variable, token link, integration or container (mandatory rules) | [`security.md`](security.md) |
 | Reference the form contract between BPMN and React | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
-| Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](business/services/) |
-| Add a new business service | [`business/services/`](business/services/) — copy an existing service folder as a template |
+| Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](../packs/reference/docs/business/services/) |
+| Add a new business service | [`business/services/`](../packs/reference/docs/business/services/) — copy an existing service folder as a template |
 | Regenerate a service's flow diagram from its BPMN | [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) |
 | Run / build the app, see the high-level overview | top-level [`../README.md`](../README.md) |
 
@@ -48,8 +48,8 @@ The docs are split into two layers:
 
 | Service | Process key | Doc |
 |---|---|---|
-| Vehicle Registration | `vehicleRegistration` | [`business/services/vehicle-registration/`](business/services/vehicle-registration/README.md) |
-| Estonian OÜ Registration | `businessRegistration` | [`business/services/business-registration/`](business/services/business-registration/README.md) |
+| Vehicle Registration | `vehicleRegistration` | [`business/services/vehicle-registration/`](../packs/reference/docs/business/services/vehicle-registration/README.md) |
+| Estonian OÜ Registration | `businessRegistration` | [`business/services/business-registration/`](../packs/reference/docs/business/services/business-registration/README.md) |
 
 ## Conventions
 
@@ -66,7 +66,7 @@ The docs are split into two layers:
   `frontend/src/forms/registry.ts`. Details: [`frontend.md`](frontend.md#forms).
 - **Service docs are per-service.** Anything specific to a single business
   service (its flow, forms, integrations, variables, roles) belongs in
-  `docs/business/services/<service>/`, not in the cross-cutting platform
+  `packs/reference/docs/business/services/<service>/`, not in the cross-cutting platform
   docs. The cross-cutting docs describe how the platform works in general;
   the service folder describes what one service does in particular.
 - **Flow diagrams are generated, not hand-written.** Each service README

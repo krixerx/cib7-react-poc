@@ -1,7 +1,7 @@
 // Service manifest registry.
 //
 // At startup we walk SERVICES_SPEC_DIR (mounted from
-// docs/business/services/ at image build time), find every
+// packs/reference/docs/business/services/ at image build time), find every
 // */build/mcp-service.json + */build/mcp-training.md pair, and index them
 // by the manifest's `key` field (which must match the BPMN process
 // definition key — that's the integration contract).

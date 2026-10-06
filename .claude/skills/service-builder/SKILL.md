@@ -2,13 +2,13 @@
 name: service-builder
 description: |
   Generate or modify a CIB seven business service from its markdown spec under
-  docs/business/services/<service>/. Reads README.md, forms/*.md, service-tasks/*.md,
+  packs/reference/docs/business/services/<service>/. Reads README.md, forms/*.md, service-tasks/*.md,
   and decisions/*.md; emits BPMN, DMN, FreeMarker payload templates, React form
   components, registry entries, MCP manifest + LLM training markdown for the
   /mcp microservice, and a regenerated mermaid diagram. Use when asked to "build
   the service", "generate from the spec", "scaffold a new service", "regenerate
   the BPMN", "regenerate the MCP manifest", or after editing any file under
-  docs/business/services/.
+  packs/reference/docs/business/services/.
 allowed-tools:
   - Read
   - Write
@@ -22,7 +22,7 @@ allowed-tools:
 # /service-builder — spec-first CIB seven service generator
 
 This skill turns a service's markdown spec into running code. The analyst owns
-the markdown under `docs/business/services/<service>/`; everything else is
+the markdown under `packs/reference/docs/business/services/<service>/`; everything else is
 generated. The goal is that **regenerating the same spec produces the same
 output**, so modifications work by editing the spec and re-running.
 
@@ -38,18 +38,18 @@ both before generating a new service:
 
 | | vehicle-registration | business-registration |
 |---|---|---|
-| Spec | [`README.md`](../../../docs/business/services/vehicle-registration/README.md) | [`README.md`](../../../docs/business/services/business-registration/README.md) |
+| Spec | [`README.md`](../../../packs/reference/docs/business/services/vehicle-registration/README.md) | [`README.md`](../../../packs/reference/docs/business/services/business-registration/README.md) |
 | BPMN | [`vehicle-registration.bpmn`](../../../packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn) | [`business-registration.bpmn`](../../../packs/reference/engine/processes/business-registration/business-registration.bpmn) |
 | DMN | [`vehicle-auto-approval.dmn`](../../../packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn) | [`business-auto-approval.dmn`](../../../packs/reference/engine/processes/business-registration/business-auto-approval.dmn) |
 | Forms | [`owner-vehicle.json`](../../../packs/reference/frontend/forms/owner-vehicle.json), [`vehicle-review.json`](../../../packs/reference/frontend/forms/vehicle-review.json) | [`business-details.json`](../../../packs/reference/frontend/forms/business-details.json), [`review-business-registration.json`](../../../packs/reference/frontend/forms/review-business-registration.json) |
-| Service tasks | [`service-tasks/`](../../../docs/business/services/vehicle-registration/service-tasks/) | [`service-tasks/`](../../../docs/business/services/business-registration/service-tasks/) |
-| MCP manifest | [`build/mcp-service.json`](../../../docs/business/services/vehicle-registration/build/mcp-service.json) | [`build/mcp-service.json`](../../../docs/business/services/business-registration/build/mcp-service.json) |
-| MCP training | [`build/mcp-training.md`](../../../docs/business/services/vehicle-registration/build/mcp-training.md) | [`build/mcp-training.md`](../../../docs/business/services/business-registration/build/mcp-training.md) |
+| Service tasks | [`service-tasks/`](../../../packs/reference/docs/business/services/vehicle-registration/service-tasks/) | [`service-tasks/`](../../../packs/reference/docs/business/services/business-registration/service-tasks/) |
+| MCP manifest | [`build/mcp-service.json`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-service.json) | [`build/mcp-service.json`](../../../packs/reference/docs/business/services/business-registration/build/mcp-service.json) |
+| MCP training | [`build/mcp-training.md`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-training.md) | [`build/mcp-training.md`](../../../packs/reference/docs/business/services/business-registration/build/mcp-training.md) |
 
 Cross-service artifacts:
 
 - Form registry: [`frontend/src/forms/registry.ts`](../../../frontend/src/forms/registry.ts) (full rewrite per run)
-- Aggregated MCP index: [`docs/business/services/build/services.json`](../../../docs/business/services/build/services.json)
+- Aggregated MCP index: [`packs/reference/docs/business/services/build/services.json`](../../../packs/reference/docs/business/services/build/services.json)
 - Mermaid generator: [`scripts/bpmn-to-mermaid.mjs`](../../../scripts/bpmn-to-mermaid.mjs)
 
 The top-level [`README.md` § "Add or modify a service"](../../../README.md#add-or-modify-a-service)
@@ -62,7 +62,7 @@ explains the human workflow around this skill.
 A service folder looks like:
 
 ```
-docs/business/services/<service>/
+packs/reference/docs/business/services/<service>/
 ├── README.md                  required — flow, roles, variables, trade-offs
 ├── forms/
 │   └── <form-id>.md           one per user task
@@ -94,7 +94,7 @@ and ask** rather than guessing.
 | `<service>.bpmn` after regeneration | mermaid block inside `<service>/README.md` |
 | `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest + JSON Schemas; § 11) |
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
-| Every `<service>/build/mcp-service.json` across every service | `docs/business/services/build/services.json` (aggregated MCP index; § 11) |
+| Every `<service>/build/mcp-service.json` across every service | `packs/reference/docs/business/services/build/services.json` (aggregated MCP index; § 11) |
 | `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2; plus `identity`: variable to `givenName`, `familyName` or `email` from the README's **Identity** line) |
 | `<service>/consent.md` | `packs/reference/backend/consent/<purpose>.yaml` (co-signing descriptor; step 10c) |
 | Every `<service>/README.md` § Documents | `packs/reference/backend/documents.json` (`platform: 2`, `categories: { <name>: { by: applicant \| system } }`, without the core's `generated-certificate`; read by the backend's `DocumentCategories`) and the labels as `documents.<category>` in `packs/reference/frontend/locales/{en,ar}/catalog.json` |
@@ -103,7 +103,7 @@ and ask** rather than guessing.
 | `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `packs/reference/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 
 The three `build/`-typed outputs above are the contract with the `mcp/` Node
-sidecar — its `Dockerfile` COPYs `docs/business/services/` into the image
+sidecar — its `Dockerfile` COPYs `packs/reference/docs/business/services/` into the image
 and the loader walks every `<service>/build/mcp-service.json + mcp-training.md`
 pair. See [`mcp/src/services/manifest.ts`](../../../mcp/src/services/manifest.ts)
 for the consumer side.
@@ -130,7 +130,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
 
 1. **Locate the service.** If invoked with a service name, use it. Otherwise
    ask: "Which service?" with one option per folder under
-   `docs/business/services/`.
+   `packs/reference/docs/business/services/`.
 2. **Read every spec file** in the service folder. Build an in-memory model:
    process id (camelCase = folder name in kebab transformed; usually written
    explicitly in the README), start event, nodes (user tasks, service tasks,
@@ -177,7 +177,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     `packs/reference/engine/processes/<service>/variable-policy.json`:
     ```json
     {
-      "$comment": "Generated from docs/business/services/<service>. Do not hand-edit.",
+      "$comment": "Generated from packs/reference/docs/business/services/<service>. Do not hand-edit.",
       "processDefinitionKey": "<process id>",
       "start": ["<names>"],
       "forms": { "<form-id>": ["<names>"] }
@@ -204,7 +204,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     ```json
     {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "$comment": "Generated from docs/business/services/<service>/forms/<id>.md. Do not hand-edit.",
+      "$comment": "Generated from packs/reference/docs/business/services/<service>/forms/<id>.md. Do not hand-edit.",
       "x-process": "<process id>",
       "x-form": "<form-id>",
       "type": "object",
@@ -246,7 +246,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     backend's registry module serves them; never write Java for a registry.
     Descriptor at `packs/reference/backend/registry/<entity>.yaml`:
     ```yaml
-    # Generated from docs/business/services/<service>/data/<entity>.md. Do not hand-edit.
+    # Generated from packs/reference/docs/business/services/<service>/data/<entity>.md. Do not hand-edit.
     platform: 2
     entity: <entity>            # [a-z][a-z0-9-]*, the URL segment
     table: reg_<name>           # must start with reg_
@@ -297,7 +297,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     the "What to ask for" from the first user task's form Fields, and the
     "Status interpretation" mapping from the BPMN's end states.
 12. **Update the aggregated services index** at
-    `docs/business/services/build/services.json` to include this service's
+    `packs/reference/docs/business/services/build/services.json` to include this service's
     `key`, `name`, `description`, `audience`, and a relative `manifestPath`
     to its `mcp-service.json`. List every service the skill knows about;
     the index is a full rewrite, alphabetical by `key`.
@@ -305,7 +305,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     ```sh
     cd scripts && node bpmn-to-mermaid.mjs \
       ../packs/reference/engine/processes/<service>/<service>.bpmn \
-      --out ../docs/business/services/<service>/README.md
+      --out ../packs/reference/docs/business/services/<service>/README.md
     ```
     The script replaces the block between `<!-- bpmn-diagram:start -->` and
     `<!-- bpmn-diagram:end -->`. If the markers are missing, add them around
@@ -357,7 +357,7 @@ short-circuit on the first one.
 | Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].schema.properties` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP start `variables` properties. A field the MCP schema has but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
 | Security: no wildcard grants | The spec never asks for engine grants; access comes from `camunda:assignee="${initiator}"` and `candidateGroups`. If a spec needs a new role, stop and ask (docs/security.md rule 1). |
 | Security: endpoint class | Connector calls to the backend use `/api/internal/**` for anything that writes data or returns personal data (docs/security.md rule 5). |
-| services.json completeness | `docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
+| services.json completeness | `packs/reference/docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
 
 ---
 
@@ -595,7 +595,7 @@ before the first render.
 
 ```json
 {
-  "$comment": "Generated from the Catalog sections of docs/business/services/*/README.md. Do not hand-edit. Read by frontend/src/pack/catalog.ts (catalog format v1).",
+  "$comment": "Generated from the Catalog sections of packs/reference/docs/business/services/*/README.md. Do not hand-edit. Read by frontend/src/pack/catalog.ts (catalog format v1).",
   "version": 1,
   "namespaces": ["catalog", "names", "<every form namespace, alphabetical>"],
   "services": { "<processKey>": { "category": "<category>", "issuer": "<issuer-id>" } },
@@ -699,11 +699,11 @@ Camunda variable types: `String`, `Integer`, `Long`, `Double`, `Boolean`,
 `Date` (ISO-8601 string), `Json` (Spin-typed object). Match the type declared
 in the README's variables table.
 
-For review-style forms (`readOnly`-by-default field display + an outcome
-button row), look at
-[`ReviewApplicationForm.tsx`](../../../frontend/src/forms/review-application/ReviewApplicationForm.tsx)
-— same `FormProps`, but every input is `disabled` and the action row offers
-**Accept** / **Send back** that complete with different `decision` values.
+Review-style forms (a read-only summary plus an outcome button row) are
+form definitions now, not TSX: see
+[`vehicle-review.json`](../../../packs/reference/frontend/forms/vehicle-review.json),
+whose actions **Approve** / **Send back** complete with different `decision`
+values.
 
 ---
 
@@ -745,7 +745,7 @@ After writing the BPMN, regenerate the diagram block in the service README:
 ```sh
 cd scripts && node bpmn-to-mermaid.mjs \
   ../packs/reference/engine/processes/<service>/<service>.bpmn \
-  --out ../docs/business/services/<service>/README.md
+  --out ../packs/reference/docs/business/services/<service>/README.md
 ```
 
 If the README is brand new, **first** add the marker block under the
@@ -769,14 +769,14 @@ generates three artifacts: a per-service manifest (data), per-service
 training markdown (prose), and an aggregated index.
 
 The reference output for `vehicleRegistration` lives at
-[`docs/business/services/vehicle-registration/build/mcp-service.json`](../../../docs/business/services/vehicle-registration/build/mcp-service.json)
+[`packs/reference/docs/business/services/vehicle-registration/build/mcp-service.json`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-service.json)
 and
-[`docs/business/services/vehicle-registration/build/mcp-training.md`](../../../docs/business/services/vehicle-registration/build/mcp-training.md).
+[`packs/reference/docs/business/services/vehicle-registration/build/mcp-training.md`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-training.md).
 Read them before generating a new service — same shape, same field order.
 
 ### 11.1 `mcp-service.json`
 
-Path: `docs/business/services/<service>/build/mcp-service.json`. Schema:
+Path: `packs/reference/docs/business/services/<service>/build/mcp-service.json`. Schema:
 
 ```json
 {
@@ -860,7 +860,7 @@ the LLM has no business setting them through `complete_task`.
 
 ### 11.2 `mcp-training.md`
 
-Path: `docs/business/services/<service>/build/mcp-training.md`. Template
+Path: `packs/reference/docs/business/services/<service>/build/mcp-training.md`. Template
 (fill from the README and form specs):
 
 ```markdown
@@ -919,7 +919,7 @@ paragraph.
 
 ### 11.3 `services.json` (aggregated index)
 
-Path: `docs/business/services/build/services.json`. The MCP sidecar reads
+Path: `packs/reference/docs/business/services/build/services.json`. The MCP sidecar reads
 this as the top-level discovery surface (also served at
 `/.well-known/mcp/services.json` via nginx — see
 [`frontend/nginx.conf`](../../../frontend/nginx.conf)). Schema:
@@ -993,15 +993,15 @@ Next:
   → Mailpit:    http://localhost:8025                       (notifications)
   → MCP via Claude Desktop: configured per /mcp/README.md   (LLM round trip)
 
-The mcp container COPYs docs/business/services/ at image build time, so the
+The mcp container COPYs packs/reference/docs/business/services/ at image build time, so the
 new manifest + training markdown ship into the image automatically. Verify
 with:
   docker exec cib7-poc-mcp ls /app/services-spec/<service>/build/
   curl http://localhost:3000/.well-known/mcp/services.json
 
 When the flow works end-to-end, commit the spec and generated files together:
-  git add docs/business/services/<service>/ \
-          docs/business/services/build/services.json \
+  git add packs/reference/docs/business/services/<service>/ \
+          packs/reference/docs/business/services/build/services.json \
           packs/reference/engine/processes/ \
           packs/reference/engine/templates/ \
           frontend/src/forms/

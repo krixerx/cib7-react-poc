@@ -33,7 +33,8 @@ class VariablePolicyFilesTest {
 
   private static final Path PROCESSES =
       Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "processes");
-  private static final Path SERVICE_SPECS = Path.of("..", "docs", "business", "services");
+  private static final Path SERVICE_SPECS =
+      Path.of("..", "packs", "reference", "docs", "business", "services");
   private static final ObjectMapper JSON = new ObjectMapper();
 
   private static final Pattern PROCESS = Pattern.compile("<bpmn:process\\s[^>]*id=\"([^\"]+)\"");

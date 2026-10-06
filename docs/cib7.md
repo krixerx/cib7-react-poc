@@ -354,7 +354,7 @@ replaces `/opt/services` with a bind mount or a thin image layer.
 
 The scan creates **one named engine deployment per service folder**
 (deployment name = folder name = the spec folder name under
-`docs/business/services/`), with `enableDuplicateFiltering(false)` so a
+`packs/reference/docs/business/services/`), with `enableDuplicateFiltering(false)` so a
 re-deploy of an unchanged service is a no-op and an edit re-versions only
 that service, always with **all** of its files. The argument is
 `deployChangedOnly`: with `true` a changed BPMN would be deployed alone,

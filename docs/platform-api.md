@@ -50,6 +50,7 @@ refuses the file (or the start), never half of it.
 ```
 <pack>/
 ├── pack.yaml                         manifest: name, version, platform
+├── docs/business/services/<service>/  the specs (source of truth) and build/ (MCP manifests)
 ├── engine/                           on the engine's classpath (/opt/services)
 │   ├── processes/<service>/          one engine deployment per folder
 │   │   ├── <service>.bpmn, *.dmn
@@ -71,9 +72,11 @@ refuses the file (or the start), never half of it.
     └── locales/<lang>/brand.json
 ```
 
-Until the pack has its own repository, its specs live in this repository's
-`docs/business/services/<service>/` and its ESB routes in `esb/routes/`
-(file names and route ids `pack-*`).
+The pack's specs, the source of everything generated in it, live in its
+`docs/business/services/<service>/`, together with the generated MCP
+manifests (`<service>/build/`, `build/services.json`). Until the pack has
+its own repository, its ESB routes stay in `esb/routes/` (file names and
+route ids `pack-*`).
 
 ## Formats
 
@@ -179,5 +182,6 @@ pack.
   because only those get engine grants (`AuthorizationBootstrap`).
 - App icons (PNG) from the pack: the mobile app's icons are the core mark.
 - Font files from the pack: a brand font must be one the page already loads.
-- MCP manifests: read from `docs/business/services/*/build/`, which moves
-  into the pack with the specs.
+- MCP manifests: the sidecar reads them from the pack's
+  `docs/business/services/*/build/`, but no pack check covers their format yet
+  (S43).

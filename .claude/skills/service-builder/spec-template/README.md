@@ -1,6 +1,6 @@
 <!--
   Service spec — the single source of truth for one business service.
-  Copy this folder to docs/business/services/<service-id>/ and edit every
+  Copy this folder to packs/reference/docs/business/services/<service-id>/ and edit every
   section. The service-builder skill reads this file to generate the BPMN
   and to rewrite the mermaid block below.
 
@@ -12,14 +12,14 @@
 
 **Status:** draft
 **Process key:** `<processKeyCamelCase>`
-**BPMN:** [`packs/reference/engine/processes/<service-id>.bpmn`](../../../../packs/reference/engine/processes/<service-id>.bpmn)
+**BPMN:** [`packs/reference/engine/processes/<service-id>/<service-id>.bpmn`](../../../../engine/processes/<service-id>/<service-id>.bpmn)
 
 **When to read this:** before changing the <service-id> flow, its forms, or
 its integrations. Cross-cutting topics live in
-[`../../../architecture.md`](../../../architecture.md),
-[`../../../cib7.md`](../../../cib7.md),
-[`../../../frontend.md`](../../../frontend.md), and
-[`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).
+[`docs/architecture.md`](../../../../../../docs/architecture.md),
+[`docs/cib7.md`](../../../../../../docs/cib7.md),
+[`docs/frontend.md`](../../../../../../docs/frontend.md), and
+[`docs/human-role-react-forms-spec.md`](../../../../../../docs/human-role-react-forms-spec.md).
 
 ## Catalog
 
@@ -168,7 +168,7 @@ from those alone.>
 ## Flow diagram
 
 The block below is generated from the BPMN by
-[`scripts/bpmn-to-mermaid.mjs`](../../../../scripts/bpmn-to-mermaid.mjs).
+[`scripts/bpmn-to-mermaid.mjs`](../../../../../../scripts/bpmn-to-mermaid.mjs).
 Do not edit between the markers — the service-builder skill refreshes it on
 every run.
 

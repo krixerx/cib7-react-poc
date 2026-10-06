@@ -10,7 +10,7 @@ form. Two services ship: `vehicleRegistration` and `businessRegistration`.
 Auth is Keycloak OIDC throughout; the same deployment is also driveable over MCP.
 
 The deepest thing to internalize: **business services are spec-first**. The
-markdown under `docs/business/services/<service>/` is the source of truth, and
+markdown under `packs/reference/docs/business/services/<service>/` is the source of truth, and
 BPMN, DMN, FreeMarker templates, React forms, the form registry and the MCP
 manifests are generated from it. See "Changing a service" below.
 
@@ -77,7 +77,7 @@ Regenerate a service's flow diagram after touching its BPMN:
 ```bash
 cd scripts && npm install
 node bpmn-to-mermaid.mjs ../packs/reference/engine/processes/<service>/<service>.bpmn \
-  --out ../docs/business/services/<service>/README.md
+  --out ../packs/reference/docs/business/services/<service>/README.md
 # rewrites the block between the bpmn-diagram:start / :end markers in place
 ```
 
@@ -130,8 +130,8 @@ Module responsibilities are strict and worth preserving:
 - **`mcp/` forwards the caller's own Bearer** to `/engine-rest`. There is no AI
   service account, so everything an agent does is attributable to a real
   Keycloak user. Its per-service schemas come from the generated
-  `docs/business/services/*/build/mcp-service.json` and the aggregated
-  `docs/business/services/build/services.json`.
+  `packs/reference/docs/business/services/*/build/mcp-service.json` and the aggregated
+  `packs/reference/docs/business/services/build/services.json`.
 
 The SPA always calls same-origin paths (`/engine-rest/...`, `/api/...`), so there
 is no CORS config on either Java service. The only cross-origin browser call is
@@ -158,7 +158,7 @@ breaking is a major. Tests that hold for any pack are tagged `pack`;
 ## Changing a service
 
 Never hand-edit generated files. The loop is: edit the markdown spec under
-`docs/business/services/<service>/` (`README.md`, `forms/*.md`,
+`packs/reference/docs/business/services/<service>/` (`README.md`, `forms/*.md`,
 `service-tasks/*.md`, `decisions/*.md`), run the `/service-builder` skill
 (`.claude/skills/service-builder/SKILL.md`), test with `docker compose up --build`,
 then commit spec and generated output as one atomic change.
@@ -177,8 +177,8 @@ Generated from the spec:
 - `packs/reference/frontend/forms/<form-id>.json` (form definition, the default);
   `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` only for
   `Renderer: tsx` forms
-- `docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
-  plus the aggregated `docs/business/services/build/services.json`
+- `packs/reference/docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
+  plus the aggregated `packs/reference/docs/business/services/build/services.json`
 - the mermaid block between the `bpmn-diagram:start` / `bpmn-diagram:end` markers
   in the service README
 
