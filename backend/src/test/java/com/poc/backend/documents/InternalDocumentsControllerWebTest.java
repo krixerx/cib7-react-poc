@@ -44,7 +44,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  */
 @WebMvcTest(controllers = InternalDocumentsController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(InternalDocumentsControllerWebTest.Props.class)
+@Import({InternalDocumentsControllerWebTest.Props.class, DocumentCategories.class})
 @TestPropertySource(properties = {"app.s3.bucket=test-bucket", "app.s3.max-bytes=1024"})
 class InternalDocumentsControllerWebTest {
 
@@ -88,6 +88,25 @@ class InternalDocumentsControllerWebTest {
         + "\"category\":\"generated-approval-pdf\",\"base64\":\""
         + Base64.getEncoder().encodeToString(new byte[byteCount])
         + "\"}";
+  }
+
+  /** The engine files rendered PDFs as system documents and moves uploads as applicant ones. */
+  @Test
+  void eachInternalEndpointTakesOnlyItsKindOfCategory() throws Exception {
+    givenObjectExists();
+    mvc.perform(
+            post("/api/internal/documents/server-upload")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(uploadBody(8).replace("generated-approval-pdf", "applicant-id-document")))
+        .andExpect(status().isBadRequest());
+    mvc.perform(
+            post("/api/internal/documents/move-pending")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    moveBody("pending/lisa/u/id.png")
+                        .replace("applicant-id-document", "generated-certificate")))
+        .andExpect(status().isBadRequest());
+    verify(documents, never()).save(any());
   }
 
   @Test

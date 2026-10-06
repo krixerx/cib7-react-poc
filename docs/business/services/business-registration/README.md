@@ -151,6 +151,17 @@ The approval email's pay link is `${frontendBaseUrl}/pay/${links.payment(executi
 (30-day expiry). The fee (EUR 265) is computed by the backend; the
 callback must report exactly that amount.
 
+## Documents
+
+The document categories this service files (see the vehicle registration
+README for the rules). Generated into the pack's `backend/documents.json`.
+
+| Category | By | Label (en / ar) |
+|---|---|---|
+| `founder-articles-of-association` | applicant | Articles of Association / عقد التأسيس |
+| `generated-business-fee-invoice` | system | State fee invoice / فاتورة الرسوم الحكومية |
+| `generated-certificate` | system (core) | the B-card extract |
+
 ## State fee
 
 What the applicant pays after approval. Generated into the pack's

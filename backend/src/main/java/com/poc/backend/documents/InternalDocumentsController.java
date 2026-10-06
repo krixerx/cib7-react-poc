@@ -1,6 +1,5 @@
 package com.poc.backend.documents;
 
-import static com.poc.backend.documents.DocumentStorage.ALLOWED_CATEGORIES;
 import static com.poc.backend.documents.DocumentStorage.isPendingKeyOf;
 import static com.poc.backend.documents.DocumentStorage.objectExists;
 import static com.poc.backend.documents.DocumentStorage.safeFilename;
@@ -40,8 +39,15 @@ public class InternalDocumentsController {
   private final DocumentRepository documents;
   private final EngineClient engine;
 
+  private final DocumentCategories categories;
+
   public InternalDocumentsController(
-      S3Client s3, S3Properties props, DocumentRepository documents, EngineClient engine) {
+      S3Client s3,
+      S3Properties props,
+      DocumentRepository documents,
+      EngineClient engine,
+      DocumentCategories categories) {
+    this.categories = categories;
     this.s3 = s3;
     this.props = props;
     this.documents = documents;
@@ -58,8 +64,8 @@ public class InternalDocumentsController {
         || req.category() == null) {
       return badRequest("pendingKey, processInstanceId, filename, contentType, category required.");
     }
-    if (!ALLOWED_CATEGORIES.contains(req.category())) {
-      return badRequest("category must be one of " + ALLOWED_CATEGORIES);
+    if (!categories.isApplicantUpload(req.category())) {
+      return badRequest("move-pending files an applicant upload; category must be one.");
     }
     String initiator = engine.getHistoricStartUserId(req.processInstanceId());
     if (!isPendingKeyOf(req.pendingKey(), initiator)) {
@@ -109,8 +115,8 @@ public class InternalDocumentsController {
         || req.base64() == null) {
       return badRequest("processInstanceId, filename, contentType, category, base64 required.");
     }
-    if (!ALLOWED_CATEGORIES.contains(req.category())) {
-      return badRequest("category must be one of " + ALLOWED_CATEGORIES);
+    if (!categories.isSystem(req.category())) {
+      return badRequest("server-upload files a system document; category must be one.");
     }
 
     byte[] bytes;

@@ -158,6 +158,15 @@ the amount and the outcome, verified in constant time against the amount the
 server computed. A browser call saying "it happened" is never proof. The demo
 uses `MockPaymentProvider` as that authority.
 
+The same holds for documents: an issued document is a fact only the engine
+can state. Every document category says who may create it
+(`backend/documents.json`, `DocumentCategories`): the user-facing endpoints
+(`/api/documents/upload-url` flow, `/stage`, `/{case}/attachments`) accept only
+`by: applicant` categories, and `server-upload` only `by: system` ones. Before
+this, a signed-in applicant could file their own PDF as their case's
+`generated-certificate`, which the mobile wallet and the approval signal show
+as issued (`DocumentsControllerWebTest.registerRefusesSystemCategoriesAndPersistsNothing`).
+
 How it is built: `POST /api/public/payments/{token}/checkout` only creates a
 `PaymentSession` (random session id, amount from `FeeSchedule`, which
 computes it from the pack's `backend/payment/` rule; a tiered fee may only

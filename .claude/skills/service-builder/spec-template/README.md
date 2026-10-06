@@ -93,6 +93,17 @@ service-builder generates for the MCP sidecar — write it for both audiences.>
 | `initiator` | start event | String | Login of the user that started the case. |
 | `<varName>` | `<task-id>` | `<String\|Integer\|Long\|Double\|Boolean\|byte[]>` | <Optional notes. byte[] for anything > 4 kB.> |
 
+## Documents
+
+| Category | By | Label (en / ar) |
+|---|---|---|
+| `<kebab-name>` | applicant | <label> / <Arabic label> |
+| `generated-<kebab-name>` | system | <label> / <Arabic label> |
+
+`by: applicant` = a signed-in user may upload it; `by: system` = only the
+engine files it (rendered PDFs), and its name starts with `generated-`. The
+issued certificate is the core's `generated-certificate`; do not declare it.
+
 ## State fee (optional, only for a service with a payment step)
 
 Generated into the pack's `backend/payment/<service>.yaml`. Add a

@@ -134,6 +134,27 @@ describe('the pack', () => {
     }
   });
 
+  it('files uploads only under declared applicant categories, and names every category', () => {
+    const declared = json(resolve(PACK_ROOT, 'backend', 'documents.json')).categories as Record<
+      string,
+      { by: string }
+    >;
+    const applicant = Object.keys(declared).filter((c) => declared[c].by === 'applicant');
+    const forms = readdirSync(resolve(PACK, 'forms')).filter((f) => f.endsWith('.json'));
+    for (const file of forms) {
+      const d = parseDefinition(json(resolve(PACK, 'forms', file)), file.replace(/\.json$/, ''));
+      for (const f of d.fields) {
+        if (f.file) expect(applicant, `${file}: ${f.name}`).toContain(f.file.category);
+      }
+    }
+    for (const lang of LANGS) {
+      const keys = packKeys(lang, 'catalog');
+      for (const category of Object.keys(declared)) {
+        expect(keys.has(`documents.${category}`), `${lang} label for ${category}`).toBe(true);
+      }
+    }
+  });
+
   it('describes every catalog service and issuer in the catalog texts', () => {
     for (const lang of LANGS) {
       const keys = packKeys(lang, 'catalog');

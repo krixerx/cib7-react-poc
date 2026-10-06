@@ -9,11 +9,25 @@
     { "label": "summary.firstName", "variable": "firstName" },
     { "label": "summary.lastName", "variable": "lastName" },
     { "label": "summary.age", "variable": "age" },
-    { "label": "summary.decision", "variable": "decision", "format": "decision", "show": "readOnly" },
-    { "label": "summary.sendBackReason", "variable": "sendBackReason", "show": "readOnly" }
+    {
+      "label": "summary.decision",
+      "variable": "decision",
+      "format": "decision",
+      "show": "readOnly"
+    },
+    {
+      "label": "summary.sendBackReason",
+      "variable": "sendBackReason",
+      "show": "readOnly"
+    }
   ],
   "fields": [
-    { "name": "price", "label": "fields.vehicleValue.label", "type": "display", "format": "currency" },
+    {
+      "name": "price",
+      "label": "fields.vehicleValue.label",
+      "type": "display",
+      "format": "currency"
+    },
     {
       "name": "sendBackReason",
       "label": "fields.sendBackReason.label",
@@ -24,7 +38,13 @@
       "requiredMessage": "errors.reasonRequired"
     }
   ],
-  "notices": [{ "label": "previousReason", "variable": "sendBackReason", "show": "editing" }],
+  "notices": [
+    {
+      "label": "previousReason",
+      "variable": "sendBackReason",
+      "show": "editing"
+    }
+  ],
   "actions": [
     {
       "id": "approve",

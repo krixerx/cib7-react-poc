@@ -220,6 +220,21 @@ wiring.
 | `approvalPdfBytes` | `Task_GeneratePdf` | byte[] | Raw PDF bytes. Bytes-typed so the engine spills it to `ACT_GE_BYTEARRAY` instead of the 4000-char `TEXT_` column. |
 | `approvalPdfFilename` | `Task_GeneratePdf` | String | Suggested attachment filename (e.g. `approval-<objectId>.pdf`). |
 
+## Documents
+
+The document categories this service files. Generated, together with the
+other services' categories, into the pack's `backend/documents.json`; labels
+go into the `catalog` texts as `documents.<category>`. `by: applicant` may be
+uploaded by a signed-in user; `by: system` is filed only by the engine
+through the internal endpoints (its name starts with `generated-`). The
+issued certificate is the core's `generated-certificate`.
+
+| Category | By | Label (en / ar) |
+|---|---|---|
+| `applicant-id-document` | applicant | ID document / وثيقة الهوية |
+| `generated-approval-pdf` | system | Approval PDF / مستند الموافقة (PDF) |
+| `generated-certificate` | system (core) | the vehicle registration certificate |
+
 ## State fee
 
 What the applicant pays after approval. Generated into the pack's

@@ -168,8 +168,9 @@ describe('new elements stay inside format v1', () => {
 
   it.each<[string, (fields: Record<string, unknown>[]) => void]>([
     [
-      'an upload category the platform does not know',
-      (f) => ((f[4].file as Record<string, unknown>).category = 'anything'),
+      // Whether the pack declares the category is the pack tests' check (src/pack/pack.test.ts).
+      'an upload category that is no lowercase-kebab name',
+      (f) => ((f[4].file as Record<string, unknown>).category = '../generated certificate'),
     ],
     [
       'an accept list beyond PDF/JPEG/PNG',

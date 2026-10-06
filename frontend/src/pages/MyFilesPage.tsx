@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Award, Download, FileText, FolderOpen, RotateCw, Search } from 'lucide-react';
 import {
-  categoryLabel,
+  documentLabel,
+  isGenerated,
   getDownloadUrl,
   listMyDocuments,
   type CaseDocumentEntry,
@@ -29,7 +30,7 @@ const FILTERS: Filter[] = ['issued', 'uploaded', 'all'];
 
 /** Engine-generated documents use the `generated-*` categories. */
 function isIssued(doc: CaseDocumentEntry): boolean {
-  return doc.category.startsWith('generated-');
+  return isGenerated(doc.category);
 }
 
 function matchesFilter(doc: CaseDocumentEntry, filter: Filter): boolean {
@@ -76,9 +77,7 @@ export default function MyFilesPage() {
           const service = serviceByCase.get(doc.processInstanceId);
           return {
             doc,
-            categoryText: t(`components:documents.categories.${doc.category}`, {
-              defaultValue: categoryLabel(doc.category),
-            }),
+            categoryText: documentLabel(t, doc.category),
             serviceName: service ? translateBackendName(t, service) : null,
           };
         }),

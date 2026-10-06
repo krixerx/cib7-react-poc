@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 /**
  * Typed client for the `/api/documents` backend.
  *
@@ -45,13 +46,11 @@ export interface AttachmentResponse {
   attachmentId: string;
 }
 
-export type DocumentCategory =
-  | 'applicant-id-document'
-  | 'founder-articles-of-association'
-  | 'generated-approval-pdf'
-  | 'generated-certificate'
-  | 'generated-business-fee-invoice'
-  | 'generated-bcard';
+/**
+ * A document category: the pack's (`backend/documents.json`) or the core's
+ * `generated-certificate`. System categories start with `generated-`.
+ */
+export type DocumentCategory = string;
 
 export interface DocumentEntry {
   id: string;
@@ -193,22 +192,18 @@ export function uploadToPresigned(
 }
 
 /**
- * Convenience: maps a category code to a UI-friendly label. Kept in this
- * module so the SPA never has to repeat the string literals.
+ * A category's label: the pack's text (`catalog:documents.<category>`), else
+ * the core's (`components:documents.categories.<category>`, only for the core's
+ * own `generated-certificate`), else the code itself, so an undeclared
+ * category still shows something.
  */
-export function categoryLabel(category: DocumentCategory): string {
-  switch (category) {
-    case 'applicant-id-document':
-      return 'ID document';
-    case 'founder-articles-of-association':
-      return 'Articles of Association';
-    case 'generated-approval-pdf':
-      return 'Approval PDF';
-    case 'generated-certificate':
-      return 'Certificate of approval';
-    case 'generated-business-fee-invoice':
-      return 'State fee invoice';
-    case 'generated-bcard':
-      return 'B-card extract';
-  }
+export function documentLabel(t: TFunction, category: DocumentCategory): string {
+  return t(`catalog:documents.${category}`, {
+    defaultValue: t(`components:documents.categories.${category}`, { defaultValue: category }),
+  });
+}
+
+/** System-produced documents (rendered PDFs) as opposed to applicant uploads. */
+export function isGenerated(category: DocumentCategory): boolean {
+  return category.startsWith('generated-');
 }

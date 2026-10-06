@@ -30,8 +30,14 @@
         "removeAria": "sections.boardMembers.removeAria",
         "minRows": 1,
         "columns": [
-          { "name": "firstName", "placeholder": "fields.boardMember.firstNamePlaceholder" },
-          { "name": "lastName", "placeholder": "fields.boardMember.lastNamePlaceholder" },
+          {
+            "name": "firstName",
+            "placeholder": "fields.boardMember.firstNamePlaceholder"
+          },
+          {
+            "name": "lastName",
+            "placeholder": "fields.boardMember.lastNamePlaceholder"
+          },
           {
             "name": "personalCode",
             "placeholder": "fields.boardMember.personalCodePlaceholder",
@@ -143,7 +149,10 @@
         "nameMessage": "errors.founderNameRequired",
         "emailMessage": "errors.founderEmailInvalid",
         "duplicateMessage": "errors.duplicateFounderEmail",
-        "notField": { "field": "applicantEmail", "message": "errors.applicantEmailInFounders" }
+        "notField": {
+          "field": "applicantEmail",
+          "message": "errors.applicantEmailInFounders"
+        }
       }
     }
   ],
@@ -158,10 +167,16 @@
         "companyName": { "field": "companyName", "type": "String" },
         "boardMembers": { "field": "boardMembers", "type": "Json" },
         "shareCapital": { "field": "shareCapital", "type": "Double" },
-        "applicantFirstName": { "field": "applicantFirstName", "type": "String" },
+        "applicantFirstName": {
+          "field": "applicantFirstName",
+          "type": "String"
+        },
         "applicantLastName": { "field": "applicantLastName", "type": "String" },
         "applicantAge": { "field": "applicantAge", "type": "Integer" },
-        "applicantResidency": { "field": "applicantResidency", "type": "String" },
+        "applicantResidency": {
+          "field": "applicantResidency",
+          "type": "String"
+        },
         "applicantEmail": { "field": "applicantEmail", "type": "String" },
         "sendBackReason": { "value": "", "type": "String" },
         "additionalFounders": { "field": "additionalFounders", "type": "Json" },

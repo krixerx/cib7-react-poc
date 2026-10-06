@@ -4,7 +4,8 @@ import { Download, FileText } from 'lucide-react';
 import {
   listAttachments,
   getDownloadUrl,
-  categoryLabel,
+  documentLabel,
+  isGenerated,
   DocumentsApiError,
   type DocumentEntry,
 } from '../api/documentsApi';
@@ -69,8 +70,8 @@ export default function DocumentsCard({ processInstanceId, refreshKey }: Props) 
   // correctly — business registration (founder articles, state-fee invoice,
   // B-card) as well as vehicle registration (approval PDF, certificate) —
   // without re-listing each category here.
-  const generated = (docs ?? []).filter((d) => d.category.startsWith('generated-'));
-  const submitted = (docs ?? []).filter((d) => !d.category.startsWith('generated-'));
+  const generated = (docs ?? []).filter((d) => isGenerated(d.category));
+  const submitted = (docs ?? []).filter((d) => !isGenerated(d.category));
 
   return (
     <div className="card documents-card">
@@ -120,11 +121,7 @@ function Section({
                 <FileText size={18} />
               </span>
               <div className="document-row-meta">
-                <span className="document-row-title">
-                  {t(`documents.categories.${d.category}`, {
-                    defaultValue: categoryLabel(d.category),
-                  })}
-                </span>
+                <span className="document-row-title">{documentLabel(t, d.category)}</span>
                 <span className="document-row-sub">{d.filename}</span>
               </div>
               <button

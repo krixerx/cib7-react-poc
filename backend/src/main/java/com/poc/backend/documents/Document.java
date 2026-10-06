@@ -28,7 +28,7 @@ public class Document {
   @Column(nullable = false)
   private String processInstanceId;
 
-  /** One of the controller's ALLOWED_CATEGORIES, e.g. applicant-id-document. */
+  /** A category from {@link DocumentCategories}, e.g. applicant-id-document. */
   @Column(nullable = false)
   private String category;
 

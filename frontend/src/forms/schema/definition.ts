@@ -74,13 +74,6 @@ export type FieldType =
 export const COLUMN_FORMATS = ['personalCodeEE'] as const;
 export type ColumnFormat = (typeof COLUMN_FORMATS)[number];
 
-/** Upload categories a form may file under; the backend checks them again. */
-export const FILE_CATEGORIES = [
-  'applicant-id-document',
-  'founder-articles-of-association',
-] as const;
-export type FileCategory = (typeof FILE_CATEGORIES)[number];
-
 /** A field. `display` shows a variable; every other type takes input. */
 export interface Field {
   name: string;
@@ -131,7 +124,11 @@ export interface Field {
   };
   /** `file`: one upload. */
   file?: {
-    category: FileCategory;
+    /**
+     * An applicant upload category of the pack (`backend/documents.json`); the backend refuses any
+     * other, and the pack tests check it.
+     */
+    category: string;
     accept: string;
     maxBytes: number;
     dropLabel: string;
@@ -604,14 +601,13 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
         'existingFilename',
       ]);
       field.file = {
-        category: oneOf(u.category, FILE_CATEGORIES, FILE_CATEGORIES[0], `${what}.file.category`),
+        category: text(u.category, ID, `${what}.file.category`),
         accept: text(u.accept, ACCEPT, `${what}.file.accept`),
         maxBytes: integer(u.maxBytes, `${what}.file.maxBytes`, 1, MAX_UPLOAD),
         dropLabel: text(u.dropLabel, KEY, `${what}.file.dropLabel`),
         existingVariable: text(u.existingVariable, NAME, `${what}.file.existingVariable`),
         existingFilename: text(u.existingFilename, KEY, `${what}.file.existingFilename`),
       };
-      if (u.category === undefined) fail(`${what}.file.category is required`);
     }
     if (type === 'contacts') {
       const c = record(f.contacts, `${what}.contacts`, [

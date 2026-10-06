@@ -48,12 +48,7 @@
     "generatedBySystem": "الصادرة عن النظام",
     "empty": "لا توجد مستندات بعد.",
     "categories": {
-      "applicant-id-document": "وثيقة الهوية",
-      "founder-articles-of-association": "عقد التأسيس",
-      "generated-approval-pdf": "مستند الموافقة (PDF)",
-      "generated-certificate": "شهادة الموافقة",
-      "generated-business-fee-invoice": "فاتورة الرسوم الحكومية",
-      "generated-bcard": "مستخرج البطاقة B"
+      "generated-certificate": "شهادة الموافقة"
     }
   },
   "auth": {

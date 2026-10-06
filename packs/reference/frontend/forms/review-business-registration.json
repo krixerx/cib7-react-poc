@@ -7,7 +7,11 @@
   "intro": { "edit": "intro.review", "readOnly": "intro.readOnly" },
   "summary": [
     { "label": "summary.companyName", "variable": "companyName" },
-    { "label": "summary.shareCapital", "variable": "shareCapital", "format": "currency" },
+    {
+      "label": "summary.shareCapital",
+      "variable": "shareCapital",
+      "format": "currency"
+    },
     {
       "label": "summary.founder",
       "template": "summary.founderValue",
@@ -22,9 +26,22 @@
         "foreign": "residency.foreign"
       }
     },
-    { "label": "summary.boardMembers", "variable": "boardMembers", "item": "summary.boardMemberItem" },
-    { "label": "summary.decision", "variable": "decision", "format": "decision", "show": "readOnly" },
-    { "label": "summary.sendBackReason", "variable": "sendBackReason", "show": "readOnly" }
+    {
+      "label": "summary.boardMembers",
+      "variable": "boardMembers",
+      "item": "summary.boardMemberItem"
+    },
+    {
+      "label": "summary.decision",
+      "variable": "decision",
+      "format": "decision",
+      "show": "readOnly"
+    },
+    {
+      "label": "summary.sendBackReason",
+      "variable": "sendBackReason",
+      "show": "readOnly"
+    }
   ],
   "fields": [
     {
@@ -37,7 +54,13 @@
       "requiredMessage": "errors.reasonRequired"
     }
   ],
-  "notices": [{ "label": "previousReason", "variable": "sendBackReason", "show": "editing" }],
+  "notices": [
+    {
+      "label": "previousReason",
+      "variable": "sendBackReason",
+      "show": "editing"
+    }
+  ],
   "actions": [
     {
       "id": "approve",

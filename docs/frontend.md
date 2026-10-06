@@ -440,7 +440,10 @@ The SPA holds no service-specific code or text. Before the first render,
 in every language, `/pack/locales/<lang>/<namespace>.json`, into i18next:
 
 - **`catalog`**: per service a summary for the services page and a fee name
-  for the payment page, per issuer a name and subtitle.
+  for the payment page, per issuer a name and subtitle, and per document
+  category its label (`documents.<category>`; `documentLabel()` in
+  `api/documentsApi.ts` falls back to the core's label for
+  `generated-certificate`, then to the code).
 - **`names`**: translations of the English display names the engine returns
   (process, task and activity names), keyed by the English name.
   `translateBackendName()` looks them up; an unknown name, such as free text

@@ -75,6 +75,11 @@ public class ConsentCatalog {
     LOG.info("Co-signing purposes: {}", purposes.keySet());
   }
 
+  /** Every purpose the pack declares, by name. */
+  public Map<String, Descriptor> all() {
+    return purposes;
+  }
+
   /** The descriptor for a purpose path segment, if the pack declares one. */
   public Optional<Descriptor> purpose(String purpose) {
     return Optional.ofNullable(purposes.get(purpose));

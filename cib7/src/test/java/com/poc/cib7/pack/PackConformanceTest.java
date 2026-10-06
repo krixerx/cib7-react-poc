@@ -194,6 +194,33 @@ class PackConformanceTest {
     }
   }
 
+  /**
+   * Every document category a payload template files under is one the pack declares in {@code
+   * backend/documents.json}, or the core's {@code generated-certificate}; otherwise the backend
+   * refuses the call and the case stops with an incident.
+   */
+  @Test
+  void templatesFileOnlyDeclaredCategories() throws Exception {
+    Path declaration = PACK.resolve("../backend/documents.json").normalize();
+    Set<String> declared = new TreeSet<>(Set.of("generated-certificate"));
+    if (Files.exists(declaration)) {
+      Map<?, ?> root =
+          new Yaml(new SafeConstructor(new LoaderOptions())).load(Files.readString(declaration));
+      declared.addAll(
+          ((Map<?, ?>) root.get("categories")).keySet().stream().map(String::valueOf).toList());
+    }
+    java.util.regex.Pattern category =
+        java.util.regex.Pattern.compile("\"category\"\\s*:\\s*\"([^\"]+)\"");
+    for (Path template : files(PACK.resolve("templates"), ".ftl")) {
+      java.util.regex.Matcher m = category.matcher(Files.readString(template));
+      while (m.find()) {
+        assertTrue(
+            declared.contains(m.group(1)),
+            template.getFileName() + " files under undeclared category " + m.group(1));
+      }
+    }
+  }
+
   /** Every connector payload template compiles (FreeMarker syntax), as the engine loads it. */
   @Test
   void everyPayloadTemplateCompiles() throws IOException {

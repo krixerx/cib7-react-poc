@@ -18,5 +18,11 @@
       "name": "Transpordiamet POC",
       "sub": "هيئة النقل الإستونية"
     }
+  },
+  "documents": {
+    "applicant-id-document": "وثيقة الهوية",
+    "founder-articles-of-association": "عقد التأسيس",
+    "generated-approval-pdf": "مستند الموافقة (PDF)",
+    "generated-business-fee-invoice": "فاتورة الرسوم الحكومية"
   }
 }

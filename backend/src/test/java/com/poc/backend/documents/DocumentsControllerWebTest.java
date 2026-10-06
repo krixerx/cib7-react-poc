@@ -64,7 +64,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
  */
 @WebMvcTest(controllers = DocumentsController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import({DocumentsControllerWebTest.Props.class, DocumentDownloads.class})
+@Import({DocumentsControllerWebTest.Props.class, DocumentDownloads.class, DocumentCategories.class})
 @TestPropertySource(properties = {"app.s3.bucket=test-bucket", "app.s3.max-bytes=1024"})
 class DocumentsControllerWebTest {
 
@@ -277,8 +277,17 @@ class DocumentsControllerWebTest {
       mvc.perform(request(body("malware-dropper", base64Of(8))))
           .andExpect(status().isBadRequest())
           .andExpect(
-              jsonPath("$.message")
-                  .value(org.hamcrest.Matchers.startsWith("category must be one of")));
+              jsonPath("$.message").value("category must be one that an applicant may upload."));
+    }
+
+    /**
+     * Regression: staging accepted the system categories too, so an applicant could prepare their
+     * own file as a generated-certificate.
+     */
+    @Test
+    void rejectsASystemCategory() throws Exception {
+      mvc.perform(request(body("generated-certificate", base64Of(8))))
+          .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -344,6 +353,29 @@ class DocumentsControllerWebTest {
           .andExpect(status().isNotFound())
           .andExpect(jsonPath("$.code").value("not_found"));
 
+      verify(documents, never()).save(any());
+    }
+
+    /**
+     * Regression (forged certificate): registering an upload accepted every category, so an
+     * applicant could file their own PDF as the case's generated-certificate, which the mobile
+     * wallet and the approval signal show as issued. Only applicant categories pass now.
+     */
+    @Test
+    void registerRefusesSystemCategoriesAndPersistsNothing() throws Exception {
+      when(caseAccess.canAccessCase(PI)).thenReturn(true);
+
+      for (String category : new String[] {"generated-certificate", "generated-approval-pdf"}) {
+        mvc.perform(
+                post("/api/documents/{pi}/attachments", PI)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        "{\"key\":\"pending/lisa/u/fake.pdf\",\"filename\":\"fake.pdf\","
+                            + "\"contentType\":\"application/pdf\",\"category\":\""
+                            + category
+                            + "\"}"))
+            .andExpect(status().isBadRequest());
+      }
       verify(documents, never()).save(any());
     }
 

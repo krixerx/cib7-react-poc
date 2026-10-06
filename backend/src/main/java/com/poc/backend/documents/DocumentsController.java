@@ -1,6 +1,5 @@
 package com.poc.backend.documents;
 
-import static com.poc.backend.documents.DocumentStorage.ALLOWED_CATEGORIES;
 import static com.poc.backend.documents.DocumentStorage.ALLOWED_CONTENT_TYPES;
 import static com.poc.backend.documents.DocumentStorage.isPendingKeyOf;
 import static com.poc.backend.documents.DocumentStorage.isProcessKeyOf;
@@ -72,13 +71,17 @@ public class DocumentsController {
   private final CaseAccessService caseAccess;
   private final DocumentDownloads downloads;
 
+  private final DocumentCategories categories;
+
   public DocumentsController(
       S3Client s3,
       S3Presigner presigner,
       S3Properties props,
       DocumentRepository documents,
       CaseAccessService caseAccess,
-      DocumentDownloads downloads) {
+      DocumentDownloads downloads,
+      DocumentCategories categories) {
+    this.categories = categories;
     this.s3 = s3;
     this.presigner = presigner;
     this.props = props;
@@ -177,8 +180,8 @@ public class DocumentsController {
     if (!ALLOWED_CONTENT_TYPES.contains(req.contentType())) {
       return badRequest("contentType must be one of " + ALLOWED_CONTENT_TYPES);
     }
-    if (!ALLOWED_CATEGORIES.contains(req.category())) {
-      return badRequest("category must be one of " + ALLOWED_CATEGORIES);
+    if (!categories.isApplicantUpload(req.category())) {
+      return badRequest("category must be one that an applicant may upload.");
     }
     byte[] bytes;
     try {
@@ -216,8 +219,8 @@ public class DocumentsController {
         || req.category() == null) {
       return badRequest("key, filename, contentType, and category are required.");
     }
-    if (!ALLOWED_CATEGORIES.contains(req.category())) {
-      return badRequest("category must be one of " + ALLOWED_CATEGORIES);
+    if (!categories.isApplicantUpload(req.category())) {
+      return badRequest("category must be one that an applicant may upload.");
     }
     if (!caseAccess.canAccessCase(processInstanceId)) {
       return caseNotFound();

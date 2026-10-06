@@ -17,12 +17,6 @@ final class DocumentStorage {
   static final Set<String> ALLOWED_CONTENT_TYPES =
       Set.of("application/pdf", "image/jpeg", "image/png");
 
-  static final Set<String> ALLOWED_CATEGORIES =
-      Set.of(
-          "applicant-id-document", "founder-articles-of-association",
-          "generated-approval-pdf", "generated-certificate",
-          "generated-business-fee-invoice", "generated-bcard");
-
   private DocumentStorage() {}
 
   /** {@code pending/<user>/<uuid>/<file>}, as minted by upload-url and stage for that user. */
