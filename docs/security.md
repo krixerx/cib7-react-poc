@@ -90,6 +90,15 @@ the internet.
   modification, migration, restart, external tasks, CMMN) is closed to
   everyone outside `cib7-admin`. A definition without a policy file accepts
   no client variables at all.
+- The values are checked too. The service builder generates a JSON Schema
+  per form and for the start variables from the spec's Fields table
+  (`packs/reference/engine/processes/<service>/schemas/<form-id>.json`,
+  shared rules such as email and personal code in
+  `cib7/src/main/resources/schemas/core-v1.json`). The same filter checks
+  completions and starts against it after the name check and answers 400
+  with the failed rules, so "age 1 to 130" no longer holds only in the
+  browser. Drafts are not value-checked; a form without a schema keeps the
+  name check only.
 - System-owned variables (DMN outputs, connector results, payment and consent
   state, anything a gateway depends on that no human decides) are never in an
   allowlist. They are set by the engine, a DMN, a connector response or the

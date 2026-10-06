@@ -54,7 +54,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  *
  * <p>{@code policyTest} (src/test/resources/authz) has an applicant form allowing {@code note} and
  * {@code amount}, and a review form allowing {@code decision} and {@code sendBackReason}; {@code
- * noPolicyTest} has no policy at all.
+ * noPolicyTest} has no policy at all. Its value schemas (authz/schemas) require a non-blank {@code
+ * note} and an {@code amount} from 1 to 10 on the applicant form and at start; the review form has
+ * no schema, so only the name check applies there.
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -63,7 +65,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
       // Keycloak group ids contain hyphens; the H2 identity tables reject them by default.
       "camunda.bpm.generic-properties.properties.group-resource-whitelist-pattern=[a-zA-Z0-9_-]+",
       "app.variable-policy.locations=classpath*:processes/*/variable-policy.json,"
-          + "classpath*:authz/*variable-policy.json"
+          + "classpath*:authz/*variable-policy.json",
+      "app.form-schemas.locations=classpath*:processes/*/schemas/*.json,"
+          + "classpath*:authz/schemas/*.json"
     })
 @ActiveProfiles("test")
 class VariableWritePolicyFilterTest {
@@ -315,6 +319,64 @@ class VariableWritePolicyFilterTest {
             "POST",
             "/task/" + taskId + "/localVariables",
             "{\"modifications\":{\"busBaseUrl\":{\"value\":\"http://evil\",\"type\":\"String\"}}}"));
+  }
+
+  @Test
+  void applicantCannotCompleteOwnFormWithOutOfRangeValues() throws Exception {
+    String pi = start("bart", "policyTest", "{}");
+    Task task = openTask(pi);
+    for (String bad :
+        List.of(
+            "\"amount\":{\"value\":0,\"type\":\"Integer\"}",
+            "\"amount\":{\"value\":11,\"type\":\"Integer\"}",
+            "\"amount\":{\"value\":\"3\",\"type\":\"String\"}",
+            "\"note\":{\"value\":\"   \",\"type\":\"String\"}",
+            "\"note\":{\"value\":\"[1]\",\"type\":\"Json\"}")) {
+      HttpResponse<String> response =
+          post("bart", "/task/" + task.getId() + "/complete", "{\"variables\":{" + bad + "}}");
+      assertEquals(400, response.statusCode(), bad + ": " + response.body());
+      assertTrue(
+          response.body().contains("invalid value for form 'policy-applicant'"), response.body());
+      assertNotNull(
+          processEngine.getTaskService().createTaskQuery().taskId(task.getId()).singleResult(),
+          "task stays open after " + bad);
+    }
+    assertNull(processEngine.getRuntimeService().getVariable(pi, "amount"));
+  }
+
+  @Test
+  void invalidJsonVariableIsRefused() throws Exception {
+    String pi = start("bart", "policyTest", "{}");
+    HttpResponse<String> response =
+        post(
+            "bart",
+            "/task/" + openTask(pi).getId() + "/complete",
+            "{\"variables\":{\"note\":{\"value\":\"{not json\",\"type\":\"Json\"}}}");
+    assertEquals(400, response.statusCode(), response.body());
+    assertTrue(response.body().contains("is not valid JSON"), response.body());
+  }
+
+  @Test
+  void startWithInvalidValueIsRefused() throws Exception {
+    HttpResponse<String> refused =
+        post(
+            "bart",
+            "/process-definition/key/policyTest/start",
+            "{\"variables\":{\"note\":{\"value\":\"\",\"type\":\"String\"}}}");
+    assertEquals(400, refused.statusCode(), refused.body());
+    assertTrue(refused.body().contains("invalid value when starting 'policyTest'"), refused.body());
+  }
+
+  @Test
+  void draftsAreNotValueChecked() throws Exception {
+    String pi = start("bart", "policyTest", "{}");
+    assertEquals(
+        204,
+        send(
+            "bart",
+            "POST",
+            "/task/" + openTask(pi).getId() + "/localVariables",
+            "{\"modifications\":{\"amount\":{\"value\":99,\"type\":\"Integer\"}}}"));
   }
 
   @Test

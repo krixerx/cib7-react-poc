@@ -23,7 +23,14 @@ maps to a process variable from `data`.
 | `applicantFirstName` | `Applicant first name` | `text` | n/a | `data.applicantFirstName` | — |
 | `applicantLastName` | `Applicant last name` | `text` | n/a | `data.applicantLastName` | — |
 | `applicantAge` | `Applicant age` | `number` | n/a | `data.applicantAge` | — |
-| `sendBackReason` | `Reason (for send back)` | `textarea` | only when sending back | `''` | non-empty when "Send back..." pressed |
+| `decision` | — (set by the action buttons) | hidden | yes | — | one of approve, sendback |
+| `sendBackReason` | `Reason (for send back)` | `textarea` | only when sending back | `''` | — |
+
+## Conditional rules
+
+| When | Then |
+|---|---|
+| `decision` is `sendback` | `sendBackReason` is `non-empty` |
 
 ## Actions
 

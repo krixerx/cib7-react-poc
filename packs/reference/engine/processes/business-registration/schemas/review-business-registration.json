@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Generated from docs/business/services/business-registration/forms/review-business-registration.md. Do not hand-edit.",
+  "x-process": "businessRegistration",
+  "x-form": "review-business-registration",
+  "type": "object",
+  "properties": {
+    "decision": {
+      "enum": [
+        "approve",
+        "sendback"
+      ]
+    }
+  },
+  "required": [
+    "decision"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "sendback"
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "sendBackReason": {
+            "$ref": "https://companylab.ai/schemas/core/v1.json#/$defs/nonBlank"
+          }
+        },
+        "required": [
+          "sendBackReason"
+        ]
+      }
+    }
+  ]
+}

@@ -95,6 +95,7 @@ and ask** rather than guessing.
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
 | Every `<service>/build/mcp-service.json` across every service | `docs/business/services/build/services.json` (aggregated MCP index; § 11) |
 | `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2) |
+| `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `packs/reference/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 
 The three `build/`-typed outputs above are the contract with the `mcp/` Node
 sidecar — its `Dockerfile` COPYs `docs/business/services/` into the image
@@ -186,6 +187,52 @@ generated files get rewritten in place; idempotent runs are a no-op.
     form only when `IdentityFieldRegistry` binds them for this process (the
     listener rejects a changed value). `VariableWritePolicyFilter` enforces
     the file; a service without one accepts no client variables at all.
+10a. **Emit the value schemas** at
+    `packs/reference/engine/processes/<service>/schemas/<form-id>.json`, one
+    per form whose Fields table has a writable field, plus `schemas/start.json`
+    when the policy's `start` list is non-empty. Each is a JSON Schema
+    2020-12 object over the submitted variable values (a `Json` variable as
+    its parsed value):
+    ```json
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$comment": "Generated from docs/business/services/<service>/forms/<id>.md. Do not hand-edit.",
+      "x-process": "<process id>",
+      "x-form": "<form-id>",
+      "type": "object",
+      "properties": { "<name>": { } },
+      "required": ["<name>"]
+    }
+    ```
+    Map each writable field's `Validation` cell with this vocabulary and
+    nothing else (an unmapped phrase is a spec gap: stop and ask):
+
+    | Validation phrase | Schema |
+    |---|---|
+    | `non-empty` | `{"$ref": "<core>#/$defs/nonBlank"}` |
+    | `non-empty, max N chars` | `nonBlank` plus `"maxLength": N` in an `allOf` |
+    | `integer A..B` | `{"type": "integer", "minimum": A, "maximum": B}` |
+    | `number >= N` | `{"type": "number", "minimum": N}` |
+    | `one of a, b, c` | `{"enum": ["a", "b", "c"]}` |
+    | `email` | `{"$ref": "<core>#/$defs/email"}` |
+    | `email or empty` | `{"$ref": "<core>#/$defs/emailOrEmpty"}` |
+    | `personal code (EE)` | `{"$ref": "<core>#/$defs/personalCodeEE"}` |
+    | `list of contacts` | `{"type": "array", "items": {"$ref": "<core>#/$defs/contact"}}` |
+    | `list of {f1, f2}, min N` | array of objects with exactly those properties (all required, `additionalProperties: false`), `minItems: N`, each property per its own phrase |
+    | `pending upload or null` | `{"$ref": "<core>#/$defs/pendingUploadOrNull"}` |
+    | `cleared to ""` | `{"const": ""}` |
+    | `identity` | leave out: `IdentityValidationListener` checks it against Keycloak |
+
+    `<core>` is `https://companylab.ai/schemas/core/v1.json`, the shared
+    definitions in `cib7/src/main/resources/schemas/core-v1.json` (platform
+    code, never emitted by this skill). Fields with Required `yes` go into
+    `required`; `no (form: yes)` means the form insists but another client
+    (the MCP agent) does not send it yet, so it stays out of `required`. Each row of the form's "Conditional rules" section becomes an
+    `if`/`then` (collect several in an `allOf`). `start.json` uses
+    `"x-form": "start"`, the same property rules as the applicant form for
+    the start variables, and no `required` (the SPA starts with no
+    variables). `VariableWritePolicyFilter` enforces the files through
+    `FormSchemaRegistry` and answers 400 with the failed rules.
 11. **Emit the MCP training markdown** at `<service>/build/mcp-training.md`
     following the template in [§ 11.2](#112-mcp-trainingmd). Draw the
     "What this service does" content from the README's overview section,

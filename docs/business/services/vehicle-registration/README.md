@@ -104,10 +104,10 @@ flowchart LR
 
 ## Forms
 
-| Form id (registry key) | BPMN task | Audience | Source |
+| Form id (registry key) | BPMN task | Audience | Spec |
 |---|---|---|---|
-| `personal-details` | `Task_SubmitDetails` | applicant (initiator) | [`frontend/src/forms/personal-details/`](../../../../frontend/src/forms/) |
-| `review-application` | `Task_Review` | `civil-servant` group | [`frontend/src/forms/review-application/`](../../../../frontend/src/forms/) |
+| `owner-vehicle` | `Task_SubmitDetails` | applicant (initiator) | [`forms/owner-vehicle.md`](forms/owner-vehicle.md) |
+| `vehicle-review` | `Task_Review` | `civil-servant` group | [`forms/vehicle-review.md`](forms/vehicle-review.md) |
 | n/a (public page) | n/a — public REST | each co-owner (email link) | [`frontend/src/pages/ConfirmOwnerPage.tsx`](../../../../frontend/src/pages/ConfirmOwnerPage.tsx) |
 
 Form contract: see [`../../../human-role-react-forms-spec.md`](../../../human-role-react-forms-spec.md).

@@ -3,6 +3,9 @@ package com.poc.cib7.policy;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.networknt.schema.Schema;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +46,9 @@ import org.springframework.web.util.UriUtils;
  *   <li>checks the {@code variables} of task completions ({@code complete}, {@code submit-form},
  *       {@code resolve}) against the allowlist of the task's {@code formKey}, and of process starts
  *       against the definition's start allowlist ({@link VariablePolicyRegistry});
+ *   <li>then checks the values of those variables against the form's or the start's value schema
+ *       when the service pack has one ({@link FormSchemaRegistry}), answering 400 with the failed
+ *       rules; drafts are not checked, because they may be incomplete;
  *   <li>lets {@code POST /task/{id}/localVariables} through under the same form allowlist, because
  *       the MCP {@code save_draft} tool stores drafts there;
  *   <li>closes every other endpoint that writes variables (instance and execution variables,
@@ -97,6 +103,7 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
           Pattern.compile("^/case-(definition|execution|instance)/.+$"));
 
   private final VariablePolicyRegistry registry;
+  private final FormSchemaRegistry schemas;
   private final IdentityService identityService;
   private final TaskService taskService;
   private final RepositoryService repositoryService;
@@ -104,11 +111,13 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
 
   public VariableWritePolicyFilter(
       VariablePolicyRegistry registry,
+      FormSchemaRegistry schemas,
       IdentityService identityService,
       TaskService taskService,
       RepositoryService repositoryService,
       String adminGroup) {
     this.registry = registry;
+    this.schemas = schemas;
     this.identityService = identityService;
     this.taskService = taskService;
     this.repositoryService = repositoryService;
@@ -159,12 +168,14 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
       throws IOException, ServletException {
     byte[] body = request.getInputStream().readAllBytes();
     Set<String> written;
+    JsonNode values;
     try {
       JsonNode root = parse(body);
       written =
           draft
               ? union(objectKeys(root, "modifications"), stringArray(root, "deletions"))
               : objectKeys(root, "variables");
+      values = draft ? null : values(root);
     } catch (InvalidBody e) {
       deny(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
       return;
@@ -173,8 +184,10 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
       Optional<Task> task = task(taskId);
       String formKey = task.map(Task::getFormKey).orElse(null);
       String formName = formKey == null ? "this task" : VariablePolicy.formId(formKey);
+      String processKey = task.map(t -> definitionKey(t.getProcessDefinitionId())).orElse(null);
       Optional<Set<String>> allowed =
-          task.flatMap(t -> registry.forProcess(definitionKey(t.getProcessDefinitionId())))
+          Optional.ofNullable(processKey)
+              .flatMap(registry::forProcess)
               .flatMap(p -> p.form(formKey));
       Optional<String> refused = firstNotIn(written, allowed);
       if (refused.isPresent()) {
@@ -183,6 +196,17 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
             HttpServletResponse.SC_FORBIDDEN,
             "variable '" + refused.get() + "' is not writable from form '" + formName + "'");
         return;
+      }
+      if (values != null && formKey != null) {
+        Optional<String> invalid =
+            schemas.forForm(processKey, formName).flatMap(schema -> firstViolation(schema, values));
+        if (invalid.isPresent()) {
+          deny(
+              response,
+              HttpServletResponse.SC_BAD_REQUEST,
+              "invalid value for form '" + formName + "': " + invalid.get());
+          return;
+        }
       }
     }
     chain.doFilter(new CachedBodyRequest(request, body), response);
@@ -196,6 +220,7 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
       throws IOException, ServletException {
     byte[] body = request.getInputStream().readAllBytes();
     Set<String> written;
+    JsonNode values;
     try {
       JsonNode root = parse(body);
       // Start instructions carry their own variables and can start the process anywhere but the
@@ -211,6 +236,7 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
         return;
       }
       written = objectKeys(root, "variables");
+      values = values(root);
     } catch (InvalidBody e) {
       deny(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
       return;
@@ -229,8 +255,57 @@ public class VariableWritePolicyFilter extends OncePerRequestFilter {
             "variable '" + refused.get() + "' is not writable when starting '" + name + "'");
         return;
       }
+      Optional<String> invalid =
+          Optional.ofNullable(processDefinitionKey)
+              .flatMap(schemas::forStart)
+              .flatMap(schema -> firstViolation(schema, values));
+      if (invalid.isPresent()) {
+        deny(
+            response,
+            HttpServletResponse.SC_BAD_REQUEST,
+            "invalid value when starting '" + processDefinitionKey + "': " + invalid.get());
+        return;
+      }
     }
     chain.doFilter(new CachedBodyRequest(request, body), response);
+  }
+
+  /** Every failed rule, joined; empty when the values pass. */
+  private static Optional<String> firstViolation(Schema schema, JsonNode values) {
+    List<String> violations = FormSchemaRegistry.violations(schema, values);
+    return violations.isEmpty() ? Optional.empty() : Optional.of(String.join("; ", violations));
+  }
+
+  /**
+   * The submitted variables as one object of name to value, the shape the value schemas describe. A
+   * {@code Json} variable arrives as a JSON string and is parsed; every other type is checked as
+   * sent, so a list smuggled in as a {@code String} or {@code Object} fails its array rule.
+   */
+  private static JsonNode values(JsonNode root) throws InvalidBody {
+    ObjectNode values = JSON.createObjectNode();
+    for (JsonNode variables : fields(root, "variables")) {
+      Iterator<Map.Entry<String, JsonNode>> it = variables.fields();
+      while (it.hasNext()) {
+        Map.Entry<String, JsonNode> entry = it.next();
+        JsonNode typed = entry.getValue();
+        if (!typed.isObject()) {
+          throw new InvalidBody("variable '" + entry.getKey() + "' must be a JSON object");
+        }
+        JsonNode value = typed.path("value");
+        if (value.isMissingNode()) {
+          value = NullNode.getInstance();
+        }
+        if (typed.path("type").asText("").equalsIgnoreCase("Json") && value.isTextual()) {
+          try {
+            value = JSON.readTree(value.asText());
+          } catch (JsonProcessingException e) {
+            throw new InvalidBody("variable '" + entry.getKey() + "' is not valid JSON");
+          }
+        }
+        values.set(entry.getKey(), value);
+      }
+    }
+    return values;
   }
 
   /** An absent allowlist (no policy, no form entry, unresolvable task) allows nothing. */

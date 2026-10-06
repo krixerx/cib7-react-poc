@@ -195,6 +195,14 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
     </dependency>
+    <!-- Validates submitted form values against the service pack's
+         schemas/<form-id>.json (docs/security.md rule 2). The 2.x line is the
+         Jackson 2 one this Boot 3.5 module runs; 3.x needs Jackson 3. -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <version>2.0.8</version>
+    </dependency>
     <!-- oauth2-client drives the legacy webapps' OAuth2 login flow against
          Keycloak (Authorization Code grant). The auto-config DOES NOT call
          OIDC discovery because we provide every endpoint explicitly under

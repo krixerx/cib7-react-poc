@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-process": "policyTest",
+  "x-form": "start",
+  "type": "object",
+  "properties": {
+    "note": { "$ref": "https://companylab.ai/schemas/core/v1.json#/$defs/nonBlank" }
+  }
+}

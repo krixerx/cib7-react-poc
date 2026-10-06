@@ -27,11 +27,29 @@ send-back loop:
 
 | Field name | UI label | Input type | Required | Default (from variable) | Validation |
 |---|---|---|---|---|---|
-| `<varName>` | `<UI label>` | `text` | yes | `data.<varName>` | non-empty, trim |
+| `<varName>` | `<UI label>` | `text` | yes | `data.<varName>` | non-empty |
 | `<varName>` | `<UI label>` | `number` | yes | `data.<varName>` | integer 1..130 |
-| `<varName>` | `<UI label>` | `email` | no | `data.<varName>` | `^[^\s@]+@[^\s@]+\.[^\s@]+$` if non-empty |
-| `<varName>` | `<UI label>` | `select` from `<source>` | yes | `data.<varName>` | non-empty |
+| `<varName>` | `<UI label>` | `email` | no | `data.<varName>` | email or empty |
+| `<varName>` | `<UI label>` | `select` from `<source>` | yes | `data.<varName>` | one of a, b, c |
 | `<varName>` | `<UI label>` | `textarea` | no | `data.<varName>` | — |
+
+The Validation column is not free text: the engine enforces it on every
+client (SPA, MCP agent, direct REST call) through a generated value schema.
+Use only the phrases in SKILL.md step 10a (`non-empty`, `non-empty, max N
+chars`, `integer A..B`, `number >= N`, `one of a, b, c`, `email`, `email or
+empty`, `personal code (EE)`, `list of contacts`, `list of {f1, f2}, min N`,
+`pending upload or null`, `cleared to ""`, `identity`). UI-only behaviour
+(trimming, auto-suffixes) goes in Notes.
+
+## Conditional rules (optional)
+
+Rules that depend on another field. Each becomes an `if`/`then` in the
+value schema.
+
+| When | Then |
+|---|---|
+| `<varName>` is a non-empty list | `<otherVar>` is `email` |
+| `decision` is `sendback` | `sendBackReason` is `non-empty` |
 
 Input types: `text`, `number`, `email`, `password`, `textarea`, `checkbox`,
 `select` (specify the data source — typically a function from

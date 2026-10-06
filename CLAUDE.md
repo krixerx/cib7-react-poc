@@ -162,7 +162,9 @@ containers. The short form:
   is no implicit "own tasks" filter. Applicants reach their own case through
   per-instance grants for the initiator and per-task assignee/candidate grants.
 - **Process variables from clients are untrusted.** A form writes only the
-  variables in its generated `variable-policy.json`; system-owned variables
+  variables in its generated `variable-policy.json`, and only values its
+  generated `schemas/<form-id>.json` accepts (shared rules in
+  `cib7/src/main/resources/schemas/core-v1.json`); system-owned variables
   (decisions, payment, consent, identity) are set server-side only, and
   config beans resolve before variables.
 - **Capability links are minted server-side**, bound to case, party, round and

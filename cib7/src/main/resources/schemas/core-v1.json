@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://companylab.ai/schemas/core/v1.json",
+  "$comment": "Shared value rules for service-pack form schemas (platform API). Form schemas reference them as https://companylab.ai/schemas/core/v1.json#/$defs/<name>. The engine serves this file from its own jar and never fetches the URL. Change a rule here, not in a form schema, so every service keeps one definition.",
+  "$defs": {
+    "nonBlank": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "email": {
+      "type": "string",
+      "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+    },
+    "emailOrEmpty": {
+      "anyOf": [{ "const": "" }, { "$ref": "#/$defs/email" }]
+    },
+    "personalCodeEE": {
+      "type": "string",
+      "pattern": "^[0-9]{11}$"
+    },
+    "contact": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/nonBlank" },
+        "email": { "$ref": "#/$defs/email" }
+      },
+      "required": ["name", "email"],
+      "additionalProperties": false
+    },
+    "pendingUpload": {
+      "type": "object",
+      "properties": {
+        "pendingKey": { "$ref": "#/$defs/nonBlank" },
+        "filename": { "$ref": "#/$defs/nonBlank" },
+        "contentType": { "enum": ["application/pdf", "image/jpeg", "image/png"] }
+      },
+      "required": ["pendingKey", "filename", "contentType"],
+      "additionalProperties": false
+    },
+    "pendingUploadOrNull": {
+      "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/pendingUpload" }]
+    }
+  }
+}

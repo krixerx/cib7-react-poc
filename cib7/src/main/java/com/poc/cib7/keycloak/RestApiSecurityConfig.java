@@ -2,6 +2,7 @@ package com.poc.cib7.keycloak;
 
 import static org.springframework.security.web.util.matcher.AntPathRequestMatcher.antMatcher;
 
+import com.poc.cib7.policy.FormSchemaRegistry;
 import com.poc.cib7.policy.VariablePolicyRegistry;
 import com.poc.cib7.policy.VariableWritePolicyFilter;
 import jakarta.inject.Inject;
@@ -50,6 +51,8 @@ public class RestApiSecurityConfig {
   @Inject private RepositoryService repositoryService;
 
   @Inject private VariablePolicyRegistry variablePolicyRegistry;
+
+  @Inject private FormSchemaRegistry formSchemaRegistry;
 
   @Bean
   @Order(1)
@@ -118,6 +121,11 @@ public class RestApiSecurityConfig {
             .getEnvironment()
             .getProperty("plugin.identity.keycloak.administratorGroupName", "cib7-admin");
     return new VariableWritePolicyFilter(
-        variablePolicyRegistry, identityService, taskService, repositoryService, adminGroup);
+        variablePolicyRegistry,
+        formSchemaRegistry,
+        identityService,
+        taskService,
+        repositoryService,
+        adminGroup);
   }
 }

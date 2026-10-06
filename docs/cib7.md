@@ -58,18 +58,20 @@ cib7/
     │   ├── ReservedBeansPlugin.java       — config beans resolve before same-named process variables
     │   ├── AuthorizationBootstrap.java    — the group-level engine grants (applicant, civil-servant)
     │   ├── authorization/                 — InitiatorAuthorizationListener + plugin: per-case grants for the initiator
-    │   ├── policy/                        — VariableWritePolicyFilter + VariablePolicyRegistry: per-form variable allowlist
+    │   ├── policy/                        — VariableWritePolicyFilter + VariablePolicyRegistry + FormSchemaRegistry: per-form variable allowlist and value rules
     │   └── keycloak/                      — Spring Security + Keycloak identity-provider wiring
     │       └── webapp/                    — OAuth2 login + ContainerBasedAuthenticationProvider for Cockpit/Tasklist/Admin
     └── resources/
         ├── application.yaml               — engine + OAuth2 client config
-        ├── processes/<service>/           — one engine deployment per folder (ServiceDeployments.java)
-        │   ├── <service>/variable-policy.json — which variables clients may write (generated, see below)
-        │   ├── vehicle-registration/      — vehicle-registration.bpmn + vehicle-auto-approval.dmn
-        │   └── business-registration/     — business-registration.bpmn + business-auto-approval.dmn
-        └── templates/                     — FreeMarker payloads for the http-connector
-            └── *.json.ftl                 — Mailpit emails, pdf-renderer renders,
-                                             backend /api/internal calls
+        └── schemas/core-v1.json           — shared value rules for the pack's form schemas
+
+packs/reference/engine/                    — the service pack's engine files (on the classpath at runtime)
+    ├── processes/<service>/               — one engine deployment per folder (ServiceDeployments.java)
+    │   ├── <service>.bpmn, *.dmn
+    │   ├── variable-policy.json           — which variables clients may write (generated, see below)
+    │   └── schemas/<form-id>.json         — which values they may hold (generated, see below)
+    └── templates/*.json.ftl               — FreeMarker payloads for the http-connector: Mailpit
+                                             emails, pdf-renderer renders, backend /api/internal calls
 ```
 
 The `com.poc.cib7.keycloak` package contains five classes verbatim from the
@@ -245,8 +247,21 @@ client writes only the variables its form declares.
   the task's form; `POST /process-definition/{id}|key/{key}[/tenant-id/{t}]/start|submit-form`
   against `start` (start instructions and `skipCustomListeners` /
   `skipIoMappings` are refused); `POST /task/{id}/localVariables`, which the
-  MCP `save_draft` tool uses, against the task's form. Only top-level variable
-  names are checked, not values or nested JSON.
+  MCP `save_draft` tool uses, against the task's form.
+- **Value schemas.** After the name check, completions and starts are checked
+  against the pack's `processes/<service>/schemas/<form-id>.json` (and
+  `start.json`), JSON Schema 2020-12 documents that name their process and
+  form in `x-process` / `x-form` and are generated from the spec's Fields
+  table (SKILL.md step 10a). `FormSchemaRegistry` loads them
+  (`app.form-schemas.locations`, default
+  `classpath*:processes/*/schemas/*.json`) with the shared definitions from
+  `schemas/core-v1.json` in the jar, never fetches a remote `$ref`, and
+  refuses to start on a file without the two names, a duplicate or a schema
+  that does not compile. A `Json` variable is checked as its parsed value,
+  every other type as sent, so a list sent as a `String` fails its array
+  rule. A failure answers 400 `invalid value for form '<id>': <rules>`.
+  Drafts (`localVariables`) are not value-checked, and a form without a
+  schema keeps the name check only.
 - **Closed endpoints.** Every other endpoint of the 2.2 REST API that writes
   variables answers 403 for non-admins: task, process-instance and execution
   variables, `/message`, `/signal`, `/condition`, process-instance
