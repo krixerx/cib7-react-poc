@@ -1,7 +1,7 @@
 # Applies to docker builds that use the repo root as context and bring no
 # <module>/Dockerfile.dockerignore of their own: today only mcp/, which
-# reads the pack's packs/reference/docs/business/services/<id>/build/ (the
-# LLM-facing manifests and training markdown).
+# reads the pack's specs folder and engine form schemas, and the core's
+# shared schema definitions (the one file kept from cib7/ below).
 
 # Git + per-machine state.
 .git
@@ -22,6 +22,7 @@ Thumbs.db
 
 # Sibling services / directories the mcp image doesn't need.
 cib7
+!cib7/src/main/resources/schemas/core-v1.json
 pdf-renderer
 frontend
 keycloak

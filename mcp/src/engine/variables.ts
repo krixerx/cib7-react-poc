@@ -46,3 +46,20 @@ function encodeVariable(value: unknown, propSchema?: JsonSchema): CamundaVariabl
   }
   return { value, type: 'String' };
 }
+
+/**
+ * Fills every list field the caller left out with an empty list, as the
+ * portal form does: a gateway such as `additionalOwners.elements().isEmpty()`
+ * throws on a variable that was never set, so "no co-owners" must arrive as
+ * `[]`, not as nothing. Used on completion only; a draft keeps what was sent.
+ */
+export function withEmptyLists(
+  variables: Record<string, unknown>,
+  schema?: JsonSchema,
+): Record<string, unknown> {
+  const out = { ...variables };
+  for (const [name, prop] of Object.entries(schema?.properties ?? {})) {
+    if (prop.type === 'array' && out[name] === undefined) out[name] = [];
+  }
+  return out;
+}

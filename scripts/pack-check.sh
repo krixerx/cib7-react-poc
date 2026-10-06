@@ -7,9 +7,10 @@
 # for any pack: the JUnit tests tagged `pack` in the engine and the backend
 # (manifest compatibility, deployments, specs, variable policies, value
 # schemas, templates, documents, registry and consent descriptors and their
-# migrations) and the frontend's pack tests (catalog, form definitions, texts
-# in every language, display names, branding, contrast). Checks of the
-# reference services' own behaviour are not run.
+# migrations), the frontend's pack tests (catalog, form definitions, texts
+# in every language, display names, branding, contrast) and the MCP sidecar's
+# (manifests against the form schemas). Checks of the reference services' own
+# behaviour are not run.
 #
 # Run from anywhere; needs JDK 21, Maven and Node 24 like the core build.
 set -euo pipefail
@@ -42,4 +43,6 @@ echo "== backend"
 mvn -B -q -f backend/pom.xml test -Dgroups=pack -Dservices.pack.dir="$pack/backend"
 echo "== frontend"
 (cd frontend && PACK_DIR="$pack" npx vitest run src/pack)
+echo "== mcp"
+(cd mcp && PACK_DIR="$pack" npx vitest run src/services/pack.test.ts)
 echo "pack-check: $pack conforms to platform API $(sed -n 's/.*\*\*Platform API version:\*\* `\([0-9.]*\)`.*/\1/p' docs/platform-api.md)"

@@ -6,8 +6,10 @@
 the reference pack, it may still change without a major bump. Changes since
 it was first written: `links.consent(execution, purpose, partyId)` replaced
 `links.owner` / `links.founder`, policies gained `identity`, packs gained
-`backend/payment/` and `backend/documents.json`, and the two consent pages
-became one, `/consent/<purpose>/<token>`, worded by the pack.
+`backend/payment/` and `backend/documents.json`, the two consent pages
+became one, `/consent/<purpose>/<token>`, worded by the pack, and the MCP
+manifests became format 2: texts and offered fields only, with the value rules
+taken from the form schemas.
 
 **When to read this:** before writing or changing anything in a service pack,
 before changing core code that reads pack files, and before a core release.
@@ -101,6 +103,8 @@ route ids `pack-*`).
 | `branding/brand.json` | brand v1: `logo.light`, `logo.dark`, `favicon` (bare image file names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme (`keycloak/themes/cib7/login/template.ftl`) | `src/pack/brand.test.ts` |
 | `branding/tokens.json` | brand v1: [brand tokens](#brand-tokens) per scheme (hex), `fonts.display` / `fonts.body` (family names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme, the mobile app (`mobile/lib/pack.dart`) | `src/pack/brand.test.ts` (with WCAG AA contrast) |
 | `branding/locales/<lang>/brand.json` | `name`, `sub`, `portal` | `loadBrand()`, `DocumentBrand`, the login theme, the mobile app (`mobile/lib/pack.dart`) | `src/pack/brand.test.ts` |
+| `docs/business/services/<service>/build/mcp-service.json` | MCP manifest, `version: 2`: `key` (the process), texts, `start.fields` and per user task `fields` (offered field to its description for the agent), `requiredDocuments`; no value rules: those are the engine's `schemas/<form-id>.json` | `mcp/src/services/manifest.ts` | `mcp/src/services/pack.test.ts` (every field in the form schema, every required field offered, every form covered); `VariablePolicyFilesTest` (reference pack) |
+| `docs/business/services/<service>/build/mcp-training.md`, `docs/business/services/build/services.json` | Markdown guidance for the agent; the services index | `mcp/src/server.ts` | |
 
 The details of each format sit with its reader: the Javadoc or JSDoc of the
 class named above, and for generated files the service-builder skill
@@ -171,7 +175,8 @@ scripts/pack-check.sh [pack-dir]      # default: packs/reference
 ```
 
 Runs every check above against the pack: the engine's and the backend's
-JUnit tests tagged `pack`, and the frontend's `src/pack` tests. Tests of the
+JUnit tests tagged `pack`, the frontend's `src/pack` tests and the MCP
+sidecar's `src/services/pack.test.ts`. Tests of the
 reference services' own behaviour are not tagged and do not run. The core's
 CI runs the full test suites, which include the same checks on the reference
 pack.
@@ -182,6 +187,3 @@ pack.
   because only those get engine grants (`AuthorizationBootstrap`).
 - App icons (PNG) from the pack: the mobile app's icons are the core mark.
 - Font files from the pack: a brand font must be one the page already loads.
-- MCP manifests: the sidecar reads them from the pack's
-  `docs/business/services/*/build/`, but no pack check covers their format yet
-  (S43).

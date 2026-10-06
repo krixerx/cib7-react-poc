@@ -92,7 +92,7 @@ and ask** rather than guessing.
 | `<service>/forms/<id>.md` with `Renderer: tsx` (escape hatch only) | `frontend/src/forms/<id>/<PascalCase>Form.tsx` (§ 8) |
 | Every form across every service | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
 | `<service>.bpmn` after regeneration | mermaid block inside `<service>/README.md` |
-| `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest + JSON Schemas; § 11) |
+| `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest: texts and offered fields; § 11) |
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
 | Every `<service>/build/mcp-service.json` across every service | `packs/reference/docs/business/services/build/services.json` (aggregated MCP index; § 11) |
 | `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2; plus `identity`: variable to `givenName`, `familyName` or `email` from the README's **Identity** line) |
@@ -167,12 +167,10 @@ generated files get rewritten in place; idempotent runs are a no-op.
    line-level edits — a clean rewrite beats merge conflicts.
 9. **Emit the MCP service manifest.** Write
    `<service>/build/mcp-service.json` following the schema in
-   [§ 11.1](#111-mcp-servicejson). Derive the start-time `variables`
-   schema from the first user task's form spec (which is what
-   `start_process` pre-fills). Derive each `userTasks[].schema` from the
-   matching `forms/<id>.md` Fields table. Use the variable types declared
-   in the README's process-variables table to constrain the JSON Schema
-   `type` keyword.
+   [§ 11.1](#111-mcp-servicejson): the texts and, per form, the offered
+   fields with their descriptions (from the Fields table's meaning column).
+   The value rules are not repeated; the sidecar takes them from the form
+   schemas step 10 writes.
 10. **Emit the variable write policy** at
     `packs/reference/engine/processes/<service>/variable-policy.json`:
     ```json
@@ -348,13 +346,13 @@ short-circuit on the first one.
 | Decision ↔ spec file | Each business rule task in the README flow has a matching `decisions/<id>.md` and the BPMN emits `camunda:decisionRef="<id>"` with `camunda:decisionRefBinding="deployment"` (the DMN ships in the same per-service deployment). |
 | Initiator pattern | User tasks owned by the initiator carry `camunda:assignee="${initiator}"`, not `candidateGroups`. The start event carries `camunda:initiator="initiator"`. |
 | FreeMarker JSON safety | Generated `.json.ftl` files escape string values with `?json_string`. |
-| MCP manifest variable consistency | Every variable name + type in `mcp-service.json`'s start `variables` schema and each `userTasks[].schema` matches the README's process-variables table. Drift here means start_process or complete_task will reject the LLM's input while the React form succeeds (or vice versa) — silent contract break. |
-| MCP manifest user-task coverage | Every user task with a `camunda:formKey="react:<id>"` in the emitted BPMN has a matching `userTasks[]` entry in `mcp-service.json` with the same `formKey`. The skill rejects manifests where a form exists in the React tree but not in the MCP manifest. |
+| MCP manifest fields | Every name in `mcp-service.json`'s `start.fields` and each `userTasks[].fields` is a property of the matching engine form schema, and every required property is offered (`mcp/src/services/pack.test.ts`). A manifest that fails this is refused at load and its service disappears from the agent's view. |
+| MCP manifest user-task coverage | Every user task with a `camunda:formKey="react:<id>"` in the emitted BPMN has a matching `userTasks[]` entry in `mcp-service.json` with the same `formKey` (`mcp/src/services/pack.test.ts`, for every form with a schema). |
 | Security: escaping | Every user-supplied value in a `.json.ftl` uses `?json_string`; in HTML bodies (PDF, email) `?html` as well. User values never go into a connector URL path unvalidated (docs/security.md rule 7). |
 | Security: no client-minted secrets | Forms never generate tokens, link ids, payment references or any other credential in the browser (`crypto.randomUUID()` for a link token is a violation). Capability links are minted server-side (docs/security.md rule 3). |
-| Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].schema` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`busBaseUrl`, `frontendBaseUrl`, `pdf`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
+| Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].fields` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`busBaseUrl`, `frontendBaseUrl`, `pdf`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
 | Variable policy coverage | `variable-policy.json` exists, its `processDefinitionKey` is the BPMN process id, and its `forms` keys equal the set of `camunda:formKey` ids in the emitted BPMN, no more and no fewer. `VariablePolicyFilesTest` fails the cib7 build otherwise. |
-| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].schema.properties` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP start `variables` properties. A field the MCP schema has but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
+| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].fields` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP `start.fields`. A field the MCP manifest offers but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
 | Security: no wildcard grants | The spec never asks for engine grants; access comes from `camunda:assignee="${initiator}"` and `candidateGroups`. If a spec needs a new role, stop and ask (docs/security.md rule 1). |
 | Security: endpoint class | Connector calls to the backend use `/api/internal/**` for anything that writes data or returns personal data (docs/security.md rule 5). |
 | services.json completeness | `packs/reference/docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
@@ -776,10 +774,16 @@ Read them before generating a new service — same shape, same field order.
 
 ### 11.1 `mcp-service.json`
 
-Path: `packs/reference/docs/business/services/<service>/build/mcp-service.json`. Schema:
+Path: `packs/reference/docs/business/services/<service>/build/mcp-service.json`.
+Format 2 (docs/platform-api.md). The manifest holds no value rules: the
+sidecar validates with the engine's own form schemas (step 10's
+`schemas/<form-id>.json` and `schemas/start.json`, core definitions
+inlined), so the manifest only says which fields an agent is offered and
+what each one means. Schema:
 
 ```json
 {
+  "version": 2,
   "key": "<processKey>",
   "name": "<Human-readable name>",
   "description": "<One paragraph — what the service does, when an applicant would use it. Drawn from the README's 'What this service does' section, condensed.>",
@@ -790,16 +794,9 @@ Path: `packs/reference/docs/business/services/<service>/build/mcp-service.json`.
     "audience": "<applicant>",
     "name": "<First user task display name>"
   },
-  "variables": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "title": "<service> start-time variables",
-    "description": "<one sentence, mention `initiator` is engine-set>",
-    "properties": {
-      "<varName>": { "type": "<...>", "description": "<...>", "<constraints>": "<...>" }
-    },
-    "required": ["<...>"],
-    "additionalProperties": false
+  "start": {
+    "description": "<one sentence, mention `initiator` and identity fields are engine-set>",
+    "fields": { "<varName>": "<what it means, in words an agent can ask the user with>" }
   },
   "userTasks": [
     {
@@ -807,56 +804,36 @@ Path: `packs/reference/docs/business/services/<service>/build/mcp-service.json`.
       "name": "<task display name>",
       "audience": "<applicant | civil-servant | ...>",
       "description": "<one sentence about what the audience is doing on this task>",
-      "schema": { /* JSON Schema for the form variables */ }
+      "requiredDocuments": [ { "category": "<applicant category>", "writeTo": "<field>", "accept": ["application/pdf"], "maxBytes": 10485760, "description": "<...>" } ],
+      "fields": { "<varName>": "<description>" }
     }
   ]
 }
 ```
 
-**Deriving the `variables` schema** (used by `start_process`):
+**`start.fields`** are the variables `start_process` may pre-fill: exactly
+the policy's `start` list (step 10), each a property of `schemas/start.json`.
 
-The schema for start-time variables comes from the FIRST user task in the
-flow — `start_process(key, variables)` pre-fills exactly those values, and
-the engine sets them as process variables before the first user task is
-created. Resolution order:
+**`userTasks[].fields`**, one entry per user task in the flow, are the
+variables `complete_task` may send: the form's policy list minus the
+fields the README's "Variable write policy" section names as SPA-only
+(identity fields the engine fills from the account, form-internal state
+the agent surface deliberately leaves out). Rules the loader enforces, and
+`mcp/src/services/pack.test.ts` checks:
 
-1. If the first user task has its own form spec at `<service>/forms/<id>.md`
-   with a Fields table, derive from there.
-2. Else, read the variables in the README's process-variables table that
-   are marked `Set by <first user task>`.
+- every field is a property of the form's schema, or one its `allOf`
+  conditions add (e.g. `sendBackReason` on a review form);
+- every field the schema `required`s is offered;
+- every `requiredDocuments[].writeTo` is an offered field;
+- every form with a schema has a `userTasks` entry.
 
-Type mapping (spec type → JSON Schema):
+A description says what the value means and where it comes from, never a
+rule the schema already states (type, pattern, range): those reach the agent
+from the schema.
 
-| Spec type | JSON Schema | Notes |
-|---|---|---|
-| `String` | `{"type": "string"}` | `minLength: 1` if Required = yes |
-| `Integer` | `{"type": "integer"}` | Use spec's `Validation` column for `minimum`/`maximum` |
-| `Long` | `{"type": "integer"}` | |
-| `Double` | `{"type": "number"}` | |
-| `Boolean` | `{"type": "boolean"}` | |
-| `Date` | `{"type": "string", "format": "date-time"}` | |
-| `Json` (list) | `{"type": "array", "items": {...}}` | Item schema from the README hint |
-| `Json` (object) | `{"type": "object", "properties": {...}}` | Property schemas from the README hint |
-| `byte[]` | (skip — exclude from MCP schema) | LLM never passes binary; binary vars are produced by service tasks (PDFs etc.) |
-
-Always set `additionalProperties: false` on the root object — strictness
-catches LLM hallucinations cleanly via Ajv `INVALID_VARIABLES`.
-
-**Deriving each `userTasks[].schema`** (used by `complete_task`):
-
-Walk every user task in the flow. For each one:
-1. The schema comes from `<service>/forms/<id>.md`'s Fields table.
-2. The `complete-with` row in the form's Actions table tells you which
-   fields are actually sent on submit (some forms compute synthetic vars
-   like `decision` from a button click — include those).
-3. For review-style forms with multiple action buttons (Accept / Send back),
-   produce a schema with an `enum` on `decision` and a conditional `required`
-   for `sendBackReason` (see the canonical
-   `vehicle-review` entry in `vehicle-registration/build/mcp-service.json`).
-
-NEVER include variables in `userTasks[].schema` that are written by service
-tasks, DMNs, or correlated message events — those are engine-internal and
-the LLM has no business setting them through `complete_task`.
+NEVER offer variables that are written by service tasks, DMNs, or
+correlated message events — those are engine-internal and the agent has no
+business setting them through `complete_task`.
 
 ### 11.2 `mcp-training.md`
 

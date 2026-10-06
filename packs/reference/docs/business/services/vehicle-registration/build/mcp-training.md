@@ -44,7 +44,7 @@ error pointing you back here — there is no way around the document.
 
 ## Auto-approval rule
 
-Once the case clears the personal-details task, the auto-approval DMN evaluates:
+Once the case clears the owner-vehicle task, the auto-approval DMN evaluates:
 
 - age ≥ 18 AND price < 100 → autoDecision = "approve" → process ends, applicant
   notified by email.

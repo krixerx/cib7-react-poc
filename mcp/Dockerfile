@@ -1,6 +1,6 @@
 # Build context is the repo root (see docker-compose.yml) so the COPY
-# instructions can reach packs/reference/docs/business/services/ for the LLM-facing
-# manifests and training markdown. Node 24 has native fetch + WebStreams.
+# instructions can reach the pack (manifests, training markdown, form schemas)
+# and the core's shared schema definitions in cib7/. Node 24 has native fetch + WebStreams.
 # We run TypeScript directly via tsx — no tsc build step for this POC.
 FROM node:24.21.0-alpine
 
@@ -20,13 +20,18 @@ RUN npm ci --omit=dev --no-audit --no-fund \
 COPY mcp/tsconfig.json ./
 COPY mcp/src ./src
 
-# LLM-facing per-service artifacts (manifests + training md). Hand-written
-# placeholders for vehicleRegistration during T6; /service-builder regenerates
-# them in T14.
+# The pack's specs folder: per-service manifests (texts and offered fields)
+# and training markdown. The value rules are the engine's own form schemas
+# from the pack and the core's shared definitions, so an agent is refused
+# exactly what the engine would refuse.
 COPY packs/reference/docs/business/services /app/services-spec
+COPY packs/reference/engine/processes /app/pack-engine/processes
+COPY cib7/src/main/resources/schemas/core-v1.json /app/core-schemas/core-v1.json
 
 ENV PORT=8090
 ENV SERVICES_SPEC_DIR=/app/services-spec
+ENV ENGINE_PROCESSES_DIR=/app/pack-engine/processes
+ENV CORE_SCHEMA_FILE=/app/core-schemas/core-v1.json
 EXPOSE 8090
 
 # The stock `node` user (uid 1000) — no image we build runs as root

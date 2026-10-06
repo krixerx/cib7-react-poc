@@ -231,5 +231,5 @@ startup banner. Details in [`../docs/logging.md`](../docs/logging.md).
 - `src/engine/client.ts` — Bearer-forward `/engine-rest` fetch wrapper. `{ ok, status, code, message, retryable, data }` envelope. Stateless A2.
 - `src/engine/variables.ts` — Plain JSON → Camunda `{ value, type }` envelope, schema-driven.
 - `src/keycloak/admin.ts` — `cib7-backend` service-account token (client_credentials, 5-min in-process cache) + admin REST wrapper. Used by `send_account_invitation`.
-- `src/services/manifest.ts` — Walks `/app/services-spec`, Ajv-compiles every schema, indexes by `formKey`.
+- `src/services/manifest.ts` — Walks `/app/services-spec`, compiles each offered form's engine schema (from the pack, core definitions inlined), indexes by `formKey`.
 - `src/logging/gelf.ts` — GELF UDP logger. One datagram per log call to `graylog:12201`, mirrored to the console. Every message carries `service`, `level` + `level_name`, and `user_id` from the per-request bearer context. Hand-rolled to keep the dependency list short — this sidecar forwards user Bearers, so every package sits in the trust path. See [`../docs/logging.md`](../docs/logging.md).

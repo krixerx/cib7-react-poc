@@ -21,7 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  *
  * <p>The MCP manifest
  * (packs/reference/docs/business/services/business-registration/build/mcp-service.json) exposes a
- * deliberately minimal six-field surface with {@code additionalProperties:false}, so a process
+ * deliberately minimal surface (the MCP sidecar refuses any field it does not offer), so a process
  * completed via MCP never sets the form-internal variables that the SPA business-details form
  * always writes (additionalFounders, applicantResidency, founderSignatures, rejectedByFounder,
  * ...). Two downstream expressions used to assume the rich SPA variable set:

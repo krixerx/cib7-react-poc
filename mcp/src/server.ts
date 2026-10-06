@@ -14,7 +14,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { engineRequest, businessRequest, engineBaseUrl } from './engine/client.js';
-import { toCamundaVariables, type JsonSchema } from './engine/variables.js';
+import { toCamundaVariables, withEmptyLists, type JsonSchema } from './engine/variables.js';
 import { decodeBearerUsername } from './auth/identity.js';
 import {
   audiencesOf,
@@ -48,6 +48,8 @@ const RESOURCE_URL = process.env.MCP_RESOURCE_URL ?? 'http://localhost:3000/mcp'
 // suffix (e.g. https://companylab.ai/mcp -> https://companylab.ai). Used to
 // build absolute links in the agent-discovery surfaces below.
 const SITE_BASE_URL = RESOURCE_URL.replace(/\/mcp\/?$/, '');
+// The name a user sees on the connector in their client's settings.
+const SITE_HOST = new URL(SITE_BASE_URL).host;
 const KEYCLOAK_ISSUER = process.env.KEYCLOAK_ISSUER_URL ?? 'http://localhost:8180/realms/cib7-poc';
 const APPLICANT_PORTAL_URL = process.env.MCP_APPLICANT_PORTAL_URL ?? 'http://localhost:3000';
 const MAILPIT_URL = process.env.MCP_MAILPIT_URL ?? 'http://localhost:8025';
@@ -64,17 +66,16 @@ const PASSWORD_RESET_URL =
   `${KEYCLOAK_ISSUER}/login-actions/reset-credentials` + `?client_id=cib7-frontend`;
 
 const SERVER_INSTRUCTIONS = [
-  'This MCP server drives e-government services (business registration, vehicle',
-  'registration) on a CIB seven 2.2 engine. Identity is handled by a separate',
-  'Keycloak realm. This server never handles passwords; they stay entirely with',
-  'Keycloak and the user.',
+  'This MCP server drives the e-government services that list_services lists, on a',
+  'CIB seven 2.2 engine. Identity is handled by a separate Keycloak realm. This',
+  'server never handles passwords; they stay entirely with Keycloak and the user.',
   '',
   'SIGNING IN: the user signed in when they connected this connector, and every',
   'tool acts on that account. If the user is unsure where to begin, or asks which',
   'account they are using, call `get_started`. If the connector later reports that',
   'the user must sign in again, the session expired after inactivity: tell them to',
   'reconnect the connector in their connector settings (Settings > Connectors >',
-  'companylab.ai > Connect), which opens the sign-in page. Signing in again loses',
+  `${SITE_HOST} > Connect), which opens the sign-in page. Signing in again loses`,
   'nothing in the case.',
   '',
   'WHEN THE USER WANTS A NEW ACCOUNT FOR THEMSELVES OR SOMEONE ELSE TO SIGN UP ON',
@@ -726,18 +727,10 @@ async function handleCompleteTask(args: unknown): Promise<ToolResult> {
     );
   }
 
-  // Backfill BPMN-required reset variables that the React form always writes
-  // but the LLM shouldn't have to think about. Keeps the manifest schema
-  // small and the LLM-facing tool ergonomic.
-  //
-  // - additionalOwners: the gateway right after personal-details evaluates
-  //   `additionalOwners == null || additionalOwners.elements().isEmpty()`,
-  //   which throws PropertyNotFoundException if the variable is missing
-  //   entirely. Default to [] so the empty-owners branch is taken.
-  const withDefaults = { ...a.variables } as Record<string, unknown>;
-  if (formKey === 'personal-details' && withDefaults['additionalOwners'] === undefined) {
-    withDefaults['additionalOwners'] = [];
-  }
+  const withDefaults = withEmptyLists(
+    a.variables as Record<string, unknown>,
+    findServiceByFormKey(formKey)?.task.descriptor.schema as JsonSchema | undefined,
+  );
 
   const validated = validateTaskVariables(formKey, withDefaults);
   if (!validated.ok) {
@@ -1121,7 +1114,7 @@ function handleGetSignupUrl(): ToolResult {
       'Open the signupUrl in a browser tab.',
       'Pick a username, email, first/last name, and password (twice).',
       'Submit the form. The account works immediately and you land on the applicant portal, signed in.',
-      'To use the services from Claude, sign in with that username and password when connecting the companylab.ai connector.',
+      `To use the services from Claude, sign in with that username and password when connecting the ${SITE_HOST} connector.`,
     ],
     note: "This server did not create an account. The URL points the user at Keycloak's hosted sign-up page where the user fills the form themselves.",
   });
@@ -1447,7 +1440,7 @@ function createMcpServer(): Server {
       {
         name: 'upload_document',
         description:
-          "Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine's pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task's requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for vehicleRegistration's personal-details task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.",
+          "Stage a document (PDF / JPEG / PNG, ≤10 MB) that a later complete_task call will reference. The base64 payload is decoded server-side and stored in the engine's pending area. Returns { pendingKey, filename, contentType } — pass that object VERBATIM as the variable named in the task's requiredDocuments[i].writeTo (e.g. `pendingIdDocument` for vehicleRegistration's owner-vehicle task). Call this BEFORE complete_task whenever get_form_schema or describe_service lists a requiredDocuments entry.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -1698,6 +1691,15 @@ function discoveryServices(): Array<{
   }));
 }
 
+/** The services' names from the pack's manifests, for the discovery texts. */
+function serviceNames(): string {
+  return (
+    listManifests()
+      .map((e) => e.manifest.name)
+      .join(', ') || 'none loaded'
+  );
+}
+
 // Top-level MCP discovery document. Not (yet) an IETF-registered well-known
 // URI, but the de-facto path agents probe; kept self-describing — endpoint,
 // transport, OAuth pointer, a paste-ready client config, and the catalog.
@@ -1705,8 +1707,8 @@ app.get('/.well-known/mcp.json', (_req, res) => {
   res.json({
     name: 'eRegistrations (CIB seven POC)',
     description:
-      'Estonian e-government registration services (business, vehicle) ' +
-      'exposed over the Model Context Protocol so AI agents can complete them end-to-end.',
+      `E-government services (${serviceNames()}) exposed over the Model Context ` +
+      'Protocol so AI agents can complete them end-to-end.',
     mcp: {
       url: RESOURCE_URL,
       transport: 'streamable-http',
@@ -1739,9 +1741,9 @@ app.get('/llms.txt', (_req, res) => {
   const lines = [
     '# eRegistrations (CIB seven POC)',
     '',
-    '> Estonian e-government registration services exposed over the Model Context',
-    '> Protocol (MCP). AI agents can complete business and vehicle',
-    '> registrations end-to-end on behalf of a signed-in user.',
+    `> E-government services (${serviceNames()}) exposed over the Model Context`,
+    '> Protocol (MCP). AI agents can complete them end-to-end on behalf of a',
+    '> signed-in user.',
     '',
     'This site supports MCP. Point any MCP client at the endpoint below; it uses',
     'OAuth 2.0 (Keycloak) for authentication and the Streamable HTTP transport.',

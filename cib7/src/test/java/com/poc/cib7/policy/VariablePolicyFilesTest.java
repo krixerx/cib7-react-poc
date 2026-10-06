@@ -67,8 +67,8 @@ class VariablePolicyFilesTest {
           "autoDecision");
 
   /**
-   * Variables the SPA form writes but the MCP schema leaves out, per form id. Everything else must
-   * match the manifest exactly.
+   * Variables the SPA form writes but the MCP manifest does not offer, per form id. Everything else
+   * must match the manifest exactly.
    *
    * <ul>
    *   <li>Identity fields ({@code firstName}, {@code applicantName}, {@code applicantEmail}, ...):
@@ -192,12 +192,12 @@ class VariablePolicyFilesTest {
 
       assertEquals(
           policy.start(),
-          properties(manifest.path("variables")),
-          service.getFileName() + ": start policy must equal the MCP start variables");
+          fieldNames(manifest.path("start").path("fields")),
+          service.getFileName() + ": start policy must equal the MCP start fields");
 
       for (JsonNode task : manifest.path("userTasks")) {
         String form = VariablePolicy.formId(task.path("formKey").asText());
-        Set<String> mcp = properties(task.path("schema"));
+        Set<String> mcp = fieldNames(task.path("fields"));
         Set<String> allowed = policy.form(form).orElse(Set.of());
         Set<String> expected = new TreeSet<>(mcp);
         expected.addAll(SPA_ONLY.getOrDefault(form, Set.of()));
@@ -207,7 +207,7 @@ class VariablePolicyFilesTest {
             service.getFileName()
                 + " "
                 + form
-                + ": policy must equal the MCP schema plus the documented SPA-only fields");
+                + ": policy must equal the MCP fields plus the documented SPA-only fields");
       }
     }
   }
@@ -232,9 +232,9 @@ class VariablePolicyFilesTest {
     assertTrue(registry.forProcess("someNewService").isEmpty());
   }
 
-  private static Set<String> properties(JsonNode schema) {
+  private static Set<String> fieldNames(JsonNode fields) {
     Set<String> names = new TreeSet<>();
-    schema.path("properties").fieldNames().forEachRemaining(names::add);
+    fields.fieldNames().forEachRemaining(names::add);
     return names;
   }
 

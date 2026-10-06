@@ -129,7 +129,7 @@ mcp/
     ├── keycloak/
     │   └── admin.ts            # cib7-backend service-account token + admin REST wrapper (used by send_account_invitation)
     └── services/
-        └── manifest.ts         # walks /app/services-spec, Ajv-compiles every schema, indexes by formKey
+        └── manifest.ts         # walks /app/services-spec, compiles the engine form schemas, indexes by formKey
 ```
 
 `/app/services-spec` is populated at image build time by the Dockerfile's
@@ -449,8 +449,17 @@ instructions explicitly reframe the tools as inert URL retrieval (for
 At startup the sidecar walks `/app/services-spec/*/build/` for each
 service folder and loads two files:
 
-- `mcp-service.json` — manifest with JSON Schema (start_process variables)
-  + `userTasks[]` with per-task schemas (complete_task variables).
+- `mcp-service.json` — manifest format 2: the service texts, the fields
+  `start_process` offers (`start.fields`) and, per user task, the fields
+  `complete_task` offers (`userTasks[].fields`), each with its description
+  for the agent. It holds no value rules: the loader takes them from the
+  engine's own form schemas (`/app/pack-engine/processes/<service>/schemas/<form-id>.json`,
+  with the core's `core-v1.json` definitions inlined), so the sidecar refuses
+  what the engine would refuse. A field the manifest does not offer is
+  refused too, even where the SPA may write it. A manifest that names a field
+  the form schema lacks, or leaves out a required one, is refused at load and
+  its service is not offered; `src/services/pack.test.ts` catches that before
+  it ships.
 - `mcp-training.md` — LLM-readable prose exposed as the MCP
   `service_guide` prompt.
 
@@ -483,7 +492,8 @@ To add MCP support for a new service:
 1. Author the spec in `packs/reference/docs/business/services/<service>/`.
 2. Run `/service-builder` — it emits the BPMN + DMN + React forms + Mcp
    manifest + training md + updates the aggregated index.
-3. `docker compose build mcp` (the Dockerfile COPYs the new manifest).
+3. `docker compose build mcp` (the Dockerfile COPYs the new manifest and
+   the pack's form schemas).
 4. `docker compose up mcp` — the loader picks up the new service.
 
 That's it. No code change in `mcp/` for a new service.
@@ -529,6 +539,8 @@ misleading `200` of `index.html`.
 | `ENGINE_URL` | `mcp/src/engine/client.ts` | `http://cib7:8080` | Internal `/engine-rest` base URL (docker-network alias). |
 | `BUSINESS_URL` | `mcp/src/engine/client.ts` | `http://backend:8085` | Internal base URL of the business microservice. `upload_document` stages files via its `/api/documents/stage` endpoint (Bearer-proxied, same as engine calls). |
 | `SERVICES_SPEC_DIR` | `mcp/src/services/manifest.ts` | `/app/services-spec` | Where the manifest loader looks for `*/build/mcp-service.json`. |
+| `ENGINE_PROCESSES_DIR` | `mcp/src/services/manifest.ts` | `/app/pack-engine/processes` | The pack's `engine/processes/`, whose `<service>/schemas/*.json` hold the value rules. |
+| `CORE_SCHEMA_FILE` | `mcp/src/services/manifest.ts` | `/app/core-schemas/core-v1.json` | The core's shared definitions the form schemas `$ref`. |
 | `KEYCLOAK_REST_AUDIENCE` | `mcp/src/auth/audience.ts` | `cib7-rest-api` | Audience every accepted token must carry. Same variable and default as the engine and backend. |
 | `MCP_ALLOWED_HOSTS` | `mcp/src/http/guards.ts` | hostname of `MCP_RESOURCE_URL` + `localhost`, `127.0.0.1`, `[::1]` | Comma-separated hostnames (no ports) `/mcp` answers to; also checked against a browser `Origin`. Replaces the default when set. |
 | `MCP_TRUST_PROXY` | `mcp/src/server.ts` | `loopback, linklocal, uniquelocal` | Express `trust proxy` value: which hops' `X-Forwarded-For` to believe when keying the per-IP limit. |
@@ -572,6 +584,8 @@ PORT=8090 \
   KEYCLOAK_ISSUER_URL=http://localhost:8180/realms/cib7-poc \
   MCP_RESOURCE_URL=http://localhost:3000/mcp \
   SERVICES_SPEC_DIR=../packs/reference/docs/business/services \
+  ENGINE_PROCESSES_DIR=../packs/reference/engine/processes \
+  CORE_SCHEMA_FILE=../cib7/src/main/resources/schemas/core-v1.json \
   npm start
 ```
 

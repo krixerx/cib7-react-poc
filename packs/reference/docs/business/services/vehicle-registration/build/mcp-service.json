@@ -1,34 +1,23 @@
 {
+  "version": 2,
   "key": "vehicleRegistration",
   "name": "Vehicle Registration",
   "description": "Register a vehicle with Transpordiamet (Estonian Transport Authority). The vehicle is looked up from a curated catalog; adult sole owners of low-value (under €5k) older (10+ years) vehicles are auto-approved by DMN, everyone else routes to a Transport Authority review queue.",
   "audience": "applicant",
-  "candidateGroups": ["applicant"],
+  "candidateGroups": [
+    "applicant"
+  ],
   "initialTask": {
     "formKey": "owner-vehicle",
     "audience": "applicant",
     "name": "Submit owner & vehicle details"
   },
-  "variables": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "title": "vehicleRegistration start-time variables",
+  "start": {
     "description": "Variables collected from the registering owner. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input. The owner's first name, last name, and email are filled automatically from their signed-in Keycloak account at process start — do NOT ask the user for them and do NOT send them (they are not accepted here, and the engine re-validates them on task completion).",
-    "properties": {
-      "age": {
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 130,
-        "description": "Registering owner's age in years. Drives the auto-approval branch (adults only)."
-      },
-      "objectId": {
-        "type": "string",
-        "minLength": 1,
-        "description": "Vehicle VIN. The engine looks the vehicle up against the curated registry served by VehicleRegistryController at /api/public/vehicle-registry/vehicles/{vin}; the response (value, year, fuel type, etc.) feeds the auto-approval DMN."
-      }
-    },
-    "required": ["age", "objectId"],
-    "additionalProperties": false
+    "fields": {
+      "age": "Registering owner's age in years. Drives the auto-approval branch (adults only).",
+      "objectId": "Vehicle VIN: 17 capital letters or digits. The engine looks the vehicle up in the vehicle registry; its value, year and fuel type feed the auto-approval decision."
+    }
   },
   "userTasks": [
     {
@@ -40,60 +29,20 @@
         {
           "category": "applicant-id-document",
           "writeTo": "pendingIdDocument",
-          "accept": ["application/pdf", "image/jpeg", "image/png"],
+          "accept": [
+            "application/pdf",
+            "image/jpeg",
+            "image/png"
+          ],
           "maxBytes": 10485760,
           "description": "Copy of the owner's national ID card, passport, or driving licence. The Transport Authority reviewer will download this during review."
         }
       ],
-      "schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "age": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 130,
-            "description": "Registering owner's age in years."
-          },
-          "objectId": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Vehicle VIN, matched against the curated registry."
-          },
-          "additionalOwners": {
-            "type": "array",
-            "description": "Optional list of co-owners that must sign the registration before it reaches Transport Authority review. Leave empty unless the owner explicitly asks for it. Note: the co-owner sign-off flow uses applicantEmail + per-owner tracking links and is best driven from the web portal — MCP does not surface the sign-off receive task today.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": { "type": "string", "minLength": 1 },
-                "email": { "type": "string", "format": "email" }
-              },
-              "required": ["name", "email"],
-              "additionalProperties": false
-            },
-            "default": []
-          },
-          "pendingIdDocument": {
-            "type": "object",
-            "description": "Reference to an ID document staged via the upload_document tool. Required. Shape exactly matches the upload_document response.",
-            "properties": {
-              "pendingKey": {
-                "type": "string",
-                "description": "Returned by upload_document. Looks like `pending/<user>/<uuid>/<filename>`."
-              },
-              "filename": { "type": "string", "minLength": 1 },
-              "contentType": {
-                "type": "string",
-                "enum": ["application/pdf", "image/jpeg", "image/png"]
-              }
-            },
-            "required": ["pendingKey", "filename", "contentType"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["age", "objectId", "pendingIdDocument"],
-        "additionalProperties": false
+      "fields": {
+        "age": "Registering owner's age in years.",
+        "objectId": "Vehicle VIN, matched against the curated registry.",
+        "additionalOwners": "Optional list of co-owners that must sign the registration before it reaches Transport Authority review. Leave empty unless the owner explicitly asks for it. Note: the co-owner sign-off flow uses applicantEmail + per-owner tracking links and is best driven from the web portal — MCP does not surface the sign-off receive task today.",
+        "pendingIdDocument": "Reference to an ID document staged via the upload_document tool. Required. Shape exactly matches the upload_document response."
       }
     },
     {
@@ -101,25 +50,9 @@
       "name": "Transport Authority review",
       "audience": "civil-servant",
       "description": "The Transport Authority reviewer accepts the registration or sends it back to the owner with a reason. A non-interrupting timer fires every two minutes while this task is open and sends a reminder email via Mailpit. If sent back, the process loops to the owner's owner-vehicle task.",
-      "schema": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "decision": {
-            "type": "string",
-            "enum": ["approve", "sendback"],
-            "description": "approve = end the process as approved. sendback = email the owner with the reason and loop back to the owner-vehicle task."
-          },
-          "sendBackReason": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Required when decision = sendback. The owner sees this as a banner above the owner-vehicle form on re-entry."
-          }
-        },
-        "required": ["decision"],
-        "if": { "properties": { "decision": { "const": "sendback" } }, "required": ["decision"] },
-        "then": { "required": ["sendBackReason"] },
-        "additionalProperties": false
+      "fields": {
+        "decision": "approve = end the process as approved. sendback = email the owner with the reason and loop back to the owner-vehicle task.",
+        "sendBackReason": "Required when decision = sendback. The owner sees this as a banner above the owner-vehicle form on re-entry."
       }
     }
   ]
