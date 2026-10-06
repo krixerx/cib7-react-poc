@@ -390,6 +390,9 @@ services:
       # the next browser refresh without restarting the container. The realm's
       # loginTheme attribute (cib7-poc-realm.json) selects it.
       - ./keycloak/themes:/opt/keycloak/themes:ro
+      # The service pack's branding (logo, colours, portal name) for the login
+      # pages, read by the theme's template.ftl; the same files the SPA reads.
+      - ./packs/reference/branding:/opt/keycloak/themes/cib7/login/resources/pack:ro
     # KC_HEALTH_ENABLED=true exposes /health/* on the management port (9000
     # in Keycloak 26+). A bash TCP probe is enough: once port 9000 is
     # listening, the server has finished its early init and the realm

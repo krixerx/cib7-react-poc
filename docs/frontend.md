@@ -410,7 +410,10 @@ from their specs.
 ## Branding
 
 The core look is the default; a service pack's `branding/` folder, served
-at `/pack/branding/`, overrides parts of it. `src/pack/brand.ts` reads it
+at `/pack/branding/`, overrides parts of it. The Keycloak login pages follow
+the same files: compose mounts the folder into the `cib7` theme
+(`login/resources/pack`), and `template.ftl` reads it at render time with the
+same rules, so a rebrand reaches the portal and the login pages at once. `src/pack/brand.ts` reads it
 before the first render, together with the catalog:
 
 | File | What it sets | Core default |

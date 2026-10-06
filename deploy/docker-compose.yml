@@ -191,6 +191,9 @@ services:
       # Shipped as files in this bundle rather than baked into the image so it
       # stays editable without a rebuild.
       - ./keycloak/themes:/opt/keycloak/themes:ro
+      # The service pack's branding for the login pages (logo, colours,
+      # portal name), read by the theme; the frontend image carries the same.
+      - ./branding:/opt/keycloak/themes/cib7/login/resources/pack:ro
     healthcheck:
       # Management port 9000 listening == server init + realm import started.
       # The engine waits on this; without it the engine races Keycloak on

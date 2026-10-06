@@ -20,7 +20,8 @@ import org.junit.jupiter.api.Test;
  * keycloak/cib7-poc-realm.json}: settings, roles, groups, clients, their service accounts) and the
  * service pack's users ({@code <pack>/keycloak/cib7-poc-users-0.json}). Pack users may only join
  * the core groups: those are the only ones {@code AuthorizationBootstrap} gives engine grants, so a
- * pack group would let nobody reach a task.
+ * pack group would let nobody reach a task. The pull-only deploy bundle carries copies of the realm
+ * files, the theme and the pack's branding, which must stay identical to their sources.
  */
 class RealmFilesTest {
 
@@ -103,5 +104,28 @@ class RealmFilesTest {
         read(Path.of("../packs/reference/keycloak/cib7-poc-users-0.json")),
         read(Path.of("../deploy/keycloak/cib7-poc-users-0.json")),
         "users copy");
+    assertSameTree(Path.of("../keycloak/themes"), Path.of("../deploy/keycloak/themes"));
+    assertSameTree(Path.of("../packs/reference/branding"), Path.of("../deploy/branding"));
+  }
+
+  /** Same files with the same content; line endings may differ (Git's autocrlf). */
+  private static void assertSameTree(Path source, Path copy) throws IOException {
+    java.util.Map<String, String> a = tree(source);
+    java.util.Map<String, String> b = tree(copy);
+    assertEquals(a.keySet(), b.keySet(), copy + " lists other files than " + source);
+    a.forEach((name, content) -> assertEquals(content, b.get(name), copy + "/" + name));
+  }
+
+  private static java.util.Map<String, String> tree(Path root) throws IOException {
+    java.util.Map<String, String> files = new java.util.TreeMap<>();
+    try (java.util.stream.Stream<Path> walk = java.nio.file.Files.walk(root)) {
+      for (Path file : walk.filter(java.nio.file.Files::isRegularFile).toList()) {
+        String name = root.relativize(file).toString().replace(java.io.File.separatorChar, '/');
+        byte[] bytes = java.nio.file.Files.readAllBytes(file);
+        String text = new String(bytes, java.nio.charset.StandardCharsets.ISO_8859_1);
+        files.put(name, text.replace("\r\n", "\n"));
+      }
+    }
+    return files;
   }
 }

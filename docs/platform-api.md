@@ -95,9 +95,9 @@ Until the pack has its own repository, its specs live in this repository's
 | `frontend/catalog.json` | catalog v1: namespaces, services (category, issuer), issuers (tone) | `src/pack/catalog.ts` | `src/pack/pack.test.ts` |
 | `frontend/forms/<form-id>.json` | form definition v1 | `src/forms/schema/definition.ts` | `src/pack/pack.test.ts` |
 | `frontend/locales/<lang>/<ns>.json` | i18next JSON; `catalog`, `names` and one namespace per form; `en` and `ar` with the same keys | `loadPack()` | `src/pack/pack.test.ts` (also: every BPMN `name=` translated) |
-| `branding/brand.json` | brand v1: `logo.light`, `logo.dark`, `favicon` (bare image file names) | `src/pack/brand.ts`, `DocumentBrand` | `src/pack/brand.test.ts` |
-| `branding/tokens.json` | brand v1: [brand tokens](#brand-tokens) per scheme (hex), `fonts.display` / `fonts.body` (family names) | `src/pack/brand.ts`, `DocumentBrand` | `src/pack/brand.test.ts` (with WCAG AA contrast) |
-| `branding/locales/<lang>/brand.json` | `name`, `sub`, `portal` | `loadBrand()`, `DocumentBrand` | `src/pack/brand.test.ts` |
+| `branding/brand.json` | brand v1: `logo.light`, `logo.dark`, `favicon` (bare image file names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme (`keycloak/themes/cib7/login/template.ftl`) | `src/pack/brand.test.ts` |
+| `branding/tokens.json` | brand v1: [brand tokens](#brand-tokens) per scheme (hex), `fonts.display` / `fonts.body` (family names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme | `src/pack/brand.test.ts` (with WCAG AA contrast) |
+| `branding/locales/<lang>/brand.json` | `name`, `sub`, `portal` | `loadBrand()`, `DocumentBrand`, the login theme | `src/pack/brand.test.ts` |
 
 The details of each format sit with its reader: the Javadoc or JSDoc of the
 class named above, and for generated files the service-builder skill
@@ -175,9 +175,8 @@ pack.
 
 ## Not in the platform API yet
 
-- Groups and roles of the pack's own, and the login theme (plan task S31): a
-  pack's users join the core groups, because only those get engine grants
-  (`AuthorizationBootstrap`).
+- Groups and roles of the pack's own: a pack's users join the core groups,
+  because only those get engine grants (`AuthorizationBootstrap`).
 - Mobile brand and document labels (S27 to S29).
 - Font files from the pack: a brand font must be one the page already loads.
 - MCP manifests: read from `docs/business/services/*/build/`, which moves

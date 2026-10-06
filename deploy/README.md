@@ -13,6 +13,8 @@ deploy/
 ├── .env.example                       configuration template
 ├── keycloak/cib7-poc-realm.json       realm: roles, groups, OAuth clients
 ├── keycloak/cib7-poc-users-0.json     users (the reference pack's demo users)
+├── keycloak/themes/                   login theme (core)
+├── branding/                          the pack's logo, colours and portal texts for the login pages
 ├── graylog/provision-inputs.sh        creates the GELF inputs on first start
 ├── traefik/dynamic/routes.yml.example ingress routing (only for the HTTPS setup)
 └── traefik/dynamic/tls.yml.example    supplied-cert TLS config (optional)

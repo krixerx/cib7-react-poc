@@ -257,7 +257,10 @@ containers. The short form:
   `packs/reference/keycloak/cib7-poc-users-0.json`, who may only join core
   groups (only those get engine grants; `RealmFilesTest`). `deploy/keycloak/`
   holds copies that must stay identical. The import runs on Keycloak's first
-  start only, so a change needs the container recreated.
+  start only, so a change needs the container recreated. The login theme
+  (`keycloak/themes/cib7`) is core and reads the pack's `branding/`, mounted at
+  `login/resources/pack`, at render time: logo, portal texts and brand tokens,
+  checked like the SPA checks them.
 - **The realm export holds no secrets, only placeholders.** The three
   confidential clients carry `${KEYCLOAK_BACKEND_CLIENT_SECRET}` and friends,
   resolved from the Keycloak container's environment at import time, so `.env`

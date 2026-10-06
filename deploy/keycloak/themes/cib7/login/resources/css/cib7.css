@@ -6,7 +6,9 @@
  * PatternFly (the parent's framework) ships high-specificity rules and
  * underline-style inputs, so some overrides use !important on purpose.
  *
- * Tokens repeat frontend/src/styles/tokens.css; keep them in step. Keycloak
+ * Tokens repeat frontend/src/styles/tokens.css; keep them in step. The brand
+ * tokens are the core defaults: template.ftl lays the service pack's
+ * branding/tokens.json over them. Keycloak
  * runs on another origin and cannot read the SPA's saved theme choice, so the
  * scheme follows the operating system (prefers-color-scheme).
  */
@@ -298,6 +300,16 @@ textarea,
   color: var(--primary-ink);
   display: grid;
   place-items: center;
+}
+
+/* A service pack's logo in the brand slot (template.ftl cib7-pack-brand); same
+   height as the core mark, width follows the image up to a wide wordmark. */
+.cib7-brand-logo img {
+  display: block;
+  height: 38px;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
 }
 
 .cib7-brand-text {
