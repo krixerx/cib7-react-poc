@@ -143,6 +143,7 @@
   "schemaForm": {
     "loading": "جارٍ تحميل النموذج…",
     "missing": "لم يُعثر على تعريف للنموذج {{formId}}.",
-    "invalid": "تعريف النموذج {{formId}} غير صالح: {{message}}"
+    "invalid": "تعريف النموذج {{formId}} غير صالح: {{message}}",
+    "errorSummary": "يرجى مراجعة الحقول المُعلَّمة:"
   }
 }

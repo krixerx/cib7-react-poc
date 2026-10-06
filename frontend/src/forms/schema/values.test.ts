@@ -8,7 +8,7 @@ import {
   parseDefinition,
   type FormDefinition,
 } from './definition';
-import { completion, initialInputs, type Inputs } from './values';
+import { completion, initialInputs, type FieldError, type Inputs } from './values';
 
 const PACK_FORMS = resolve(__dirname, '../../../../packs/reference/frontend/forms');
 
@@ -21,6 +21,13 @@ function ownerVehicle(): FormDefinition {
 }
 
 const VIN = 'WP0AB2A91KS123456';
+
+/** The messages of a refused submit, without the field names. */
+function messages(result: ReturnType<typeof completion>) {
+  return 'errors' in result
+    ? result.errors.map((e) => (e.values ? { key: e.key, values: e.values } : { key: e.key }))
+    : result;
+}
 
 function valid(): Inputs {
   return {
@@ -126,9 +133,18 @@ describe('owner-vehicle completes like the former TSX form', () => {
       'errors.applicantEmailRequiredWithCoOwners',
     ],
   ])('refuses %s', (_, change, key, values) => {
-    expect(submit({ ...valid(), ...change } as Inputs)).toEqual({
-      error: values ? { key, values } : { key },
-    });
+    expect(messages(submit({ ...valid(), ...change } as Inputs))).toEqual([
+      values ? { key, values } : { key },
+    ]);
+  });
+
+  it('reports every field that needs attention at once, in form order', () => {
+    const result = submit({ ...valid(), age: '', pendingIdDocument: null, objectId: '' });
+    expect('errors' in result && result.errors.map((e: FieldError) => [e.field, e.key])).toEqual([
+      ['age', 'errors.ageRange'],
+      ['pendingIdDocument', 'errors.idDocumentRequired'],
+      ['objectId', 'errors.vehicleRequired'],
+    ]);
   });
 
   it('accepts an empty own email when there are no co-owners', () => {
@@ -189,5 +205,112 @@ describe('new elements stay inside format v1', () => {
     const d = raw('owner-vehicle');
     delete d.resubmittedWhen;
     expect(() => parseDefinition(d, 'owner-vehicle')).toThrow(InvalidDefinition);
+  });
+});
+
+describe('business-details completes like the former TSX form', () => {
+  const definition = () => parseDefinition(raw('business-details'), 'business-details');
+  const member = { firstName: 'Bart', lastName: 'Simpson', personalCode: '39001010000' };
+
+  function inputs(): Inputs {
+    const start = initialInputs(definition(), {}, (k) => k);
+    return {
+      ...start,
+      companyName: '  Näidis ',
+      boardMembers: [member, { firstName: '', lastName: '', personalCode: '' }],
+      applicantFirstName: 'Bart',
+      applicantLastName: 'Simpson',
+      applicantAge: '40',
+      applicantEmail: '',
+      pendingAoaDocument: {
+        pendingKey: 'pending/bart/1/aoa.pdf',
+        filename: 'aoa.pdf',
+        contentType: 'application/pdf',
+        size: 10,
+      },
+    };
+  }
+
+  function submit(change: Partial<Inputs> = {}) {
+    const d = definition();
+    return completion(d, d.actions[0], { ...inputs(), ...change } as Inputs);
+  }
+
+  it('starts with one empty board row, share capital 2500 and citizen', () => {
+    const start = initialInputs(definition(), {}, (k) => k);
+    expect(start.boardMembers).toEqual([{ firstName: '', lastName: '', personalCode: '' }]);
+    expect(start.shareCapital).toBe('2500');
+    expect(start.applicantResidency).toBe('citizen');
+  });
+
+  it('sends the suffixed name, cleaned rows and a decimal share capital', () => {
+    const result = submit({ shareCapital: '2500.5', applicantResidency: 'e-resident' });
+    expect(result).toMatchObject({
+      variables: {
+        companyName: { value: 'Näidis OÜ', type: 'String' },
+        boardMembers: { value: JSON.stringify([member]), type: 'Json' },
+        shareCapital: { value: 2500.5, type: 'Double' },
+        applicantAge: { value: 40, type: 'Integer' },
+        applicantResidency: { value: 'e-resident', type: 'String' },
+        sendBackReason: { value: '', type: 'String' },
+        additionalFounders: { value: '[]', type: 'Json' },
+      },
+    });
+  });
+
+  it.each<[string, Partial<Inputs>, string, Record<string, string>?]>([
+    ['an empty company name', { companyName: '  ' }, 'errors.companyNameRequired'],
+    [
+      'no board member',
+      { boardMembers: [{ firstName: '', lastName: '', personalCode: '' }] },
+      'errors.boardMemberRequired',
+    ],
+    [
+      'an incomplete board member',
+      { boardMembers: [{ ...member, lastName: '' }] },
+      'errors.boardMemberIncomplete',
+    ],
+    [
+      'a 10-digit personal code',
+      { boardMembers: [{ ...member, personalCode: '3900101000' }] },
+      'errors.personalCodeFormat',
+      { ...member, personalCode: '3900101000' },
+    ],
+    ['share capital below 2500', { shareCapital: '2499.99' }, 'errors.shareCapitalMin'],
+    ['age 131', { applicantAge: '131' }, 'errors.applicantAgeRange'],
+    ['no articles', { pendingAoaDocument: null }, 'errors.aoaRequired'],
+  ])('refuses %s', (_, change, key, values) => {
+    expect(messages(submit(change))).toEqual([values ? { key, values } : { key }]);
+  });
+});
+
+describe('business elements stay inside format v1', () => {
+  function withField(index: number, change: (field: Record<string, unknown>) => void) {
+    const d = raw('business-details');
+    change((d.fields as Record<string, unknown>[])[index]);
+    return () => parseDefinition(d, 'business-details');
+  }
+
+  it.each<[string, number, (field: Record<string, unknown>) => void]>([
+    ['a suffix with markup', 0, (f) => (f.suffix = '<b>OÜ</b>')],
+    ['a suffix on a number field', 3, (f) => (f.suffix = 'OÜ')],
+    ['rows without columns', 1, (f) => ((f.table as Record<string, unknown>).columns = [])],
+    [
+      'an unknown column format',
+      1,
+      (f) => ((f.table as { columns: Record<string, unknown>[] }).columns[2].format = 'regex'),
+    ],
+    ['a radio with one choice', 7, (f) => (f.options as unknown[]).splice(1)],
+    ['a radio default outside its options', 7, (f) => (f.default = 'martian')],
+    ['decimal on a text field', 0, (f) => (f.decimal = true)],
+    ['a default on a file field', 2, (f) => (f.default = 'x')],
+    [
+      'a fixed length of 0',
+      1,
+      (f) => ((f.table as { columns: Record<string, unknown>[] }).columns[2].fixedLength = 0),
+    ],
+    ['a fixed length on a number field', 3, (f) => (f.fixedLength = 4)],
+  ])('refuses %s', (_, index, change) => {
+    expect(withField(index, change)).toThrow(InvalidDefinition);
   });
 });

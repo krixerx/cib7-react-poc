@@ -104,9 +104,8 @@ frontend/src/
     ├── types.ts                   — FormProps contract
     ├── registry.ts                — formId → React component, only for `Renderer: tsx` forms
     ├── resolve.ts                 — formId → TSX component or the schema renderer
-    ├── schema/                    — form definition v1 (definition.ts), inputs and checks
-    │                                (values.ts), fields (fields.tsx), renderer (SchemaForm.tsx)
-    └── business-details/BusinessDetailsForm.tsx — last TSX form, until its migration
+    └── schema/                    — form definition v1 (definition.ts), inputs and checks
+                                     (values.ts), fields (fields.tsx), renderer (SchemaForm.tsx)
 ```
 
 One folder per form, named after the form id. The form component lives inside.
@@ -387,29 +386,24 @@ The spec separates edit vs. read-only forms (§8.2). This POC keeps a single
 component per form; "review" forms render their fields read-only and still
 complete with an outcome variable.
 
-### Registry — `src/forms/registry.ts`
+### Registry — `src/forms/registry.ts` and `resolve.ts`
 
-```ts
-export const formRegistry: Record<string, ComponentType<FormProps>> = {
-  'owner-vehicle': OwnerVehicleForm,
-  'vehicle-review': VehicleReviewForm,
-  'business-details': BusinessDetailsForm,
-  'review-business-registration': ReviewBusinessRegistrationForm,
-};
-
-export function parseFormId(formKey: string | null | undefined): string | null {
-  // "react:owner-vehicle" → "owner-vehicle"
-}
-```
+`registry.ts` maps a form id to a TSX component only for a spec that says
+`Renderer: tsx`; today it is empty. `resolve.ts` (`formFor`) returns that
+component, or the schema renderer bound to the id, and `parseFormId` turns
+`"react:owner-vehicle"` into `"owner-vehicle"`.
 
 ### Existing forms
 
-| Form id | Component | Reads | Writes |
-|---|---|---|---|
-| `owner-vehicle` | `OwnerVehicleForm.tsx` | `firstName`, `lastName`, `age`, `applicantEmail`, `objectId`, `additionalOwners`, `sendBackReason` (banner on re-submit) + vehicle list from `/api/public/vehicle-registry` + ID upload via `/api/documents` | names/age/email Strings + `objectId: String` (VIN), `additionalOwners: Json` (`[{name, email}]` only; the engine assigns party ids, confirmations and link tokens), `pendingIdDocument: Json`, `sendBackReason: ''` |
-| `vehicle-review` | `VehicleReviewForm.tsx` | submitted data + registry values + `sendBackReason` (read-only) | **Accept:** `decision: 'approve'` / **Send back:** `decision: 'sendback'` + `sendBackReason: String` |
-| `business-details` | `BusinessDetailsForm.tsx` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
-| `review-business-registration` | `ReviewBusinessRegistrationForm.tsx` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
+All four are JSON definitions in `packs/reference/frontend/forms/`, generated
+from their specs.
+
+| Form id | Reads | Writes |
+|---|---|---|
+| `owner-vehicle` | `firstName`, `lastName`, `age`, `applicantEmail`, `objectId`, `additionalOwners`, `sendBackReason` (banner on re-submit) + vehicle list from `/api/public/registry/vehicles` + ID upload via `/api/documents` | names/age/email Strings + `objectId: String` (VIN), `additionalOwners: Json` (`[{name, email}]` only; the engine assigns party ids, confirmations and link tokens), `pendingIdDocument: Json`, `sendBackReason: ''` |
+| `vehicle-review` | submitted data + registry values + `sendBackReason` (read-only) | **Accept:** `decision: 'approve'` / **Send back:** `decision: 'sendback'` + `sendBackReason: String` |
+| `business-details` | OÜ founding details + AoA upload + co-founders | same contract shape as `owner-vehicle`, founder semantics |
+| `review-business-registration` | submitted data (read-only) | same `decision` / `sendBackReason` contract as `vehicle-review` |
 
 ## Schema-driven forms
 
@@ -427,8 +421,9 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   variables, a coded value shown as text, or a list), fields of type
   `display`, `text`, `textarea`, `number`, `email` (text and email also as
   identity fields from the account), `select` (options from a backend
-  registry), `file` (one upload through `FileUpload`) and `contacts`
-  (repeating name and email rows), notices, and actions that complete the task with
+  registry), `file` (one upload through `FileUpload`), `contacts`
+  (repeating name and email rows), `radio` (choices with hints) and `rows`
+  (repeating rows of several columns, e.g. board members), notices, and actions that complete the task with
   fixed values or field input. An action that reveals fields (for example
   "Send back…" with a reason) works in two steps: show the fields, then
   confirm or cancel.
@@ -441,12 +436,18 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   honest 404 for a missing file); `npm run dev` does the same through the
   `serve-pack` plugin in `vite.config.ts`. A customer pack replaces the
   directory without rebuilding the SPA.
-- **Checks** before completing (`values.ts`) give the same messages the TSX
-  forms gave: required, integer ranges, email, the email required once
+- **Fixed-length values** (`fixedLength`, the personal code): a monospaced
+  underlay shows an underscore for every character still missing.
+- **Checks** before completing (`values.ts`) look at every field at once:
+  each field that needs attention gets the error border and its message under
+  it (`field-invalid`, `field-message`, `aria-invalid`), a summary above the
+  buttons lists all of them, and a field's mark goes away as soon as it is
+  edited. The messages are the ones the TSX forms gave: required, integer ranges, email, the email required once
   contacts are listed, contact rows (name, email, repeats, not the own
   email). The engine checks the values again against the value schema.
-- **Migrated so far:** `vehicle-review`, `review-business-registration`,
-  `owner-vehicle`. `business-details` stays TSX until its turn.
+- **All four forms are definitions:** `owner-vehicle`, `vehicle-review`,
+  `business-details`, `review-business-registration`. `registry.ts` is empty
+  and stays the escape hatch for a spec that says `Renderer: tsx`.
 
 ## REST client (`api/`)
 

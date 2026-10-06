@@ -229,7 +229,7 @@
             </camunda:inputParameter>
             <camunda:outputParameter name="aoaDocumentAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
             <!-- pendingAoaDocument is reset to null by the founder form on
-                 every submit (see BusinessDetailsForm.tsx) — no need to
+                 every submit (see forms/business-details.md) — no need to
                  clear it here. Gateway_HasPendingAoa re-reads the latest
                  value on the next iteration of a resubmit. -->
           </camunda:inputOutput>

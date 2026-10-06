@@ -143,6 +143,7 @@
   "schemaForm": {
     "loading": "Loading the form…",
     "missing": "No form definition found for {{formId}}.",
-    "invalid": "The form definition for {{formId}} is invalid: {{message}}"
+    "invalid": "The form definition for {{formId}} is invalid: {{message}}",
+    "errorSummary": "Please check the highlighted fields:"
   }
 }

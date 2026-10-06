@@ -66,20 +66,20 @@
     "boardMembers": {
       "legend": "Board members",
       "add": "+ Add member",
-      "removeAria": "Remove board member {{number}}"
+      "removeAria": "Remove board member {{index}}"
     },
     "coFounders": {
-      "legend": "Co-founders ({{total}})",
+      "legend": "Co-founders ({{count}})",
       "hint": "Each co-founder gets an email with a link to sign the Articles of Association or reject. Once all co-founders sign, any founder can click \"Submit to register\" to forward the case to the Business Register. Leave empty if you are the sole founder.",
       "add": "+ Add co-founder",
-      "removeAria": "Remove co-founder {{number}}"
+      "removeAria": "Remove co-founder {{index}}"
     }
   },
   "errors": {
     "companyNameRequired": "Company name is required.",
     "boardMemberRequired": "At least one board member is required.",
     "boardMemberIncomplete": "Every board member needs first name, last name, and a personal code.",
-    "personalCodeFormat": "Personal code \"{{code}}\" must be 11 digits.",
+    "personalCodeFormat": "Personal code \"{{personalCode}}\" must be 11 digits.",
     "shareCapitalMin": "Share capital must be a number >= 2500.",
     "applicantNameRequired": "Your first name and last name are required.",
     "applicantAgeRange": "Your age must be a whole number between 0 and 130.",
@@ -88,7 +88,6 @@
     "applicantEmailRequiredForFounders": "Your own email is required when adding co-founders — we send you a tracking link.",
     "founderNameRequired": "Every co-founder needs a name.",
     "founderEmailInvalid": "Co-founder \"{{name}}\" needs a valid email address.",
-    "unnamedFounder": "(unnamed)",
     "duplicateFounderEmail": "Two co-founders share the email \"{{email}}\". Each founder needs a unique address.",
     "applicantEmailInFounders": "Your own email cannot also appear in the co-founder list — the applicant is already counted as a founder."
   },

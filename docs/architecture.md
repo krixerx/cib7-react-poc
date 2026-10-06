@@ -183,8 +183,9 @@ A single "Vehicle Registration" process instance:
 3. TaskDetail loads the task + variables, resolves the form
      SPA → GET /engine-rest/task/{taskId}
      SPA → GET /engine-rest/task/{taskId}/form-variables
-     SPA → looks up formKey "react:owner-vehicle" → OwnerVehicleForm
-4. OwnerVehicleForm fetches the vehicle dropdown (browser → backend)
+     SPA → looks up formKey "react:owner-vehicle" → schema renderer
+     SPA → GET /pack/forms/owner-vehicle.json   (the pack's form definition)
+4. The form fetches the vehicle dropdown (browser → backend)
      SPA → GET /api/public/registry/vehicles
    and stages the ID upload (browser → backend → RustFS)
      SPA → POST /api/documents/upload-url → presigned PUT direct to RustFS

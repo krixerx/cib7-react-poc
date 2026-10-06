@@ -49,7 +49,7 @@ describe('vehicle-review behaves like the former TSX form', () => {
     const sendBack = d.actions.find((a) => a.id === 'sendback')!;
     expect(revealedFields(d, 'sendback').map((f) => f.name)).toEqual(['sendBackReason']);
     expect(completion(d, sendBack, { sendBackReason: '   ' })).toEqual({
-      error: { key: 'errors.reasonRequired' },
+      errors: [{ field: 'sendBackReason', key: 'errors.reasonRequired' }],
     });
     expect(completion(d, sendBack, { sendBackReason: '  ID unreadable ' })).toEqual({
       variables: {

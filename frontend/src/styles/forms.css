@@ -2,7 +2,8 @@
  * Process-flow forms. Every generated form uses the class contract in the
  * service-builder template (.claude/skills/service-builder/SKILL.md §8):
  * form, form-intro, form-banner, field, field-label, field-input,
- * field-hint, field-checkbox, form-error, form-actions, btn. Restyle here;
+ * field-hint, field-checkbox, form-error, form-actions, btn, and for the schema
+ * renderer field-invalid, field-message, form-error-list. Restyle here;
  * never edit a generated form for looks.
  */
 
@@ -70,6 +71,69 @@
 
 .field-input:user-invalid {
   border-color: var(--danger);
+}
+
+/* A field the schema form renderer marked on submit: every input in it gets the
+   error border and its message sits right under it, so all fields that need
+   attention are visible at once (the summary above the buttons lists them). */
+.field-invalid .field-input,
+.field-invalid .field-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--danger);
+}
+
+.field-message {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.form-error-list {
+  margin: 6px 0 0;
+  padding-inline-start: 20px;
+}
+
+/* A fixed-length input (personal code): a monospaced underlay behind the
+   transparent input repeats the typed characters invisibly and shows an
+   underscore for each one still missing. Padding = .field-input padding plus
+   its 1px border, so both layers line up character for character. */
+.fixed-length {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.fixed-length .field-input,
+.fixed-length-ghost {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+}
+
+.fixed-length .field-input {
+  position: relative;
+  background: transparent;
+}
+
+.fixed-length-ghost {
+  position: absolute;
+  inset: 0;
+  padding: 12px 15px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.fixed-length:has(.field-input:disabled) .fixed-length-ghost {
+  background: var(--surface-2);
+}
+
+.fixed-length-typed {
+  visibility: hidden;
 }
 
 select.field-input {
@@ -399,7 +463,7 @@ input[type='radio'] {
     grid-template-columns: 1fr 1fr;
   }
 
-  .board-member-row .field-input:nth-child(3) {
+  .board-member-row > :nth-child(3) {
     grid-column: 1 / -1;
   }
 

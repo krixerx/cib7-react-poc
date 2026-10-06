@@ -59,7 +59,20 @@ export interface SummaryItem {
 }
 
 export type FieldType =
-  'display' | 'text' | 'textarea' | 'number' | 'email' | 'select' | 'file' | 'contacts';
+  | 'display'
+  | 'text'
+  | 'textarea'
+  | 'number'
+  | 'email'
+  | 'select'
+  | 'file'
+  | 'contacts'
+  | 'radio'
+  | 'rows';
+
+/** Value checks a `rows` column can apply; the same rules as the engine's shared definitions. */
+export const COLUMN_FORMATS = ['personalCodeEE'] as const;
+export type ColumnFormat = (typeof COLUMN_FORMATS)[number];
 
 /** Upload categories a form may file under; the backend checks them again. */
 export const FILE_CATEGORIES = [
@@ -82,11 +95,24 @@ export interface Field {
   identity?: boolean;
   min?: number;
   max?: number;
+  /** `number`: accept fractions; without it the value must be a whole number. */
+  decimal?: boolean;
+  /** `number`: the input's step. */
+  step?: number;
+  /** Starting value when the variable is not set yet (`text`, `number`, `radio`). */
+  default?: string;
+  /** `text`: a word appended on submit when the value does not contain it, e.g. `OÜ`. */
+  suffix?: string;
+  /**
+   * `text`: the value has exactly this many characters; the input shows an
+   * underscore for each one still missing.
+   */
+  fixedLength?: number;
   /** Shown only after the action with this id was pressed (a two-step action). */
   revealedBy?: string;
   /** Message when the field is empty on submit; absent = optional. */
   requiredMessage?: string;
-  /** `number`: message when the value is no integer within min..max. */
+  /** `number`: message when the value is below min, above max, or (unless decimal) not whole. */
   rangeMessage?: string;
   /** `email`: message when a non-empty value is no email address. */
   emailMessage?: string;
@@ -131,6 +157,31 @@ export interface Field {
     /** The rows must not repeat this email field's value. */
     notField?: { field: string; message: string };
   };
+  /** `radio`: one choice out of these, each with a label and an optional hint. */
+  options?: { value: string; label: string; hint?: string }[];
+  /** `rows`: repeating rows of text columns (board members). */
+  table?: {
+    legend: string;
+    add: string;
+    /** Aria label of a row's remove button; `{{index}}` is the row number. */
+    removeAria: string;
+    /** Rows always shown, even when empty; removing never goes below it. */
+    minRows: number;
+    columns: {
+      name: string;
+      placeholder: string;
+      format?: ColumnFormat;
+      maxLength?: number;
+      /** Exactly this many characters; underscores show the missing ones. */
+      fixedLength?: number;
+    }[];
+    /** Message when every row is empty. */
+    requiredMessage: string;
+    /** Message when a row has an empty column. */
+    incompleteMessage: string;
+    /** Message when a column breaks its format; the row's values interpolate by column name. */
+    formatMessage: string;
+  };
 }
 
 /** A hint line showing a variable's value next to a label, for example a previous reason. */
@@ -161,6 +212,8 @@ export interface Action {
 const ID = /^[a-z][a-z0-9-]{0,62}$/;
 const NAME = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
 const KEY = /^([a-z][a-z0-9-]*:)?[A-Za-z][A-Za-z0-9_.]{0,120}$/;
+const SUFFIX = /^[\p{L}\p{N}.]{1,10}$/u;
+const OPTION = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const ACCEPT =
   /^(application\/pdf|image\/jpeg|image\/png)(,(application\/pdf|image\/jpeg|image\/png))*$/;
 const SHOWS: Show[] = ['always', 'readOnly', 'editing'];
@@ -174,6 +227,8 @@ const FIELD_TYPES: FieldType[] = [
   'select',
   'file',
   'contacts',
+  'radio',
+  'rows',
 ];
 const STYLES: Action['style'][] = ['primary', 'danger', 'default'];
 const VARIABLE_TYPES: VariableType[] = ['String', 'Integer', 'Double', 'Boolean', 'Json'];
@@ -363,6 +418,13 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
       'identity',
       'min',
       'max',
+      'decimal',
+      'step',
+      'default',
+      'suffix',
+      'fixedLength',
+      'options',
+      'table',
       'revealedBy',
       'requiredMessage',
       'rangeMessage',
@@ -373,7 +435,14 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
       'contacts',
     ]);
     const type = oneOf(f.type, FIELD_TYPES, 'text', `${what}.type`);
-    only(f, 'number', ['min', 'max', 'rangeMessage'], what);
+    only(f, 'number', ['min', 'max', 'rangeMessage', 'decimal', 'step'], what);
+    only(f, 'text', ['suffix', 'fixedLength'], what);
+    only(f, 'radio', ['options'], what);
+    only(f, 'rows', ['table'], what);
+    if (f.default !== undefined && !['text', 'number', 'radio'].includes(type)) {
+      fail(`${what}.default needs type text, number or radio`);
+    }
+    if (f.decimal !== undefined && f.decimal !== true) fail(`${what}.decimal must be true`);
     only(f, 'email', ['emailMessage', 'requiredWhenListed'], what);
     only(f, 'select', ['source'], what);
     only(f, 'file', ['file'], what);
@@ -396,17 +465,100 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
       identity: f.identity === true ? true : undefined,
       min: f.min === undefined ? undefined : integer(f.min, `${what}.min`, -1e9, 1e9),
       max: f.max === undefined ? undefined : integer(f.max, `${what}.max`, -1e9, 1e9),
+      decimal: f.decimal === true ? true : undefined,
+      step: f.step === undefined ? undefined : integer(f.step, `${what}.step`, 1, 1e9),
+      default:
+        f.default === undefined
+          ? undefined
+          : typeof f.default === 'string' && f.default.length <= 200
+            ? f.default
+            : fail(`${what}.default must be a text of at most 200 characters`),
+      suffix: optionalText(f.suffix, SUFFIX, `${what}.suffix`),
+      fixedLength:
+        f.fixedLength === undefined
+          ? undefined
+          : integer(f.fixedLength, `${what}.fixedLength`, 1, 64),
       revealedBy,
       requiredMessage: optionalText(f.requiredMessage, KEY, `${what}.requiredMessage`),
       rangeMessage: optionalText(f.rangeMessage, KEY, `${what}.rangeMessage`),
       emailMessage: optionalText(f.emailMessage, KEY, `${what}.emailMessage`),
     };
-    if (
-      type === 'number' &&
-      field.rangeMessage &&
-      (field.min === undefined || field.max === undefined)
-    ) {
-      fail(`${what}.rangeMessage needs min and max`);
+    if (type === 'number' && field.rangeMessage && field.min === undefined) {
+      fail(`${what}.rangeMessage needs min`);
+    }
+    if (type === 'radio') {
+      const options = list(f.options, `${what}.options`).map((o, j) => {
+        const opt = record(o, `${what}.options[${j}]`, ['value', 'label', 'hint']);
+        return {
+          value: text(opt.value, OPTION, `${what}.options[${j}].value`),
+          label: text(opt.label, KEY, `${what}.options[${j}].label`),
+          hint: optionalText(opt.hint, KEY, `${what}.options[${j}].hint`),
+        };
+      });
+      if (options.length < 2) fail(`${what}.options needs at least two choices`);
+      if (new Set(options.map((o) => o.value)).size !== options.length) {
+        fail(`${what}.options values must be unique`);
+      }
+      if (field.default !== undefined && !options.some((o) => o.value === field.default)) {
+        fail(`${what}.default must be one of the options`);
+      }
+      field.options = options;
+    }
+    if (type === 'rows') {
+      const r = record(f.table, `${what}.table`, [
+        'legend',
+        'add',
+        'removeAria',
+        'minRows',
+        'columns',
+        'requiredMessage',
+        'incompleteMessage',
+        'formatMessage',
+      ]);
+      const columns = list(r.columns, `${what}.table.columns`).map((c, j) => {
+        const col = record(c, `${what}.table.columns[${j}]`, [
+          'name',
+          'placeholder',
+          'format',
+          'maxLength',
+          'fixedLength',
+        ]);
+        return {
+          name: text(col.name, NAME, `${what}.table.columns[${j}].name`),
+          maxLength:
+            col.maxLength === undefined
+              ? undefined
+              : integer(col.maxLength, `${what}.table.columns[${j}].maxLength`, 1, 500),
+          fixedLength:
+            col.fixedLength === undefined
+              ? undefined
+              : integer(col.fixedLength, `${what}.table.columns[${j}].fixedLength`, 1, 64),
+          placeholder: text(col.placeholder, KEY, `${what}.table.columns[${j}].placeholder`),
+          format:
+            col.format === undefined
+              ? undefined
+              : oneOf(
+                  col.format,
+                  COLUMN_FORMATS,
+                  COLUMN_FORMATS[0],
+                  `${what}.table.columns[${j}].format`,
+                ),
+        };
+      });
+      if (columns.length === 0) fail(`${what}.table.columns must not be empty`);
+      if (new Set(columns.map((c) => c.name)).size !== columns.length) {
+        fail(`${what}.table.columns names must be unique`);
+      }
+      field.table = {
+        legend: text(r.legend, KEY, `${what}.table.legend`),
+        add: text(r.add, KEY, `${what}.table.add`),
+        removeAria: text(r.removeAria, KEY, `${what}.table.removeAria`),
+        minRows: integer(r.minRows, `${what}.table.minRows`, 0, 20),
+        columns,
+        requiredMessage: text(r.requiredMessage, KEY, `${what}.table.requiredMessage`),
+        incompleteMessage: text(r.incompleteMessage, KEY, `${what}.table.incompleteMessage`),
+        formatMessage: text(r.formatMessage, KEY, `${what}.table.formatMessage`),
+      };
     }
     if (f.requiredWhenListed !== undefined) {
       const r = record(f.requiredWhenListed, `${what}.requiredWhenListed`, ['field', 'message']);
@@ -520,9 +672,11 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
         if (!field || field.type === 'display') {
           fail(`${action.id}.${variable} takes a field that is no input`);
         }
-        const json = field.type === 'contacts' || field.type === 'file';
+        const json = ['contacts', 'file', 'rows'].includes(field.type);
         if (json !== (type === 'Json')) {
-          fail(`${action.id}.${variable}: contacts and file fields complete as Json, others not`);
+          fail(
+            `${action.id}.${variable}: contacts, file and rows fields complete as Json, others not`,
+          );
         }
         action.complete[variable] = { field: name, type };
       } else if (['string', 'number', 'boolean'].includes(typeof c.value) && type !== 'Json') {

@@ -18,7 +18,7 @@ import {
   type SummaryItem,
 } from './definition';
 import { FieldInput, formatted } from './fields';
-import { completion, initialInputs, type FormError, type InputValue, type Inputs } from './values';
+import { completion, initialInputs, type FieldError, type InputValue, type Inputs } from './values';
 
 /** Where the service pack's form definitions are served (nginx in the image, Vite in dev). */
 export const DEFINITIONS_PATH = '/pack/forms';
@@ -113,22 +113,29 @@ function DefinedForm({
     initialInputs(definition, data, (key) => t(key)),
   );
   const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<FormError | null>(null);
+  const [errors, setErrors] = useState<FieldError[]>([]);
   const resubmission = isResubmission(definition, data, readOnly);
 
   function run(action: Action) {
-    setError(null);
+    setErrors([]);
     if (pending !== action.id && revealedFields(definition, action.id).length > 0) {
       setPending(action.id);
       return;
     }
     const result = completion(definition, action, inputs);
-    if ('error' in result) {
-      setError(result.error);
+    if ('errors' in result) {
+      setErrors(result.errors);
       return;
     }
     return onComplete(result.variables);
   }
+
+  const messageFor = (field: string): string | undefined => {
+    const e = errors.find((x) => x.field === field);
+    return e ? t(e.key, e.values) : undefined;
+  };
+  // Two fields can break the same rule (first and last name share one message): list it once.
+  const summaryMessages = [...new Set(errors.map((e) => t(e.key, e.values)))];
 
   const visibleFields = definition.fields.filter(
     (f) => !f.revealedBy || (!readOnly && pending === f.revealedBy),
@@ -173,7 +180,12 @@ function DefinedForm({
           field={f}
           value={inputs[f.name] ?? null}
           data={data}
-          onChange={(value: InputValue) => setInputs((prev) => ({ ...prev, [f.name]: value }))}
+          onChange={(value: InputValue) => {
+            setInputs((prev) => ({ ...prev, [f.name]: value }));
+            // The user is fixing this field: drop its mark, keep the others.
+            setErrors((prev) => prev.filter((e) => e.field !== f.name));
+          }}
+          message={messageFor(f.name)}
           readOnly={readOnly}
           autoFocus={pending !== null && pending === f.revealedBy}
           t={t}
@@ -188,7 +200,16 @@ function DefinedForm({
           </p>
         ))}
 
-      {error && <p className="form-error">{t(error.key, error.values)}</p>}
+      {errors.length > 0 && (
+        <div className="form-error" role="alert">
+          {t('common:schemaForm.errorSummary', { count: errors.length })}
+          <ul className="form-error-list">
+            {summaryMessages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {!readOnly && (
         <div className="form-actions">
@@ -224,7 +245,7 @@ function DefinedForm({
                       disabled={submitting}
                       onClick={() => {
                         setPending(null);
-                        setError(null);
+                        setErrors([]);
                       }}
                     >
                       {t('common:actions.cancel')}

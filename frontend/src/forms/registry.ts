@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
 import type { FormProps } from './types';
-import BusinessDetailsForm from './business-details/BusinessDetailsForm';
 
 /**
  * Maps a logical form id to a React component. The form id is the part of the
@@ -11,9 +10,7 @@ import BusinessDetailsForm from './business-details/BusinessDetailsForm';
  * definition in the service pack, drawn by the schema renderer
  * (`resolve.ts` falls back to it). Order: alphabetical by form id.
  */
-export const formRegistry: Record<string, ComponentType<FormProps>> = {
-  'business-details': BusinessDetailsForm,
-};
+export const formRegistry: Record<string, ComponentType<FormProps>> = {};
 
 /** Parses a BPMN formKey ("react:owner-vehicle") into a form id. */
 export function parseFormId(formKey: string | null | undefined): string | null {

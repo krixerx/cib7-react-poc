@@ -699,18 +699,13 @@ Each BPMN user task carries a `camunda:formKey`:
 ```
 
 The React app reads the task's `formKey` from the REST API, strips the
-`react:` prefix, and looks the form id up in `src/forms/registry.ts`:
+`react:` prefix, and draws the form from its JSON definition in the service
+pack (`/pack/forms/<form-id>.json`, from `packs/reference/frontend/forms/`)
+with the core schema renderer (`src/forms/schema/`).
 
-```ts
-export const formRegistry = {
-  'owner-vehicle':  OwnerVehicleForm,
-  'vehicle-review': VehicleReviewForm,
-  // + business-details, review-business-registration
-};
-```
-
-**To add a form:** add a user task with a new `camunda:formKey` in the BPMN,
-create the component under `src/forms/`, and add one registry entry.
+**To add a form:** write its spec under `docs/business/services/<service>/forms/`
+and run `/service-builder`; it emits the definition, the BPMN user task with
+the `camunda:formKey`, the value schema and the texts. No React code is written.
 
 ## Service task & the http-connector
 

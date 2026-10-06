@@ -4,49 +4,62 @@
 **BPMN task:** `Task_SubmitBusinessDetails`
 **Audience:** `initiator`
 **Mode:** `entry` (collects new data; supports send-back resubmit too)
-**Renderer:** `tsx` until migrated to a form definition (core/pack split, task S44)
+**Renderer:** `schema` (JSON definition drawn by the core form renderer)
+**Texts:** i18n namespace `business-details`
 
 ## Intro
 
-First-submit: "Register a new private limited company (OÜ). Fill in the
-company details and at least one board member, then submit."
-Resubmission: "Your registration was sent back for corrections. Update the
-details below and resubmit."
+| When | Text key | English |
+|---|---|---|
+| editing | `intro.default` | Register a new Estonian private limited company (OÜ). Fill in the company name, at least one board member, the share capital, your own details, and list any co-founders that must sign the Articles of Association before the case goes to the Business Register. |
+| resubmission | `intro.resubmission` | Update the founding details below and resubmit to the Business Register. New signing links will be sent to every co-founder. |
+| read-only | `intro.readOnly` | A read-only view of the submitted OÜ founding details. |
+
+**Resubmission:** while `sendBackReason` is set, the form shows the banner
+`banner.sentBack` with the reason, the resubmission intro and the
+`actions.resubmit` button label.
 
 ## Fields
 
-| Field name | UI label | Input type | Required | Default (from variable) | Validation |
+| Field name | UI label key | Input type | Required | Default (from variable) | Validation |
 |---|---|---|---|---|---|
-| `companyName` | `Company name` | `text` | yes | `data.companyName` | non-empty, max 200 chars |
-| `boardMembers` | `Board members` | `repeating-rows` of {`firstName`, `lastName`, `personalCode`} | yes | `data.boardMembers` (Json) | list of {firstName, lastName, personalCode}, min 1 — names `non-empty`, personalCode `personal code (EE)` |
-| `shareCapital` | `Share capital (EUR)` | `number` | yes | `data.shareCapital` | number >= 2500 |
-| `applicantFirstName` | `Your first name` | `text` (from account) | yes | `data.applicantFirstName` | identity |
-| `applicantLastName` | `Your last name` | `text` (from account) | yes | `data.applicantLastName` | identity |
-| `applicantAge` | `Your age` | `number` | yes | `data.applicantAge` | integer 0..130 |
-| `applicantResidency` | `Your residency status` | `radio` (citizen, e-resident, foreign) | no (form: yes) | `data.applicantResidency` | one of citizen, e-resident, foreign |
-| `applicantEmail` | `Your email (required if you list co-founders)` | `email` (from account) | no | `data.applicantEmail` | identity |
-| `pendingAoaDocument` | `Articles of Association (required)` | `file` (PDF, JPEG, PNG, max 10 MB) | no (form: yes) | `data.aoaDocumentAttachmentId` | pending upload or null |
-| `additionalFounders` | `Co-founders` | `repeating-rows` of {`name`, `email`} | no | `data.additionalFounders` (Json) | list of contacts |
+| `companyName` | `fields.companyName.label`, placeholder `fields.companyName.placeholder` | `text`, suffix `OÜ` (appended on submit when missing) | yes (message `errors.companyNameRequired`) | `data.companyName` | non-empty, max 200 chars |
+| `boardMembers` | legend `sections.boardMembers.legend` | `rows` of `firstName` (placeholder `fields.boardMember.firstNamePlaceholder`), `lastName` (`fields.boardMember.lastNamePlaceholder`), `personalCode` (`fields.boardMember.personalCodePlaceholder`, personal code (EE), fixed length 11: underscores show the digits still missing); at least 1 row shown; add `sections.boardMembers.add`, remove aria `sections.boardMembers.removeAria` | yes (none: `errors.boardMemberRequired`; a gap: `errors.boardMemberIncomplete`; bad code: `errors.personalCodeFormat`) | `data.boardMembers` (Json) | list of {firstName, lastName, personalCode}, min 1 — names `non-empty`, personalCode `personal code (EE)` |
+| `pendingAoaDocument` | `fields.aoa.label`, hint `fields.aoa.hint` | `file`: category `founder-articles-of-association`, PDF/JPEG/PNG, max 10 MB, drop label `fields.aoa.uploadLabel`; kept upload from `aoaDocumentAttachmentId` named `fields.aoa.existingFilename` | no (form: yes, message `errors.aoaRequired`) | `data.aoaDocumentAttachmentId` | pending upload or null |
+| `shareCapital` | `fields.shareCapital.label` | `number`, decimal, min 2500, step 100, starts at 2500 | yes (message `errors.shareCapitalMin`, also below 2500) | `data.shareCapital` | number >= 2500 |
+| `applicantFirstName` | `fields.applicantFirstName.label` | `text`, identity (from account) | yes (message `errors.applicantNameRequired`) | `data.applicantFirstName` | identity |
+| `applicantLastName` | `fields.applicantLastName.label` | `text`, identity (from account) | yes (message `errors.applicantNameRequired`) | `data.applicantLastName` | identity |
+| `applicantAge` | `fields.applicantAge.label` | `number` 0..130 | yes (message `errors.applicantAgeRange`, also when out of range) | `data.applicantAge` | integer 0..130 |
+| `applicantResidency` | legend `fields.residency.legend`, hint `fields.residency.hint` | `radio`: `citizen` (`fields.residency.options.citizen.label` / `.hint`), `e-resident` (`…eResident.…`), `foreign` (`…foreign.…`); starts at `citizen` | no (form: yes, always set) | `data.applicantResidency` | one of citizen, e-resident, foreign |
+| `applicantEmail` | `fields.applicantEmail.label`, placeholder `fields.applicantEmail.placeholder` | `email`, identity (from account) | no (invalid: `errors.emailInvalid`) | `data.applicantEmail` | identity |
+| `additionalFounders` | legend `sections.coFounders.legend` (with count), hint `sections.coFounders.hint` | `contacts`: placeholders `fields.founder.namePlaceholder` / `fields.founder.emailPlaceholder`, add `sections.coFounders.add`, remove aria `sections.coFounders.removeAria` | no | `data.additionalFounders` (Json) | list of contacts |
 | `sendBackReason` | — (not shown; cleared on submit) | hidden | no | — | cleared to "" |
+
+Contact row messages: name missing `errors.founderNameRequired`; email
+invalid `errors.founderEmailInvalid`; repeated email
+`errors.duplicateFounderEmail`; the applicant's own email in the list
+`errors.applicantEmailInFounders`.
 
 ## Conditional rules
 
 | When | Then |
 |---|---|
-| `additionalFounders` is a non-empty list | `applicantEmail` is `email` |
+| `additionalFounders` is a non-empty list | `applicantEmail` is `email` (message `errors.applicantEmailRequiredForFounders`) |
 
 ## Actions
 
-| Button label | When enabled | complete-with |
-|---|---|---|
-| `Submit` / `Resubmit` | not submitting, all required fields valid | `companyName:String, boardMembers:Json, shareCapital:Double, applicantFirstName:String, applicantLastName:String, applicantAge:Integer, applicantResidency:String, applicantEmail:String, sendBackReason="":String, additionalFounders:Json, pendingAoaDocument:Json` |
+| Id | Button label key | Resubmit label key | Style | complete-with |
+|---|---|---|---|---|
+| `submit` | `common:actions.submit` | `actions.resubmit` | primary | `companyName:String, boardMembers:Json, shareCapital:Double, applicantFirstName:String, applicantLastName:String, applicantAge:Integer, applicantResidency:String, applicantEmail:String, sendBackReason="":String, additionalFounders:Json, pendingAoaDocument:Json` |
+
+While a completion is in flight the button shows `common:feedback.submitting`.
 
 ## Send-back loop
 
 `on-send-back: clear` — this form is the target of the civil-servant
-send-back loop. Reads `sendBackReason` from `data`, shows it as a yellow
-banner above the form on resubmission, and clears it on the next submit
-(so a future cycle doesn't show a stale reason).
+send-back loop. Shows `sendBackReason` in the banner on resubmission and
+clears it on the next submit (so a future cycle doesn't show a stale
+reason).
 
 ## Read-only mode
 
@@ -56,30 +69,23 @@ visible.
 
 ## Notes
 
-- Required `no (form: yes)`: the SPA always sends the field, but the MCP
-  agent flow does not collect it yet (task S43), so the engine checks its
-  value only when present. Make it `yes` once the MCP schema sends it.
-- `companyName` is trimmed and gets " OÜ" appended on blur when the user
-  leaves it out (UI behaviour, not a value rule).
+- Required `no (form: yes)`: the form insists, but the MCP agent flow does
+  not collect the field yet (task S43), so the engine checks its value only
+  when present. Make it `yes` once the MCP schema sends it.
+- `companyName` is trimmed and gets " OÜ" appended on submit when the user
+  leaves it out; the LLM training markdown also tells the agent to ask
+  first, but the form still produces a valid name.
 - `pendingAoaDocument` is `{pendingKey, filename, contentType}` for a fresh
   upload and `null` when the document from an earlier round is kept; the
   form always writes it so a stale value cannot re-run the attach task.
-- The form also refuses duplicate co-founder emails and the applicant's own
-  email in the co-founder list. Those two rules are form-only: the value
-  schema cannot express them.
-- `boardMembers` is a list of `{firstName, lastName, personalCode}` rendered
-  as repeating rows with an "Add member" button. At least one row required
-  (the form enforces it; if the user removes the last row, "Add member"
-  silently re-adds a blank row).
+- The duplicate and own-email checks for co-founders are form-only: the
+  value schema cannot express them.
+- `boardMembers` always shows at least one row; removing the last one
+  leaves an empty row. Rows that are entirely empty are dropped on submit.
+  It is serialised as JSON (Camunda `Json` type) so it survives history
+  persistence and stays queryable via `query_user_history`.
 - Personal code is the 11-digit Estonian ID code (`isikukood`). The form
-  enforces length only; checksum validation is out of scope for the POC.
-- The `companyName` field auto-appends " OÜ" if the user submits without
-  it — the LLM training markdown also tells the agent to ask first, but
-  the form's defense-in-depth means a careless submission still produces a
-  valid name.
-- `boardMembers` is serialised as JSON on submit (Camunda `Json` type) so
-  it survives history persistence and stays queryable via
-  `query_user_history`.
+  checks the format only; checksum validation is out of scope for the POC.
 - Co-founders (`additionalFounders`) are written as plain `{name, email}`
   rows. The form never creates link tokens, party ids or the
   `founderSignatures` map, and does not reset `rejectedByFounder` /

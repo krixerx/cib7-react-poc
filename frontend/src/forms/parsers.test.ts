@@ -1,107 +1,94 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from 'vitest';
-
-// The form modules import the Keycloak singleton (via FileUpload →
-// documentsApi) whose initialiser needs real
-// browser plumbing — stub it; the parsers under test are pure.
-vi.mock('../auth/keycloak', () => ({
-  keycloak: { authenticated: false },
-  ensureFreshToken: vi.fn(),
-}));
-
-import {
-  ensureCompanySuffix,
-  normaliseResidency,
-  parseAdditionalFounders,
-  parseBoardMembers,
-} from './business-details/BusinessDetailsForm';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { parseDefinition } from './schema/definition';
-import { initialInputs } from './schema/values';
+import { describe, expect, it } from 'vitest';
+import { parseDefinition, type FormDefinition } from './schema/definition';
+import { initialInputs, withSuffix } from './schema/values';
 
-// owner-vehicle is a schema form now: its co-owner rows are read by the
-// renderer's initialInputs, which must keep the old parser's behaviour.
-const ownerVehicle = parseDefinition(
-  JSON.parse(
-    readFileSync(
-      resolve(__dirname, '../../../packs/reference/frontend/forms/owner-vehicle.json'),
-      'utf-8',
+/**
+ * The defensive parsing the former TSX forms did on process variables, now done
+ * by the schema renderer for every form: history round-trips hand back Spin
+ * Json either as a real array or as a JSON string, casing may change, and
+ * mistyped entries must not leak `undefined` into inputs.
+ */
+function pack(id: string): FormDefinition {
+  return parseDefinition(
+    JSON.parse(
+      readFileSync(
+        resolve(__dirname, `../../../packs/reference/frontend/forms/${id}.json`),
+        'utf-8',
+      ),
     ),
-  ),
-  'owner-vehicle',
-);
-const parseAdditionalOwners = (value: unknown) =>
-  initialInputs(ownerVehicle, { additionalOwners: value }, (k) => k).additionalOwners;
+    id,
+  );
+}
 
-describe('normaliseResidency', () => {
+const businessDetails = pack('business-details');
+const ownerVehicle = pack('owner-vehicle');
+const start = (definition: FormDefinition, variable: string, value: unknown) =>
+  initialInputs(definition, { [variable]: value }, (k) => k)[variable];
+
+describe('residency (radio)', () => {
+  const residency = (value: unknown) => start(businessDetails, 'applicantResidency', value);
+
   it('passes through the three valid values', () => {
-    expect(normaliseResidency('citizen')).toBe('citizen');
-    expect(normaliseResidency('e-resident')).toBe('e-resident');
-    expect(normaliseResidency('foreign')).toBe('foreign');
+    expect(residency('citizen')).toBe('citizen');
+    expect(residency('e-resident')).toBe('e-resident');
+    expect(residency('foreign')).toBe('foreign');
   });
 
   it('is case-insensitive (history round-trips may change casing)', () => {
-    expect(normaliseResidency('Citizen')).toBe('citizen');
-    expect(normaliseResidency('E-RESIDENT')).toBe('e-resident');
+    expect(residency('Citizen')).toBe('citizen');
+    expect(residency('E-RESIDENT')).toBe('e-resident');
   });
 
   it('falls back to citizen for unknown or non-string input', () => {
-    expect(normaliseResidency('martian')).toBe('citizen');
-    expect(normaliseResidency(42)).toBe('citizen');
-    expect(normaliseResidency(null)).toBe('citizen');
-    expect(normaliseResidency(undefined)).toBe('citizen');
-    expect(normaliseResidency({})).toBe('citizen');
+    for (const value of ['martian', 42, null, undefined, {}]) {
+      expect(residency(value)).toBe('citizen');
+    }
   });
 });
 
-describe('parseBoardMembers', () => {
+describe('board members (rows)', () => {
   const member = { firstName: 'Mari', lastName: 'Maasikas', personalCode: '48001010000' };
+  const empty = { firstName: '', lastName: '', personalCode: '' };
+  const members = (value: unknown) => start(businessDetails, 'boardMembers', value);
 
-  it('accepts a real array (Spin Object storage path)', () => {
-    expect(parseBoardMembers([member])).toEqual([member]);
+  it('accepts a real array and a JSON string', () => {
+    expect(members([member])).toEqual([member]);
+    expect(members(JSON.stringify([member]))).toEqual([member]);
   });
 
-  it('accepts a JSON string (Spin Json storage path)', () => {
-    expect(parseBoardMembers(JSON.stringify([member]))).toEqual([member]);
-  });
-
-  it('blanks missing or mistyped fields instead of leaking undefined into inputs', () => {
-    expect(parseBoardMembers([{ firstName: 'Mari', personalCode: 48001010000 }])).toEqual([
+  it('blanks missing or mistyped columns instead of leaking undefined into inputs', () => {
+    expect(members([{ firstName: 'Mari', personalCode: 48001010000 }])).toEqual([
       { firstName: 'Mari', lastName: '', personalCode: '' },
     ]);
   });
 
-  it('returns [] for malformed JSON, non-array JSON, and blank strings', () => {
-    expect(parseBoardMembers('{not json')).toEqual([]);
-    expect(parseBoardMembers('{"firstName":"Mari"}')).toEqual([]);
-    expect(parseBoardMembers('   ')).toEqual([]);
-    expect(parseBoardMembers(undefined)).toEqual([]);
+  it('starts with one empty row for malformed, non-array or blank values', () => {
+    for (const value of ['{not json', '{"firstName":"Mari"}', '   ', undefined]) {
+      expect(members(value)).toEqual([empty]);
+    }
   });
 });
 
-// parseAdditionalFounders (TSX) and the schema renderer's contact rows are the
-// same defensive shape over two processes — exercise them with a shared table.
+// Co-founders and co-owners are the same contact rows over two processes.
 describe.each([
-  ['parseAdditionalFounders', parseAdditionalFounders],
-  ['parseAdditionalOwners', parseAdditionalOwners],
-] as const)('%s', (_name, parse) => {
+  ['co-founders', businessDetails, 'additionalFounders'],
+  ['co-owners', ownerVehicle, 'additionalOwners'],
+] as const)('%s (contacts)', (_name, definition, variable) => {
+  const parse = (value: unknown) => start(definition, variable, value);
+
   it('returns [] for null, undefined, and empty string', () => {
     expect(parse(null)).toEqual([]);
     expect(parse(undefined)).toEqual([]);
     expect(parse('')).toEqual([]);
   });
 
-  it('accepts a real array (Spin Object storage path)', () => {
-    expect(parse([{ name: 'Karl', email: 'karl@example.com' }])).toEqual([
-      { name: 'Karl', email: 'karl@example.com' },
-    ]);
-  });
-
-  it('accepts a JSON string (Spin Json storage path)', () => {
-    expect(parse('[{"name":"Karl","email":"karl@example.com"}]')).toEqual([
-      { name: 'Karl', email: 'karl@example.com' },
-    ]);
+  it('accepts a real array and a JSON string', () => {
+    const karl = [{ name: 'Karl', email: 'karl@example.com' }];
+    expect(parse(karl)).toEqual(karl);
+    expect(parse(JSON.stringify(karl))).toEqual(karl);
   });
 
   it('returns [] for malformed JSON and non-array payloads', () => {
@@ -118,33 +105,35 @@ describe.each([
   });
 });
 
-describe('ensureCompanySuffix', () => {
+describe('company name suffix', () => {
+  const company = (value: string) => withSuffix(value.trim(), 'OÜ');
+
   it('appends OÜ when the legal form is missing', () => {
-    expect(ensureCompanySuffix('Acme')).toBe('Acme OÜ');
-    expect(ensureCompanySuffix('  Acme  ')).toBe('Acme OÜ');
+    expect(company('Acme')).toBe('Acme OÜ');
+    expect(company('  Acme  ')).toBe('Acme OÜ');
   });
 
   it('keeps an empty name empty', () => {
-    expect(ensureCompanySuffix('')).toBe('');
-    expect(ensureCompanySuffix('   ')).toBe('');
+    expect(company('')).toBe('');
+    expect(company('   ')).toBe('');
   });
 
   /**
-   * Regression: the old \bOÜ\b check never matched (Ü is outside \w, so the
-   * trailing \b fails at a space or end-of-string) and every send-back
-   * resubmission appended another " OÜ" to the company name.
+   * Regression: a \bOÜ\b check never matched (Ü is outside \w, so the trailing
+   * \b fails at a space or end-of-string) and every send-back resubmission
+   * appended another " OÜ" to the company name.
    */
   it('does not double the suffix on resubmission round-trips', () => {
-    expect(ensureCompanySuffix('Näidis OÜ')).toBe('Näidis OÜ');
-    expect(ensureCompanySuffix(ensureCompanySuffix('Näidis'))).toBe('Näidis OÜ');
+    expect(company('Näidis OÜ')).toBe('Näidis OÜ');
+    expect(company(company('Näidis'))).toBe('Näidis OÜ');
   });
 
   it('recognises the legal form case-insensitively and mid-name', () => {
-    expect(ensureCompanySuffix('näidis oü')).toBe('näidis oü');
-    expect(ensureCompanySuffix('OÜ Vanamoodne')).toBe('OÜ Vanamoodne');
+    expect(company('näidis oü')).toBe('näidis oü');
+    expect(company('OÜ Vanamoodne')).toBe('OÜ Vanamoodne');
   });
 
   it('does not treat a letter-run containing oü as the legal form', () => {
-    expect(ensureCompanySuffix('Söögikoüld')).toBe('Söögikoüld OÜ');
+    expect(company('Söögikoüld')).toBe('Söögikoüld OÜ');
   });
 });
