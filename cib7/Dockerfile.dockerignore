@@ -1,0 +1,9 @@
+# Dockerfile-specific ignore file: BuildKit uses it instead of the repo-root
+# .dockerignore when building cib7/Dockerfile with the repo root as context.
+# Only the engine module and the service packs go into the context.
+*
+!cib7
+!packs
+cib7/target
+cib7/.idea
+cib7/*.iml

@@ -4,7 +4,7 @@
 
   The service-builder skill emits a <bpmn:serviceTask> with an inline
   <camunda:connector> (http-connector) and, if `payload-template` is set
-  below, a FreeMarker file at cib7/src/main/resources/templates/<task-id>.json.ftl.
+  below, a FreeMarker file at packs/reference/engine/templates/<task-id>.json.ftl.
 
   Replace ALL `<…>` placeholders. Delete sections that don't apply.
 -->
@@ -67,7 +67,7 @@ payload-template: <task-id>.json.ftl
 ```
 
 Then provide the template body below. The builder writes it to
-`cib7/src/main/resources/templates/<task-id>.json.ftl` and references it from
+`packs/reference/engine/templates/<task-id>.json.ftl` and references it from
 the BPMN via `<camunda:script scriptFormat="freemarker" resource="…" />`.
 
 Required template rules:

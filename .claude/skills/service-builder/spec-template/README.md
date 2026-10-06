@@ -12,7 +12,7 @@
 
 **Status:** draft
 **Process key:** `<processKeyCamelCase>`
-**BPMN:** [`cib7/src/main/resources/processes/<service-id>.bpmn`](../../../../cib7/src/main/resources/processes/<service-id>.bpmn)
+**BPMN:** [`packs/reference/engine/processes/<service-id>.bpmn`](../../../../packs/reference/engine/processes/<service-id>.bpmn)
 
 **When to read this:** before changing the <service-id> flow, its forms, or
 its integrations. Cross-cutting topics live in
@@ -81,7 +81,7 @@ service-builder generates for the MCP sidecar — write it for both audiences.>
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
 `/service-builder` generates
-`cib7/src/main/resources/processes/<service>/variable-policy.json` from this
+`packs/reference/engine/processes/<service>/variable-policy.json` from this
 table and `VariableWritePolicyFilter` refuses anything else with 403
 (docs/security.md rule 2). Everything not listed here is system-owned.
 

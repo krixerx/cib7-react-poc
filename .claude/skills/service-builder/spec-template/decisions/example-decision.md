@@ -3,7 +3,7 @@
   (kebab-case, must match camunda:decisionRef in the BPMN).
 
   The service-builder skill emits a standalone DMN at
-  cib7/src/main/resources/processes/<decision-id>.dmn with the rule rows
+  packs/reference/engine/processes/<decision-id>.dmn with the rule rows
   below as a decision table. Every emitted DMN carries
   camunda:historyTimeToLive (CIB seven 2.1 enforces it).
 

@@ -50,7 +50,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 class FreemarkerTemplateRenderTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final Path TEMPLATES_DIR = Path.of("src", "main", "resources", "templates");
+  private static final Path TEMPLATES_DIR =
+      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "templates");
   private static final String PI = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
   private static final Configuration FREEMARKER = buildConfiguration();

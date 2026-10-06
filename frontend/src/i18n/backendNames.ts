@@ -7,7 +7,7 @@ import type { TFunction } from 'i18next';
  * unknown ones (e.g. free-text from civil servants) fall through untouched.
  *
  * Keep in sync with the `name=` attributes in
- * cib7/src/main/resources/processes/*.bpmn.
+ * packs/reference/engine/processes/*.bpmn.
  */
 const BACKEND_NAME_KEYS: Record<string, string> = {
   // Process definition names

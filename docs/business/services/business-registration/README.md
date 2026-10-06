@@ -2,8 +2,8 @@
 
 **Status:** active (POC)
 **Process key:** `businessRegistration`
-**BPMN:** [`cib7/src/main/resources/processes/business-registration/business-registration.bpmn`](../../../../cib7/src/main/resources/processes/business-registration/business-registration.bpmn)
-**DMN:** [`cib7/src/main/resources/processes/business-registration/business-auto-approval.dmn`](../../../../cib7/src/main/resources/processes/business-registration/business-auto-approval.dmn)
+**BPMN:** [`packs/reference/engine/processes/business-registration/business-registration.bpmn`](../../../../packs/reference/engine/processes/business-registration/business-registration.bpmn)
+**DMN:** [`packs/reference/engine/processes/business-registration/business-auto-approval.dmn`](../../../../packs/reference/engine/processes/business-registration/business-auto-approval.dmn)
 
 **When to read this:** before changing the businessRegistration flow, its
 forms, or its integrations. Cross-cutting topics live in
@@ -130,7 +130,7 @@ callback must report exactly that amount.
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
 `/service-builder` generates
-`cib7/src/main/resources/processes/business-registration/variable-policy.json` from this
+`packs/reference/engine/processes/business-registration/variable-policy.json` from this
 table and `VariableWritePolicyFilter` refuses anything else with 403
 (docs/security.md rule 2). Everything not listed here is system-owned.
 
@@ -209,7 +209,7 @@ Do not edit between the markers — run the script to refresh:
 ```sh
 cd scripts
 node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/business-registration/business-registration.bpmn \
+  ../packs/reference/engine/processes/business-registration/business-registration.bpmn \
   --out ../docs/business/services/business-registration/README.md
 ```
 

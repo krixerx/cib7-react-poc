@@ -107,7 +107,8 @@ camunda.bpm:
   # The starter's auto-deploy would bundle every BPMN/DMN on the classpath
   # into ONE "SpringAutoDeployment" — a single versioning/rollback unit
   # shared by all services. ServiceDeployments.java replaces it: one named
-  # engine deployment per classpath:/processes/<service>/ folder, so each
+  # engine deployment per classpath:/processes/<service>/ folder (from the
+  # service pack on the classpath, not from this jar), so each
   # service versions, deploys, and rolls back independently (and the
   # decisionRefBinding="deployment" on business rule tasks resolves each
   # process's DMNs from its own service deployment).

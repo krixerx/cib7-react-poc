@@ -30,7 +30,8 @@ import org.junit.jupiter.api.Test;
  */
 class VariablePolicyFilesTest {
 
-  private static final Path PROCESSES = Path.of("src", "main", "resources", "processes");
+  private static final Path PROCESSES =
+      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "processes");
   private static final Path SERVICE_SPECS = Path.of("..", "docs", "business", "services");
   private static final ObjectMapper JSON = new ObjectMapper();
 

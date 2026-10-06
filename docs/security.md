@@ -78,7 +78,7 @@ the internet.
 
 - A client (SPA, mobile app, MCP agent) may write only the variables its form
   declares. The allowlist per `formKey` and per start is generated from the
-  spec into `cib7/src/main/resources/processes/<service>/variable-policy.json`
+  spec into `packs/reference/engine/processes/<service>/variable-policy.json`
   and enforced by `VariableWritePolicyFilter` on every `/engine-rest` endpoint
   that writes variables: task `complete`, `submit-form` and `resolve`, and
   process `start` and `submit-form` are checked against the allowlist (start

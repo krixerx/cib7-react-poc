@@ -541,7 +541,7 @@ JSDoc) and as a row in this table.
 
 1. **BPMN** — add a `<bpmn:userTask>` with
    `camunda:formKey="react:<form-id>"` to the process file under
-   `cib7/src/main/resources/processes/`. (Variables it reads/writes should
+   `packs/reference/engine/processes/`. (Variables it reads/writes should
    be plain typed variables; see existing tasks for examples.)
 2. **Component** — create `frontend/src/forms/<form-id>/<PascalCaseName>.tsx`
    implementing `FormProps`.

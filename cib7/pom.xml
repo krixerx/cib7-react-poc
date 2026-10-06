@@ -22,6 +22,12 @@
     <java.version>21</java.version>
     <logback-gelf.version>6.1.2</logback-gelf.version>
     <cibseven.version>2.2.0</cibseven.version>
+    <!-- The service pack's engine files (processes/, templates/). They are not
+         in this module: at runtime the image puts them on the classpath from
+         /opt/services, and for tests and `mvn spring-boot:run` this directory
+         is added to the classpath instead. Override with
+         -Dservices.pack.dir=... to run against another pack. -->
+    <services.pack.dir>${project.basedir}/../packs/reference/engine</services.pack.dir>
     <!-- The Keycloak identity-provider extension has no 2.2.0 release (latest
          is 2.1.0, built against Spring Framework 6.2 = the Boot 3.5 line, which
          is exactly what this module runs). It rides its own version property so
@@ -225,10 +231,25 @@
   </repositories>
 
   <build>
+    <!-- Tests deploy and render the pack's BPMN, DMN and templates, so the pack
+         directory joins the test classpath. -->
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <directory>${services.pack.dir}</directory>
+      </testResource>
+    </testResources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <folders>
+            <folder>${services.pack.dir}</folder>
+          </folders>
+        </configuration>
       </plugin>
       <!-- Google Java Style, enforced: `spotless:check` runs during `verify`,
            `mvn spotless:apply` reformats. Requires the add-exports flags in

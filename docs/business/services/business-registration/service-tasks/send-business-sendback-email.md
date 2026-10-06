@@ -12,7 +12,7 @@
 
 ## Payload
 
-FreeMarker template at `cib7/src/main/resources/templates/business-sendback-email.json.ftl`.
+FreeMarker template at `packs/reference/engine/templates/business-sendback-email.json.ftl`.
 Variables in scope: `companyName`, `applicantFirstName`,
 `applicantLastName`, `sendBackReason`.
 

@@ -296,7 +296,16 @@ camunda.bpm:
 ## Per-service deployments (`ServiceDeployments.java`)
 
 `com.poc.cib7.ServiceDeployments` scans `classpath*:processes/*/` at
-startup and creates **one named engine deployment per service folder**
+startup. The jar contains no service files: the image copies the service pack
+(`packs/reference/engine/`) to `/opt/services` and starts through Spring Boot's
+`PropertiesLauncher` with `-Dloader.path=/opt/services`, which puts that
+directory on the classpath. The same mechanism serves the FreeMarker templates
+(BPMN `resource="templates/..."` loads from the classpath) and the
+`variable-policy.json` files. Locally, tests and `mvn spring-boot:run` add the
+directory through the pom property `services.pack.dir`. A customer pack
+replaces `/opt/services` with a bind mount or a thin image layer.
+
+The scan creates **one named engine deployment per service folder**
 (deployment name = folder name = the spec folder name under
 `docs/business/services/`), with `enableDuplicateFiltering(true)` so a
 re-deploy of an unchanged service is a no-op and an edit re-versions only
@@ -315,7 +324,7 @@ It runs in `@PostConstruct`, before the HTTP port opens, so
 
 ## BPMN files
 
-**Location.** `cib7/src/main/resources/processes/<service>/` — one folder
+**Location.** `packs/reference/engine/processes/<service>/` — one folder
 per service; the folder name becomes the engine deployment name. A
 service's DMN files live in the same folder (required by the
 `deployment` decision binding).

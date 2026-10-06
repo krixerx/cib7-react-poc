@@ -488,7 +488,10 @@ services:
         condition: service_started
 
   cib7:
-    build: ./cib7
+    # Repo root as context: the image carries packs/reference/engine.
+    build:
+      context: .
+      dockerfile: cib7/Dockerfile
     container_name: cib7-poc-cib7
     # edge: from the ingress (and the frontend/mobile nginx). app: keycloak,
     # and called by backend + mcp. bus: the ESB, its only outbound channel

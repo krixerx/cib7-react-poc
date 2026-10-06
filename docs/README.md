@@ -57,7 +57,7 @@ The docs are split into two layers:
   TypeScript / React follows the
   [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
   When in doubt, match the surrounding code.
-- **BPMN files** live under `cib7/src/main/resources/processes/` and are
+- **BPMN files** live under `packs/reference/engine/processes/` and are
   auto-deployed on startup. See [`cib7.md`](cib7.md#bpmn-files) for the
   one-file-per-process rule and how `formKey` wires a user task to a React form.
 - **Form id contract.** A BPMN user task carries `camunda:formKey="react:<id>"`;

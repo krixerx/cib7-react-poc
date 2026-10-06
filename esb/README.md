@@ -72,6 +72,16 @@ for a fixed-path forward, `removeHeader CamelHttpPath` before the `to` (else the
 inbound platform-http path is appended and the downstream 404s); for a
 path-preserving prefix proxy, use `matchOnUriPrefix=true` and keep the header.
 
+### Core routes and service pack routes
+
+The four routes here (`bus-auth`, `backend-*`, `notification-bus`, `pdf-bus`)
+are core: every deployment needs them. A service pack's own integrations (a
+customer's registry, payment provider) go into the same `/routes` directory,
+because `camel run --source-dir` reads one directory and takes no file list
+alongside it. A pack adds them with a bind mount per file or a thin image layer
+(`COPY routes/*.yaml /routes/`). Pack route ids and file names start with
+`pack-` so they can never collide with a core route.
+
 ## Logging
 
 The bus logs to the console and to Graylog. Camel JBang owns its own Log4j2

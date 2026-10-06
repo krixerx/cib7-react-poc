@@ -17,7 +17,7 @@ preceding gateway)
 
 ## Payload
 
-FreeMarker template at `cib7/src/main/resources/templates/business-approval-email.json.ftl`.
+FreeMarker template at `packs/reference/engine/templates/business-approval-email.json.ftl`.
 Variables in scope: `companyName`, `shareCapital`, `applicantFirstName`,
 `applicantLastName`, `boardMembers` (Spin Json), `autoDecision`,
 `decision`.

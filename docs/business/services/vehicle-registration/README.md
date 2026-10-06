@@ -2,8 +2,8 @@
 
 **Status:** active (POC)
 **Process key:** `vehicleRegistration`
-**BPMN:** [`cib7/src/main/resources/processes/vehicle-registration/vehicle-registration.bpmn`](../../../../cib7/src/main/resources/processes/vehicle-registration/vehicle-registration.bpmn)
-**DMN:** [`cib7/src/main/resources/processes/vehicle-registration/vehicle-auto-approval.dmn`](../../../../cib7/src/main/resources/processes/vehicle-registration/vehicle-auto-approval.dmn)
+**BPMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn`](../../../../packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn)
+**DMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](../../../../packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
 
 **When to read this:** before changing the vehicle-registration flow, its forms,
 or its integrations. Cross-cutting topics (platform architecture, engine config,
@@ -34,7 +34,7 @@ Do not edit between the markers — run the script to refresh:
 ```sh
 cd scripts
 node bpmn-to-mermaid.mjs \
-  ../cib7/src/main/resources/processes/vehicle-registration/vehicle-registration.bpmn \
+  ../packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn \
   --out ../docs/business/services/vehicle-registration/README.md
 ```
 
@@ -178,7 +178,7 @@ wiring.
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
 `/service-builder` generates
-`cib7/src/main/resources/processes/vehicle-registration/variable-policy.json` from this
+`packs/reference/engine/processes/vehicle-registration/variable-policy.json` from this
 table and `VariableWritePolicyFilter` refuses anything else with 403
 (docs/security.md rule 2). Everything not listed here is system-owned.
 

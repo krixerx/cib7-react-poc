@@ -576,8 +576,8 @@ What the spec must cover:
 |---|---|---|
 | `README.md` | Flow narrative, mermaid diagram, role/authorization matrix, process variables, known trade-offs | BPMN skeleton; the mermaid block is rewritten from the generated BPMN by [`scripts/bpmn-to-mermaid.mjs`](scripts/bpmn-to-mermaid.mjs) |
 | `forms/<form-id>.md` | One file per user task: form id, audience, fields (name / type / required / validation), submit variables, send-back behaviour | One React component per form + a `registry.ts` entry; one `<bpmn:userTask camunda:formKey="react:<form-id>">` per file |
-| `service-tasks/<task-id>.md` | One file per integration: HTTP method + URL, headers, payload template, response mapping, async semantics | One `<bpmn:serviceTask>` with inline `http-connector` config; FreeMarker payload under `cib7/src/main/resources/templates/` if non-trivial |
-| `decisions/<decision-id>.md` (optional) | DMN inputs, outputs, hit policy, rules table | One `.dmn` file under `cib7/src/main/resources/processes/`; one `<bpmn:businessRuleTask camunda:decisionRef="...">` |
+| `service-tasks/<task-id>.md` | One file per integration: HTTP method + URL, headers, payload template, response mapping, async semantics | One `<bpmn:serviceTask>` with inline `http-connector` config; FreeMarker payload under `packs/reference/engine/templates/` if non-trivial |
+| `decisions/<decision-id>.md` (optional) | DMN inputs, outputs, hit policy, rules table | One `.dmn` file under `packs/reference/engine/processes/`; one `<bpmn:businessRuleTask camunda:decisionRef="...">` |
 
 **Conventions the builder relies on:**
 
@@ -600,9 +600,9 @@ Run [`/service-builder`](.claude/skills/service-builder/SKILL.md) on the
 service folder. It reads every markdown file, validates them against the
 conventions above, and writes:
 
-- `cib7/src/main/resources/processes/<service>.bpmn`
-- `cib7/src/main/resources/processes/<decision>.dmn` (if any)
-- `cib7/src/main/resources/templates/<task>.json.ftl` (if any)
+- `packs/reference/engine/processes/<service>.bpmn`
+- `packs/reference/engine/processes/<decision>.dmn` (if any)
+- `packs/reference/engine/templates/<task>.json.ftl` (if any)
 - `frontend/src/forms/<form-id>/` (one component per `forms/*.md`)
 - `frontend/src/forms/registry.ts` — entries added / removed in place
 - `docs/business/services/<service>/README.md` — the mermaid block is
@@ -655,8 +655,8 @@ the repo always builds:
 
 ```
 docs/business/services/<service>/...   (the source of truth)
-cib7/src/main/resources/processes/...  (generated)
-cib7/src/main/resources/templates/...  (generated, if any)
+packs/reference/engine/processes/...  (generated)
+packs/reference/engine/templates/...  (generated, if any)
 frontend/src/forms/...                 (generated)
 frontend/src/forms/registry.ts         (generated)
 ```
@@ -752,7 +752,7 @@ button).
 
 ## DMN decision table
 
-[`cib7/src/main/resources/processes/vehicle-registration/vehicle-auto-approval.dmn`](cib7/src/main/resources/processes/vehicle-registration/vehicle-auto-approval.dmn)
+[`packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
 is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
 `price` (Double) — and a single string output `autoDecision`. Hit policy is
 `FIRST`: minors always go to review, adults with cheap picks auto-approve,
@@ -770,7 +770,7 @@ that shipped in the same service deployment:
 ```
 
 Each service's BPMN + DMN files live under
-`cib7/src/main/resources/processes/<service>/` and are deployed as **one
+`packs/reference/engine/processes/<service>/` and are deployed as **one
 named engine deployment per service** by
 [`ServiceDeployments.java`](cib7/src/main/java/com/poc/cib7/ServiceDeployments.java)
 (the starter's single-bundle auto-deploy is off — `camunda.bpm.auto-deployment-enabled: false`

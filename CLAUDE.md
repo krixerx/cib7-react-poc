@@ -70,7 +70,7 @@ Regenerate a service's flow diagram after touching its BPMN:
 
 ```bash
 cd scripts && npm install
-node bpmn-to-mermaid.mjs ../cib7/src/main/resources/processes/<service>/<service>.bpmn \
+node bpmn-to-mermaid.mjs ../packs/reference/engine/processes/<service>/<service>.bpmn \
   --out ../docs/business/services/<service>/README.md
 # rewrites the block between the bpmn-diagram:start / :end markers in place
 ```
@@ -97,9 +97,14 @@ cib7 · backend · esb · mcp · pdf-renderer ──GELF 12201──▶ graylog 
 
 Module responsibilities are strict and worth preserving:
 
-- **`cib7/` is engine plus plugins only.** No business endpoints. It holds the
-  BPMN/DMN, FreeMarker connector payloads, Keycloak identity wiring and the
-  Connect http-connector config.
+- **`cib7/` is engine plus plugins only.** No business endpoints and no service
+  files. It holds Keycloak identity wiring, the variable policy filter and the
+  Connect http-connector config. The BPMN/DMN, variable policies and FreeMarker
+  connector payloads live in the service pack, `packs/reference/engine/`, which
+  the image copies to `/opt/services` and puts on the classpath with
+  `PropertiesLauncher` and `loader.path` (see `cib7/Dockerfile`). Tests and
+  `mvn spring-boot:run` add the same directory through the pom's
+  `services.pack.dir`.
 - **`backend/` owns every `/api/**` surface**: public token-link pages (owner
   confirmations, founder signatures, payments), the curated vehicle registry,
   document metadata plus RustFS S3 presigned URLs. It reaches the engine only
@@ -136,8 +141,8 @@ then commit spec and generated output as one atomic change.
 
 Generated from the spec:
 
-- `cib7/src/main/resources/processes/<service>/*.bpmn` and `*.dmn`
-- `cib7/src/main/resources/templates/<task>.json.ftl`
+- `packs/reference/engine/processes/<service>/*.bpmn` and `*.dmn`
+- `packs/reference/engine/templates/<task>.json.ftl`
 - `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` (full rewrite)
 - `docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
   plus the aggregated `docs/business/services/build/services.json`
@@ -182,7 +187,8 @@ containers. The short form:
   in `frontend/src/forms/registry.ts`. Nothing validates this at deploy time, so a
   wrong id only shows up as a runtime error on the task page.
 - **One engine deployment per `processes/<service>/` folder.**
-  `ServiceDeployments.java` scans `classpath*:processes/*/` in `@PostConstruct`
+  `ServiceDeployments.java` scans `classpath*:processes/*/` (the pack directory
+  is on the classpath, the jar holds none) in `@PostConstruct`
   with duplicate filtering. A service's DMNs must live in the same folder because
   business rule tasks use `camunda:decisionRefBinding="deployment"`.
 - **Group ids have no leading slash.** The Keycloak group path is
