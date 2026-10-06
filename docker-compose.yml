@@ -428,7 +428,10 @@ services:
     # Talks to the engine exclusively via /engine-rest using the
     # cib7-business Keycloak service account — the engine itself stays a
     # clean CIB seven distribution of plugins and connectors.
-    build: ./backend
+    # Repo root as context: the image carries packs/reference/backend.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: cib7-poc-backend
     # edge: from the ingress. app: engine + keycloak, and called by mcp.
     # storage: RustFS. esb-backend: called by the bus on /api/internal and

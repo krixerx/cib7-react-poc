@@ -14,7 +14,7 @@
       "$ref": "https://companylab.ai/schemas/core/v1.json#/$defs/pendingUploadOrNull"
     },
     "objectId": {
-      "$ref": "https://companylab.ai/schemas/core/v1.json#/$defs/nonBlank"
+      "$ref": "https://companylab.ai/schemas/core/v1.json#/$defs/vin"
     },
     "additionalOwners": {
       "type": "array",

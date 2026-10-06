@@ -34,7 +34,7 @@ jobs:
             context: .
             dockerfile: ./cib7/Dockerfile
           - image: cib7-poc-backend
-            context: ./backend
+            context: .
             dockerfile: ./backend/Dockerfile
           - image: cib7-poc-mcp
             context: .

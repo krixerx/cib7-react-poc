@@ -1,7 +1,8 @@
 /**
- * Client for the curated Estonian vehicle registry served by the
- * backend's VehicleRegistryController under
- * /api/public/vehicle-registry.
+ * Client for the curated Estonian vehicle registry, the `vehicles` entity the
+ * backend's registry module serves from the service pack's descriptor
+ * (docs/business/services/vehicle-registration/data/vehicles.md) under
+ * /api/public/registry/vehicles.
  *
  * The OwnerVehicleForm uses this to populate its vehicle dropdown. The
  * engine's Task_GetPrice service task hits the same backend path server-
@@ -11,7 +12,7 @@
 
 import { formatNumber } from '../i18n/format';
 
-const VEHICLES_URL = '/api/public/vehicle-registry/vehicles';
+const VEHICLES_URL = '/api/public/registry/vehicles';
 
 /** Dropdown row — only what the form renders. */
 export interface Vehicle {

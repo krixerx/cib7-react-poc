@@ -71,7 +71,7 @@ frontend/src/
 │   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
 │   ├── ownerConfirmationsApi.ts   — /api/public/owner-confirmations client (confirm page)
 │   ├── founderSignaturesApi.ts    — /api/public/founder-signatures client (signing page)
-│   └── vehicleRegistryApi.ts      — /api/public/vehicle-registry client (vehicle dropdown)
+│   └── vehicleRegistryApi.ts      — /api/public/registry/vehicles client (vehicle dropdown)
 ├── services/
 │   ├── categories.ts              — PartA life-event categories + service-key → category mapping
 │   └── CategoryIcon.tsx           — Lucide icon per category

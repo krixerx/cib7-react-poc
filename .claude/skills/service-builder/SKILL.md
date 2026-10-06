@@ -95,6 +95,7 @@ and ask** rather than guessing.
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
 | Every `<service>/build/mcp-service.json` across every service | `docs/business/services/build/services.json` (aggregated MCP index; § 11) |
 | `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2) |
+| `<service>/data/<entity>.md` | `packs/reference/backend/registry/<entity>.yaml` (descriptor) and `packs/reference/backend/db/registry/V<n>__<entity>.sql` (table + seed; step 10b) |
 | `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `packs/reference/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 
 The three `build/`-typed outputs above are the contract with the `mcp/` Node
@@ -217,6 +218,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     | `email` | `{"$ref": "<core>#/$defs/email"}` |
     | `email or empty` | `{"$ref": "<core>#/$defs/emailOrEmpty"}` |
     | `personal code (EE)` | `{"$ref": "<core>#/$defs/personalCodeEE"}` |
+    | `vehicle VIN` | `{"$ref": "<core>#/$defs/vin"}` |
     | `list of contacts` | `{"type": "array", "items": {"$ref": "<core>#/$defs/contact"}}` |
     | `list of {f1, f2}, min N` | array of objects with exactly those properties (all required, `additionalProperties: false`), `minItems: N`, each property per its own phrase |
     | `pending upload or null` | `{"$ref": "<core>#/$defs/pendingUploadOrNull"}` |
@@ -233,6 +235,40 @@ generated files get rewritten in place; idempotent runs are a no-op.
     the start variables, and no `required` (the SPA starts with no
     variables). `VariableWritePolicyFilter` enforces the files through
     `FormSchemaRegistry` and answers 400 with the failed rules.
+10b. **Emit the registries** for every `<service>/data/<entity>.md`. The
+    backend's registry module serves them; never write Java for a registry.
+    Descriptor at `packs/reference/backend/registry/<entity>.yaml`:
+    ```yaml
+    # Generated from docs/business/services/<service>/data/<entity>.md. Do not hand-edit.
+    platform: 2
+    entity: <entity>            # [a-z][a-z0-9-]*, the URL segment
+    table: reg_<name>           # must start with reg_
+    key: <field>
+    sort: <field>               # optional, "List order"; default the key
+    fields:
+      <field>: { type: string|integer|number|boolean, maxLength: N }
+    derived:                    # optional
+      <field>: { yearsSince: <integer field> }
+    operations:
+      list: { access: public|internal }
+      lookup: { access: public|internal }
+    ```
+    Field names are camelCase; the column is their snake_case
+    (`fuelType` → `fuel_type`). `public` is only for harmless reference data
+    (docs/security.md rule 5); anything about a person is `internal` at most.
+    An access level, type, operation or derived rule outside this list is a
+    spec gap: stop and ask. `RegistryCatalog` refuses to start on it anyway.
+
+    Migration at `packs/reference/backend/db/registry/V<n>__<entity>.sql`,
+    the next free version across the folder. The first one creates the table
+    and inserts the Seed rows; every later spec change is a new file that
+    alters what is there, never an edit of an applied one. Quote every
+    identifier as lowercase (`"year"`, `"reg_vehicles"`): field names such as
+    `year` and `value` are reserved words in H2. Types: string →
+    `varchar(maxLength or 255)`, integer → `integer`, number →
+    `double precision`, boolean → `boolean`. Renaming, dropping or retyping a
+    column needs an explicit instruction in the spec (data loss), otherwise
+    stop and ask.
 11. **Emit the MCP training markdown** at `<service>/build/mcp-training.md`
     following the template in [§ 11.2](#112-mcp-trainingmd). Draw the
     "What this service does" content from the README's overview section,

@@ -2,9 +2,13 @@ package com.poc.cib7;
 
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import org.cibseven.bpm.engine.ProcessEngine;
+import org.cibseven.bpm.engine.RepositoryService;
 import org.cibseven.bpm.engine.repository.Deployment;
 import org.cibseven.bpm.engine.repository.DeploymentBuilder;
 import org.slf4j.Logger;
@@ -22,10 +26,16 @@ import org.springframework.stereotype.Component;
  * <p>Why per-service deployments:
  *
  * <ul>
- *   <li><b>Independent versioning.</b> Duplicate filtering is evaluated per deployment name, with
- *       {@code deployChangedOnly=true} — editing one service's BPMN re-versions only that service;
- *       every other service's deployment is a filtered no-op. With the single-bundle starter
- *       deploy, unrelated definitions get re-versioned (or share one drift-prone deployment row).
+ *   <li><b>Independent versioning.</b> Duplicate filtering is evaluated per deployment name —
+ *       editing one service's BPMN re-versions only that service; every other service's deployment
+ *       is a filtered no-op. With the single-bundle starter deploy, unrelated definitions get
+ *       re-versioned (or share one drift-prone deployment row).
+ *   <li><b>A service always deploys whole.</b> Filtering runs with {@code deployChangedOnly=false}:
+ *       when one file of a service changed, all of its files go into the new deployment. With
+ *       {@code true} a changed BPMN would be deployed alone, and its business rule tasks, bound to
+ *       their DMN by deployment, would fail with "no decision definition deployed". A latest
+ *       deployment that lacks one of the service's files (left behind by the earlier {@code true})
+ *       is repaired by deploying the service unfiltered.
  *   <li><b>Independent lifecycle.</b> A deployment is the engine's unit of rollback/deletion
  *       (cascade). One row per service means one service can be removed or rolled back in Cockpit
  *       without touching the others — matching the spec-first premise that the analyst's service
@@ -77,25 +87,56 @@ public class ServiceDeployments {
     }
 
     for (Map.Entry<String, Map<String, Resource>> service : services.entrySet()) {
-      DeploymentBuilder builder =
-          processEngine
-              .getRepositoryService()
-              .createDeployment()
-              .name(service.getKey())
-              .source("service-deployments")
-              // Compare against the latest deployment with the same name and
-              // create a new version only for resources whose bytes changed.
-              .enableDuplicateFiltering(true);
-      for (Map.Entry<String, Resource> entry : service.getValue().entrySet()) {
-        builder.addInputStream(entry.getKey(), entry.getValue().getInputStream());
-      }
-      Deployment deployment = builder.deploy();
-      LOG.info(
-          "Service '{}': deployment {} with {} resource(s)",
-          service.getKey(),
-          deployment.getId(),
-          service.getValue().size());
+      deploy(service.getKey(), service.getValue());
     }
+  }
+
+  /**
+   * Deploys one service's resources as the deployment named after it: nothing when no resource
+   * changed, all of them when one did, and all of them unfiltered when the latest deployment is
+   * missing one.
+   */
+  Deployment deploy(String service, Map<String, Resource> resources) throws IOException {
+    RepositoryService repository = processEngine.getRepositoryService();
+    DeploymentBuilder builder =
+        repository.createDeployment().name(service).source("service-deployments");
+    if (latestDeploymentHolds(service, resources.keySet())) {
+      // Compare against the latest deployment with the same name; if any
+      // resource changed, deploy every resource of the service together.
+      builder.enableDuplicateFiltering(false);
+    } else {
+      LOG.warn(
+          "Service '{}': the latest deployment lacks some of {}; deploying the whole service again",
+          service,
+          resources.keySet());
+    }
+    for (Map.Entry<String, Resource> entry : resources.entrySet()) {
+      builder.addInputStream(entry.getKey(), entry.getValue().getInputStream());
+    }
+    Deployment deployment = builder.deploy();
+    LOG.info(
+        "Service '{}': deployment {} with {} resource(s)",
+        service,
+        deployment.getId(),
+        resources.size());
+    return deployment;
+  }
+
+  /** True when there is no deployment yet, or the latest one contains every given resource. */
+  private boolean latestDeploymentHolds(String service, Set<String> resourceNames) {
+    RepositoryService repository = processEngine.getRepositoryService();
+    List<Deployment> latest =
+        repository
+            .createDeploymentQuery()
+            .deploymentName(service)
+            .orderByDeploymentTime()
+            .desc()
+            .listPage(0, 1);
+    if (latest.isEmpty()) {
+      return true;
+    }
+    return new HashSet<>(repository.getDeploymentResourceNames(latest.get(0).getId()))
+        .containsAll(resourceNames);
   }
 
   /** The immediate parent folder of a {@code processes/<service>/<file>} classpath resource. */

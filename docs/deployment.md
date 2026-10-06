@@ -225,12 +225,12 @@ docker compose logs -f
 | `curl -sI http://app.example.com/` | `308`, `Location: https://app.example.com/` (Traefik :80→:443 redirect) |
 | `curl -sI https://app.example.com/` | `200`, with `strict-transport-security`, `content-security-policy` (naming your Keycloak and S3 origins), `x-frame-options: DENY`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer` and `permissions-policy` |
 | `curl -s -o /dev/null -w '%{http_code}\n' https://app.example.com/api/internal/documents/index-case` | `404` (engine-only paths are never routed from outside) |
-| `for i in $(seq 40); do curl -s -o /dev/null -w '%{http_code} ' https://app.example.com/api/public/vehicle-registry/vehicles; done` | `200`s, then `429`s once the burst of 20 is spent |
+| `for i in $(seq 40); do curl -s -o /dev/null -w '%{http_code} ' https://app.example.com/api/public/registry/vehicles; done` | `200`s, then `429`s once the burst of 20 is spent |
 | `openssl s_client -connect app.example.com:443 -servername app.example.com </dev/null 2>/dev/null \| openssl x509 -noout -subject -dates` | Your cert's subject + validity window |
 | Open `https://app.example.com/` in a browser | Redirects to `https://kc.example.com/realms/cib7-poc/...` |
 | Log in with a Keycloak user | Lands on the SPA |
 | `curl -s https://app.example.com/engine-rest/process-definition` | `200`, JSON array naming the four process keys (Traefik routes `/engine-rest` to `cib7:8080`). This is the one anonymous engine route — every other `/engine-rest/**` path answers an unauthenticated curl with `401`. |
-| `curl -s https://app.example.com/api/public/vehicle-registry/vehicles` | `200`, JSON array of ten vehicles (Traefik routes `/api` to `backend:8085`) |
+| `curl -s https://app.example.com/api/public/registry/vehicles` | `200`, JSON array of ten vehicles (Traefik routes `/api` to `backend:8085`) |
 | Open `https://app.example.com/camunda/app/cockpit/` | Cockpit login page (OAuth2 round-trip through Keycloak) |
 | `curl -sI https://kc.example.com/realms/cib7-poc/.well-known/openid-configuration` | `200`, `issuer: https://kc.example.com/realms/cib7-poc` |
 | Open MCP from Claude Desktop / Cursor at `https://app.example.com/mcp` | OAuth pop, then `list_services` returns the two services |
@@ -409,7 +409,7 @@ you have to make before exposing the stack to real users.
 | **Webapps client secrets in YAML defaults** | `application.yaml` has `${KEYCLOAK_*_CLIENT_SECRET:cib7-*-secret}` defaults that match the dev realm export. Forgetting to set the env var falls back to the dev secret silently. | Remove the defaults, fail-fast on missing env vars, manage secrets via Docker secrets or your platform's secret store. |
 | **No BFF** | The SPA calls `/engine-rest` directly with a Bearer JWT. JWT is validated and authorization runs against `IdentityService`, but every engine REST endpoint is reachable from the browser. | Add a backend-for-frontend that exposes only the calls the SPA needs (the spec calls for this — see [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md)). |
 | **Bart/Homer demo users** | Seeded in the realm export with username-equals-password. | Remove or disable them before going live. |
-| **Curated vehicle registry** | The "Look up vehicle in registry" service task calls the backend's hard-coded ten-vehicle catalog (`/api/public/vehicle-registry`) — a stand-in for the real Liiklusregister. | Point the backend (or the BPMN connector) at the real registry API, with retry / circuit-breaker handling. |
+| **Curated vehicle registry** | The "Look up vehicle in registry" service task calls the backend's registry module, which serves the pack's ten-vehicle seed (`/api/public/registry/vehicles`, from `data/vehicles.md`) — a stand-in for the real Liiklusregister. | Point the backend (or the BPMN connector) at the real registry API, with retry / circuit-breaker handling. |
 | **Mock payment provider** | Fees are paid through `MockPaymentProvider` (`backend/.../payment/mockprovider`), a demo bank that signs its callback with `PAYMENT_PROVIDER_SECRET`. The merchant side already verifies a signed callback for the server-computed amount. | Replace only the `mockprovider` package with a client for a real provider (implementing `PaymentProvider`) and point the provider's webhook at `POST /api/public/payments/callback` with its own signing secret. |
 | **Document read authorization** | Any authenticated user who knows a process-instance id can list/download its documents — the engine's per-instance permission check was dropped when documents moved to the backend (documented in `DocumentsController`). | Forward the caller's Bearer to `/engine-rest` and require READ_INSTANCE on the case before serving metadata or presigned URLs. |
 

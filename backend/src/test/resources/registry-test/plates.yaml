@@ -1,0 +1,11 @@
+# Test-only entity served on the internal class only: proves the public path
+# cannot reach it.
+platform: 2
+entity: plates
+table: reg_plates
+key: plate
+fields:
+  plate: { type: string }
+  holder: { type: string }
+operations:
+  lookup: { access: internal }

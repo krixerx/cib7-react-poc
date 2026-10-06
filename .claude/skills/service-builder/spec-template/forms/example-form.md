@@ -37,7 +37,7 @@ The Validation column is not free text: the engine enforces it on every
 client (SPA, MCP agent, direct REST call) through a generated value schema.
 Use only the phrases in SKILL.md step 10a (`non-empty`, `non-empty, max N
 chars`, `integer A..B`, `number >= N`, `one of a, b, c`, `email`, `email or
-empty`, `personal code (EE)`, `list of contacts`, `list of {f1, f2}, min N`,
+empty`, `personal code (EE)`, `vehicle VIN`, `list of contacts`, `list of {f1, f2}, min N`,
 `pending upload or null`, `cleared to ""`, `identity`). UI-only behaviour
 (trimming, auto-suffixes) goes in Notes.
 

@@ -106,7 +106,8 @@ Module responsibilities are strict and worth preserving:
   `mvn spring-boot:run` add the same directory through the pom's
   `services.pack.dir`.
 - **`backend/` owns every `/api/**` surface**: public token-link pages (owner
-  confirmations, founder signatures, payments), the curated vehicle registry,
+  confirmations, founder signatures, payments), the registry module that
+  serves the pack's declared registries (`/api/{public,internal}/registry/<entity>`),
   document metadata plus RustFS S3 presigned URLs. It reaches the engine only
   through `/engine-rest` as the `cib7-business` service account.
 - **`esb/` is the only address the engine knows for outbound calls.**
@@ -196,7 +197,9 @@ containers. The short form:
 - **One engine deployment per `processes/<service>/` folder.**
   `ServiceDeployments.java` scans `classpath*:processes/*/` (the pack directory
   is on the classpath, the jar holds none) in `@PostConstruct`
-  with duplicate filtering. A service's DMNs must live in the same folder because
+  with duplicate filtering that redeploys a changed service whole
+  (`deployChangedOnly=false`: a BPMN deployed without its DMN breaks
+  `decisionRefBinding="deployment"`). A service's DMNs must live in the same folder because
   business rule tasks use `camunda:decisionRefBinding="deployment"`.
 - **Group ids have no leading slash.** The Keycloak group path is
   `/civil-servant`, but the cibseven-keycloak plugin maps it to the engine group

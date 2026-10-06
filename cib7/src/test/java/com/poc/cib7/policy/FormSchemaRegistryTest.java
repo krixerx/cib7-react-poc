@@ -46,11 +46,15 @@ class FormSchemaRegistryTest {
     Schema schema = registry.forForm("vehicleRegistration", "owner-vehicle").orElseThrow();
     String ok =
         """
-        {"age": 30, "objectId": "VIN1", "pendingIdDocument": null, "applicantEmail": "",
+        {"age": 30, "objectId": "WP0AB2A91KS123456", "pendingIdDocument": null, "applicantEmail": "",
          "additionalOwners": [], "sendBackReason": ""}""";
     assertValid(schema, ok);
     assertInvalid(schema, ok.replace("\"age\": 30", "\"age\": 0"));
-    assertInvalid(schema, ok.replace("\"objectId\": \"VIN1\"", "\"objectId\": \" \""));
+    assertInvalid(schema, ok.replace("WP0AB2A91KS123456", " "));
+    // The VIN goes into the registry lookup URL path: nothing that could leave the segment.
+    assertInvalid(schema, ok.replace("WP0AB2A91KS123456", "../../internal/documents"));
+    assertInvalid(schema, ok.replace("WP0AB2A91KS123456", "WP0AB2A91KS12345%2F"));
+    assertInvalid(schema, ok.replace("WP0AB2A91KS123456", "wp0ab2a91ks123456"));
     assertInvalid(schema, ok.replace("\"sendBackReason\": \"\"", "\"sendBackReason\": \"x\""));
     assertInvalid(
         schema,

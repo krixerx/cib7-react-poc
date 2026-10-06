@@ -323,9 +323,16 @@ replaces `/opt/services` with a bind mount or a thin image layer.
 
 The scan creates **one named engine deployment per service folder**
 (deployment name = folder name = the spec folder name under
-`docs/business/services/`), with `enableDuplicateFiltering(true)` so a
+`docs/business/services/`), with `enableDuplicateFiltering(false)` so a
 re-deploy of an unchanged service is a no-op and an edit re-versions only
-that service. Benefits over the single-bundle starter deploy:
+that service, always with **all** of its files. The argument is
+`deployChangedOnly`: with `true` a changed BPMN would be deployed alone,
+and its business rule tasks (decisions bound by deployment) would fail with
+"no decision definition deployed". On a persistent database that happened
+once; `ServiceDeployments` therefore also redeploys a service whole when the
+latest deployment of that name lacks one of its files
+(`ServiceDeploymentsRedeployTest`). Benefits over the single-bundle starter
+deploy:
 
 - independent versioning per service (no cross-service version bumps),
 - independent rollback/delete in Cockpit (deployment delete cascades per
@@ -402,7 +409,7 @@ StartEvent_1 (camunda:initiator="initiator")
                                                     correlation from the public confirm page)
   → Task_WaitSendToProcess        receiveTask      "owner submits to process" message
   → Task_GetPrice                 serviceTask      asyncBefore, http-connector →
-                                                    backend /api/public/vehicle-registry
+                                                    backend /api/public/registry/vehicles
   → Task_AutoDecide               businessRuleTask decisionRef="vehicle-auto-approval"
                                                     → autoDecision (singleEntry)
   → Gateway_AutoApproval          exclusiveGateway
@@ -523,7 +530,7 @@ malformed response degrades to "review" instead of crashing the activity:
 <camunda:connector>
   <camunda:connectorId>http-connector</camunda:connectorId>
   <camunda:inputOutput>
-    <camunda:inputParameter name="url">${busBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
+    <camunda:inputParameter name="url">${busBaseUrl}/api/public/registry/vehicles/${objectId}</camunda:inputParameter>
     <camunda:inputParameter name="method">GET</camunda:inputParameter>
     <camunda:inputParameter name="headers">
       <camunda:map>

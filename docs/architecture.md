@@ -28,7 +28,7 @@ engine boundary atomically, which is the whole point.
 **Module split.** `cib7/` is a *clean engine*: CIB seven 2.2 + plugins +
 connectors + BPMN/DMN/FreeMarker resources, no business endpoints. Every
 `/api/**` surface (public owner-confirmation / founder-signature / payment
-links, the vehicle-registry stand-in, document storage) lives in `backend/`,
+links, the registry module, document storage) lives in `backend/`,
 a separate Spring Boot 4 microservice that reaches the engine exclusively
 over `/engine-rest` using the `cib7-business` Keycloak service account.
 
@@ -83,9 +83,10 @@ The runtime pieces:
 - **Business microservice (`backend/`)** — Spring Boot 4 app owning every
   `/api/**` surface: the public token-link endpoints
   (`/api/public/owner-confirmations`, `/api/public/founder-signatures`,
-  `/api/public/payments`), the curated vehicle registry
-  (`/api/public/vehicle-registry`, the Liiklusregister stand-in the engine
-  calls via http-connector), `/api/documents` (S3 presigned upload /
+  `/api/public/payments`), the registry module
+  (`/api/{public,internal}/registry/<entity>`, which serves the service
+  pack's declared registries such as the `vehicles` Liiklusregister stand-in
+  the engine calls via http-connector), `/api/documents` (S3 presigned upload /
   download against RustFS; metadata as a JPA `Document` entity in its own
   Postgres database), and the engine-only `/api/internal/**` endpoints (document
   filing, case index). Talks to the engine only over `/engine-rest`, authenticated
@@ -183,7 +184,7 @@ A single "Vehicle Registration" process instance:
      SPA → GET /engine-rest/task/{taskId}/form-variables
      SPA → looks up formKey "react:owner-vehicle" → OwnerVehicleForm
 4. OwnerVehicleForm fetches the vehicle dropdown (browser → backend)
-     SPA → GET /api/public/vehicle-registry/vehicles
+     SPA → GET /api/public/registry/vehicles
    and stages the ID upload (browser → backend → RustFS)
      SPA → POST /api/documents/upload-url → presigned PUT direct to RustFS
 5. User submits → SPA completes the task with typed variables
@@ -191,7 +192,7 @@ A single "Vehicle Registration" process instance:
      ↓
 6. Engine promotes the staged upload + looks the vehicle up (job executor)
      Engine → POST {busBaseUrl}/api/internal/documents/move-pending   (bus injects X-Internal-Token)
-     Engine → GET  {busBaseUrl}/api/public/vehicle-registry/vehicles/{vin}
+     Engine → GET  {busBaseUrl}/api/public/registry/vehicles/{vin}
      Spin reads value/age inline; engine writes `price`, `vehicleAgeYears`
      ↓
 7. DMN auto-approval policy decides: auto-approve, or create the
@@ -420,6 +421,32 @@ URL), `KEYCLOAK_URL` (engine + backend, internal URL), and
   updates. Deployments are re-checked at startup by duplicate filtering, so an
   unchanged service is not re-versioned. `docker compose down -v` wipes
   everything. Backups: see `docs/deployment.md`, Day-2 operations.
+
+## Registry module
+
+Registries a service needs (reference data, lookups the engine makes) are
+declared in the service pack, not written as Java. The spec's
+`docs/business/services/<service>/data/<entity>.md` becomes, through the
+service builder, a descriptor `packs/reference/backend/registry/<entity>.yaml`
+and a Flyway migration `packs/reference/backend/db/registry/V<n>__*.sql`
+(table plus seed rows). The backend image carries them in `/opt/services`
+on the classpath (`PropertiesLauncher`, `loader.path`), like the engine's pack.
+
+- `RegistryMigrations` runs the pack's migrations in their own `registry`
+  schema with their own Flyway history table, apart from the backend's core
+  tables.
+- `RegistryCatalog` loads the descriptors and refuses to start on anything
+  outside the closed set: names that are not plain identifiers, a table not
+  starting with `reg_`, types other than string / integer / number /
+  boolean, operations other than list / lookup, endpoint classes other than
+  `public` / `internal`, derived fields other than `yearsSince`, or a column
+  the database does not have.
+- `RegistryController` serves every entity at
+  `/api/public/registry/<entity>[/<key>]` or
+  `/api/internal/registry/<entity>[/<key>]`, whichever class the descriptor
+  names per operation; the other class answers 404, like an unknown entity.
+  Identifiers come from the checked descriptor and are quoted, the key is a
+  bound parameter, a list returns at most 1,000 rows.
 
 ## Security posture
 

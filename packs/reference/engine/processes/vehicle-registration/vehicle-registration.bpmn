@@ -416,7 +416,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/public/registry/vehicles/${objectId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -424,7 +424,8 @@
               </camunda:map>
             </camunda:inputParameter>
             <!--
-              'response' is the raw JSON body from VehicleRegistryController.
+              'response' is the raw JSON body from the backend's registry module
+              (docs/business/services/vehicle-registration/data/vehicles.md).
               Schema: {vin, make, model, year, ageYears, value, fuelType}.
               The PartA form only lets the applicant pick a VIN that's already
               in the catalog, so the controller returns 200; if a tampered

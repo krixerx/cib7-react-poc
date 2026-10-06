@@ -22,6 +22,11 @@
     engine (plugins + connectors only).</description>
 
   <properties>
+    <!-- The service pack's backend files (registry/, db/registry/). Not in this
+         module: at runtime the image puts them on the classpath from
+         /opt/services; tests and `mvn spring-boot:run` add this directory
+         instead. Override with -Dservices.pack.dir=... for another pack. -->
+    <services.pack.dir>${project.basedir}/../packs/reference/backend</services.pack.dir>
     <java.version>21</java.version>
     <logback-gelf.version>6.1.2</logback-gelf.version>
     <!-- AWS SDK v2 pinned directly (no BOM) — same rationale as before the
@@ -79,6 +84,12 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-flyway</artifactId>
+    </dependency>
+    <!-- Reads the pack's registry descriptors with its SafeConstructor
+         (com.poc.backend.registry.RegistryCatalog). Version from the Boot parent. -->
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
@@ -147,10 +158,25 @@
   </dependencies>
 
   <build>
+    <!-- Tests read the pack's registry descriptors and run its migrations, so
+         the pack directory joins the test classpath. -->
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+      </testResource>
+      <testResource>
+        <directory>${services.pack.dir}</directory>
+      </testResource>
+    </testResources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <folders>
+            <folder>${services.pack.dir}</folder>
+          </folders>
+        </configuration>
       </plugin>
       <!-- Google Java Style, enforced: `spotless:check` runs during `verify`,
            `mvn spotless:apply` reformats. Requires the add-exports flags in

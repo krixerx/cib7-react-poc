@@ -95,7 +95,7 @@ capability links included. That is a deliberate demo exemption, see
 
 ```bash
 curl -s  http://localhost:3000/engine-rest/process-definition | head -c 200  # → JSON array
-curl -s  http://localhost:3000/api/public/vehicle-registry/vehicles | head -c 200   # → JSON
+curl -s  http://localhost:3000/api/public/registry/vehicles | head -c 200   # → JSON
 curl -sI http://localhost:8180/realms/cib7-poc/.well-known/openid-configuration     # → 200
 ```
 

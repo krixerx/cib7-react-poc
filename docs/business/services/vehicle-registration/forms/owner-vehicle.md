@@ -22,7 +22,7 @@ signing links will be sent to every co-owner."
 | `age` | `Age` | `number` | yes | `data.age` | integer 1..130 |
 | `applicantEmail` | `Email (required if you list co-owners)` | `email` (from account) | no | `data.applicantEmail` | identity |
 | `pendingIdDocument` | `Owner ID document (required)` | `file` (PDF, JPEG, PNG, max 10 MB) | yes | `data.idDocumentAttachmentId` | pending upload or null |
-| `objectId` | `Vehicle (from registry)` | `select` from `listVehicles()` (`frontend/src/api/vehicleRegistryApi.ts`) | yes | `data.objectId` | non-empty |
+| `objectId` | `Vehicle (from registry)` | `select` from `listVehicles()` (`frontend/src/api/vehicleRegistryApi.ts`) | yes | `data.objectId` | vehicle VIN |
 | `additionalOwners` | `Co-owners` | `repeating-rows` of {`name`, `email`} | no | `data.additionalOwners` (Json) | list of contacts |
 | `sendBackReason` | — (not shown; cleared on submit) | hidden | no | — | cleared to "" |
 
@@ -66,4 +66,7 @@ hidden. Field defaults still apply so the data is visible.
   cannot express them.
 - Names and email come from the signed-in Keycloak account;
   `IdentityValidationListener` rejects a changed value on completion.
+- `objectId` is the VIN of a vehicle in the registry and goes into the path of
+  the `Task_GetPrice` lookup URL, which is why its rule is the strict `vehicle
+  VIN` and not just `non-empty`.
 - Trimming of text fields happens in the form before submit.

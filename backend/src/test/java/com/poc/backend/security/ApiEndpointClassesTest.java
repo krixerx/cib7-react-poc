@@ -123,6 +123,6 @@ class ApiEndpointClassesTest {
 
   @Test
   void publicReferenceDataStaysPublic() throws Exception {
-    mvc.perform(get("/api/public/vehicle-registry/vehicles")).andExpect(status().isOk());
+    mvc.perform(get("/api/public/registry/vehicles")).andExpect(status().isOk());
   }
 }

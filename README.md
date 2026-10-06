@@ -116,7 +116,7 @@ Vehicle Registration (BPMN + DMN)
     ▼  Co-owner signatures        multi-instance subprocess (email links,  │
     │    public /confirm-owner/{token} pages, message correlation)         │
     ▼  Look up vehicle in registry  service task (http-connector)          │
-    │    GET {busBaseUrl}/api/public/vehicle-registry/vehicles/{vin}       │
+    │    GET {busBaseUrl}/api/public/registry/vehicles/{vin}       │
     │    → price, vehicleAgeYears, make/model/year/fuelType                │
     ▼  Auto-approval policy       business rule task (DMN)                 │
     │    age + price + vehicleAgeYears → autoDecision                      │
@@ -427,7 +427,7 @@ cib7-react-poc/
 │       │   ├── owner/                        /api/public/owner-confirmations
 │       │   ├── founder/                      /api/public/founder-signatures
 │       │   ├── payment/                      /api/public/payments
-│       │   └── vehicleregistry/              /api/public/vehicle-registry (Liiklusregister stand-in)
+│       │   └── registry/                     /api/{public,internal}/registry/<entity> (pack registries)
 │       └── resources/application.yaml
 ├── pdf-renderer/                   Node sidecar (JSON-in/JSON-out over Gotenberg)
 │   ├── server.js                   ~25 LOC Express wrapper
@@ -733,7 +733,7 @@ It is wired in two places:
   <camunda:connector>
     <camunda:connectorId>http-connector</camunda:connectorId>
     <camunda:inputOutput>
-      <camunda:inputParameter name="url">${busBaseUrl}/api/public/vehicle-registry/vehicles/${objectId}</camunda:inputParameter>
+      <camunda:inputParameter name="url">${busBaseUrl}/api/public/registry/vehicles/${objectId}</camunda:inputParameter>
       <camunda:inputParameter name="method">GET</camunda:inputParameter>
       <camunda:inputParameter name="headers">
         <camunda:map>
@@ -982,8 +982,9 @@ reinstated.
 - Keycloak runs in `start-dev` mode with its own in-memory H2 — the realm is
   re-imported from `keycloak/realm-export.json` on every container start, so
   user-created users/groups are also lost on restart.
-- The vehicle catalog is a hard-coded ten-entry stand-in served by the
-  backend (`/api/public/vehicle-registry`) — no real Liiklusregister behind it.
+- The vehicle catalog is a ten-entry stand-in declared in the service pack
+  (`data/vehicles.md`) and served by the backend's registry module
+  (`/api/public/registry/vehicles`) — no real Liiklusregister behind it.
 - The DMN's `PT2M` timer cycle is a demo value — switch to `PT8H` / `PT1D`
   for anything real, otherwise Mailpit fills up fast.
 - Mailpit's storage is non-persistent (no volume mounted); restarting the
