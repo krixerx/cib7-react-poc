@@ -100,7 +100,7 @@ services:
   frontend:
     environment:
       # Injected at container start via /env.js (see
-      # frontend/docker/40-runtime-env.sh) — must match the realm-export
+      # frontend/docker/40-runtime-env.sh) — must match the realm
       # client and the Keycloak hostname. No image rebuild needed.
       KEYCLOAK_URL: ${PUBLIC_KEYCLOAK_URL}
       KEYCLOAK_REALM: cib7-poc

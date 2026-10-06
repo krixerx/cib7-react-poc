@@ -4,7 +4,10 @@
   "displayName": "CIB seven POC",
   "loginTheme": "cib7",
   "internationalizationEnabled": true,
-  "supportedLocales": ["en", "ar"],
+  "supportedLocales": [
+    "en",
+    "ar"
+  ],
   "defaultLocale": "en",
   "sslRequired": "none",
   "registrationAllowed": true,
@@ -19,11 +22,12 @@
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 1800,
   "ssoSessionMaxLifespan": 36000,
-
-  "defaultDefaultClientScopes": ["cib7-claims"],
-
-  "defaultGroups": ["/applicant"],
-
+  "defaultDefaultClientScopes": [
+    "cib7-claims"
+  ],
+  "defaultGroups": [
+    "/applicant"
+  ],
   "smtpServer": {
     "host": "mailpit",
     "port": "1025",
@@ -34,66 +38,61 @@
     "starttls": "false",
     "auth": "false"
   },
-
   "attributes": {
     "frontendUrl": "${PUBLIC_KEYCLOAK_URL}"
   },
-
   "roles": {
     "realm": [
-      { "name": "applicant",      "description": "End user who starts processes and fills applicant forms (PartA)" },
-      { "name": "civil-servant",  "description": "Back-office reviewer who completes civil-servant tasks (PartB)" },
-      { "name": "cib7-admin",     "description": "Engine administrators (mapped to CIB seven admin authorizations)" },
-      { "name": "offline_access", "description": "May hold an offline refresh token; Claude connectors request one, and without this role the code exchange fails with not_allowed" }
+      {
+        "name": "applicant",
+        "description": "End user who starts processes and fills applicant forms (PartA)"
+      },
+      {
+        "name": "civil-servant",
+        "description": "Back-office reviewer who completes civil-servant tasks (PartB)"
+      },
+      {
+        "name": "cib7-admin",
+        "description": "Engine administrators (mapped to CIB seven admin authorizations)"
+      },
+      {
+        "name": "statistics-viewer",
+        "description": "May open the process statistics page (all of PartB through the civil-servant group)"
+      },
+      {
+        "name": "offline_access",
+        "description": "May hold an offline refresh token; Claude connectors request one, and without this role the code exchange fails with not_allowed"
+      }
     ]
   },
-
   "groups": [
-    { "name": "applicant",     "path": "/applicant",     "realmRoles": ["applicant", "offline_access"] },
-    { "name": "civil-servant", "path": "/civil-servant", "realmRoles": ["civil-servant", "offline_access"] },
-    { "name": "cib7-admin",    "path": "/cib7-admin",    "realmRoles": ["cib7-admin", "offline_access"] }
+    {
+      "name": "applicant",
+      "path": "/applicant",
+      "realmRoles": [
+        "applicant",
+        "offline_access"
+      ]
+    },
+    {
+      "name": "civil-servant",
+      "path": "/civil-servant",
+      "realmRoles": [
+        "civil-servant",
+        "statistics-viewer",
+        "offline_access"
+      ]
+    },
+    {
+      "name": "cib7-admin",
+      "path": "/cib7-admin",
+      "realmRoles": [
+        "cib7-admin",
+        "offline_access"
+      ]
+    }
   ],
-
   "users": [
-    {
-      "username": "admin",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "Camunda",
-      "lastName": "Admin",
-      "email": "admin@example.com",
-      "credentials": [
-        { "type": "password", "value": "admin", "temporary": false }
-      ],
-      "groups": ["/cib7-admin"],
-      "realmRoles": ["cib7-admin"]
-    },
-    {
-      "username": "homer",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "Homer",
-      "lastName": "Simpson",
-      "email": "homer@example.com",
-      "credentials": [
-        { "type": "password", "value": "homer", "temporary": false }
-      ],
-      "groups": ["/civil-servant"],
-      "realmRoles": ["civil-servant"]
-    },
-    {
-      "username": "bart",
-      "enabled": true,
-      "emailVerified": true,
-      "firstName": "Bart",
-      "lastName": "Simpson",
-      "email": "bart@example.com",
-      "credentials": [
-        { "type": "password", "value": "bart", "temporary": false }
-      ],
-      "groups": ["/applicant"],
-      "realmRoles": ["applicant"]
-    },
     {
       "username": "service-account-cib7-backend",
       "enabled": true,
@@ -113,11 +112,14 @@
       "username": "service-account-cib7-business",
       "enabled": true,
       "serviceAccountClientId": "cib7-business",
-      "groups": ["/cib7-admin"],
-      "realmRoles": ["cib7-admin"]
+      "groups": [
+        "/cib7-admin"
+      ],
+      "realmRoles": [
+        "cib7-admin"
+      ]
     }
   ],
-
   "clientScopes": [
     {
       "name": "cib7-claims",
@@ -180,7 +182,6 @@
       ]
     }
   ],
-
   "clients": [
     {
       "clientId": "cib7-mobile",
@@ -204,7 +205,9 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3001/*##http://localhost:3000/mobile/*##${PUBLIC_FRONTEND_URL}/mobile/*"
       },
-      "defaultClientScopes": ["cib7-claims"],
+      "defaultClientScopes": [
+        "cib7-claims"
+      ],
       "protocolMappers": [
         {
           "name": "audience-cib7-rest-api",
@@ -241,7 +244,9 @@
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*##${PUBLIC_FRONTEND_URL}/*"
       },
-      "defaultClientScopes": ["cib7-claims"],
+      "defaultClientScopes": [
+        "cib7-claims"
+      ],
       "protocolMappers": [
         {
           "name": "audience-cib7-rest-api",
@@ -281,7 +286,10 @@
       "attributes": {
         "use.refresh.tokens": "false"
       },
-      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"]
+      "defaultClientScopes": [
+        "cib7-claims",
+        "cib7-rest-api-audience"
+      ]
     },
     {
       "clientId": "cib7-webapps",
@@ -308,7 +316,9 @@
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:8080/*##${PUBLIC_FRONTEND_URL}/*"
       },
-      "defaultClientScopes": ["cib7-claims"]
+      "defaultClientScopes": [
+        "cib7-claims"
+      ]
     },
     {
       "clientId": "cib7-mailpit",
@@ -320,8 +330,12 @@
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["${PUBLIC_FRONTEND_URL}/mailpit/oauth2/callback"],
-      "webOrigins": ["${PUBLIC_FRONTEND_URL}"],
+      "redirectUris": [
+        "${PUBLIC_FRONTEND_URL}/mailpit/oauth2/callback"
+      ],
+      "webOrigins": [
+        "${PUBLIC_FRONTEND_URL}"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       },
@@ -355,7 +369,9 @@
           }
         }
       ],
-      "defaultClientScopes": ["cib7-claims"]
+      "defaultClientScopes": [
+        "cib7-claims"
+      ]
     },
     {
       "clientId": "cib7-mcp",
@@ -370,13 +386,20 @@
         "http://localhost/*",
         "https://claude.ai/api/mcp/auth_callback"
       ],
-      "webOrigins": ["+"],
+      "webOrigins": [
+        "+"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://127.0.0.1/*##http://localhost/*"
       },
-      "defaultClientScopes": ["cib7-claims", "cib7-rest-api-audience"],
-      "optionalClientScopes": ["offline_access"]
+      "defaultClientScopes": [
+        "cib7-claims",
+        "cib7-rest-api-audience"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ]
     }
   ]
 }

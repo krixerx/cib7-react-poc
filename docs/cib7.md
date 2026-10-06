@@ -616,7 +616,7 @@ caller's Keycloak group membership.
 
 | Role | Implementation | Where |
 |---|---|---|
-| OIDC identity provider | Keycloak (realm `cib7-poc`) | `keycloak/realm-export.json`, compose service |
+| OIDC identity provider | Keycloak (realm `cib7-poc`) | `keycloak/cib7-poc-realm.json`, compose service |
 | Identity Provider Plugin | `org.cibseven.bpm.extension:cibseven-keycloak:2.1.0` | declared in `pom.xml`; activated by `KeycloakIdentityProvider.java` |
 | JWT validation | `spring-boot-starter-oauth2-resource-server` | `RestApiSecurityConfig.java` |
 | Audience pin | `AudienceValidator` (rejects tokens without `cib7-rest-api` in `aud`) | `AudienceValidator.java` |
@@ -750,7 +750,7 @@ cibseven-keycloak plugin's `sso-kubernetes` example, repackaged:
 | `KeycloakLogoutHandler` | Redirects to Keycloak's OIDC logout endpoint with `id_token_hint` so the SSO session ends too. |
 
 The Keycloak side is the `cib7-webapps` client in
-`keycloak/realm-export.json` (confidential, standard flow,
+`keycloak/cib7-poc-realm.json` (confidential, standard flow,
 `http://localhost:3000/login/oauth2/code/keycloak` redirect URI —
 behind the Traefik ingress, same origin as the SPA).
 

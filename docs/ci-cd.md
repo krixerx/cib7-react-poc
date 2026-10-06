@@ -62,7 +62,7 @@ Inputs, all optional:
 | Input | Default | Meaning |
 |---|---|---|
 | `image_tag` | the 7-char SHA of the dispatched ref | Which published tag to run. Name an older one to roll back. |
-| `ship_realm` | off | Also overwrite `keycloak/realm-export.json` on the host. Off by default because the host's copy holds that deployment's real client secrets. |
+| `ship_realm` | off | Also overwrite `keycloak/cib7-poc-realm.json` on the host. Off by default because the host's copy holds that deployment's real client secrets. |
 | `recreate_keycloak` | off | Recreate Keycloak so an edited realm is re-imported. Drops every session and every runtime-registered user. |
 | `skip_backup` | off | Skip the rustfs volume backup (uploaded documents, generated PDFs). |
 | `preflight_only` | off | Run only the reachability and host-readiness checks, deploy nothing. |
@@ -103,7 +103,7 @@ What the run does:
 
 **Never touched on the host:** `.env` (beyond that one `IMAGE_TAG` line),
 `traefik/dynamic/*.yml`, `traefik/certs/*`, `traefik/acme/`,
-`docker-compose.override.yml`, and `keycloak/realm-export.json` unless
+`docker-compose.override.yml`, and `keycloak/cib7-poc-realm.json` unless
 you pass `ship_realm`. Hostnames, client secrets and certificates stay
 the host's own state; no deployment secret has to be stored in GitHub.
 
@@ -167,7 +167,7 @@ that file), and a **passphrase-protected** key, which cannot work because
 nothing in CI can type the passphrase.
 
 On a host that has never been deployed to, the first run also ships
-`keycloak/realm-export.json` — it has to, because compose bind-mounts
+`keycloak/cib7-poc-realm.json` — it has to, because compose bind-mounts
 that path and Docker would otherwise create a *directory* there and
 Keycloak would fail on something that reads nothing like "the realm is
 missing". That copy carries this repository's **published dev client
@@ -228,7 +228,7 @@ below.
   interactively on the host is not in the loop. The dispatch is the
   confirmation.
 - **The realm import is one-shot.** Shipping an edited
-  `realm-export.json` changes nothing until Keycloak is recreated; that
+  `cib7-poc-realm.json` changes nothing until Keycloak is recreated; that
   is what `recreate_keycloak` is for, and it drops sessions and
   runtime-registered users with it.
 - **Uploaded documents survive**, in the `rustfs-data` volume, and

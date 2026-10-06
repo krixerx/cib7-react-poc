@@ -154,7 +154,7 @@ The runtime pieces:
 | Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | The only group-level engine grants: applicants list and start services, civil servants read every case and retry jobs. Per-case access comes from `authorization/InitiatorAuthorizationListener.java` and the engine's default task authorizations (admins are handled by the plugin's `administratorGroupName`) |
-| Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
+| Identity provider | Keycloak 26 | `keycloak/cib7-poc-realm.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
 | Database | PostgreSQL 17 | `postgres` compose service, `postgres` Spring profile, Flyway | Engine (database `cib7`) and backend (database `backend`) state on the `postgres-data` volume; in-memory H2 in tests |
 | Email sink | Mailpit | compose service | Captures every notification + attachment the process sends; UI at `:8025` |
 | PDF generator | Gotenberg 8 (headless Chromium) | compose service | Internal only — converts HTML → PDF over multipart REST |
@@ -247,7 +247,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 `dev`-profile `mailpit-ui` sidecar and the four-container Graylog group:
 
 - **keycloak** — `quay.io/keycloak/keycloak:26.1.5` in `start-dev --import-realm`
-  mode. Mounts `keycloak/realm-export.json` so the realm boots pre-seeded
+  mode. Mounts `keycloak/cib7-poc-realm.json` so the realm boots pre-seeded
   (realm + clients + role + group + user). Publishes port `8180` mapped to
   container port `8080`. `KC_HOSTNAME_URL=http://localhost:8180` pins a
   single canonical issuer URL.

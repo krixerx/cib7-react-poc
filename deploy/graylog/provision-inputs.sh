@@ -13,7 +13,7 @@
 #
 # Copy of ../../graylog/provision-inputs.sh. The deploy bundle is distributed on
 # its own, so it carries its own copy the same way it carries its own
-# keycloak/realm-export.json. Keep the two in sync.
+# keycloak/cib7-poc-realm.json. Keep the two in sync.
 #
 # Runs as the `graylog-init` service in docker-compose.yml. Failures are loud:
 # every API response is echoed, so `docker compose logs graylog-init` tells you

@@ -11,7 +11,8 @@ deploy/
 ├── docker-compose.yml                 the whole stack, pull-only
 ├── deploy.sh                          one-command upgrade + smoke test
 ├── .env.example                       configuration template
-├── keycloak/realm-export.json         users, roles, OAuth clients
+├── keycloak/cib7-poc-realm.json       realm: roles, groups, OAuth clients
+├── keycloak/cib7-poc-users-0.json     users (the reference pack's demo users)
 ├── graylog/provision-inputs.sh        creates the GELF inputs on first start
 ├── traefik/dynamic/routes.yml.example ingress routing (only for the HTTPS setup)
 └── traefik/dynamic/tls.yml.example    supplied-cert TLS config (optional)
@@ -136,7 +137,7 @@ docker compose up -d        # recreates only the affected containers
 | `GRAYLOG_IMAGE` | `graylog/graylog:7.1` | Pin a different Graylog line without editing the compose file. |
 
 > **Rule of thumb:** `.env` is the only place the three
-> `KEYCLOAK_*_CLIENT_SECRET` values live. `keycloak/realm-export.json`
+> `KEYCLOAK_*_CLIENT_SECRET` values live. `keycloak/cib7-poc-realm.json`
 > carries `${KEYCLOAK_..._CLIENT_SECRET}` placeholders that Keycloak
 > resolves from the environment at import time, so there is nothing to
 > keep in sync. The realm file is read only on the **first** start of a
@@ -160,7 +161,7 @@ You need:
   - **your own certificate + key** covering the app hostname (a SAN cert
     or separate certs; see `traefik/dynamic/tls.yml.example`).
 
-### 1. Nothing to edit in `keycloak/realm-export.json`
+### 1. Nothing to edit in `keycloak/cib7-poc-realm.json`
 
 **Not even the secrets, as of the placeholder change.** The
 browser-facing clients (`cib7-frontend`,
@@ -401,7 +402,7 @@ pulls images, restarts what changed, and smoke-tests the public endpoints:
 ./deploy.sh                  # interactive confirmation
 ./deploy.sh --yes            # non-interactive (cron / ssh one-liner)
 ./deploy.sh --realm          # also recreate Keycloak to re-import an
-                             # edited realm-export.json (drops runtime users)
+                             # edited cib7-poc-realm.json (drops runtime users)
 ./deploy.sh --no-git         # skip the git refresh — for a bundle that
                              # arrived some other way (what CI passes)
 ./deploy.sh --check          # only the host checks; changes nothing
@@ -439,7 +440,8 @@ see [Known limitations](#known-limitations-this-is-a-poc).
 
 ### Re-importing the realm
 
-Keycloak imports `keycloak/realm-export.json` **once**, on first start.
+Keycloak imports `keycloak/cib7-poc-realm.json` and the users in
+`keycloak/cib7-poc-users-0.json` **once**, on first start.
 Restarting is not enough to pick up edits — recreate the container:
 
 ```bash
@@ -492,7 +494,7 @@ browser shows during login (scheme, host, port, no trailing slash). Fix
 `.env`, `docker compose up -d`, and hard-refresh the browser.
 
 **Keycloak shows "Client not found" or redirects to a localhost URL.**
-You edited `keycloak/realm-export.json` *after* the first start. The
+You edited `keycloak/cib7-poc-realm.json` *after* the first start. The
 import runs once — recreate Keycloak:
 `docker compose rm -sf keycloak && docker compose up -d`.
 
@@ -505,7 +507,7 @@ Keycloak URL.
 **`docker compose up` hangs on the engine.** Normal for the first minute:
 the engine waits for Keycloak's health check. If it loops longer, check
 `docker compose logs keycloak` — usually a malformed edit to
-`realm-export.json`.
+`cib7-poc-realm.json`.
 
 **Document upload fails in the browser.** The browser must be able to
 reach `PUBLIC_S3_URL` directly (default `http://localhost:9000`). On a

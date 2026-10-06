@@ -61,6 +61,7 @@ refuses the file (or the start), never half of it.
 │   ├── registry/<entity>.yaml
 │   ├── db/registry/V<n>__*.sql
 │   └── consent/<purpose>.yaml
+├── keycloak/cib7-poc-users-0.json    the realm's users, imported into the core realm
 ├── frontend/                         served at /pack/
 │   ├── catalog.json
 │   ├── forms/<form-id>.json
@@ -90,6 +91,7 @@ Until the pack has its own repository, its specs live in this repository's
 | `backend/consent/<purpose>.yaml` | co-signing descriptor, `platform: 2`: process, variables, messages, wording | `ConsentCatalog`, `ConsentController` | `ConsentCatalogTest`; `ConsentTextsTest` (the page texts in `frontend/locales/<lang>/consent.json` for every purpose, detail and document) |
 | `backend/payment/<service>.yaml` | state fee, `platform: 2`: process, fee name, recipient, currency, `amount` flat or tiered by one engine-set variable | `FeeCatalog`, `FeeSchedule` (checkout, callback, `/api/internal/payments/quote/<id>`) | `FeeCatalogTest`; `PackConformanceTest` (tier variable not client-writable) |
 | `backend/documents.json` | document categories, `platform: 2`: `by: applicant` (a signed-in user may upload) or `by: system` (only the engine files it; name starts `generated-`); the core adds `generated-certificate` | `DocumentCategories` (user endpoints accept only applicant categories, `server-upload` only system ones) | `DocumentCategoriesTest`; `PackConformanceTest` and `src/pack/pack.test.ts` (every category used is declared and labelled) |
+| `keycloak/<realm>-users-0.json` | Keycloak users file (`realm`, `users`), imported after the core realm `keycloak/cib7-poc-realm.json` from the same directory; users join core groups only (`/applicant`, `/civil-servant`, `/cib7-admin`) and get their roles from them | Keycloak (`--import-realm`) | `RealmFilesTest` |
 | `frontend/catalog.json` | catalog v1: namespaces, services (category, issuer), issuers (tone) | `src/pack/catalog.ts` | `src/pack/pack.test.ts` |
 | `frontend/forms/<form-id>.json` | form definition v1 | `src/forms/schema/definition.ts` | `src/pack/pack.test.ts` |
 | `frontend/locales/<lang>/<ns>.json` | i18next JSON; `catalog`, `names` and one namespace per form; `en` and `ar` with the same keys | `loadPack()` | `src/pack/pack.test.ts` (also: every BPMN `name=` translated) |
@@ -173,8 +175,9 @@ pack.
 
 ## Not in the platform API yet
 
-- Keycloak realm overlay and login theme (plan tasks S30, S31): the realm is
-  core today.
+- Groups and roles of the pack's own, and the login theme (plan task S31): a
+  pack's users join the core groups, because only those get engine grants
+  (`AuthorizationBootstrap`).
 - Mobile brand and document labels (S27 to S29).
 - Font files from the pack: a brand font must be one the page already loads.
 - MCP manifests: read from `docs/business/services/*/build/`, which moves

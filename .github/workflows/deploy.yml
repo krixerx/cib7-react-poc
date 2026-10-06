@@ -16,8 +16,10 @@
 #   * touch deploy/.env, traefik/dynamic/*.yml, traefik/certs/ or traefik/acme/
 #     on the host. Hostnames, client secrets and certificates are that host's
 #     own state; nothing secret has to reach GitHub for a deploy to work;
-#   * overwrite keycloak/realm-export.json unless you ask (ship_realm) — a
-#     host may have customised its realm, and re-importing it is disruptive.
+#   * overwrite the realm files (keycloak/cib7-poc-realm.json, the core realm,
+#     and keycloak/cib7-poc-users-0.json, the pack's users) unless you ask
+#     (ship_realm) — a host may have customised them, and re-importing is
+#     disruptive.
 #
 # Setup, including how to reach a VM that GitHub's runners cannot:
 # docs/ci-cd.md.
@@ -31,7 +33,7 @@ on:
         required: false
         type: string
       ship_realm:
-        description: "Also overwrite keycloak/realm-export.json on the host. Only needed when the realm itself changed (clients, roles, users) - the secrets in it are placeholders filled from the host's .env."
+        description: "Also overwrite the realm files (keycloak/cib7-poc-realm.json and cib7-poc-users-0.json) on the host. Only needed when the realm itself changed (clients, roles, users) - the secrets in it are placeholders filled from the host's .env."
         type: boolean
         default: false
       recreate_keycloak:
@@ -270,25 +272,28 @@ jobs:
           # traefik/acme/), so it cannot be clobbered by construction.
           LST="$RUNNER_TEMP/ship.lst"
           git ls-files -- deploy | sed 's,^deploy/,,' > "$LST"
-          REALM="keycloak/realm-export.json"
-          # A host that has no realm file yet is a first deploy, and it must get
-          # one: compose bind-mounts that path, so Docker would otherwise create
-          # a DIRECTORY there and Keycloak would fail on something that reads
-          # nothing like "the realm is missing".
-          if ssh vm "test -f '$DEPLOY_DIR/$REALM'"; then HAS_REALM=yes; else HAS_REALM=no; fi
-          if [ "$SHIP_REALM" != "true" ] && [ "$HAS_REALM" = yes ]; then
-            # A host may have customised its realm — extra clients, roles or
-            # users — and the re-import that follows is disruptive, so its copy
-            # stays unless asked for. The client secrets in it are placeholders
-            # filled from the host's own .env, so they no longer argue for
-            # holding it back.
-            sed -i "\\,^$REALM\$,d" "$LST"
-            echo "keeping the host's $REALM (pass ship_realm to replace it)"
-          elif [ "$HAS_REALM" = no ]; then
-            echo "::warning::First deploy: shipping $REALM. Its client secrets are placeholders resolved from the host's .env at import time, so set the three KEYCLOAK_*_CLIENT_SECRET values there before Keycloak first boots, or it imports the published dev defaults."
-          else
-            echo "::warning::ship_realm: the host's keycloak/realm-export.json is being replaced with the committed copy, dropping any realm customisation made there. It only takes effect with recreate_keycloak=true, because the import is one-shot."
-          fi
+          # The realm is two files: the core realm and the pack's users, which
+          # Keycloak imports from one directory (<realm>-realm.json, then
+          # <realm>-users-N.json).
+          for REALM in keycloak/cib7-poc-realm.json keycloak/cib7-poc-users-0.json; do
+            # A host that lacks a realm file is a first deploy for it, and must
+            # get it: compose bind-mounts that path, so Docker would otherwise
+            # create a DIRECTORY there and Keycloak would fail on something that
+            # reads nothing like "the realm is missing".
+            if ssh vm "test -f '$DEPLOY_DIR/$REALM'"; then HAS_REALM=yes; else HAS_REALM=no; fi
+            if [ "$SHIP_REALM" != "true" ] && [ "$HAS_REALM" = yes ]; then
+              # A host may have customised its realm — extra clients, roles or
+              # users — and the re-import that follows is disruptive, so its
+              # copy stays unless asked for. The client secrets in it are
+              # placeholders filled from the host's own .env.
+              sed -i "\\,^$REALM\$,d" "$LST"
+              echo "keeping the host's $REALM (pass ship_realm to replace it)"
+            elif [ "$HAS_REALM" = no ]; then
+              echo "::warning::First deploy of $REALM: shipping it. Client secrets are placeholders resolved from the host's .env at import time, so set the three KEYCLOAK_*_CLIENT_SECRET values there before Keycloak first boots, or it imports the published dev defaults."
+            else
+              echo "::warning::ship_realm: the host's $REALM is being replaced with the committed copy, dropping any customisation made there. It only takes effect with recreate_keycloak=true, because the import is one-shot."
+            fi
+          done
           echo "shipping $(wc -l < "$LST") files to $VM_HOST:$DEPLOY_DIR"
           # acme/ is gitignored (it holds the ACME account key), so it never
           # arrives in the tar. Created here rather than by Docker, which would

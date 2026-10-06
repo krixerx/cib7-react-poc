@@ -4,7 +4,7 @@
  * The companylab.ai instance is a PUBLIC demo: SMTP is wired to a shared
  * Mailpit test inbox, not a real mail server, so every process notification
  * lands in one inbox that anyone signed in can open. Self-registration skips
- * email verification (realm-export.json `verifyEmail: false`) for that reason;
+ * email verification (cib7-poc-realm.json `verifyEmail: false`) for that reason;
  * only invited users still meet the "verify your email" page. This script
  * progressively enhances two pages with a notice:
  *

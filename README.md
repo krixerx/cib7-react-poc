@@ -80,8 +80,10 @@ Role notes:
   `/cib7-admin` is handled by the cibseven-keycloak plugin's
   `administratorGroupName` setting (full admin powers).
 - Both webapp and SPA logins go through **Keycloak SSO** against the
-  `cib7-poc` realm; the underlying user store is
-  [`keycloak/realm-export.json`](keycloak/realm-export.json).
+  `cib7-poc` realm: the core realm
+  [`keycloak/cib7-poc-realm.json`](keycloak/cib7-poc-realm.json) plus the
+  service pack's users,
+  [`packs/reference/keycloak/cib7-poc-users-0.json`](packs/reference/keycloak/cib7-poc-users-0.json).
 
 The SPA picks the role-appropriate UI from the JWT's realm roles:
 
@@ -93,7 +95,7 @@ The SPA picks the role-appropriate UI from the JWT's realm roles:
   application, then **Accept** (process ends approved) or **Send back…**
   (writes a reason variable and loops back to the applicant task).
 
-Full realm in `keycloak/realm-export.json`.
+Full realm in `keycloak/cib7-poc-realm.json`, the demo users in `packs/reference/keycloak/cib7-poc-users-0.json`.
 
 ---
 
@@ -974,7 +976,7 @@ reinstated.
 ## Notes & limitations
 
 - Keycloak runs in `start-dev` mode with its own in-memory H2 — the realm is
-  re-imported from `keycloak/realm-export.json` on every container start, so
+  re-imported from `keycloak/cib7-poc-realm.json` on every container start, so
   user-created users/groups are also lost on restart.
 - The vehicle catalog is a ten-entry stand-in declared in the service pack
   (`data/vehicles.md`) and served by the backend's registry module

@@ -272,7 +272,7 @@ The claims the engine actually needs (`preferred_username`,
 scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
 
 **Keycloak realm artifacts** that make all of this work
-(see [`keycloak/realm-export.json`](../keycloak/realm-export.json)):
+(see [`keycloak/cib7-poc-realm.json`](../keycloak/cib7-poc-realm.json)):
 
 - **Client `cib7-mcp`** — public client, PKCE required. Redirects: the
   loopback wildcards (`http://127.0.0.1/*`, `http://localhost/*`, any port)
@@ -311,8 +311,10 @@ scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
   self-registered or invited user lands in the applicant group; SMTP
   pointed at `mailpit:1025`.
 
-Both realm files change together: `keycloak/realm-export.json` (local
-compose) and `deploy/keycloak/realm-export.json` (the public deployment).
+The realm lives in `keycloak/cib7-poc-realm.json` (core) and
+`packs/reference/keycloak/cib7-poc-users-0.json` (the pack's users); the
+deploy bundle carries copies (`deploy/keycloak/`), and `RealmFilesTest`
+fails when a copy differs from its source.
 The realm is imported once, at Keycloak's first start, so a change reaches a
 running deployment only through `deploy.sh --realm`, which recreates
 Keycloak and drops users registered at runtime. Restart `cib7` once Keycloak

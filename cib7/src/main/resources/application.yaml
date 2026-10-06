@@ -147,7 +147,7 @@ camunda.bpm:
       default-user-permission-name-for-task: UPDATE
   # Bootstrap admin permissions for the dedicated admin account on first
   # startup so the engine doesn't 403 the very first /engine-rest call. The
-  # user must exist in Keycloak (see realm-export.json — `admin` is in the
+  # user must exist in Keycloak (the pack's keycloak/cib7-poc-users-0.json — `admin` is in the
   # /cib7-admin group). Anyone else in /cib7-admin also gets admin via the
   # cibseven-keycloak identity-provider plugin (administratorGroupName),
   # this bootstrap just covers the cold-start before the plugin is ready.

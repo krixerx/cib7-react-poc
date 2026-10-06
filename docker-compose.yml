@@ -104,7 +104,7 @@ services:
     # Single public ingress for the POC. Replaces the old per-service
     # port mappings (cib7:8080, frontend:3000, mailpit:8025) with one
     # path-routed front door on :3000. Keycloak stays on :8180 directly
-    # because moving it requires editing realm-export.json and re-importing
+    # because moving it requires editing the realm (keycloak/cib7-poc-realm.json) and re-importing
     # the realm (one-shot via --import-realm); see docs/deployment.md.
     #
     # Routing is configured per-service via labels (see cib7, mcp, frontend
@@ -353,7 +353,7 @@ services:
       KC_HOSTNAME_STRICT: "false"
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
-      # Resolves the placeholders in keycloak/realm-export.json while the realm
+      # Resolves the placeholders in keycloak/cib7-poc-realm.json while the realm
       # is imported: PUBLIC_FRONTEND_URL for the OAuth clients (redirect URIs,
       # web origins, post-logout URLs) and PUBLIC_KEYCLOAK_URL for the realm's
       # `frontendUrl` attribute, which overrides KC_HOSTNAME for this realm and
@@ -379,11 +379,16 @@ services:
     ports:
       - "8180:8080"
     volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      # The realm is two files in one import directory: the core realm
+      # (settings, roles, groups, clients, their service accounts) and the
+      # service pack's users. Keycloak imports <realm>-realm.json first, then
+      # <realm>-users-N.json into it (docs/platform-api.md).
+      - ./keycloak/cib7-poc-realm.json:/opt/keycloak/data/import/cib7-poc-realm.json:ro
+      - ./packs/reference/keycloak/cib7-poc-users-0.json:/opt/keycloak/data/import/cib7-poc-users-0.json:ro
       # Custom login theme (cib7) — branded to match the React SPA. start-dev
       # disables theme caching, so edits under keycloak/themes are picked up on
       # the next browser refresh without restarting the container. The realm's
-      # loginTheme attribute (realm-export.json) selects it.
+      # loginTheme attribute (cib7-poc-realm.json) selects it.
       - ./keycloak/themes:/opt/keycloak/themes:ro
     # KC_HEALTH_ENABLED=true exposes /health/* on the management port (9000
     # in Keycloak 26+). A bash TCP probe is enough: once port 9000 is

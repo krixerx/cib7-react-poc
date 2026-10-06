@@ -25,7 +25,7 @@
 # correct for a single-machine evaluation, never for a public host.
 #
 # Real hostnames + TLS: set the PUBLIC_* vars + secrets in .env, edit
-# keycloak/realm-export.json, drop certs into ./traefik/certs/, then run
+# keycloak/cib7-poc-realm.json, drop certs into ./traefik/certs/, then run
 #   docker compose --profile tls up -d
 # See README.md in this folder for the full walkthrough.
 # ============================================================================
@@ -126,8 +126,9 @@ services:
       start_period: 10s
 
   keycloak:
-    # Identity provider. The realm (clients, roles, demo users) is imported
-    # from ./keycloak/realm-export.json on FIRST start only — edit that file
+    # Identity provider. The realm is imported on FIRST start only, from two
+    # files: ./keycloak/cib7-poc-realm.json (settings, roles, groups, OAuth
+    # clients) and ./keycloak/cib7-poc-users-0.json (the users) — edit them
     # BEFORE the first `up`. To re-import after an edit:
     #   docker compose rm -sf keycloak && docker compose up -d keycloak
     image: quay.io/keycloak/keycloak:26.1.5
@@ -156,7 +157,7 @@ services:
       # Trust X-Forwarded-* when an admin-supplied TLS terminator fronts
       # Keycloak (the recommended setup for real hostnames).
       KC_PROXY_HEADERS: xforwarded
-      # Resolves the placeholders in keycloak/realm-export.json while the realm
+      # Resolves the placeholders in keycloak/cib7-poc-realm.json while the realm
       # is imported — PUBLIC_FRONTEND_URL for the OAuth clients' redirect URIs,
       # web origins and post-logout URLs, PUBLIC_KEYCLOAK_URL for the realm's
       # own `frontendUrl` attribute. Both always set, so no placeholder ever
@@ -184,7 +185,8 @@ services:
       # through Traefik or another terminator on its own hostname.
       - "${KEYCLOAK_HTTP_PORT:-8180}:8080"
     volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+      - ./keycloak/cib7-poc-realm.json:/opt/keycloak/data/import/cib7-poc-realm.json:ro
+      - ./keycloak/cib7-poc-users-0.json:/opt/keycloak/data/import/cib7-poc-users-0.json:ro
       # Branded login theme (cib7), selected via the realm loginTheme attribute.
       # Shipped as files in this bundle rather than baked into the image so it
       # stays editable without a rebuild.

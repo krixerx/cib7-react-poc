@@ -7,7 +7,7 @@
 // (client_credentials grant) for the call instead of the user's token.
 //
 // Keycloak admin REST exposes `manage-users` to that client via the
-// `realm-management` clientRole grant in keycloak/realm-export.json.
+// `realm-management` clientRole grant in keycloak/cib7-poc-realm.json.
 //
 // Tokens are cached in-process until expiry minus a 5s safety margin.
 

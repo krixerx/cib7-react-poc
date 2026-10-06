@@ -241,7 +241,7 @@ containers. The short form:
   (`PdfHelper.java`) so they spill to `ACT_GE_BYTEARRAY`, and re-encoded to base64
   in the FreeMarker payload at send time.
 - **The realm's `frontendUrl` outranks every `KC_HOSTNAME*` setting.** The
-  `attributes.frontendUrl` in `keycloak/realm-export.json` decides every URL
+  `attributes.frontendUrl` in `keycloak/cib7-poc-realm.json` decides every URL
   Keycloak writes into a login page for the `cib7-poc` realm, so it carries the
   `${PUBLIC_KEYCLOAK_URL}` placeholder and must never be hardcoded: pinned to
   localhost it produced a login form posting to `http://localhost:8180` on a
@@ -251,6 +251,13 @@ containers. The short form:
   options ... are still in use`, so the setting is `KC_HOSTNAME`, and the old
   spelling looks correct in `docker inspect` while configuring nothing. Both are
   import-time, so changing either needs Keycloak recreated, not restarted.
+- **The realm is two files, imported once.** Keycloak reads one directory:
+  the core realm `keycloak/cib7-poc-realm.json` (settings, roles, the core
+  groups, clients and their service accounts), then the pack's users
+  `packs/reference/keycloak/cib7-poc-users-0.json`, who may only join core
+  groups (only those get engine grants; `RealmFilesTest`). `deploy/keycloak/`
+  holds copies that must stay identical. The import runs on Keycloak's first
+  start only, so a change needs the container recreated.
 - **The realm export holds no secrets, only placeholders.** The three
   confidential clients carry `${KEYCLOAK_BACKEND_CLIENT_SECRET}` and friends,
   resolved from the Keycloak container's environment at import time, so `.env`
