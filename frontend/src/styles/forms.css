@@ -103,7 +103,7 @@ textarea.field-input {
   margin-bottom: 0;
 }
 
-/* Checkbox and radio rows (permit application, hospital assessment). */
+/* Checkbox and radio rows. */
 .field-checkbox {
   display: flex;
   align-items: center;

@@ -39,21 +39,13 @@ class Cib7ContextSmokeTest {
     // ServiceDeployments ran: the DMN decisions are on the engine.
     assertEquals(1, countDecision("vehicle-auto-approval"));
     assertEquals(1, countDecision("business-auto-approval"));
-    assertEquals(1, countDecision("transport-vehicle-eligibility"));
-    assertEquals(1, countDecision("transport-permit-eligibility"));
   }
 
   @Test
   void eachServiceGetsItsOwnDeployment() {
     // One named deployment per processes/<service>/ folder — NOT one
     // shared SpringAutoDeployment bundling everything.
-    for (String service :
-        new String[] {
-          "vehicle-registration",
-          "business-registration",
-          "transport-vehicle-registration",
-          "transport-learning-permit"
-        }) {
+    for (String service : new String[] {"vehicle-registration", "business-registration"}) {
       assertEquals(
           1,
           processEngine
@@ -81,18 +73,18 @@ class Cib7ContextSmokeTest {
         processEngine
             .getRepositoryService()
             .createProcessDefinitionQuery()
-            .processDefinitionKey("transportVehicleRegistration")
+            .processDefinitionKey("vehicleRegistration")
             .latestVersion()
             .singleResult()
             .getDeploymentId();
     assertEquals(
-        2,
+        1,
         processEngine
             .getRepositoryService()
             .createDecisionDefinitionQuery()
             .deploymentId(deploymentId)
             .count(),
-        "transport-vehicle-eligibility + transport-vehicle-fee must ship with the process");
+        "vehicle-auto-approval must ship with the process");
   }
 
   private long countDecision(String decisionDefinitionKey) {

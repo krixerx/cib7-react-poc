@@ -12,17 +12,11 @@
     "business": {
       "name": "Äriregister POC",
       "sub": "السجل التجاري الإستوني"
-    },
-    "transport": {
-      "name": "Transport Authority POC",
-      "sub": "نظام المرور المتكامل"
     }
   },
   "services": {
     "vehicleRegistration": "الرسوم الحكومية لتسجيل المركبة",
-    "businessRegistration": "الرسوم الحكومية لتسجيل الشركة (OÜ)",
-    "transportVehicleRegistration": "رسوم تسجيل المركبة",
-    "transportLearningPermit": "رسوم رخصة تعلّم القيادة"
+    "businessRegistration": "الرسوم الحكومية لتسجيل الشركة (OÜ)"
   },
   "header": {
     "title": "سداد الرسوم الحكومية",

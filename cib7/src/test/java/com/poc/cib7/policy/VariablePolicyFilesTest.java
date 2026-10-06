@@ -88,9 +88,7 @@ class VariablePolicyFilesTest {
                   "applicantEmail",
                   "applicantResidency",
                   "additionalFounders",
-                  "pendingAoaDocument"),
-          "transport-vehicle-application", Set.of("applicantName", "applicantEmail"),
-          "transport-permit-application", Set.of("applicantName", "applicantEmail"));
+                  "pendingAoaDocument"));
 
   @Test
   void everyProcessAndFormKeyHasAPolicyEntry() throws IOException {

@@ -26,7 +26,7 @@ public class CaseCard {
 
   @Id private String processInstanceId;
 
-  /** Service key, e.g. transport-vehicle-registration. */
+  /** Service key, e.g. vehicle-registration. */
   @Column(nullable = false)
   private String service;
 

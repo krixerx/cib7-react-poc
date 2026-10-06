@@ -23,8 +23,7 @@ cib7 engine ──POST ${busBaseUrl}/…──▶ [ Camel routes ] ──▶ dow
    /api/v1/send      ──▶ mailpit:8025
    /render           ──▶ pdf-renderer:8088   (response flows back)
    /api/public/**    ──▶ backend:8085        (vehicle catalog lookup)
-   /api/internal/**  ──▶ backend:8085        (documents, case index, transport
-                                              clearance/plate/permit; bus
+   /api/internal/**  ──▶ backend:8085        (documents, case index; bus
                                               injects X-Internal-Token)
 ```
 
@@ -55,8 +54,8 @@ docker compose up -d --build esb        # build + start the bus
 docker compose logs -f esb              # watch the bus
 ```
 
-Then drive a process (`scripts/transport-demo-drive.py`, or the transport
-vehicle "send back for corrections" branch). Each crossing prints an `[ESB] …`
+Then drive a process (for example the vehicle registration "send back for
+corrections" branch). Each crossing prints an `[ESB] …`
 line here before reaching the downstream system. Inspect the email inbox with
 the dev profile:
 

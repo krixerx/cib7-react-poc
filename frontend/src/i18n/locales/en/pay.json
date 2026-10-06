@@ -12,17 +12,11 @@
     "business": {
       "name": "Äriregister POC",
       "sub": "Estonian Business Register"
-    },
-    "transport": {
-      "name": "Transport Authority POC",
-      "sub": "Integrated Traffic System"
     }
   },
   "services": {
     "vehicleRegistration": "Vehicle registration state fee",
-    "businessRegistration": "OÜ registration state fee",
-    "transportVehicleRegistration": "Vehicle registration fee",
-    "transportLearningPermit": "Driving learning licence fee"
+    "businessRegistration": "OÜ registration state fee"
   },
   "header": {
     "title": "Pay state fee",

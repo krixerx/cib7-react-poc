@@ -65,9 +65,9 @@ const PASSWORD_RESET_URL =
 
 const SERVER_INSTRUCTIONS = [
   'This MCP server drives e-government services (business registration, vehicle',
-  'registration, transport vehicle registration, learning permit) on a CIB seven',
-  '2.2 engine. Identity is handled by a separate Keycloak realm. This server never',
-  'handles passwords; they stay entirely with Keycloak and the user.',
+  'registration) on a CIB seven 2.2 engine. Identity is handled by a separate',
+  'Keycloak realm. This server never handles passwords; they stay entirely with',
+  'Keycloak and the user.',
   '',
   'SIGNING IN: the user signed in when they connected this connector, and every',
   'tool acts on that account. If the user is unsure where to begin, or asks which',
@@ -123,8 +123,8 @@ const SERVER_INSTRUCTIONS = [
   'WHEN STARTING ANY UNFAMILIAR SERVICE: call `describe_service` first.',
   '',
   'WHEN THE USER ASKS ABOUT THEIR CASES IN THEIR OWN WORDS (e.g. "did anything',
-  'get rejected?", "which of my cases is stuck?", "what happened to the permit',
-  'for my son?"): call `search_cases`. It returns prose status cards; YOU do the',
+  'get rejected?", "which of my cases is stuck?", "what happened to my car',
+  'registration?"): call `search_cases`. It returns prose status cards; YOU do the',
   'semantic matching over the returned summaries and answer from them.',
   '',
   'BEFORE ASKING THE USER FOR PERSONAL DETAILS A FORM NEEDS (name, civil id,',
@@ -1488,7 +1488,7 @@ function createMcpServer(): Server {
             },
             service: {
               type: 'string',
-              description: 'Optional exact service key filter, e.g. "transport-learning-permit".',
+              description: 'Optional exact service key filter, e.g. "vehicle-registration".',
             },
             status: {
               type: 'string',
@@ -1705,7 +1705,7 @@ app.get('/.well-known/mcp.json', (_req, res) => {
   res.json({
     name: 'eRegistrations (CIB seven POC)',
     description:
-      'Estonian e-government registration services (business, vehicle, transport) ' +
+      'Estonian e-government registration services (business, vehicle) ' +
       'exposed over the Model Context Protocol so AI agents can complete them end-to-end.',
     mcp: {
       url: RESOURCE_URL,
@@ -1740,7 +1740,7 @@ app.get('/llms.txt', (_req, res) => {
     '# eRegistrations (CIB seven POC)',
     '',
     '> Estonian e-government registration services exposed over the Model Context',
-    '> Protocol (MCP). AI agents can complete business, vehicle and transport',
+    '> Protocol (MCP). AI agents can complete business and vehicle',
     '> registrations end-to-end on behalf of a signed-in user.',
     '',
     'This site supports MCP. Point any MCP client at the endpoint below; it uses',

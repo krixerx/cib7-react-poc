@@ -131,9 +131,8 @@ In Claude, on a fresh chat:
 
 > What services are available on the cib7 server?
 
-Expected: `get_started` or `list_services` lists the four services
-(`businessRegistration`, `vehicleRegistration`,
-`transportVehicleRegistration`, `transportLearningPermit`).
+Expected: `get_started` or `list_services` lists the two services
+(`businessRegistration`, `vehicleRegistration`).
 
 > Register Acme OÜ for me. I'm 35, share capital €3000, board member Bart Simpson 38501010001.
 

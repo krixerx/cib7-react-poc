@@ -126,26 +126,6 @@ class PaymentLogicTest {
   }
 
   @Test
-  void transportVehicleFeeComesFromTheDmnVariable() {
-    when(engine.getRawVariable(PI, "registrationFee")).thenReturn(57.5);
-
-    assertThat(
-            fees.chargeFor(new ProcessInstanceRef(PI, "transportVehicleRegistration"))
-                .orElseThrow()
-                .amount())
-        .isEqualByComparingTo("57.50");
-  }
-
-  @Test
-  void learningPermitIsFlat6() {
-    assertThat(
-            fees.chargeFor(new ProcessInstanceRef(PI, "transportLearningPermit"))
-                .orElseThrow()
-                .amount())
-        .isEqualByComparingTo("6");
-  }
-
-  @Test
   void unknownDefinitionKeyHasNoCharge() {
     assertThat(fees.chargeFor(new ProcessInstanceRef(PI, "someOtherProcess"))).isEmpty();
   }

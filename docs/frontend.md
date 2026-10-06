@@ -286,8 +286,7 @@ full width; the open form keeps its state, and the choice is remembered in
     `/api/cases/drafts` uses. Shown drafts carry a dashed "Draft" tag.
   - **Show payments** checkbox, off by default — cases parked on the fee
     payment receive task (`awaitingPayment`, any activity id matching
-    `wait…payment`: `Task_WaitForPayment`, `Task_TransportWaitPermitPayment`,
-    `Task_TransportWaitFeePayment`) are hidden the same way, since the
+    `wait…payment`, today `Task_WaitForPayment`) are hidden the same way, since the
     applicant pays and the back office has nothing to do; one with an open
     incident is always shown.
 - **Status** is computed in `statusFor()` from the instance state:

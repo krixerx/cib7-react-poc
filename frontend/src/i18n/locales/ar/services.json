@@ -12,12 +12,6 @@
     "businessRegistration": {
       "summary": "أسّس شركة ذات مسؤولية محدودة وسجّلها في السجل التجاري."
     },
-    "transportVehicleRegistration": {
-      "summary": "سجّل مركبة لدى هيئة النقل."
-    },
-    "transportLearningPermit": {
-      "summary": "قدّم طلبًا للحصول على تصريح تعلّم القيادة لبدء الدروس."
-    },
     "default": {
       "summary": ""
     }

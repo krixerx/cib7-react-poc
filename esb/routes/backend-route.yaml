@@ -12,8 +12,7 @@
 #                                         X-Internal-Token on the way in is
 #                                         dropped.
 #   /api/internal/**   → backend:8085   (document move-pending/server-upload,
-#                                         case index, transport clearance,
-#                                         plate allocation, permit issue).
+#                                         case index).
 #                                         The bus INJECTS X-Internal-Token here
 #                                         (from its INTERNAL_TASK_TOKEN env), so
 #                                         the engine never holds that secret.

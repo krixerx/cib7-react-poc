@@ -369,7 +369,7 @@ Camel, `esb/routes/*.yaml`) routes each path to the real downstream system:
 | `/api/v1/send` | Mailpit | send email |
 | `/render` | pdf-renderer | render a PDF |
 | `/api/public/**` | backend | public reference data (vehicle catalog) |
-| `/api/internal/**` | backend | documents (move-pending, server-upload), case index, transport clearance, plate, permit |
+| `/api/internal/**` | backend | documents (move-pending, server-upload), case index |
 
 Two rules when generating service tasks:
 - **Never** add an `X-Internal-Token` header to `/api/internal/**` calls — the

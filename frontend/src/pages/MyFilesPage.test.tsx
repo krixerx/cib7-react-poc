@@ -21,10 +21,10 @@ const docs: CaseDocumentEntry[] = [
     createdAt: '2026-10-02T09:00:00Z',
   },
   {
-    id: 'd-permit',
-    processInstanceId: 'pi-permit',
+    id: 'd-bcard',
+    processInstanceId: 'pi-business',
     category: 'generated-certificate',
-    filename: 'learning-license.pdf',
+    filename: 'b-card-extract.pdf',
     contentType: 'application/pdf',
     createdAt: '2026-10-01T09:00:00Z',
   },
@@ -47,19 +47,14 @@ vi.mock('../api/documentsApi', async (importOriginal) => ({
 vi.mock('../api/camundaClient', () => ({
   listProcessDefinitions: vi.fn(async () => [
     { id: 'def-v', key: 'vehicleRegistration', name: 'Vehicle Registration', version: 1 },
-    {
-      id: 'def-p',
-      key: 'transportLearningPermit',
-      name: 'Transport Driving Learner Permit',
-      version: 1,
-    },
+    { id: 'def-b', key: 'businessRegistration', name: 'Estonian OÜ Registration', version: 1 },
   ]),
   listHistoricProcessInstancesByStarter: vi.fn(async () => [
     { id: 'pi-vehicle', processDefinitionId: 'def-v', processDefinitionKey: 'vehicleRegistration' },
     {
-      id: 'pi-permit',
-      processDefinitionId: 'def-p',
-      processDefinitionKey: 'transportLearningPermit',
+      id: 'pi-business',
+      processDefinitionId: 'def-b',
+      processDefinitionKey: 'businessRegistration',
     },
   ]),
 }));
@@ -102,11 +97,11 @@ describe('MyFilesPage', () => {
   }
 
   it('shows issued documents of every case by default, each linked to its case', () => {
-    expect(names()).toEqual(['registration-certificate.pdf', 'learning-license.pdf']);
+    expect(names()).toEqual(['registration-certificate.pdf', 'b-card-extract.pdf']);
     const links = [...container.querySelectorAll('.mf-case-link')].map((a) =>
       a.getAttribute('href'),
     );
-    expect(links).toEqual(['/processes/pi-vehicle', '/processes/pi-permit']);
+    expect(links).toEqual(['/processes/pi-vehicle', '/processes/pi-business']);
     expect(container.textContent).toContain('Vehicle Registration');
     expect(container.textContent).toContain('3 files');
     expect(container.textContent).toContain('from 2 cases');
@@ -124,9 +119,9 @@ describe('MyFilesPage', () => {
     const input = container.querySelector<HTMLInputElement>('.mf-search input')!;
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-      setter.call(input, 'permit');
+      setter.call(input, 'OÜ');
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    expect(names()).toEqual(['learning-license.pdf']);
+    expect(names()).toEqual(['b-card-extract.pdf']);
   });
 });

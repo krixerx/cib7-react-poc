@@ -3,10 +3,6 @@ import type { FormProps } from './types';
 import BusinessDetailsForm from './business-details/BusinessDetailsForm';
 import OwnerVehicleForm from './owner-vehicle/OwnerVehicleForm';
 import ReviewBusinessRegistrationForm from './review-business-registration/ReviewBusinessRegistrationForm';
-import TransportHospitalAssessmentForm from './transport-hospital-assessment/TransportHospitalAssessmentForm';
-import TransportPermitApplicationForm from './transport-permit-application/TransportPermitApplicationForm';
-import TransportVehicleApplicationForm from './transport-vehicle-application/TransportVehicleApplicationForm';
-import TransportVehicleOfficerReviewForm from './transport-vehicle-officer-review/TransportVehicleOfficerReviewForm';
 import VehicleReviewForm from './vehicle-review/VehicleReviewForm';
 
 /**
@@ -21,10 +17,6 @@ export const formRegistry: Record<string, ComponentType<FormProps>> = {
   'business-details': BusinessDetailsForm,
   'owner-vehicle': OwnerVehicleForm,
   'review-business-registration': ReviewBusinessRegistrationForm,
-  'transport-hospital-assessment': TransportHospitalAssessmentForm,
-  'transport-permit-application': TransportPermitApplicationForm,
-  'transport-vehicle-application': TransportVehicleApplicationForm,
-  'transport-vehicle-officer-review': TransportVehicleOfficerReviewForm,
   'vehicle-review': VehicleReviewForm,
 };
 

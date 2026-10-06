@@ -301,22 +301,21 @@ describe('listWorklist', () => {
     expect(waiting.isDraft).toBe(false);
   });
 
-  it.each([
-    'Task_WaitForPayment',
-    'Task_TransportWaitPermitPayment',
-    'Task_TransportWaitFeePayment',
-  ])('flags a case parked on %s as awaiting payment', async (activityId) => {
-    const base = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation(async (url: string) =>
-      url.startsWith('/engine-rest/history/activity-instance')
-        ? jsonResponse([{ ...openWaits[0], activityId, activityName: 'Wait for fee payment' }])
-        : base(url),
-    );
-    const [active, ended, waiting] = await listWorklist();
-    expect(waiting.awaitingPayment).toBe(true);
-    expect(active.awaitingPayment).toBe(false);
-    expect(ended.awaitingPayment).toBe(false);
-  });
+  it.each(['Task_WaitForPayment'])(
+    'flags a case parked on %s as awaiting payment',
+    async (activityId) => {
+      const base = fetchMock.getMockImplementation()!;
+      fetchMock.mockImplementation(async (url: string) =>
+        url.startsWith('/engine-rest/history/activity-instance')
+          ? jsonResponse([{ ...openWaits[0], activityId, activityName: 'Wait for fee payment' }])
+          : base(url),
+      );
+      const [active, ended, waiting] = await listWorklist();
+      expect(waiting.awaitingPayment).toBe(true);
+      expect(active.awaitingPayment).toBe(false);
+      expect(ended.awaitingPayment).toBe(false);
+    },
+  );
 
   it('does not flag a signature wait as awaiting payment', async () => {
     const rows = await listWorklist();

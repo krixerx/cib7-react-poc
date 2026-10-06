@@ -88,7 +88,7 @@ The runtime pieces:
   calls via http-connector), `/api/documents` (S3 presigned upload /
   download against RustFS; metadata as a JPA `Document` entity in its own
   in-memory H2), and the engine-only `/api/internal/**` endpoints (document
-  filing, case index, transport clearance, plate allocation, permit issue). Talks to the engine only over `/engine-rest`, authenticated
+  filing, case index). Talks to the engine only over `/engine-rest`, authenticated
   with the `cib7-business` Keycloak service account (client_credentials; the
   service account sits in `/cib7-admin` so engine authorization passes).
 - **RustFS** — S3-compatible object storage for applicant uploads and

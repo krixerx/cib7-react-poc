@@ -6,9 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A monorepo POC ("eRegistrations") where a CIB seven 2.2 process engine runs BPMN
 e-government services and a React SPA renders each human task with a hand-written
-form. Four services ship: `vehicleRegistration`, `businessRegistration`,
-`transportVehicleRegistration`, `transportLearningPermit`. Auth is Keycloak OIDC
-throughout; the same deployment is also driveable over MCP.
+form. Two services ship: `vehicleRegistration` and `businessRegistration`.
+Auth is Keycloak OIDC throughout; the same deployment is also driveable over MCP.
 
 The deepest thing to internalize: **business services are spec-first**. The
 markdown under `docs/business/services/<service>/` is the source of truth, and
@@ -103,9 +102,8 @@ Module responsibilities are strict and worth preserving:
   Connect http-connector config.
 - **`backend/` owns every `/api/**` surface**: public token-link pages (owner
   confirmations, founder signatures, payments), the curated vehicle registry,
-  document metadata plus RustFS S3 presigned URLs, the transport registries. It
-  reaches the engine only through `/engine-rest` as the `cib7-business` service
-  account.
+  document metadata plus RustFS S3 presigned URLs. It reaches the engine only
+  through `/engine-rest` as the `cib7-business` service account.
 - **`esb/` is the only address the engine knows for outbound calls.**
   `BusConfiguration.java` exposes `${busBaseUrl}` (`http://esb:8080`) to BPMN;
   per-system addresses and the internal token live in `esb/routes/*.yaml`. A new

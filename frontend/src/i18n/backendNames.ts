@@ -13,16 +13,10 @@ const BACKEND_NAME_KEYS: Record<string, string> = {
   // Process definition names
   'Estonian OÜ Registration': 'estonianOuRegistration',
   'Vehicle Registration': 'vehicleRegistration',
-  'Transport Driving Learner Permit': 'transportLearningPermit',
-  'Transport Vehicle Registration': 'transportVehicleRegistration',
   // User tasks
   'Submit OÜ founding details': 'submitOuFoundingDetails',
   'Submit owner & vehicle details': 'submitOwnerVehicleDetails',
   'Transport Authority review': 'transportAuthorityReview',
-  'Apply for a learning permit': 'applyForLearningPermit',
-  'Police Hospital medical assessment': 'policeHospitalAssessment',
-  'Submit vehicle registration application': 'submitVehicleRegistrationApplication',
-  'Traffic officer review': 'trafficOfficerReview',
   // Business registration activities
   'Attach Articles of Association': 'attachArticlesOfAssociation',
   'Wait for submit-to-register': 'waitForSubmitToRegister',
@@ -48,27 +42,6 @@ const BACKEND_NAME_KEYS: Record<string, string> = {
   'Send state fee invoice email': 'sendStateFeeInvoiceEmail',
   'Send "sent back" email': 'sendSentBackEmail',
   'Vehicle registered': 'vehicleRegistered',
-  // Transport Authority learning permit activities
-  'Fetch eye test, license & restrictions status': 'fetchEyeTestLicenseRestrictions',
-  'Email: visit the Police Hospital': 'emailVisitPoliceHospital',
-  'Email: application rejected': 'emailApplicationRejected',
-  'Application rejected': 'applicationRejected',
-  'Email: pay the service fee': 'emailPayServiceFee',
-  'Wait for fee payment': 'waitForFeePayment',
-  'Issue learning permit': 'issueLearningPermit',
-  'Generate electronic learning license (PDF)': 'generateLearningLicensePdf',
-  'Store learning license': 'storeLearningLicense',
-  'Email: electronic license & receipt': 'emailLicenseAndReceipt',
-  'Email: service evaluation request': 'emailServiceEvaluation',
-  'Learning permit issued': 'learningPermitIssued',
-  // Transport Authority vehicle registration activities
-  'Check inspection, insurance & restrictions': 'checkInspectionInsuranceRestrictions',
-  'Email: returned for corrections': 'emailReturnedForCorrections',
-  'Email: pay registration fee': 'emailPayRegistrationFee',
-  'Allocate plate number': 'allocatePlateNumber',
-  'Generate registration certificate (PDF)': 'generateRegistrationCertificatePdf',
-  'Store certificate': 'storeCertificate',
-  'Email: certificate & plate collection': 'emailCertificatePlateCollection',
 };
 
 /**

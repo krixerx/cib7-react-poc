@@ -33,7 +33,7 @@ class CaseIndexControllerWebTest {
       """
       {
         "processInstanceId": "pi-1",
-        "service": "transport-vehicle-registration",
+        "service": "vehicle-registration",
         "status": "submitted",
         "summary": "Vehicle registration application submitted by Homer."
       }
@@ -62,7 +62,7 @@ class CaseIndexControllerWebTest {
     verify(repository).save(captor.capture());
     CaseCard card = captor.getValue();
     assertThat(card.getProcessInstanceId()).isEqualTo("pi-1");
-    assertThat(card.getService()).isEqualTo("transport-vehicle-registration");
+    assertThat(card.getService()).isEqualTo("vehicle-registration");
     assertThat(card.getStatus()).isEqualTo("submitted");
     assertThat(card.getSummary()).contains("Homer");
     assertThat(card.getUpdatedAt()).isNotNull();
@@ -78,7 +78,7 @@ class CaseIndexControllerWebTest {
                     """
                     {
                       "processInstanceId": "pi-long",
-                      "service": "transport-vehicle-registration",
+                      "service": "vehicle-registration",
                       "status": "submitted",
                       "summary": "%s"
                     }

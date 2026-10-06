@@ -318,12 +318,7 @@ class FreemarkerTemplateRenderTest {
     String applicantToken = LINKS.owner(fakeExecution(), "applicant");
     assertTrue(tracking.contains("/confirm-owner/" + applicantToken), tracking);
 
-    for (String template :
-        List.of(
-            "approval-email.json.ftl",
-            "business-approval-email.json.ftl",
-            "transport-permit-payment-email.json.ftl",
-            "transport-vehicle-payment-email.json.ftl")) {
+    for (String template : List.of("approval-email.json.ftl", "business-approval-email.json.ftl")) {
       String text = MAPPER.readTree(render(template, cleanModel())).path("Text").asText();
       assertFalse(text.contains("/pay/" + PI), template + " still links the bare instance id");
       assertTrue(text.matches("(?s).*/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+.*"), template);

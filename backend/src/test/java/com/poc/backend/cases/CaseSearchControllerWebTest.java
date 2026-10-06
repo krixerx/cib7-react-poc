@@ -41,12 +41,12 @@ class CaseSearchControllerWebTest {
             List.of(
                 card(
                     "pi-mine",
-                    "transport-vehicle-registration",
+                    "vehicle-registration",
                     "sent-back",
                     "Returned for corrections: missing insurance clearance."),
                 card(
                     "pi-other",
-                    "transport-vehicle-registration",
+                    "vehicle-registration",
                     "sent-back",
                     "Someone else's case, also stuck on insurance.")));
     when(caseAccess.canAccessCase("pi-mine")).thenReturn(true);
@@ -69,12 +69,12 @@ class CaseSearchControllerWebTest {
             List.of(
                 card(
                     "pi-new-weak",
-                    "transport-learning-permit",
+                    "business-registration",
                     "submitted",
                     "Permit application awaiting review."),
                 card(
                     "pi-old-strong",
-                    "transport-learning-permit",
+                    "business-registration",
                     "rejected",
                     "Permit application rejected: insurance requirements not met.")));
     when(caseAccess.canAccessCase(anyString())).thenReturn(true);
@@ -93,7 +93,7 @@ class CaseSearchControllerWebTest {
             List.of(
                 card(
                     "pi-1",
-                    "transport-vehicle-registration",
+                    "vehicle-registration",
                     "registered",
                     "Vehicle registration completed for VIN 123.")));
     when(caseAccess.canAccessCase(anyString())).thenReturn(true);
@@ -108,17 +108,13 @@ class CaseSearchControllerWebTest {
     when(repository.findAllByOrderByUpdatedAtDesc())
         .thenReturn(
             List.of(
-                card("pi-permit", "transport-learning-permit", "rejected", "Permit rejected."),
-                card(
-                    "pi-vehicle",
-                    "transport-vehicle-registration",
-                    "registered",
-                    "Vehicle registered.")));
+                card("pi-permit", "business-registration", "rejected", "Permit rejected."),
+                card("pi-vehicle", "vehicle-registration", "registered", "Vehicle registered.")));
     when(caseAccess.canAccessCase("pi-permit")).thenReturn(true);
 
     mvc.perform(
             get("/api/cases/search")
-                .param("service", "transport-learning-permit")
+                .param("service", "business-registration")
                 .param("status", "rejected"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.count").value(1))
@@ -133,8 +129,8 @@ class CaseSearchControllerWebTest {
     when(repository.findAllByOrderByUpdatedAtDesc())
         .thenReturn(
             List.of(
-                card("pi-newest", "transport-learning-permit", "submitted", "Just submitted."),
-                card("pi-older", "transport-vehicle-registration", "registered", "All done.")));
+                card("pi-newest", "business-registration", "submitted", "Just submitted."),
+                card("pi-older", "vehicle-registration", "registered", "All done.")));
     when(caseAccess.canAccessCase(anyString())).thenReturn(true);
 
     mvc.perform(get("/api/cases/search"))

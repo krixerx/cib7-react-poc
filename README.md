@@ -99,18 +99,9 @@ Full realm in `keycloak/realm-export.json`.
 
 ## What it does
 
-Four services ship today — **Vehicle Registration** (`vehicleRegistration`),
-**Estonian OÜ Registration** (`businessRegistration`), and the two **ITS
-demo scenarios** from the Transport Authority Integrated Traffic System tender:
-**Transport Vehicle Registration** (`transportVehicleRegistration`, Demo Scenario 1 —
-fee-schedule preview, clearance checks, eligibility DMN, traffic-officer
-review, EUR fee payment, plate allocation, certificate PDF) and **Transport Driving Learner Permit** (`transportLearningPermit`, Demo Scenario 2 — flat 6 EUR
-fee, approved-optician eye-test lookup, Police Hospital weak-vision branch,
-electronic license PDF). See
-[`docs/business/services/transport-vehicle-registration/`](docs/business/services/transport-vehicle-registration/README.md)
-and
-[`docs/business/services/transport-learning-permit/`](docs/business/services/transport-learning-permit/README.md).
-The original services share the same shape; the vehicle flow end to end:
+Two services ship today: **Vehicle Registration** (`vehicleRegistration`)
+and **Estonian OÜ Registration** (`businessRegistration`). Both share the
+same shape; the vehicle flow end to end:
 
 ```
 Vehicle Registration (BPMN + DMN)

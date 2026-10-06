@@ -516,9 +516,8 @@ export interface WorklistRow {
 }
 
 /**
- * Payment receive tasks differ per service (`Task_WaitForPayment`,
- * `Task_TransportWaitPermitPayment`, `Task_TransportWaitFeePayment`), all
- * named "Wait…Payment".
+ * Payment receive tasks are named "Wait…Payment" (`Task_WaitForPayment` in
+ * both shipped services); the pattern keeps a new service's wait covered.
  */
 const PAYMENT_WAIT_ID = /wait\w*payment/i;
 

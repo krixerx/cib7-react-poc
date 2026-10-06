@@ -66,9 +66,7 @@ cib7/
         ├── processes/<service>/           — one engine deployment per folder (ServiceDeployments.java)
         │   ├── <service>/variable-policy.json — which variables clients may write (generated, see below)
         │   ├── vehicle-registration/      — vehicle-registration.bpmn + vehicle-auto-approval.dmn
-        │   ├── business-registration/     — business-registration.bpmn + business-auto-approval.dmn
-        │   ├── transport-vehicle-registration/  — BPMN + eligibility/fee DMNs
-        │   └── transport-learning-permit/       — BPMN + eligibility DMN
+        │   └── business-registration/     — business-registration.bpmn + business-auto-approval.dmn
         └── templates/                     — FreeMarker payloads for the http-connector
             └── *.json.ftl                 — Mailpit emails, pdf-renderer renders,
                                              backend /api/internal calls

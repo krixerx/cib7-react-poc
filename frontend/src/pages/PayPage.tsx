@@ -29,8 +29,6 @@ const POLL_LIMIT = 15;
 const ISSUERS: Record<string, string> = {
   vehicleRegistration: 'vehicle',
   businessRegistration: 'business',
-  transportVehicleRegistration: 'transport',
-  transportLearningPermit: 'transport',
 };
 
 export default function PayPage() {
@@ -117,7 +115,7 @@ export default function PayPage() {
     );
   }
 
-  const issuerKey = ISSUERS[status.processDefinitionKey] ?? 'transport';
+  const issuerKey = ISSUERS[status.processDefinitionKey] ?? 'vehicle';
   const issuer = t(`issuer.${issuerKey}.name`);
   const issuerSub = t(`issuer.${issuerKey}.sub`);
   const service = t(`services.${status.processDefinitionKey}`, {

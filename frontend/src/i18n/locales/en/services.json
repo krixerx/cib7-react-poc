@@ -12,12 +12,6 @@
     "businessRegistration": {
       "summary": "Found a limited company and enter it in the registry."
     },
-    "transportVehicleRegistration": {
-      "summary": "Register a vehicle with the Transport Authority."
-    },
-    "transportLearningPermit": {
-      "summary": "Apply for a learner's permit to start driving lessons."
-    },
     "default": {
       "summary": ""
     }

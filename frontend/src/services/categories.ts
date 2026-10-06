@@ -53,8 +53,6 @@ export const CATEGORIES: Category[] = [
  */
 const SERVICE_CATEGORY: Record<string, CategoryId> = {
   businessRegistration: 'business',
-  transportLearningPermit: 'travel',
-  transportVehicleRegistration: 'travel',
   vehicleRegistration: 'travel',
 };
 

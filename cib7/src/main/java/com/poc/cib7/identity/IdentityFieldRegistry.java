@@ -12,8 +12,8 @@ import org.cibseven.bpm.engine.identity.User;
  *
  * <p>Keyed by BPMN process definition key. Field names are deliberately NOT unified across services
  * ({@code businessRegistration} uses {@code applicantFirstName}/{@code applicantLastName}, {@code
- * vehicleRegistration} uses {@code firstName}/{@code lastName}, the two transport services use a
- * single {@code applicantName}); we keep each service's existing names and map them here.
+ * vehicleRegistration} uses {@code firstName}/{@code lastName}); we keep each service's existing
+ * names and map them here.
  *
  * <p>Both halves of the feature read this map:
  *
@@ -33,7 +33,6 @@ public final class IdentityFieldRegistry {
   public enum Source {
     GIVEN_NAME,
     FAMILY_NAME,
-    FULL_NAME,
     EMAIL;
 
     /** The trusted value for this source from a Keycloak user; never null, always trimmed. */
@@ -43,7 +42,6 @@ public final class IdentityFieldRegistry {
       return switch (this) {
         case GIVEN_NAME -> first;
         case FAMILY_NAME -> last;
-        case FULL_NAME -> (first + " " + last).trim();
         case EMAIL -> nullToEmpty(user.getEmail()).trim();
       };
     }
@@ -69,16 +67,6 @@ public final class IdentityFieldRegistry {
         ordered(
             "applicantFirstName", Source.GIVEN_NAME,
             "applicantLastName", Source.FAMILY_NAME,
-            "applicantEmail", Source.EMAIL));
-    BINDINGS.put(
-        "transportVehicleRegistration",
-        ordered(
-            "applicantName", Source.FULL_NAME,
-            "applicantEmail", Source.EMAIL));
-    BINDINGS.put(
-        "transportLearningPermit",
-        ordered(
-            "applicantName", Source.FULL_NAME,
             "applicantEmail", Source.EMAIL));
   }
 

@@ -9,20 +9,6 @@
       "manifestPath": "business-registration/build/mcp-service.json"
     },
     {
-      "key": "transportLearningPermit",
-      "name": "Transport Driving Learner Permit",
-      "description": "Apply for a driving learning license (ITS Demo Scenario 2). Flat 6 EUR fee; eye test fetched from approved opticians; weak vision routes to a Police Hospital assessment; the electronic license with payment receipt is emailed after payment.",
-      "audience": "applicant",
-      "manifestPath": "transport-learning-permit/build/mcp-service.json"
-    },
-    {
-      "key": "transportVehicleRegistration",
-      "name": "Transport Vehicle Registration",
-      "description": "Register a new vehicle with the Transport Authority (ITS Demo Scenario 1). Category-based fee (10–180 EUR) known up front; system condition checks, traffic officer review, fee payment, plate allocation, and certificate by email.",
-      "audience": "applicant",
-      "manifestPath": "transport-vehicle-registration/build/mcp-service.json"
-    },
-    {
       "key": "vehicleRegistration",
       "name": "Vehicle Registration",
       "description": "Register a vehicle with Transpordiamet (Estonian Transport Authority), with optional co-owner signatures. The vehicle is looked up from a curated catalog; adult sole owners of low-value (under €5k) older (10+ years) vehicles are auto-approved by DMN, everyone else routes to a Transport Authority review.",

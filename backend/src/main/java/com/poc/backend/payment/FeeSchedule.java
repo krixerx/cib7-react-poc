@@ -17,8 +17,6 @@ import org.springframework.stereotype.Component;
  *   businessRegistration         → EUR 265 flat (Estonian fast-track OÜ fee)
  *   vehicleRegistration          → EUR 25 / 75 / 150 tiered by vehicle value
  *                                  (mirrors the tiers in the state-fee-invoice PDF template)
- *   transportVehicleRegistration → EUR, from the registrationFee variable (transport-vehicle-fee DMN)
- *   transportLearningPermit      → EUR 6 flat (ITS Demo Scenario 2)
  * </pre>
  */
 @Component
@@ -26,14 +24,9 @@ public class FeeSchedule {
 
   static final String VEHICLE_KEY = "vehicleRegistration";
   static final String OU_KEY = "businessRegistration";
-  static final String TRANSPORT_VEHICLE_KEY = "transportVehicleRegistration";
-  static final String TRANSPORT_PERMIT_KEY = "transportLearningPermit";
 
   /** Process definitions that have a payment step. */
-  public static final Set<String> PAYABLE =
-      Set.of(VEHICLE_KEY, OU_KEY, TRANSPORT_VEHICLE_KEY, TRANSPORT_PERMIT_KEY);
-
-  private static final String TRANSPORT_RECIPIENT = "Transport Authority";
+  public static final Set<String> PAYABLE = Set.of(VEHICLE_KEY, OU_KEY);
 
   private final EngineClient engine;
 
@@ -60,14 +53,6 @@ public class FeeSchedule {
     if (OU_KEY.equals(key)) {
       return Optional.of(
           charge(key, "OÜ registration state fee", "Äriregister (Justiitsministeerium)", 265.0));
-    }
-    if (TRANSPORT_VEHICLE_KEY.equals(key)) {
-      // The transport-vehicle-fee DMN writes the authoritative EUR amount.
-      double fee = parseAmount(engine.getRawVariable(pi, "registrationFee"));
-      return Optional.of(charge(key, "Vehicle registration fee", TRANSPORT_RECIPIENT, fee));
-    }
-    if (TRANSPORT_PERMIT_KEY.equals(key)) {
-      return Optional.of(charge(key, "Driving learning licence fee", TRANSPORT_RECIPIENT, 6.0));
     }
     return Optional.empty();
   }
