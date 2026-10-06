@@ -424,8 +424,7 @@ cib7-react-poc/
 │       │   ├── security/                     public / internal-token / JWT chains
 │       │   ├── storage/                      S3 client + presigner + bucket bootstrap (RustFS)
 │       │   ├── documents/                    Document JPA entity + repository + /api/documents
-│       │   ├── owner/                        /api/public/owner-confirmations
-│       │   ├── founder/                      /api/public/founder-signatures
+│       │   ├── consent/                      /api/public/consent/<purpose> (pack co-signing)
 │       │   ├── payment/                      /api/public/payments
 │       │   └── registry/                     /api/{public,internal}/registry/<entity> (pack registries)
 │       └── resources/application.yaml

@@ -332,7 +332,7 @@ const STATE_KEYS: Record<string, string> = {
   rejected: 'states.rejected',
 };
 
-/** Known error codes (local + backend OwnerConfirmationController) → translation keys. */
+/** Known error codes (local + backend ConsentController, purpose owner) → translation keys. */
 const ERROR_KEYS: Record<string, string> = {
   missing_reason: 'errors.missingReason',
   unknown_token: 'errors.unknownToken',

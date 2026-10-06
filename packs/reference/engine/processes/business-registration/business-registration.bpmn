@@ -79,13 +79,13 @@
                             backend rejects links from an earlier round.
       founderSignatures   - initialised by ConsentPartiesListener with the
                             applicant ("applicant") approved, then updated by
-                            FounderSignatureController on every approve/reject;
+                            the backend ConsentController (purpose founder) on every approve/reject;
                             Spin Json map of partyId -> {status, reason?, signedAt}.
                             Signing links are never stored: the `links` bean
                             (CapabilityLinks) signs them into the emails, see
                             docs/security.md rule 3.
       rejectedByFounder   - reset to false by ConsentPartiesListener, set by
-                            FounderSignatureController on reject; Boolean.
+                            the backend ConsentController (purpose founder) on reject; Boolean.
                             Drives the multi-instance completionCondition and the
                             post-subprocess gateway.
       sentToRegister      - reset to false by ConsentPartiesListener, set by the
@@ -94,7 +94,7 @@
       autoDecision        - written by the DMN ("approve" / "review").
       decision            - written by the review user task ("approve" / "sendback").
       sendBackReason      - written by the review user task on sendback. Also
-                            written by FounderSignatureController on reject so the
+                            written by the backend ConsentController (purpose founder) on reject so the
                             existing Task_SendBackEmail can notify the applicant
                             without a separate task.
       pendingAoaDocument        - written by the founder form when a new
@@ -134,7 +134,7 @@
 
   <!--
     Message definitions used by the receiveTasks in the founder-signing block.
-    FounderSignatureController correlates these from Spring via
+    the backend ConsentController (purpose founder) correlates these from Spring via
     runtimeService.createMessageCorrelation(...).
   -->
   <bpmn:message id="Message_FounderSignature" name="FounderSignature" />

@@ -114,8 +114,9 @@ Form contract: see [`../../../human-role-react-forms-spec.md`](../../../human-ro
 Registry resolution lives in `frontend/src/forms/registry.ts`. The owner
 confirmation page is NOT a BPMN form — it's a public, unauthenticated SPA
 route reached from `${frontendBaseUrl}/confirm-owner/{token}` email links
-and backed by `/api/public/owner-confirmations/**` in the backend business service
-([`OwnerConfirmationController`](../../../../backend/src/main/java/com/poc/backend/owner/OwnerConfirmationController.java)).
+and backed by `/api/public/consent/owner/**`, the backend's generic co-signing
+endpoint configured by [`consent.md`](consent.md)
+([`ConsentController`](../../../../backend/src/main/java/com/poc/backend/consent/ConsentController.java)).
 
 ## Service tasks (integrations)
 
@@ -134,8 +135,8 @@ and backed by `/api/public/owner-confirmations/**` in the backend business servi
 
 | BPMN task | Message | Correlation | Triggered by |
 |---|---|---|---|
-| `ReceiveTask_OwnerConfirmation` (in subprocess) | `OwnerConfirmation` | local `partyId` (set from `owner.partyId` via inputOutput) | `POST /api/public/owner-confirmations/{token}` (approve or reject). The backend takes `processInstanceId` and `partyId` from the verified token only. |
-| `Task_WaitSendToProcess` | `SendToProcess` | `processInstanceId` | `POST /api/public/owner-confirmations/{token}/send-to-process` |
+| `ReceiveTask_OwnerConfirmation` (in subprocess) | `OwnerConfirmation` | local `partyId` (set from `owner.partyId` via inputOutput) | `POST /api/public/consent/owner/{token}` (approve or reject). The backend takes `processInstanceId` and `partyId` from the verified token only. |
+| `Task_WaitSendToProcess` | `SendToProcess` | `processInstanceId` | `POST /api/public/consent/owner/{token}/send` |
 | `Task_WaitForPayment` | `PaymentReceived` | `processInstanceId` | The payment provider's signed callback `POST /api/public/payments/callback` (docs/security.md rule 4), after the applicant pays from the public `/pay/{token}` page. Sets `paymentReceived`, `paymentReference`, `paidAmount`. |
 
 Confirmation and pay links carry a capability token minted by the `links`
@@ -163,14 +164,14 @@ wiring.
 | `applicantEmail` | `Task_SubmitDetails` | String | Required when `additionalOwners` is non-empty (tracking email + send-back loop); otherwise optional. |
 | `additionalOwners` | `Task_SubmitDetails`, rewritten by `ConsentPartiesListener` | Json (Spin list) | The form writes `[{name, email}]`. The complete listener on `Task_SubmitDetails` keeps only those two fields and adds server-assigned `partyId`s (`p1`, `p2`, ...), so the stored value is `[{partyId, name, email}]`. Always set (empty list when none). Drives the multi-instance subprocess via `${additionalOwners.elements()}`. |
 | `consentRound` | `ConsentPartiesListener` | Long | Replaced on every submission (epoch milliseconds). Signed into every confirmation link; links from an earlier round get 404. |
-| `ownerConfirmations` | `ConsentPartiesListener` + `OwnerConfirmationController` | Json (Spin map) | `{<partyId>: {status, signedAt, reason?}}`. Reset on every submission to the applicant (`"applicant"`) pre-set to `"approved"`. Updated on every approve / reject. |
-| `rejectedByOwner` | `ConsentPartiesListener` (reset) + `OwnerConfirmationController` (reject) | Boolean | Drives the multi-instance `completionCondition` and the post-subprocess `Gateway_AllConfirmed`. |
+| `ownerConfirmations` | `ConsentPartiesListener` + `ConsentController (owner)` | Json (Spin map) | `{<partyId>: {status, signedAt, reason?}}`. Reset on every submission to the applicant (`"applicant"`) pre-set to `"approved"`. Updated on every approve / reject. |
+| `rejectedByOwner` | `ConsentPartiesListener` (reset) + `ConsentController (owner)` (reject) | Boolean | Drives the multi-instance `completionCondition` and the post-subprocess `Gateway_AllConfirmed`. |
 | `sentToProcess` | `ConsentPartiesListener` (reset) + `SendToProcess` correlation | Boolean | Surfaced to the SPA via the status endpoint. |
 | `paymentReceived`, `paymentReference`, `paidAmount` | `PaymentReceived` correlation (signed provider callback) | Boolean, String, Double | Written only by the backend's payment callback after the provider signature and amount check. |
 | `price` | `Task_GetPrice` | Double | Read from the REST response. |
 | `autoDecision` | `Task_AutoDecide` (DMN) | String | `"approve"` or `"review"`. |
 | `decision` | `Task_Review` | String | `"approve"` or `"sendback"`. |
-| `sendBackReason` | `Task_Review` OR `OwnerConfirmationController` (reject) | String | Reason for the loop-back. Owner-reject path writes `"Owner <name> rejected the application: <reason>"` so the existing `Task_SendBackEmail` can render both kinds of send-back without a separate template. |
+| `sendBackReason` | `Task_Review` OR `ConsentController (owner)` (reject) | String | Reason for the loop-back. Owner-reject path writes `"Owner <name> rejected the application: <reason>"` so the existing `Task_SendBackEmail` can render both kinds of send-back without a separate template. |
 | `approvalPdfBytes` | `Task_GeneratePdf` | byte[] | Raw PDF bytes. Bytes-typed so the engine spills it to `ACT_GE_BYTEARRAY` instead of the 4000-char `TEXT_` column. |
 | `approvalPdfFilename` | `Task_GeneratePdf` | String | Suggested attachment filename (e.g. `approval-<objectId>.pdf`). |
 

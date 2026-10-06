@@ -1,0 +1,25 @@
+# Generated from docs/business/services/vehicle-registration/consent.md.
+# Do not hand-edit. Read by the backend's ConsentCatalog.
+platform: 2
+purpose: owner
+process: vehicleRegistration
+applicant: { firstName: firstName, lastName: lastName }
+variables:
+  parties: additionalOwners
+  confirmations: ownerConfirmations
+  rejected: rejectedByOwner
+  sent: sentToProcess
+messages:
+  signature: OwnerConfirmation
+  send: SendToProcess
+wording:
+  party: Owner
+  rejection: rejected the application
+  unknownLink: This confirmation link is unknown or has expired.
+  alreadyRejected: Another owner has already rejected this application.
+  alreadySent: This case has already been sent to the back office.
+  alreadySigned: You have already signed this application.
+  notWaiting: This case is no longer waiting for owner signatures.
+  rejectedBack: This case was rejected by an owner and is back with the applicant.
+  notReady: Not all owners have signed yet.
+  notWaitingForSend: This case is not waiting on a send-to-process signal.

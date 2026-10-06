@@ -1,7 +1,10 @@
 /**
  * Typed client for the public owner-confirmation endpoints.
  *
- * The endpoints under `/api/public/owner-confirmations/**` are
+ * The backend serves every co-signing purpose from one generic endpoint,
+ * `/api/public/consent/<purpose>/**`, configured by the service pack's
+ * `consent/<purpose>.yaml`; this client talks to purpose `owner` and maps
+ * the generic response onto the owner page's types. The endpoints are
  * unauthenticated. Each call carries only the owner's capability token in
  * the URL, no bearer header: owners receive these links by email and don't
  * have Keycloak accounts. The token is signed by the engine and opaque to
@@ -11,7 +14,7 @@
  * (nginx.conf) proxy `/api/**` to the backend just like `/engine-rest/**`.
  */
 
-const BASE = '/api/public/owner-confirmations';
+const BASE = '/api/public/consent/owner';
 
 /**
  * One owner as any link holder may see it: display name and signing state.
@@ -38,6 +41,29 @@ export interface OwnerStatus {
   state: string;
   rejectedBy: string | null;
   rejectionReason: string | null;
+}
+
+/** The generic co-signing response (`ConsentController.ConsentStatus`). */
+interface ConsentStatusBody {
+  processInstanceId: string;
+  applicantName: string;
+  current: OwnerEntry | null;
+  parties: OwnerEntry[];
+  state: string;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
+}
+
+function toOwnerStatus(body: ConsentStatusBody): OwnerStatus {
+  return {
+    processInstanceId: body.processInstanceId,
+    applicantName: body.applicantName,
+    currentOwner: body.current,
+    owners: body.parties,
+    state: body.state,
+    rejectedBy: body.rejectedBy,
+    rejectionReason: body.rejectionReason,
+  };
 }
 
 export interface ErrorBody {
@@ -76,25 +102,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function getStatus(token: string): Promise<OwnerStatus> {
-  return request(`/${encodeURIComponent(token)}/status`);
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}/status`).then(toOwnerStatus);
 }
 
 export function approve(token: string): Promise<OwnerStatus> {
-  return request(`/${encodeURIComponent(token)}`, {
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify({ decision: 'approve' }),
-  });
+  }).then(toOwnerStatus);
 }
 
 export function reject(token: string, reason: string): Promise<OwnerStatus> {
-  return request(`/${encodeURIComponent(token)}`, {
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify({ decision: 'reject', reason }),
-  });
+  }).then(toOwnerStatus);
 }
 
 export function sendToProcess(token: string): Promise<OwnerStatus> {
-  return request(`/${encodeURIComponent(token)}/send-to-process`, {
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}/send`, {
     method: 'POST',
-  });
+  }).then(toOwnerStatus);
 }

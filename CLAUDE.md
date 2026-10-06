@@ -105,8 +105,9 @@ Module responsibilities are strict and worth preserving:
   `PropertiesLauncher` and `loader.path` (see `cib7/Dockerfile`). Tests and
   `mvn spring-boot:run` add the same directory through the pom's
   `services.pack.dir`.
-- **`backend/` owns every `/api/**` surface**: public token-link pages (owner
-  confirmations, founder signatures, payments), the registry module that
+- **`backend/` owns every `/api/**` surface**: public token-link pages
+  (co-signing at `/api/public/consent/<purpose>` from the pack's
+  `consent/<purpose>.yaml`, payments), the registry module that
   serves the pack's declared registries (`/api/{public,internal}/registry/<entity>`),
   document metadata plus RustFS S3 presigned URLs. It reaches the engine only
   through `/engine-rest` as the `cib7-business` service account.
@@ -149,6 +150,11 @@ Generated from the spec:
 
 - `packs/reference/engine/processes/<service>/*.bpmn` and `*.dmn`
 - `packs/reference/engine/templates/<task>.json.ftl`
+- `packs/reference/engine/processes/<service>/variable-policy.json` and
+  `schemas/<form-id>.json` (which variables a client may write, and their values)
+- `packs/reference/backend/registry/<entity>.yaml` and
+  `db/registry/V<n>__*.sql` from `data/<entity>.md`
+- `packs/reference/backend/consent/<purpose>.yaml` from `consent.md`
 - `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` (full rewrite)
 - `docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
   plus the aggregated `docs/business/services/build/services.json`

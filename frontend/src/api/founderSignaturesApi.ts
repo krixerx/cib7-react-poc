@@ -4,7 +4,11 @@
  * Mirror of {@link ./ownerConfirmationsApi.ts} — same pattern (per-founder
  * capability token in the URL, no bearer header), OÜ semantics swapped in.
  *
- * The endpoints under `/api/public/founder-signatures/**` are
+ * The backend serves every co-signing purpose from one generic endpoint,
+ * `/api/public/consent/<purpose>/**`, configured by the service pack's
+ * `consent/<purpose>.yaml`; this client talks to purpose `founder` and maps
+ * the generic response (case details under `details`, file names under
+ * `documents`) onto the founder page's types. The endpoints are
  * unauthenticated. Each call carries only the founder's capability token
  * in the URL: co-founders receive these links by email and don't have
  * Keycloak accounts. The token is signed by the engine and opaque to the
@@ -14,7 +18,7 @@
  * (nginx.conf) proxy `/api/**` to the backend.
  */
 
-const BASE = '/api/public/founder-signatures';
+const BASE = '/api/public/consent/founder';
 
 /**
  * One founder as any link holder may see it: display name and signing state.
@@ -48,6 +52,39 @@ export interface FounderStatus {
   state: string;
   rejectedBy: string | null;
   rejectionReason: string | null;
+}
+
+/** The generic co-signing response (`ConsentController.ConsentStatus`). */
+interface ConsentStatusBody {
+  processInstanceId: string;
+  applicantName: string;
+  current: FounderEntry | null;
+  parties: FounderEntry[];
+  state: string;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
+  details: {
+    companyName?: string | null;
+    shareCapital?: number | null;
+    boardMembers?: { name: string }[] | null;
+  };
+  documents: { articles?: string | null };
+}
+
+function toFounderStatus(body: ConsentStatusBody): FounderStatus {
+  return {
+    processInstanceId: body.processInstanceId,
+    applicantName: body.applicantName,
+    companyName: body.details.companyName ?? '',
+    shareCapital: body.details.shareCapital ?? null,
+    boardMembers: body.details.boardMembers ?? [],
+    articlesFilename: body.documents.articles ?? null,
+    currentFounder: body.current,
+    founders: body.parties,
+    state: body.state,
+    rejectedBy: body.rejectedBy,
+    rejectionReason: body.rejectionReason,
+  };
 }
 
 export interface ErrorBody {
@@ -86,30 +123,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function getStatus(token: string): Promise<FounderStatus> {
-  return request(`/${encodeURIComponent(token)}/status`);
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}/status`).then(toFounderStatus);
 }
 
 export function approve(token: string): Promise<FounderStatus> {
-  return request(`/${encodeURIComponent(token)}`, {
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify({ decision: 'approve' }),
-  });
+  }).then(toFounderStatus);
 }
 
 export function reject(token: string, reason: string): Promise<FounderStatus> {
-  return request(`/${encodeURIComponent(token)}`, {
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify({ decision: 'reject', reason }),
-  });
+  }).then(toFounderStatus);
 }
 
 /** A 60-second presigned GET for the case's Articles of Association. */
 export function getArticlesDownloadUrl(token: string): Promise<{ url: string; expiresIn: number }> {
-  return request(`/${encodeURIComponent(token)}/articles/download-url`);
+  return request(`/${encodeURIComponent(token)}/documents/articles/download-url`);
 }
 
 export function submitToRegister(token: string): Promise<FounderStatus> {
-  return request(`/${encodeURIComponent(token)}/submit-to-register`, {
+  return request<ConsentStatusBody>(`/${encodeURIComponent(token)}/send`, {
     method: 'POST',
-  });
+  }).then(toFounderStatus);
 }

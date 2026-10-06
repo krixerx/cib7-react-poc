@@ -62,7 +62,7 @@
                                    from an earlier round.
       ownerConfirmations         - initialised by ConsentPartiesListener with the
                                    applicant ("applicant") approved, then updated
-                                   by OwnerConfirmationController on every
+                                   by the backend ConsentController (purpose owner) on every
                                    approve/reject; Spin Json map of partyId ->
                                    {status, reason?, signedAt}. Read by the public
                                    status endpoint.
@@ -70,7 +70,7 @@
                                    `links` bean (CapabilityLinks) signs them into
                                    the emails, see docs/security.md rule 3.
       rejectedByOwner            - reset to false by ConsentPartiesListener, set by
-                                   OwnerConfirmationController on reject;
+                                   the backend ConsentController (purpose owner) on reject;
                                    Boolean. Drives the multi-instance completionCondition
                                    and the post-subprocess gateway.
       sentToProcess              - reset to false by ConsentPartiesListener, set by
@@ -81,7 +81,7 @@
       decision                   - written by the review user task ("approve"/"sendback")
       sendBackReason             - optional reason supplied by the civil servant
                                    when sending the case back for corrections.
-                                   Also written by OwnerConfirmationController on
+                                   Also written by the backend ConsentController (purpose owner) on
                                    reject so the existing Task_SendBackEmail can
                                    notify the applicant without a separate task.
       approvalPdfBytes           - written by Generate approval PDF (Gotenberg via
@@ -117,7 +117,7 @@
 
   <!--
     Message definitions used by the receiveTasks in the owner-confirmation block.
-    OwnerConfirmationController correlates these from Spring via
+    the backend ConsentController (purpose owner) correlates these from Spring via
     runtimeService.createMessageCorrelation(...).
   -->
   <bpmn:message id="Message_OwnerConfirmation" name="OwnerConfirmation" />

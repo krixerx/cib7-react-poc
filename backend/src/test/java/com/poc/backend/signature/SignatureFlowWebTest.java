@@ -14,16 +14,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.poc.backend.consent.ConsentCatalog;
+import com.poc.backend.consent.ConsentController;
 import com.poc.backend.documents.Document;
 import com.poc.backend.documents.DocumentDownloads;
 import com.poc.backend.documents.DocumentDownloads.DownloadUrl;
 import com.poc.backend.documents.DocumentRepository;
 import com.poc.backend.engine.EngineClient;
 import com.poc.backend.engine.EngineClient.ProcessInstanceRef;
-import com.poc.backend.founder.FounderSignatureController;
 import com.poc.backend.links.CapabilityLinkVerifier;
 import com.poc.backend.links.TestLinks;
-import com.poc.backend.owner.OwnerConfirmationController;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
@@ -49,11 +49,12 @@ import tools.jackson.databind.node.ObjectNode;
  * another party's email or any token.
  *
  * <p>Security filters are off: {@code /api/public/**} is permit-all anyway, and the checks under
- * test live in the controllers and {@link CapabilityLinkVerifier}.
+ * test live in {@link ConsentController}, the reference pack's co-signing descriptors and {@link
+ * CapabilityLinkVerifier}.
  */
-@WebMvcTest(controllers = {OwnerConfirmationController.class, FounderSignatureController.class})
+@WebMvcTest(controllers = ConsentController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(CapabilityLinkVerifier.class)
+@Import({CapabilityLinkVerifier.class, ConsentCatalog.class})
 @TestPropertySource(properties = "app.links.secret=" + TestLinks.SECRET)
 class SignatureFlowWebTest {
 
@@ -96,7 +97,7 @@ class SignatureFlowWebTest {
   @Nested
   class OwnerFlow {
 
-    static final String BASE = "/api/public/owner-confirmations";
+    static final String BASE = "/api/public/consent/owner";
 
     void stubCase(JsonNode confirmations, Boolean rejected, Boolean sent) {
       when(engine.findActiveById(PI)).thenReturn(new ProcessInstanceRef(PI, "vehicleRegistration"));
@@ -130,12 +131,12 @@ class SignatureFlowWebTest {
               .andExpect(status().isOk())
               .andExpect(jsonPath("$.applicantName").value("Ants Avaldaja"))
               .andExpect(jsonPath("$.state").value("pending"))
-              .andExpect(jsonPath("$.currentOwner.partyId").value("p1"))
-              .andExpect(jsonPath("$.currentOwner.name").value("Olga Omanik"))
-              .andExpect(jsonPath("$.currentOwner.isApplicant").value(false))
-              .andExpect(jsonPath("$.owners.length()").value(3))
-              .andExpect(jsonPath("$.owners[0].status").value("approved"))
-              .andExpect(jsonPath("$.owners[2].name").value("Peeter"))
+              .andExpect(jsonPath("$.current.partyId").value("p1"))
+              .andExpect(jsonPath("$.current.name").value("Olga Omanik"))
+              .andExpect(jsonPath("$.current.isApplicant").value(false))
+              .andExpect(jsonPath("$.parties.length()").value(3))
+              .andExpect(jsonPath("$.parties[0].status").value("approved"))
+              .andExpect(jsonPath("$.parties[2].name").value("Peeter"))
               .andReturn()
               .getResponse()
               .getContentAsString();
@@ -305,14 +306,13 @@ class SignatureFlowWebTest {
       c.set("p1", approved());
       stubCase(c, null, null);
 
-      mvc.perform(post(BASE + "/{token}/send-to-process", token("applicant")))
+      mvc.perform(post(BASE + "/{token}/send", token("applicant")))
           .andExpect(status().isConflict())
           .andExpect(jsonPath("$.code").value("not_ready"));
 
       c.set("p2", approved());
       when(engine.correlateMessage(anyString(), anyString(), anyMap(), anyMap())).thenReturn(true);
-      mvc.perform(post(BASE + "/{token}/send-to-process", token("applicant")))
-          .andExpect(status().isOk());
+      mvc.perform(post(BASE + "/{token}/send", token("applicant"))).andExpect(status().isOk());
       verify(engine).correlateMessage("SendToProcess", PI, Map.of(), Map.of("sentToProcess", true));
     }
 
@@ -333,7 +333,7 @@ class SignatureFlowWebTest {
   @Nested
   class FounderFlow {
 
-    static final String BASE = "/api/public/founder-signatures";
+    static final String BASE = "/api/public/consent/founder";
 
     void stubCase(JsonNode signatures) {
       when(engine.findActiveById(PI))
@@ -357,10 +357,10 @@ class SignatureFlowWebTest {
           mvc.perform(
                   get(BASE + "/{token}/status", TestLinks.mint(PI, "applicant", "founder", ROUND)))
               .andExpect(status().isOk())
-              .andExpect(jsonPath("$.companyName").value("Näidis OÜ"))
-              .andExpect(jsonPath("$.currentFounder.isApplicant").value(true))
-              .andExpect(jsonPath("$.founders.length()").value(2))
-              .andExpect(jsonPath("$.founders[1].name").value("Karl Kaasasutaja"))
+              .andExpect(jsonPath("$.details.companyName").value("Näidis OÜ"))
+              .andExpect(jsonPath("$.current.isApplicant").value(true))
+              .andExpect(jsonPath("$.parties.length()").value(2))
+              .andExpect(jsonPath("$.parties[1].name").value("Karl Kaasasutaja"))
               .andReturn()
               .getResponse()
               .getContentAsString();
@@ -419,10 +419,10 @@ class SignatureFlowWebTest {
       String body =
           mvc.perform(get(BASE + "/{token}/status", TestLinks.mint(PI, "p1", "founder", ROUND)))
               .andExpect(status().isOk())
-              .andExpect(jsonPath("$.shareCapital").value(2500.0))
-              .andExpect(jsonPath("$.boardMembers.length()").value(1))
-              .andExpect(jsonPath("$.boardMembers[0].name").value("Mari Juhataja"))
-              .andExpect(jsonPath("$.articlesFilename").value("pohikiri.pdf"))
+              .andExpect(jsonPath("$.details.shareCapital").value(2500.0))
+              .andExpect(jsonPath("$.details.boardMembers.length()").value(1))
+              .andExpect(jsonPath("$.details.boardMembers[0].name").value("Mari Juhataja"))
+              .andExpect(jsonPath("$.documents.articles").value("pohikiri.pdf"))
               .andReturn()
               .getResponse()
               .getContentAsString();
@@ -439,7 +439,7 @@ class SignatureFlowWebTest {
 
       mvc.perform(
               get(
-                  BASE + "/{token}/articles/download-url",
+                  BASE + "/{token}/documents/articles/download-url",
                   TestLinks.mint(PI, "p1", "founder", ROUND)))
           .andExpect(status().isOk())
           .andExpect(jsonPath("$.url").value("https://s3/presigned"));
@@ -452,7 +452,7 @@ class SignatureFlowWebTest {
 
       mvc.perform(
               get(
-                  BASE + "/{token}/articles/download-url",
+                  BASE + "/{token}/documents/articles/download-url",
                   TestLinks.mint(PI, "p1", "founder", ROUND)))
           .andExpect(status().isNotFound());
       verify(downloads, never()).mint(any());
@@ -465,7 +465,7 @@ class SignatureFlowWebTest {
 
       mvc.perform(
               get(
-                  BASE + "/{token}/articles/download-url",
+                  BASE + "/{token}/documents/articles/download-url",
                   TestLinks.mint(PI, "p1", "founder", ROUND)))
           .andExpect(status().isNotFound());
       verify(downloads, never()).mint(any());
@@ -478,16 +478,41 @@ class SignatureFlowWebTest {
 
       mvc.perform(
               get(
-                  BASE + "/{token}/articles/download-url",
+                  BASE + "/{token}/documents/articles/download-url",
                   TestLinks.mint(PI, "p1", "owner", ROUND)))
           .andExpect(status().isNotFound())
           .andExpect(jsonPath("$.code").value(NOT_FOUND_BODY));
       mvc.perform(
               get(
-                  BASE + "/{token}/articles/download-url",
+                  BASE + "/{token}/documents/articles/download-url",
                   TestLinks.mint(PI, "p1", "founder", ROUND - 1)))
           .andExpect(status().isNotFound());
       verify(downloads, never()).mint(any());
+    }
+
+    @Test
+    void documentTheDescriptorDoesNotDeclareIsNotServed() throws Exception {
+      stubCase(json.createObjectNode());
+      stubFoundingDetails(articlesOf(PI, ARTICLES));
+
+      mvc.perform(
+              get(
+                  BASE + "/{token}/documents/id-card/download-url",
+                  TestLinks.mint(PI, "p1", "founder", ROUND)))
+          .andExpect(status().isNotFound());
+      verify(downloads, never()).mint(any());
+    }
+
+    @Test
+    void unknownPurposeAnswersLikeAnUnknownLink() throws Exception {
+      stubCase(json.createObjectNode());
+
+      mvc.perform(
+              get(
+                  "/api/public/consent/witness/{token}/status",
+                  TestLinks.mint(PI, "p1", "witness", ROUND)))
+          .andExpect(status().isNotFound())
+          .andExpect(jsonPath("$.code").value(NOT_FOUND_BODY));
     }
   }
 

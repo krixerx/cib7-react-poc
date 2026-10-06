@@ -82,7 +82,8 @@ The runtime pieces:
   endpoints — only engine, plugins, connectors, and process resources.
 - **Business microservice (`backend/`)** — Spring Boot 4 app owning every
   `/api/**` surface: the public token-link endpoints
-  (`/api/public/owner-confirmations`, `/api/public/founder-signatures`,
+  (`/api/public/consent/<purpose>` for co-owner confirmation and co-founder
+  signature, configured per purpose by the pack's `consent/<purpose>.yaml`,
   `/api/public/payments`), the registry module
   (`/api/{public,internal}/registry/<entity>`, which serves the service
   pack's declared registries such as the `vehicles` Liiklusregister stand-in
@@ -447,6 +448,23 @@ on the classpath (`PropertiesLauncher`, `loader.path`), like the engine's pack.
   names per operation; the other class answers 404, like an unknown entity.
   Identifiers come from the checked descriptor and are quoted, the key is a
   bound parameter, a list returns at most 1,000 rows.
+
+## Co-signing (consent)
+
+Parties other than the applicant (co-owners, co-founders) confirm or sign
+through capability links in their email. The engine side was already
+generic: `ConsentPartiesListener` takes the variable names from the BPMN and
+`CapabilityLinks` mints the tokens. The backend side is now generic too. The
+spec's `docs/business/services/<service>/consent.md` becomes, through the
+service builder, `packs/reference/backend/consent/<purpose>.yaml`;
+`ConsentCatalog` loads it (closed set: variable and message names, wording,
+details of type `string`, `number` or `names`, documents by id variable and
+category), and `ConsentController` serves every purpose at
+`/api/public/consent/<purpose>/<token>` (`/status`, sign, `/send`,
+`/documents/<name>/download-url`) on top of `ConsentFlow`. A token works only
+for the purpose it was minted for; an unknown purpose answers exactly like an
+unknown link; a `names` detail reduces people to display names, so personal
+codes never reach the unauthenticated page.
 
 ## Security posture
 

@@ -69,8 +69,8 @@ frontend/src/
 │   ├── paymentLinkApi.ts          — /api/cases/{id}/payment-link (pay link for the signed-in applicant)
 │   ├── draftCaseApi.ts            — /api/cases/drafts + DELETE /api/cases/{id} (applicant's unsubmitted cases)
 │   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
-│   ├── ownerConfirmationsApi.ts   — /api/public/owner-confirmations client (confirm page)
-│   ├── founderSignaturesApi.ts    — /api/public/founder-signatures client (signing page)
+│   ├── ownerConfirmationsApi.ts   — /api/public/consent/owner client (confirm page)
+│   ├── founderSignaturesApi.ts    — /api/public/consent/founder client (signing page)
 │   └── vehicleRegistryApi.ts      — /api/public/registry/vehicles client (vehicle dropdown)
 ├── services/
 │   ├── categories.ts              — PartA life-event categories + service-key → category mapping

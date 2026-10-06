@@ -95,6 +95,7 @@ and ask** rather than guessing.
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
 | Every `<service>/build/mcp-service.json` across every service | `docs/business/services/build/services.json` (aggregated MCP index; § 11) |
 | `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2) |
+| `<service>/consent.md` | `packs/reference/backend/consent/<purpose>.yaml` (co-signing descriptor; step 10c) |
 | `<service>/data/<entity>.md` | `packs/reference/backend/registry/<entity>.yaml` (descriptor) and `packs/reference/backend/db/registry/V<n>__<entity>.sql` (table + seed; step 10b) |
 | `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `packs/reference/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 
@@ -269,6 +270,21 @@ generated files get rewritten in place; idempotent runs are a no-op.
     `double precision`, boolean → `boolean`. Renaming, dropping or retyping a
     column needs an explicit instruction in the spec (data loss), otherwise
     stop and ask.
+10c. **Emit the co-signing descriptor** when the service has a `consent.md`
+    (other parties confirm or sign through emailed capability links), at
+    `packs/reference/backend/consent/<purpose>.yaml`. Copy the spec's tables
+    into: `platform: 2`, `purpose`, `process`, `applicant: {firstName,
+    lastName}`, `variables: {parties, confirmations, rejected, sent}`,
+    `messages: {signature, send}`, `wording` (all ten keys: `party`,
+    `rejection`, `unknownLink`, `alreadyRejected`, `alreadySent`,
+    `alreadySigned`, `notWaiting`, `rejectedBack`, `notReady`,
+    `notWaitingForSend`), optional `details: {<name>: {variable, type:
+    string|number|names}}` and `documents: {<name>: {variable, category}}`.
+    Show a co-signer only what they sign: a list of people is `names`, never
+    `string`. The BPMN side stays as it is (`ConsentPartiesListener` field
+    injection with the same variable names, the two messages, links minted
+    for the same purpose); `ConsentController` serves the purpose, and
+    `ConsentCatalog` refuses to start on anything outside this set.
 11. **Emit the MCP training markdown** at `<service>/build/mcp-training.md`
     following the template in [§ 11.2](#112-mcp-trainingmd). Draw the
     "What this service does" content from the README's overview section,
