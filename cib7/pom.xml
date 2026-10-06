@@ -71,10 +71,10 @@
       <groupId>org.cibseven.bpm.springboot</groupId>
       <artifactId>cibseven-bpm-spring-boot-starter-webapp</artifactId>
       <version>${cibseven.version}</version>
-      <!-- cibseven-webclient-core bundles five JDBC drivers at runtime scope.
-           The engine runs on the in-memory H2 that Boot provisions, so none of
-           them is used, and they were the image's pgjdbc and mssql-jdbc CVEs.
-           The Postgres swap (TODOS.md T1) adds its driver back explicitly. -->
+      <!-- cibseven-webclient-core bundles five JDBC drivers at runtime scope,
+           at versions that carried the image's pgjdbc and mssql-jdbc CVEs. All
+           are excluded; the Postgres driver comes back below at the version
+           Spring Boot manages. -->
       <exclusions>
         <exclusion>
           <groupId>org.postgresql</groupId>
@@ -194,6 +194,22 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+    <!-- Persistent database (the `postgres` profile) and Flyway, which owns
+         the ACT_* schema (com.poc.cib7.db.V1__CibSevenSchema). Versions are
+         managed by the Spring Boot parent. -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
     <!-- Validates submitted form values against the service pack's
          schemas/<form-id>.json (docs/security.md rule 2). The 2.x line is the

@@ -36,7 +36,7 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
   Browser (React SPA) ──OIDC login──▶ Keycloak
    │  (PKCE)
    │  Bearer JWT
-   ├─ /engine-rest ───▶  CIB seven 2.2 engine + REST API     (cib7/, in-memory H2)
+   ├─ /engine-rest ───▶  CIB seven 2.2 engine + REST API     (cib7/, Postgres)
    │                     │
    │                     │  http-connector → ${busBaseUrl}
    │                     ▼
@@ -87,7 +87,7 @@ The runtime pieces:
   (`/api/public/vehicle-registry`, the Liiklusregister stand-in the engine
   calls via http-connector), `/api/documents` (S3 presigned upload /
   download against RustFS; metadata as a JPA `Document` entity in its own
-  in-memory H2), and the engine-only `/api/internal/**` endpoints (document
+  Postgres database), and the engine-only `/api/internal/**` endpoints (document
   filing, case index). Talks to the engine only over `/engine-rest`, authenticated
   with the `cib7-business` Keycloak service account (client_credentials; the
   service account sits in `/cib7-admin` so engine authorization passes).
@@ -153,7 +153,7 @@ The runtime pieces:
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | The only group-level engine grants: applicants list and start services, civil servants read every case and retry jobs. Per-case access comes from `authorization/InitiatorAuthorizationListener.java` and the engine's default task authorizations (admins are handled by the plugin's `administratorGroupName`) |
 | Identity provider | Keycloak 26 | `keycloak/realm-export.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
-| Database | H2 (in-memory) | runtime classpath, no datasource config | Engine state — wiped on every restart |
+| Database | PostgreSQL 17 | `postgres` compose service, `postgres` Spring profile, Flyway | Engine (database `cib7`) and backend (database `backend`) state on the `postgres-data` volume; in-memory H2 in tests |
 | Email sink | Mailpit | compose service | Captures every notification + attachment the process sends; UI at `:8025` |
 | PDF generator | Gotenberg 8 (headless Chromium) | compose service | Internal only — converts HTML → PDF over multipart REST |
 | PDF adapter | `pdf-renderer/` (Node + Express, 20 LOC) | local module, compose service | JSON-in / JSON-out facade over Gotenberg so the http-connector stays plain HTTP + JSON |
@@ -366,11 +366,10 @@ validates tokens. No container needs the public issuer URL: the `iss` claim is
 a string compare against `KEYCLOAK_ISSUER_URL` (see the issuer-URL split
 below).
 
-There is no shared volume between the application services; neither Java module has a
-persistent volume because both databases are in-memory (the engine's process
-state and the backend's `Document` metadata reset together on restart —
-TODOS T1 tracks the shared move to Postgres). Keycloak uses its built-in dev
-H2; RustFS bind-mounts `./.data/rustfs` in dev so uploaded bytes survive.
+The engine and the backend keep their state in one Postgres container, in
+separate databases with separate login roles, on the `postgres-data` volume
+(see Data persistence below). Keycloak uses its built-in dev H2; RustFS
+bind-mounts `./.data/rustfs` in dev so uploaded bytes survive.
 
 **Issuer-URL split.** Keycloak issues JWTs with an `iss` claim matching its
 `KC_HOSTNAME_URL`, pinned here to `http://localhost:8180` — the URL the
@@ -397,20 +396,30 @@ URL), `KEYCLOAK_URL` (engine + backend, internal URL), and
 
 ## Data persistence
 
-- The CIB seven engine uses an **in-memory H2** database. No `spring.datasource`
-  is configured; the starter detects H2 on the classpath and provisions an
-  in-memory instance. The `backend/` microservice uses the same pattern for
-  its `Document` metadata table.
-- **Implication:** restarting the engine wipes all process instances, tasks,
-  history, and deployments (and restarting the backend wipes document
-  metadata). The auto-deploy of BPMN files on startup is what
-  makes the app usable again after a restart.
-- `camunda.bpm.database.schema-update: true` lets the engine create its tables
-  on first start.
-
-If a future iteration needs persistence: add a real datasource (PostgreSQL is
-the typical Camunda choice), remove the H2 runtime dep, set
-`spring.datasource.*`, and add a volume in `docker-compose.yml`.
+- **One Postgres container, two databases.** `postgres` (17, alpine) holds
+  `cib7` for the engine and `backend` for the business service, each owned by
+  its own login role that cannot connect to the other database.
+  `postgres/init/01-databases.sh` creates them on the first start of an empty
+  `postgres-data` volume; the passwords come from `.env`
+  (`ENGINE_DB_PASSWORD`, `BACKEND_DB_PASSWORD`, `POSTGRES_PASSWORD`). The
+  container sits only on the internal `db` network, shared with `cib7` and
+  `backend`.
+- **Spring profile `postgres`** (set by docker-compose next to `graylog`)
+  switches each service from Boot's in-memory H2 to its database. Without it,
+  as in tests and `mvn spring-boot:run`, both modules run in-memory H2 through
+  the same migrations.
+- **Flyway owns both schemas.** The engine's `ACT_*` tables come from
+  `com.poc.cib7.db.V1__CibSevenSchema`, which runs the create scripts the CIB
+  seven jar ships for the detected database; `camunda.bpm.database.schema-update`
+  is `false`, so the engine only checks the version. A CIB seven upgrade adds a
+  migration that runs the jar's `db/upgrade` script. The backend's tables come
+  from `backend/src/main/resources/db/migration/V*__*.sql`, and Hibernate only
+  validates them (`ddl-auto: validate`).
+- **What survives.** Process instances, tasks, history, deployments, document
+  metadata, payment sessions and case cards survive restarts and image
+  updates. Deployments are re-checked at startup by duplicate filtering, so an
+  unchanged service is not re-versioned. `docker compose down -v` wipes
+  everything. Backups: see `docs/deployment.md`, Day-2 operations.
 
 ## Security posture
 

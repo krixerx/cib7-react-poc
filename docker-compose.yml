@@ -398,6 +398,29 @@ services:
       retries: 60
       start_period: 20s
 
+  postgres:
+    # Persistent database for the engine (database cib7) and the backend
+    # (database backend), one login role each (postgres/init/01-databases.sh,
+    # runs on the first start of an empty volume). Flyway in each service
+    # owns its tables. Reachable only on the internal `db` network: nothing
+    # else, and nothing off the host, can open a connection.
+    image: postgres:17.11-alpine3.24
+    container_name: cib7-poc-postgres
+    networks: [db]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-change-me}
+      ENGINE_DB_PASSWORD: ${ENGINE_DB_PASSWORD:-cib7-db-change-me}
+      BACKEND_DB_PASSWORD: ${BACKEND_DB_PASSWORD:-backend-db-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
   backend:
     # Business microservice (Spring Boot 4). Owns every /api/** surface:
     # public owner-confirmation / founder-signature / payment endpoints,
@@ -410,7 +433,7 @@ services:
     # edge: from the ingress. app: engine + keycloak, and called by mcp.
     # storage: RustFS. esb-backend: called by the bus on /api/internal and
     # /api/public (Graylog sits here for the backend's GELF).
-    networks: [edge, app, storage, esb-backend]
+    networks: [edge, app, storage, esb-backend, db]
     expose:
       - "8085"
     labels:
@@ -475,11 +498,14 @@ services:
       # Central logging. The `graylog` profile is what activates the GELF
       # appender in logback-spring.xml; without it the service logs to the
       # console only (which is what a local `mvn spring-boot:run` wants).
-      SPRING_PROFILES_ACTIVE: graylog
+      SPRING_PROFILES_ACTIVE: graylog,postgres
+      BACKEND_DB_PASSWORD: ${BACKEND_DB_PASSWORD:-backend-db-change-me}
       GRAYLOG_HOST: graylog
       GRAYLOG_GELF_UDP_PORT: "12201"
       LOG_SERVICE_NAME: backend
     depends_on:
+      postgres:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       rustfs:
@@ -496,7 +522,7 @@ services:
     # edge: from the ingress (and the frontend/mobile nginx). app: keycloak,
     # and called by backend + mcp. bus: the ESB, its only outbound channel
     # (Graylog sits here for the engine's GELF).
-    networks: [edge, app, bus]
+    networks: [edge, app, bus, db]
     # No published port — the engine is reachable only through Traefik on
     # :3000. Routes below cover the three engine surfaces (the /api business
     # endpoints moved to the `backend` service above):
@@ -570,7 +596,8 @@ services:
       # Central logging. The `graylog` profile is what activates the GELF
       # appender in logback-spring.xml; without it the service logs to the
       # console only (which is what a local `mvn spring-boot:run` wants).
-      SPRING_PROFILES_ACTIVE: graylog
+      SPRING_PROFILES_ACTIVE: graylog,postgres
+      ENGINE_DB_PASSWORD: ${ENGINE_DB_PASSWORD:-cib7-db-change-me}
       GRAYLOG_HOST: graylog
       GRAYLOG_GELF_UDP_PORT: "12201"
       LOG_SERVICE_NAME: cib7
@@ -579,6 +606,8 @@ services:
       # through BUS_URL above, and the X-Internal-Token secret moved to the esb
       # service (the bus injects it on /api/documents).
     depends_on:
+      postgres:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       mailpit:
@@ -818,6 +847,9 @@ services:
 # address pool", prune unused networks or widen `default-address-pools` in the
 # daemon config.
 networks:
+  db:           # cib7, backend -> postgres; internal: no route off the host
+    name: cib7-poc-db
+    internal: true
   edge:         # ingress / frontend nginx -> frontend, mobile, cib7, backend, mcp
     name: cib7-poc-edge
   app:          # cib7, backend, mcp, keycloak
@@ -847,6 +879,7 @@ volumes:
   # data-directory ownership, which host bind mounts get wrong on Windows and
   # macOS. Wipe the whole log store with:
   #     docker compose down -v
+  postgres-data:
   graylog-mongodb-data:
   graylog-mongodb-config:
   graylog-opensearch-data:

@@ -33,7 +33,7 @@ http-connector like any other external REST service.
 | Language | Java 17 |
 | Framework | Spring Boot 3.5 |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
-| Database | H2, in-memory (no `spring.datasource` configured) |
+| Database | Postgres (`postgres` profile) in docker-compose, in-memory H2 in tests and `mvn spring-boot:run`; schema by Flyway (`db/V1__CibSevenSchema.java`) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
 | Template engine | `cibseven-template-engines-freemarker` — renders connector payloads from `templates/*.ftl` |
 | DMN | Bundled with the engine; each service's `.dmn` files deploy in the same per-service deployment as its BPMN (`decisionRefBinding="deployment"`) |
@@ -305,8 +305,9 @@ camunda.bpm:
 |---|---|
 | `server.port: 8080` | Hard-coded so the SPA proxy targets are stable in both dev and Docker |
 | `camunda.bpm.auto-deployment-enabled: false` | The starter's auto-deploy would bundle every BPMN/DMN into one `SpringAutoDeployment` — a single versioning/rollback unit for ALL services. `ServiceDeployments.java` replaces it (see below) |
-| `camunda.bpm.database.schema-update: true` | Lets the engine create its tables on first start (required for the in-memory H2 lifecycle) |
-| *(no `spring.datasource`)* | Triggers Spring Boot's H2 auto-config — in-memory DB, state wiped on restart |
+| `camunda.bpm.database.schema-update: false` | Flyway creates and upgrades the `ACT_*` tables (`V1__CibSevenSchema` runs the jar's create scripts); the engine only checks the schema version. `true` would never apply an upgrade script |
+| `spring.flyway.locations: classpath:db/migration/engine` | Keeps SQL migrations, if any are added, apart from the Java migration beans |
+| `postgres` profile: `spring.datasource.*` | `ENGINE_DB_URL` / `ENGINE_DB_USER` / `ENGINE_DB_PASSWORD`; without the profile Boot provisions in-memory H2 |
 
 ## Per-service deployments (`ServiceDeployments.java`)
 
@@ -474,7 +475,7 @@ the gateway's default branch and routes to the human reviewer.
 
 ### Large process variables (bytes-typed)
 
-CIB seven on H2 stores String/Text-typed variables inline in
+CIB seven on H2 and Postgres alike stores String/Text-typed variables inline in
 `ACT_RU_VARIABLE.TEXT_` and `ACT_HI_VARINST.TEXT_`, both
 `VARCHAR(4000)`. Any String above 4000 chars throws
 `JdbcBatchUpdateException: Value too long for column "TEXT_"` during the

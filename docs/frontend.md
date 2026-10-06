@@ -547,8 +547,8 @@ JSDoc) and as a row in this table.
    implementing `FormProps`.
 3. **Register** — add an entry to `formRegistry` in
    `frontend/src/forms/registry.ts`.
-4. **Restart the backend** (in-memory H2 means a redeploy on startup picks up
-   the new BPMN).
+4. **Restart the engine** (`ServiceDeployments` deploys the changed BPMN at
+   startup; duplicate filtering leaves unchanged services alone).
 5. **Verify** — Services → start a process → walk through the new task.
 
 There is no manifest validation. A `formKey` referencing a non-registered id

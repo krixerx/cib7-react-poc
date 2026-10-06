@@ -5,12 +5,15 @@ spring:
   application:
     name: cib7-react-poc-backend
 
-  # In-memory H2 via auto-configuration (H2 on the classpath, no explicit
-  # datasource). Document metadata is therefore lost on restart — the same
-  # posture as the engine's own in-memory H2, so the metadata never outlives
-  # the process instances it references.
+  # No datasource in the default profile: Spring Boot provisions an in-memory
+  # H2 for tests and `mvn spring-boot:run`. The `postgres` profile (end of
+  # this file, switched on by docker-compose) points at the persistent
+  # database. Flyway owns the schema (db/migration); Hibernate only checks
+  # that the entities match it.
   jpa:
     open-in-view: false
+    hibernate:
+      ddl-auto: validate
 
   security:
     oauth2:
@@ -96,3 +99,16 @@ app:
 logging:
   level:
     org.springframework.security: INFO
+
+---
+# Persistent Postgres, switched on by docker-compose
+# (SPRING_PROFILES_ACTIVE=graylog,postgres). The database and its role come
+# from postgres/init/01-databases.sh; the password from .env.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${BACKEND_DB_URL:jdbc:postgresql://postgres:5432/backend}
+    username: ${BACKEND_DB_USER:backend}
+    password: ${BACKEND_DB_PASSWORD}

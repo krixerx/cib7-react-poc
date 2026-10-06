@@ -63,14 +63,26 @@
       <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>
 
-    <!-- In-memory database. Matches the engine's own POC posture (the engine
-         runs in-memory H2 too): document metadata resets on restart together
-         with the process instances it points at. Swap for Postgres via
-         standard spring.datasource.* properties when the stack gets a real DB. -->
+    <!-- In-memory H2 for tests and `mvn spring-boot:run`; Postgres (the
+         `postgres` profile) in docker-compose. Flyway owns the schema in
+         both (db/migration/V*__*.sql); versions come from the Boot parent. -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
       <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-flyway</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
 
     <!-- Resource server: validates the SPA's Keycloak JWTs on /api/documents/** and /api/cases/**.

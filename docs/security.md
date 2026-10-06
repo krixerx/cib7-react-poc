@@ -39,7 +39,9 @@ findings:
   `APP_REQUIRE_REAL_SECRETS=true`, which turns the warning into a refusal to
   start.
 - Self-signed TLS certificates.
-- In-memory H2 (tracked as `TODOS.md` T1).
+- Postgres without TLS between the services and the database; it is reachable
+  only on the internal `db` network. The database passwords have dev defaults
+  like the other secrets (the backend's `DefaultSecretsGuard` covers its own).
 - The shared demo inbox. On a TLS deployment, `/mailpit` serves Mailpit
   behind a Keycloak login (`mailpit-auth`, oauth2-proxy), and **any**
   logged-in user reads **every** process mail, including the capability

@@ -269,7 +269,7 @@ services:
     restart: unless-stopped
     # edge: frontend/mobile nginx and Traefik. app: keycloak, and called by
     # backend + mcp. bus: the ESB (Graylog sits there for the engine's GELF).
-    networks: [edge, app, bus]
+    networks: [edge, app, bus, db]
     expose:
       - "8080"
     environment:
@@ -298,11 +298,14 @@ services:
       # Central logging. The `graylog` profile activates the GELF appender
       # baked into the image's logback-spring.xml; without it the service logs
       # to the console only.
-      SPRING_PROFILES_ACTIVE: graylog
+      SPRING_PROFILES_ACTIVE: graylog,postgres
+      ENGINE_DB_PASSWORD: ${ENGINE_DB_PASSWORD:-cib7-db-change-me}
       GRAYLOG_HOST: graylog
       GRAYLOG_GELF_UDP_PORT: "12201"
       LOG_SERVICE_NAME: cib7
     depends_on:
+      postgres:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       mailpit:
@@ -312,6 +315,29 @@ services:
       esb:
         condition: service_started
 
+  postgres:
+    # Persistent database for the engine (database cib7) and the backend
+    # (database backend), one login role each (postgres/init/01-databases.sh,
+    # runs on the first start of an empty volume). Flyway in each service
+    # owns its tables. Reachable only on the internal `db` network: nothing
+    # else, and nothing off the host, can open a connection.
+    image: postgres:17.11-alpine3.24
+    container_name: cib7-poc-postgres
+    networks: [db]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres-change-me}
+      ENGINE_DB_PASSWORD: ${ENGINE_DB_PASSWORD:-cib7-db-change-me}
+      BACKEND_DB_PASSWORD: ${BACKEND_DB_PASSWORD:-backend-db-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
   backend:
     # Business microservice — owns every /api/** surface (public payment /
     # confirmation endpoints, vehicle registry, document storage).
@@ -320,7 +346,7 @@ services:
     restart: unless-stopped
     # edge: nginx/Traefik. app: engine + keycloak, called by mcp. storage:
     # RustFS. esb-backend: called by the bus (Graylog sits there too).
-    networks: [edge, app, storage, esb-backend]
+    networks: [edge, app, storage, esb-backend, db]
     expose:
       - "8085"
     environment:
@@ -349,11 +375,14 @@ services:
       # Central logging. The `graylog` profile activates the GELF appender
       # baked into the image's logback-spring.xml; without it the service logs
       # to the console only.
-      SPRING_PROFILES_ACTIVE: graylog
+      SPRING_PROFILES_ACTIVE: graylog,postgres
+      BACKEND_DB_PASSWORD: ${BACKEND_DB_PASSWORD:-backend-db-change-me}
       GRAYLOG_HOST: graylog
       GRAYLOG_GELF_UDP_PORT: "12201"
       LOG_SERVICE_NAME: backend
     depends_on:
+      postgres:
+        condition: service_healthy
       keycloak:
         condition: service_healthy
       rustfs:
@@ -689,6 +718,9 @@ services:
 # rule 9). Explicit names, so `docker network inspect cib7-poc-<name>` shows
 # the members. `internal` networks have no route off the host.
 networks:
+  db:           # cib7, backend -> postgres; internal: no route off the host
+    name: cib7-poc-db
+    internal: true
   edge:         # Traefik / frontend nginx -> frontend, mobile, cib7, backend, mcp
     name: cib7-poc-edge
   app:          # cib7, backend, mcp, keycloak
@@ -717,6 +749,7 @@ networks:
     name: cib7-poc-ingress-s3
 
 volumes:
+  postgres-data:
   rustfs-data:
   # Named volumes, not bind mounts: OpenSearch and MongoDB run non-root and are
   # strict about data-directory ownership. `docker compose down -v` wipes the

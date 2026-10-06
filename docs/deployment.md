@@ -276,8 +276,24 @@ See the project memory note `keycloak-import-realm-only-once`.
 
 ## Day-2 operations
 
-**Restart the stack** (preserves the Keycloak realm export but wipes
-engine process state — H2 is in-memory):
+**Back up and restore the databases.** Both live in the `postgres` container
+(databases `cib7` and `backend`). Back them up together, so document rows
+never point at process instances the engine no longer has:
+
+```bash
+docker exec cib7-poc-postgres pg_dump -U postgres -Fc cib7    > cib7.dump
+docker exec cib7-poc-postgres pg_dump -U postgres -Fc backend > backend.dump
+# restore into empty databases (stop cib7 and backend first):
+docker exec -i cib7-poc-postgres pg_restore -U postgres -d cib7    --clean < cib7.dump
+docker exec -i cib7-poc-postgres pg_restore -U postgres -d backend --clean < backend.dump
+```
+
+Uploaded files live in RustFS, not in Postgres; back up its volume at the
+same time.
+
+
+**Restart the stack** (process state, documents and payments survive in
+Postgres):
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
@@ -387,7 +403,7 @@ you have to make before exposing the stack to real users.
 
 | Gap | What's actually there | What production needs |
 |---|---|---|
-| **Engine + backend databases** | In-memory H2 in both Java modules — engine process state, history, and deployments wipe on every engine restart, and the backend's `Document` metadata table wipes with the backend. Auto-deploy of BPMN/DMN on startup is what makes the app come back at all. | PostgreSQL with a mounted volume for both modules (TODOS T1). Remove the H2 runtime deps, add `spring.datasource.*` and a `postgres` compose service. Non-trivial — schema migration on every CIB seven upgrade. |
+| **Engine + backend databases** | One Postgres 17 container on a named volume, no replication, no TLS between the services and the database (it is reachable only on the internal `db` network). Backups are a manual `pg_dump` (Day-2 operations). | A managed Postgres or a replicated pair with scheduled, tested backups; TLS to the database once it leaves the host. |
 | **Keycloak database** | Built-in dev H2; the realm is re-imported from `realm-export.json` on every container start. User-created accounts (via `send_account_invitation`, self sign-up, password resets) are wiped on every Keycloak restart. | External Postgres for Keycloak as well, `start` (not `start-dev`), and remove `--import-realm` after the first boot. |
 | **Mailpit as mail backend** | The BPMN's email service tasks POST to Mailpit's `/api/v1/send` JSON endpoint — a Mailpit-specific wire format, not standard SMTP. | Either keep Mailpit and forward its SMTP relay to a real mail server (cleanest), or rewrite the connector calls in `packs/reference/engine/processes/*.bpmn` + `templates/*.ftl` to talk to your mail provider's API. |
 | **Webapps client secrets in YAML defaults** | `application.yaml` has `${KEYCLOAK_*_CLIENT_SECRET:cib7-*-secret}` defaults that match the dev realm export. Forgetting to set the env var falls back to the dev secret silently. | Remove the defaults, fail-fast on missing env vars, manage secrets via Docker secrets or your platform's secret store. |

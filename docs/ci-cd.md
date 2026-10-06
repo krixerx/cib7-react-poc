@@ -44,9 +44,9 @@ exceptions. The only one is `esb/.trivyignore.yaml`: Jackson and FreeMarker
 in Camel JBang's dependency cache and libraries inside `jbang.jar`, which
 our Dockerfile cannot upgrade. It expires 2026-11-13.
 
-The deploy is manual on purpose. The engine keeps process state in
-in-memory H2, so recreating its container throws away every running case
-— that is not something a merge should decide.
+The deploy is manual on purpose: a deploy restarts the engine and can run
+schema migrations against the live Postgres data, which is not something a
+merge should decide.
 
 ## The deploy, step by step
 
@@ -218,13 +218,12 @@ below.
 
 ## Gotchas
 
-- **Every deploy can wipe process state.** The engine's H2 database is
-  in memory, so recreating that container destroys every running case,
-  task and history entry. Compose only recreates it when its image
-  changed — which is exactly what a deploy of new code does. Process and
-  decision definitions redeploy automatically, so the *application*
-  always comes back; the *cases* do not. `TODOS.md` T1 tracks the
-  Postgres swap.
+- **A deploy can migrate the live database.** Cases survive a deploy in
+  Postgres, but the engine and backend run their pending Flyway migrations
+  when the new image starts, and a CIB seven upgrade migrates the `ACT_*`
+  tables. Take a `pg_dump` first (docs/deployment.md, Day-2 operations).
+  The first deploy that brings Postgres starts with empty databases: the
+  cases that were in the old in-memory H2 are gone.
 - **`deploy.sh` runs with `--yes` here**, so the confirmation you get
   interactively on the host is not in the loop. The dispatch is the
   confirmation.

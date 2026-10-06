@@ -199,7 +199,7 @@ run the builder, how to test — see
    ▼                         │ │
   /engine-rest               │ ▼
   /camunda/*  ─────▶  CIB seven 2.2 engine + REST + Cockpit/Tasklist/Admin
-   │ (nginx / Vite      (cib7/ — Spring Boot, embedded engine, in-memory H2;
+   │ (nginx / Vite      (cib7/ — Spring Boot, embedded engine, Postgres;
    │  proxy)             plugins + connectors only, no business endpoints)
    │                            │
    │                            ├──▶  http-connector → backend /api
@@ -245,8 +245,9 @@ run the builder, how to test — see
   `cib7-webapps` Keycloak client and bridges the OIDC user into the
   engine's `IdentityService` via the cibseven-keycloak plugin's
   `ContainerBasedAuthenticationProvider` recipe.
-- Both Java modules run **in-memory H2** — process state and document
-  metadata are lost together when the containers stop.
+- Both Java modules keep their state in **Postgres** (one container, a
+  database each, schemas owned by Flyway); it survives restarts until
+  `docker compose down -v`.
 - Every service we write also ships its logs to **Graylog** as structured
   GELF, tagged with the service name, the log level and the Keycloak user id
   behind the request. Graylog is not published on any routable interface —
@@ -282,7 +283,7 @@ tab (**codeql** > **Run workflow**), and its findings appear under
 **Security** > **Code scanning**.
 
 **Demo exemptions:** the seeded users and passwords, dev-default secrets,
-self-signed TLS, Keycloak `start-dev` and in-memory H2 are accepted for the
+self-signed TLS, Keycloak `start-dev` and Postgres without TLS are accepted for the
 demo and listed in `docs/security.md`. Replace them before real use.
 
 ## Talk to it from Claude Desktop (or any MCP client)
@@ -978,7 +979,6 @@ reinstated.
 
 ## Notes & limitations
 
-- In-memory H2 means **process state is lost on backend restart**.
 - Keycloak runs in `start-dev` mode with its own in-memory H2 — the realm is
   re-imported from `keycloak/realm-export.json` on every container start, so
   user-created users/groups are also lost on restart.

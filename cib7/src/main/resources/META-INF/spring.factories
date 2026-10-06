@@ -1,0 +1,2 @@
+org.springframework.boot.sql.init.dependency.DependsOnDatabaseInitializationDetector=\
+com.poc.cib7.db.ProcessEngineAfterFlywayDetector

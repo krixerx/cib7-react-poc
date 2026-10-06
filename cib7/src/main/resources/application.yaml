@@ -4,9 +4,17 @@ server:
 spring:
   application:
     name: cib7-react-poc
-  # No datasource is declared on purpose: with H2 on the classpath and no
-  # explicit datasource, Spring Boot provisions an in-memory H2 database.
-  # All process data is therefore lost on restart — fine for a POC.
+  # No datasource in the default profile: with H2 on the classpath Spring
+  # Boot provisions an in-memory database, which is what tests and
+  # `mvn spring-boot:run` use. The `postgres` profile (end of this file,
+  # switched on by docker-compose) points at the persistent database.
+  # Either way Flyway owns the schema: V1__CibSevenSchema runs the engine
+  # jar's own create scripts for the detected database, and
+  # ProcessEngineAfterFlywayDetector makes the engine wait for it.
+  flyway:
+    # The engine shares no database with anything else, so Flyway's history
+    # table sits next to the ACT_* tables.
+    locations: classpath:db/migration/engine
 
   # OAuth2 client config for the legacy CIB seven webapps (Cockpit / Tasklist
   # / Admin), served from /camunda/**. Wires the Authorization Code flow
@@ -114,7 +122,11 @@ camunda.bpm:
   # process's DMNs from its own service deployment).
   auto-deployment-enabled: false
   database:
-    schema-update: true
+    # Flyway creates and upgrades the ACT_* tables (V1__CibSevenSchema); the
+    # engine only checks that the schema version matches its own and refuses
+    # to start otherwise. `true` would create missing tables but never apply
+    # an upgrade script.
+    schema-update: false
   # Engine authorization must be on for candidateGroups on userTasks to
   # actually be enforced. Without this flag, the engine accepts any
   # claim/complete regardless of who the authenticated user is.
@@ -179,3 +191,16 @@ logging:
   level:
     org.cibseven: INFO
     org.springframework.security: INFO
+
+---
+# Persistent Postgres, switched on by docker-compose
+# (SPRING_PROFILES_ACTIVE=graylog,postgres). The database and its role come
+# from postgres/init/01-databases.sh; the password from .env.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${ENGINE_DB_URL:jdbc:postgresql://postgres:5432/cib7}
+    username: ${ENGINE_DB_USER:cib7}
+    password: ${ENGINE_DB_PASSWORD}

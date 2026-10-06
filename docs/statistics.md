@@ -95,8 +95,10 @@ PartB means those people see them too.
 
 No new container, database user or engine change was needed. The draft
 proposal (Grafana reading the history tables through a read-only database
-user) assumed PostgreSQL. Here the engine runs in-memory H2 inside its JVM,
-which no outside process can connect to.
+user) assumed PostgreSQL. The engine does run on Postgres now, but its
+database role is the engine's alone and the `db` network is internal, so
+the page keeps reading through the history API instead of a second
+database user.
 
 ## Counting rules
 
@@ -140,8 +142,6 @@ path should name its end event `EndEvent_Rejected` to be counted.
 
 ## Limits
 
-- **History is wiped on restart.** Both Java modules run in-memory H2
-  (`TODOS.md` T1), so the page only knows cases since the engine last started.
 - **Row caps.** One request reads at most 10,000 cases and 100,000 activity
   rows; above that the page shows a warning and the numbers are incomplete.
   Activities are bounded only by the range start, so a long range on a busy

@@ -83,8 +83,8 @@ browser ──OIDC PKCE──▶ Keycloak (:8180, realm cib7-poc)
    ├─ /                → frontend/ (React SPA; nginx in Docker, Vite in dev)
    ├─ /mobile          → mobile/ (Flutter web applicant app)
    ├─ /engine-rest,
-   │  /camunda/*       → cib7/ (Spring Boot 3.5 + CIB seven 2.2 engine, in-memory H2)
-   ├─ /api/*           → backend/ (Spring Boot 4 business microservice, in-memory H2)
+   │  /camunda/*       → cib7/ (Spring Boot 3.5 + CIB seven 2.2 engine, Postgres)
+   ├─ /api/*           → backend/ (Spring Boot 4 business microservice, Postgres)
    └─ /mcp             → mcp/ (stateless Bearer-proxy MCP sidecar, 11 tools)
 
 cib7 engine ──all outbound HTTP──▶ esb/ (Apache Camel JBang, YAML routes)
@@ -128,8 +128,13 @@ The SPA always calls same-origin paths (`/engine-rest/...`, `/api/...`), so ther
 is no CORS config on either Java service. The only cross-origin browser call is
 document upload/download straight to RustFS with presigned URLs.
 
-Both Java modules run **in-memory H2**: process state and document metadata are
-wiped together on restart. `TODOS.md` T1 tracks the Postgres swap.
+Both Java modules keep their state in **Postgres** (one `postgres` container, a
+database and login role each, created by `postgres/init/01-databases.sh`;
+volume `postgres-data`). Flyway owns both schemas: the engine's `ACT_*` tables
+through `V1__CibSevenSchema`, which runs the CIB seven jar's own create
+scripts, and the backend's through `db/migration/V*__*.sql`, with Hibernate
+only validating. Tests and `mvn spring-boot:run` use in-memory H2 through the
+same migrations. `docker compose down -v` wipes the data.
 
 ## Changing a service
 
@@ -197,8 +202,8 @@ containers. The short form:
   `/civil-servant`, but the cibseven-keycloak plugin maps it to the engine group
   id `civil-servant`. `candidateGroups` and authorization grants must use the
   slash-less form; the realm export keeps the canonical paths.
-- **Variables over ~4 kB must be `byte[]`.** H2 stores String/Text variables in a
-  `VARCHAR(4000)` column, so a large String fails during the history flush. PDFs
+- **Variables over ~4 kB must be `byte[]`.** The engine schema (H2 and Postgres
+  alike) stores String/Text variables in a `VARCHAR(4000)` column, so a large String fails during the history flush. PDFs
   and similar payloads are decoded to `byte[]` with the `pdf` helper bean
   (`PdfHelper.java`) so they spill to `ACT_GE_BYTEARRAY`, and re-encoded to base64
   in the FreeMarker payload at send time.
@@ -229,6 +234,18 @@ containers. The short form:
   placeholder in the realm file — the client secrets, the clients'
   `${PUBLIC_FRONTEND_URL}` redirect URIs and the realm's `${PUBLIC_KEYCLOAK_URL}`
   `frontendUrl` alike.
+- **A CIB seven upgrade needs a Flyway migration.** `schema-update` is `false`:
+  the engine only checks that the schema version equals its own and refuses
+  to start otherwise (`true` would create missing tables but never apply an
+  upgrade). Bumping `cibseven.version` therefore means adding a
+  `V<n>__CibSeven...` Java migration next to `V1__CibSevenSchema` that runs the
+  new jar's `db/upgrade/<db>_engine_<from>_to_<to>.sql`.
+  `ProcessEngineAfterFlywayDetector` (registered in `META-INF/spring.factories`)
+  makes the engine wait for Flyway; without it the engine may build first.
+- **An entity change needs a backend migration.** Hibernate runs with
+  `ddl-auto: validate`, so a new or changed column without a
+  `backend/src/main/resources/db/migration/V<n>__*.sql` stops the backend at
+  startup.
 - **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
 - **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
   namespace.
