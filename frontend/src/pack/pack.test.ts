@@ -6,7 +6,9 @@ import { translateBackendName } from '../i18n/backendNames';
 import { parseDefinition, type FormDefinition } from '../forms/schema/definition';
 import { InvalidCatalog, parseCatalog } from './catalog';
 
-const PACK = resolve(__dirname, '../../../packs/reference/frontend');
+/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the reference pack. */
+const PACK_ROOT = process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/reference');
+const PACK = resolve(PACK_ROOT, 'frontend');
 const CORE_LOCALES = resolve(__dirname, '../i18n/locales');
 const LANGS = ['en', 'ar'];
 const PLURAL = /_(zero|one|two|few|many|other)$/;
@@ -73,7 +75,7 @@ function has(keys: Set<string>, key: string): boolean {
   return keys.has(key) || (keys.has(`${key}_one`) && keys.has(`${key}_other`));
 }
 
-describe('reference pack', () => {
+describe('the pack', () => {
   const catalog = parseCatalog(json(resolve(PACK, 'catalog.json')));
 
   it('has every catalog namespace in every language, with the same keys', () => {

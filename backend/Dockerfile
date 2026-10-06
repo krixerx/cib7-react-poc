@@ -25,6 +25,8 @@ COPY --from=build /build/backend/target/*.jar app.jar
 # none of them. Root-owned and read-only to the app user; a customer pack
 # replaces this directory (a bind mount or a thin image layer).
 COPY packs/reference/backend/ /opt/services/
+# The pack's manifest: the backend refuses a pack built for another platform API.
+COPY packs/reference/pack.yaml /opt/services/pack.yaml
 RUN chown app:app /app
 USER 10001:10001
 EXPOSE 8085

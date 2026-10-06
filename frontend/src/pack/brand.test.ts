@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidBrand, parseBrand, parseTokens, tokensCss, type Scheme } from './brand';
 
-const BRANDING = resolve(__dirname, '../../../packs/reference/branding');
+/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the reference pack. */
+const BRANDING = resolve(
+  process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/reference'),
+  'branding',
+);
 const CORE_TOKENS = resolve(__dirname, '../styles/tokens.css');
 const CORE_LOCALES = resolve(__dirname, '../i18n/locales');
 
@@ -73,7 +77,7 @@ describe('brand format v1 is strict', () => {
   });
 });
 
-describe('reference pack branding', () => {
+describe('the pack branding', () => {
   const tokens = parseTokens(json(resolve(BRANDING, 'tokens.json')));
   const brand = parseBrand(json(resolve(BRANDING, 'brand.json')));
 

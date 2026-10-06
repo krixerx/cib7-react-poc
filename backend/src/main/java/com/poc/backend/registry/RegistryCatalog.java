@@ -1,5 +1,6 @@
 package com.poc.backend.registry;
 
+import com.poc.backend.pack.PackManifest;
 import com.poc.backend.registry.RegistryDescriptor.Access;
 import com.poc.backend.registry.RegistryDescriptor.Derived;
 import com.poc.backend.registry.RegistryDescriptor.Field;
@@ -49,7 +50,7 @@ public class RegistryCatalog {
   private static final Logger LOG = LoggerFactory.getLogger(RegistryCatalog.class);
 
   /** The descriptor format this backend understands (platform API major). */
-  static final int PLATFORM = 2;
+  static final int PLATFORM = PackManifest.PLATFORM_MAJOR;
 
   private static final Pattern ENTITY = Pattern.compile("[a-z][a-z0-9-]{0,62}");
   private static final Pattern TABLE = Pattern.compile("reg_[a-z0-9_]{1,59}");

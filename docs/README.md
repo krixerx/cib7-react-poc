@@ -29,6 +29,7 @@ The docs are split into two layers:
 | If you need to … | Read |
 |---|---|
 | Understand the runtime topology, request flow, deployment model | [`architecture.md`](architecture.md) |
+| Write or change a service pack, or core code that reads one: formats, versions, what a pack may do, `pack-check` | [`platform-api.md`](platform-api.md) |
 | Deploy this stack to a server (admin-facing) | [`deployment.md`](deployment.md) |
 | Deploy from GitHub Actions, or work out why a CI run failed | [`ci-cd.md`](ci-cd.md) |
 | Find a service's logs, add a log statement, reach Graylog | [`logging.md`](logging.md) |

@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilderFactory;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.w3c.dom.Document;
@@ -27,6 +28,7 @@ import org.w3c.dom.NodeList;
  * one the engine runs. Services once ran with most of their integrations unspecified, which also
  * hid two inline JSON payloads that could not escape a reviewer's free text.
  */
+@Tag("pack")
 class ServiceSpecsTest {
 
   private static final Path PROCESSES =

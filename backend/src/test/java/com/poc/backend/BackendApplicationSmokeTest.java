@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.poc.backend.engine.EngineClient;
 import com.poc.backend.security.CaseAccessService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
@@ -20,6 +21,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
  * declares a token-uri (no OIDC discovery), the resource-server JwtDecoder is built lazily from the
  * configured jwk-set-uri, and EngineClient is just a RestClient wrapper.
  */
+@Tag("pack")
 @SpringBootTest
 class BackendApplicationSmokeTest {
 

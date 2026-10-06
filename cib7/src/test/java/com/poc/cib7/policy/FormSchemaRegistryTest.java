@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.Schema;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,6 +26,7 @@ class FormSchemaRegistryTest {
 
   FormSchemaRegistryTest() throws Exception {}
 
+  @Tag("pack")
   @Test
   void everySchemaBelongsToAPolicyForm() throws Exception {
     Map<String, VariablePolicy> policies =

@@ -167,14 +167,24 @@
       <testResource>
         <directory>${services.pack.dir}</directory>
       </testResource>
+      <!-- The pack's manifest, checked at startup (PackManifest). -->
+      <testResource>
+        <directory>${services.pack.dir}/..</directory>
+        <includes>
+          <include>pack.yaml</include>
+        </includes>
+      </testResource>
     </testResources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
+          <!-- The pack's backend files at the classpath root, and the pack root
+               for pack.yaml (the image copies it into /opt/services). -->
           <folders>
             <folder>${services.pack.dir}</folder>
+            <folder>${services.pack.dir}/..</folder>
           </folders>
         </configuration>
       </plugin>

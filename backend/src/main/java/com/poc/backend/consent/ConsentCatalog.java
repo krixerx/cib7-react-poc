@@ -2,6 +2,7 @@ package com.poc.backend.consent;
 
 import com.poc.backend.consent.ConsentFlow.Config;
 import com.poc.backend.consent.ConsentFlow.Messages;
+import com.poc.backend.pack.PackManifest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ public class ConsentCatalog {
 
   private static final Logger LOG = LoggerFactory.getLogger(ConsentCatalog.class);
 
-  static final int PLATFORM = 2;
+  static final int PLATFORM = PackManifest.PLATFORM_MAJOR;
 
   private static final Pattern PURPOSE = Pattern.compile("[a-z][a-z0-9-]{0,30}");
   private static final Pattern NAME = Pattern.compile("[A-Za-z][A-Za-z0-9_]{0,62}");

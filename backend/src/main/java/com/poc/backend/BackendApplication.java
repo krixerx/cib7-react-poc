@@ -1,5 +1,6 @@
 package com.poc.backend;
 
+import com.poc.backend.pack.PackManifest;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -16,6 +17,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class BackendApplication {
 
   public static void main(String[] args) {
+    // An incompatible service pack stops the start before any of its descriptors is read.
+    PackManifest.load().requireCompatible();
     SpringApplication.run(BackendApplication.class, args);
   }
 }

@@ -21,6 +21,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -91,6 +92,7 @@ class VariablePolicyFilesTest {
                   "additionalFounders",
                   "pendingAoaDocument"));
 
+  @Tag("pack")
   @Test
   void everyProcessAndFormKeyHasAPolicyEntry() throws IOException {
     for (Path service : services()) {
@@ -120,6 +122,7 @@ class VariablePolicyFilesTest {
     }
   }
 
+  @Tag("pack")
   @Test
   void noPolicyListsSystemOwnedOrEngineSetVariables() throws IOException {
     for (Path service : services()) {
@@ -145,6 +148,7 @@ class VariablePolicyFilesTest {
     }
   }
 
+  @Tag("pack")
   @Test
   void onlyReviewerFormsMayWriteADecision() throws IOException {
     for (Path service : services()) {

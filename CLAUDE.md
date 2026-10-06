@@ -66,6 +66,12 @@ Node 24 for `frontend` (npm 10 crashes resolving vitest 4's peers, so write
 locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
 modules.
 
+Check a service pack against the platform API (docs/platform-api.md):
+
+```bash
+scripts/pack-check.sh [pack-dir]     # default packs/reference; runs the checks tagged `pack`
+```
+
 Regenerate a service's flow diagram after touching its BPMN:
 
 ```bash
@@ -138,6 +144,16 @@ through `V1__CibSevenSchema`, which runs the CIB seven jar's own create
 scripts, and the backend's through `db/migration/V*__*.sql`, with Hibernate
 only validating. Tests and `mvn spring-boot:run` use in-memory H2 through the
 same migrations. `docker compose down -v` wipes the data.
+
+## The platform API
+
+Core and pack meet only through the formats in `docs/platform-api.md`
+(platform API `2.0`). `packs/reference/pack.yaml` states the platform API the
+pack needs; the engine and the backend refuse an incompatible pack at
+startup. A change to a pack format is a platform API change: additive is a
+minor (bump `PackManifest.PLATFORM_MINOR` in both Java modules and the doc),
+breaking is a major. Tests that hold for any pack are tagged `pack`;
+`scripts/pack-check.sh` runs exactly those.
 
 ## Changing a service
 

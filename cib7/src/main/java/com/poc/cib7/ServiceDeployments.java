@@ -1,5 +1,6 @@
 package com.poc.cib7;
 
+import com.poc.cib7.pack.PackManifest;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.HashSet;
@@ -71,6 +72,8 @@ public class ServiceDeployments {
 
   @PostConstruct
   public void deployServices() throws IOException {
+    // An incompatible pack stops the start here, before anything of it is deployed.
+    LOG.info("Service pack {}", PackManifest.load().requireCompatible());
     PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
 
     // service folder name -> (resource name inside the deployment -> resource)

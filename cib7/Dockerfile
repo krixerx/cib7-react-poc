@@ -28,6 +28,8 @@ COPY packs/reference/engine/ /opt/services/
 # The pack's branding (portal name, primary colour, logo) for the PDF
 # documents, on the classpath as branding/ (documents/DocumentBrand.java).
 COPY packs/reference/branding/ /opt/services/branding/
+# The pack's manifest: the engine refuses a pack built for another platform API.
+COPY packs/reference/pack.yaml /opt/services/pack.yaml
 RUN chown app:app /app
 USER 10001:10001
 EXPOSE 8080

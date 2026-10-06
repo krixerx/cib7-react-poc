@@ -264,6 +264,13 @@
       <testResource>
         <directory>${services.pack.dir}</directory>
       </testResource>
+      <!-- The pack's manifest, checked at startup (PackManifest). -->
+      <testResource>
+        <directory>${services.pack.dir}/..</directory>
+        <includes>
+          <include>pack.yaml</include>
+        </includes>
+      </testResource>
       <!-- The pack's branding, read by the documents as classpath:branding/. -->
       <testResource>
         <directory>${services.pack.dir}/../branding</directory>
@@ -276,8 +283,8 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
           <!-- The pack's engine files at the classpath root, and the pack root
-               itself, so its branding/ folder resolves as classpath:branding/
-               (the image copies it to /opt/services/branding instead). -->
+               itself, so pack.yaml and branding/ resolve from the classpath
+               (the image copies both into /opt/services instead). -->
           <folders>
             <folder>${services.pack.dir}</folder>
             <folder>${services.pack.dir}/..</folder>
