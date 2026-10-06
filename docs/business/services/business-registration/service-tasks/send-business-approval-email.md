@@ -1,50 +1,83 @@
 # Service task: `send-business-approval-email`
 
-**BPMN task:** `Task_SendApprovalEmail`
-**Kind:** http-connector → Mailpit
-**Async:** `asyncBefore="true"` (runs on the job executor after the
-preceding gateway)
+**Task id:** `send-business-approval-email`
+**BPMN task id:** `Task_SendApprovalEmail`
+**Display name:** `Send approval email`
+**Connector:** `http-connector`
+**Async-before:** `true`
 
-## Endpoint
+Tells the applicant the OÜ is approved, attaches the state fee invoice and gives the pay link.
 
-| HTTP | URL | Headers |
-|---|---|---|
-| POST | `${busBaseUrl}/api/v1/send` | `Content-Type: application/json` |
+## Request
 
-`${busBaseUrl}` resolves from `BusConfiguration.java` (`BUS_URL` env var =
-`http://esb:8080` in compose). It points at the integration bus, which routes
-`/api/v1/send` to Mailpit.
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `${busBaseUrl}/api/v1/send` |
+| Headers | `Content-Type: application/json` |
 
-## Payload
+Downstream: Mailpit (the bus routes `/api/v1/send`).
 
-FreeMarker template at `packs/reference/engine/templates/business-approval-email.json.ftl`.
-Variables in scope: `companyName`, `shareCapital`, `applicantFirstName`,
-`applicantLastName`, `boardMembers` (Spin Json), `autoDecision`,
-`decision`.
+## Payload (request body)
 
-The template renders the Mailpit `/api/v1/send` JSON payload — `From`,
-`To`, `Subject`, `Text`. The `Text` body includes the applicant name,
-company name, share capital, and a list of board members rendered from
-the `boardMembers` Spin Json list.
+```
+payload-template: business-approval-email.json.ftl
+```
 
-The pay link is `${frontendBaseUrl}/pay/${links.payment(execution)}`: a
-payment capability token minted by the reserved `links` bean
-(`CapabilityLinks`), never the bare process instance id (docs/security.md
-rules 3 and 4).
+**Document:** `documents/email/business-approval.ftl`, hand-designed and owned by the pack, not generated. The template only wraps it.
 
-## Response
+```ftl
+<#--
+  Mailpit /api/v1/send payload for the businessRegistration approval email.
+  Variables in scope: companyName, shareCapital, applicantFirstName,
+  applicantLastName, applicantEmail, boardMembers (Spin Json list),
+  autoDecision, decision, feeInvoicePdfBytes (raw PDF bytes, written by
+  the preceding Task_GenerateFeeInvoicePdf) and feeInvoicePdfFilename,
+  plus the execution properties.
 
-Mailpit returns a JSON `{ID: "...", Total: N}`. We don't capture the ID
-into a process variable for this POC — fire-and-forget is fine because
-Mailpit is non-persistent and the process semantics don't depend on
-the email landing.
+  All string fields escaped with ?json_string. boardMembers iterated via
+  Spin's elements() iterator and stringified for the human-readable body.
 
-## Why these notes matter
+  Synthesises a Business Register code from the process instance id so
+  the email reads like a real Äriregister confirmation. Demo only — the
+  real code is allocated by the registry.
 
-- The `applicantEmail` variable is NOT written by the applicant form in
-  this POC (the form collects only the data the BPMN/DMN needs). The
-  approval email goes to a deterministic test address
-  (`applicant@cib7-poc.local`) so Mailpit always receives it. Production
-  would add a real applicant email field.
-- The template escapes all string values with `?json_string` for JSON
-  safety per the skill's FreeMarker rules.
+  We base64-encode the PDF bytes here (rather than carrying a base64
+  String process variable) because String variables in CIB seven cap at
+  4000 chars in ACT_HI_VARINST.TEXT_. Same byte[]→base64 trip as
+  the vehicle service's approval-email.json.ftl.
+
+  Recipient is the applicant's own email — Gateway_SendApprovalEmail
+  upstream guarantees it is non-null and contains '@' before this
+  template runs.
+
+  The pay link carries a payment capability token minted by
+  links.payment(execution) (docs/security.md rules 3 and 4), not the
+  process instance id.
+
+  The body is the pack document documents/email/business-approval.ftl.
+-->
+<#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
+{
+  "From":    { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
+  "To":      [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
+  "Subject": "${("Estonian OÜ registered: " + (companyName!""))?json_string}",
+  "Text":    "${documents.text("business-approval", execution)?json_string}",
+  "Attachments": [
+    {
+      "Filename": "${(feeInvoicePdfFilename!"state-fee-invoice.pdf")?json_string}",
+      "ContentType": "application/pdf",
+      "Content": "${pdf.encode(feeInvoicePdfBytes)}"
+    }
+  ]
+}
+```
+
+## Response mapping
+
+None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.
+
+## Notes
+
+- The pay link carries a payment capability token from `links.payment(execution)` (docs/security.md rules 3 and 4).
+- The applicant email comes from the verified account; the form cannot change it.

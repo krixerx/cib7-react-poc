@@ -75,7 +75,7 @@ an approval email. Reviewed cases route to a civil servant who can accept
 or send back with a reason.
 
 Outside demo mode you could predict the outcome from the start_process
-input alone (no service-task lookup like personRegistration's price).
+input alone (no service-task lookup like vehicleRegistration's price).
 
 ## After start_process
 

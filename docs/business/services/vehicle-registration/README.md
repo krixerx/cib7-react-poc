@@ -136,16 +136,27 @@ endpoint configured by [`consent.md`](consent.md)
 
 ## Service tasks (integrations)
 
-| BPMN task | Kind | Target | Notes |
+One spec per BPMN service task; each gives the request, the payload template and the response mapping. Outbound calls all go to `${busBaseUrl}` (the bus). Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
+
+| BPMN task | Name | Kind | Spec |
 |---|---|---|---|
-| `Task_SendApplicantTrackingEmail` | http-connector | Mailpit `POST /api/v1/send` | Payload from FreeMarker template `templates/applicant-tracking-email.json.ftl`. Sent once at the start of the owner-confirmation phase. Link: `${frontendBaseUrl}/confirm-owner/${links.owner(execution, "applicant")}`. |
-| `Task_SendOwnerConfirmEmail` (in subprocess) | http-connector | Mailpit `POST /api/v1/send` | Payload from FreeMarker template `templates/owner-confirmation-email.json.ftl`. One per multi-instance iteration; per-owner data via the `owner` element variable. Link: `${frontendBaseUrl}/confirm-owner/${links.owner(execution, owner.prop("partyId").stringValue())}`. |
-| `Task_GetPrice` | http-connector | `${busBaseUrl}/api/public/registry/vehicles/${objectId}` (registry [`data/vehicles.md`](data/vehicles.md)) | Reads `value` into `price` and `make`, `model`, `year`, `fuelType`, `ageYears` into the `vehicle*` variables via Spin. Async-before. |
-| `Task_SendReminderEmail` | http-connector | Mailpit `POST /api/v1/send` | Fires on boundary timer (every 2 min, non-interrupting). |
-| `Task_GeneratePdf` | http-connector | `pdf-renderer` (`POST /render`) → Gotenberg | Payload from FreeMarker template `templates/approval-pdf.json.ftl`. Decoded base64 → `byte[]` via `${pdf.decode(...)}` so the variable spills to `ACT_GE_BYTEARRAY` (see [`../../../cib7.md` § Large process variables](../../../cib7.md#large-process-variables-bytes-typed)). |
-| `Task_SendApprovalEmail` | http-connector | Mailpit `POST /api/v1/send` | Payload from FreeMarker template `templates/approval-email.json.ftl`. Attaches the PDF via `${pdf.encode(approvalPdfBytes)}`. Pay link: `${frontendBaseUrl}/pay/${links.payment(execution)}`. |
-| `Task_SendBackEmail` | http-connector | Mailpit `POST /api/v1/send` | Inline payload; loops back to applicant. Fires both for civil-servant send-back AND for owner rejection — in both cases the email body reads `sendBackReason`, which the controller writes on reject. |
-| `Task_AutoDecide` | DMN business rule | decision `auto-approval` | `singleEntry` → `autoDecision` variable. |
+| `Task_AttachIdDocument` | Attach owner ID document | case document (backend) | [`service-tasks/attach-id-document.md`](service-tasks/attach-id-document.md) |
+| `Task_GenerateCertificatePdf` | Generate vehicle registration certificate | PDF (pdf-renderer) | [`service-tasks/generate-certificate-pdf.md`](service-tasks/generate-certificate-pdf.md) |
+| `Task_GeneratePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-fee-invoice-pdf.md`](service-tasks/generate-fee-invoice-pdf.md) |
+| `Task_GetPrice` | Look up vehicle in registry | registry read (backend) | [`service-tasks/look-up-vehicle.md`](service-tasks/look-up-vehicle.md) |
+| `Task_SendApprovalEmail` | Send state fee invoice email | email (Mailpit) | [`service-tasks/send-fee-invoice-email.md`](service-tasks/send-fee-invoice-email.md) |
+| `Task_SendOwnerConfirmEmail` | Send co-owner signing email | email (Mailpit) | [`service-tasks/send-owner-signing-email.md`](service-tasks/send-owner-signing-email.md) |
+| `Task_SendApplicantTrackingEmail` | Send owner tracking email | email (Mailpit) | [`service-tasks/send-owner-tracking-email.md`](service-tasks/send-owner-tracking-email.md) |
+| `Task_SendReminderEmail` | Send reviewer reminder email | email (Mailpit) | [`service-tasks/send-reviewer-reminder-email.md`](service-tasks/send-reviewer-reminder-email.md) |
+| `Task_SendBackEmail` | Send "sent back" email | email (Mailpit) | [`service-tasks/send-sendback-email.md`](service-tasks/send-sendback-email.md) |
+| `Task_StoreCertificatePdf` | Store registration certificate | case document (backend) | [`service-tasks/store-certificate-pdf.md`](service-tasks/store-certificate-pdf.md) |
+| `Task_StoreApprovalPdf` | Store fee invoice | case document (backend) | [`service-tasks/store-fee-invoice-pdf.md`](service-tasks/store-fee-invoice-pdf.md) |
+
+## Decisions
+
+| BPMN task | DMN | Spec |
+|---|---|---|
+| `Task_AutoDecide` | `vehicle-auto-approval` (`singleEntry` -> `autoDecision`) | [`decisions/vehicle-auto-approval.md`](decisions/vehicle-auto-approval.md) |
 
 ## Receive tasks (message correlation)
 

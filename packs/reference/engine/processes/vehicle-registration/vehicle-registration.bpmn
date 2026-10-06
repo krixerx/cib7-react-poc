@@ -520,9 +520,8 @@
                        sourceRef="BoundaryEvent_ReviewReminder" targetRef="Task_SendReminderEmail" />
 
     <!--
-      Reminder email via the Mailpit HTTP API. MAIL_API_URL is the engine
-      container's view of Mailpit (docker-compose alias "mailpit"); the
-      MailApiBaseUrlConfiguration bean exposes it as a JUEL variable.
+      Reminder email to the Transport Authority, through the bus to Mailpit.
+      Spec: docs/business/services/vehicle-registration/service-tasks/send-reviewer-reminder-email.md
     -->
     <bpmn:serviceTask id="Task_SendReminderEmail" name="Send reviewer reminder email"
                       camunda:asyncBefore="true">
@@ -537,12 +536,9 @@
                 <camunda:entry key="Content-Type">application/json</camunda:entry>
               </camunda:map>
             </camunda:inputParameter>
-            <camunda:inputParameter name="payload">{
-              "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-              "To": [ { "Email": "civil-servant@cib7-poc.local", "Name": "Transport Authority officer" } ],
-              "Subject": "Reminder: vehicle registration awaiting review",
-              "Text": "A vehicle registration submitted by ${firstName} ${lastName} has been waiting for Transport Authority review. Please open the Tasks page in the SPA."
-            }</camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/reviewer-reminder-email.json.ftl" />
+            </camunda:inputParameter>
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>
@@ -838,12 +834,9 @@
                 <camunda:entry key="Content-Type">application/json</camunda:entry>
               </camunda:map>
             </camunda:inputParameter>
-            <camunda:inputParameter name="payload">{
-              "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-              "To": [ { "Email": "${initiator}@cib7-poc.local", "Name": "${firstName} ${lastName}" } ],
-              "Subject": "Your vehicle registration needs corrections",
-              "Text": "Hi ${firstName},\n\nThe Transport Authority has sent your vehicle registration back for corrections. Reason: ${sendBackReason}\n\nOpen the My processes page in the SPA and resubmit when ready."
-            }</camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/vehicle-sendback-email.json.ftl" />
+            </camunda:inputParameter>
           </camunda:inputOutput>
         </camunda:connector>
       </bpmn:extensionElements>

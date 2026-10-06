@@ -76,11 +76,19 @@ flow               send-approval-email -> approved
 
 ## Service tasks
 
-| BPMN task | Kind | Spec |
-|---|---|---|
-| `Task_SendApprovalEmail` | http-connector | [`service-tasks/send-business-approval-email.md`](service-tasks/send-business-approval-email.md) |
-| `Task_SendBackEmail` | http-connector | [`service-tasks/send-business-sendback-email.md`](service-tasks/send-business-sendback-email.md) |
-| `Task_AutoDecide` | DMN business rule | decision `business-auto-approval` (`singleEntry` -> `autoDecision`) |
+One spec per BPMN service task; each gives the request, the payload template and the response mapping. Outbound calls all go to `${busBaseUrl}` (the bus). Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
+
+| BPMN task | Name | Kind | Spec |
+|---|---|---|---|
+| `Task_AttachAoaDocument` | Attach Articles of Association | case document (backend) | [`service-tasks/attach-aoa-document.md`](service-tasks/attach-aoa-document.md) |
+| `Task_GenerateBcardPdf` | Generate B-card extract | PDF (pdf-renderer) | [`service-tasks/generate-bcard-pdf.md`](service-tasks/generate-bcard-pdf.md) |
+| `Task_GenerateFeeInvoicePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-business-fee-invoice-pdf.md`](service-tasks/generate-business-fee-invoice-pdf.md) |
+| `Task_SendApprovalEmail` | Send approval email | email (Mailpit) | [`service-tasks/send-business-approval-email.md`](service-tasks/send-business-approval-email.md) |
+| `Task_SendBackEmail` | Send sent-back email | email (Mailpit) | [`service-tasks/send-business-sendback-email.md`](service-tasks/send-business-sendback-email.md) |
+| `Task_SendFounderSigningEmail` | Send co-founder signing email | email (Mailpit) | [`service-tasks/send-founder-signing-email.md`](service-tasks/send-founder-signing-email.md) |
+| `Task_SendApplicantTrackingEmail` | Send applicant tracking email | email (Mailpit) | [`service-tasks/send-founder-tracking-email.md`](service-tasks/send-founder-tracking-email.md) |
+| `Task_StoreBcardPdf` | Store B-card extract | case document (backend) | [`service-tasks/store-bcard-pdf.md`](service-tasks/store-bcard-pdf.md) |
+| `Task_StoreFeeInvoicePdf` | Store fee invoice | case document (backend) | [`service-tasks/store-business-fee-invoice-pdf.md`](service-tasks/store-business-fee-invoice-pdf.md) |
 
 ## Decisions
 
@@ -172,7 +180,7 @@ System-owned: `initiator`, `founderSignatures`,
 `AuthorizationBootstrap.java` grants the applicant group READ +
 CREATE_INSTANCE + READ_INSTANCE + READ_HISTORY + UPDATE_INSTANCE +
 READ_TASK + UPDATE_TASK on the `businessRegistration` definition (same
-shape as the `personRegistration` grants — extend the bootstrap to cover
+shape as the `vehicleRegistration` grants — extend the bootstrap to cover
 both, or widen to `ProcessDefinition:*` as captured in eng-review T9).
 
 ## Known trade-offs
@@ -189,7 +197,7 @@ both, or widen to `ProcessDefinition:*` as captured in eng-review T9).
   output is an internal process instance id.
 - **Send-back loop reuses the same applicant task.** The form must accept
   both first-submit and resubmit modes — banner with the reason on
-  resubmit, cleared on next submit. Same pattern as person-registration.
+  resubmit, cleared on next submit. Same pattern as vehicle-registration.
 
 ## LLM guidance
 

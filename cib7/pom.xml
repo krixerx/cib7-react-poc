@@ -22,7 +22,7 @@
     <java.version>21</java.version>
     <logback-gelf.version>6.1.2</logback-gelf.version>
     <cibseven.version>2.2.0</cibseven.version>
-    <!-- The service pack's engine files (processes/, templates/). They are not
+    <!-- The service pack's engine files (processes/, templates/, documents/). They are not
          in this module: at runtime the image puts them on the classpath from
          /opt/services, and for tests and `mvn spring-boot:run` this directory
          is added to the classpath instead. Override with
@@ -264,14 +264,23 @@
       <testResource>
         <directory>${services.pack.dir}</directory>
       </testResource>
+      <!-- The pack's branding, read by the documents as classpath:branding/. -->
+      <testResource>
+        <directory>${services.pack.dir}/../branding</directory>
+        <targetPath>branding</targetPath>
+      </testResource>
     </testResources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
+          <!-- The pack's engine files at the classpath root, and the pack root
+               itself, so its branding/ folder resolves as classpath:branding/
+               (the image copies it to /opt/services/branding instead). -->
           <folders>
             <folder>${services.pack.dir}</folder>
+            <folder>${services.pack.dir}/..</folder>
           </folders>
         </configuration>
       </plugin>

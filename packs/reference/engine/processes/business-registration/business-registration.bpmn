@@ -184,7 +184,7 @@
 
       The condition uses execution.hasVariable() to defend against the
       JUEL PropertyNotFoundException that a bare reference would throw
-      when the variable is missing — same defensive pattern as personReg's
+      when the variable is missing — same defensive pattern as vehicle-registration's
       Gateway_HasPendingUpload.
     -->
     <bpmn:exclusiveGateway id="Gateway_HasPendingAoa" name="New Articles of Association?"
@@ -517,7 +517,7 @@
 
     <!--
       Generates the state fee invoice PDF via the pdf-renderer sidecar.
-      Same shape as personReg's Task_GeneratePdf — JSON in, base64 PDF
+      Same shape as vehicle-registration's Task_GeneratePdf — JSON in, base64 PDF
       out, decoded to byte[] so it lands in ACT_GE_BYTEARRAY instead of
       overflowing the 4000-char ACT_HI_VARINST.TEXT_ column.
     -->

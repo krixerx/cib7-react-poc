@@ -25,6 +25,9 @@ COPY --from=build /build/cib7/target/*.jar app.jar
 # jar holds none of them. Root-owned and read-only to the app user; a customer
 # pack replaces this directory (a bind mount or a thin image layer).
 COPY packs/reference/engine/ /opt/services/
+# The pack's branding (portal name, primary colour, logo) for the PDF
+# documents, on the classpath as branding/ (documents/DocumentBrand.java).
+COPY packs/reference/branding/ /opt/services/branding/
 RUN chown app:app /app
 USER 10001:10001
 EXPOSE 8080

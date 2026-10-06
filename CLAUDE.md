@@ -100,7 +100,8 @@ Module responsibilities are strict and worth preserving:
 - **`cib7/` is engine plus plugins only.** No business endpoints and no service
   files. It holds Keycloak identity wiring, the variable policy filter and the
   Connect http-connector config. The BPMN/DMN, variable policies and FreeMarker
-  connector payloads live in the service pack, `packs/reference/engine/`, which
+  connector payloads live in the service pack, `packs/reference/engine/`
+  (with the hand-designed PDF and email documents in its `documents/`), which
   the image copies to `/opt/services` and puts on the classpath with
   `PropertiesLauncher` and `loader.path` (see `cib7/Dockerfile`). Tests and
   `mvn spring-boot:run` add the same directory through the pom's
@@ -260,6 +261,12 @@ containers. The short form:
   `ddl-auto: validate`, so a new or changed column without a
   `backend/src/main/resources/db/migration/V<n>__*.sql` stops the backend at
   startup.
+- **A payload template cannot `<#include>`.** The engine's FreeMarker script
+  engine has no template loader, so layouts live in the pack's `documents/`
+  and a payload calls `${documents.html("<name>", execution)}` (PDF, `.ftlh`,
+  HTML-escaped automatically) or `${documents.text(...)}` (email body); the
+  `documents` bean (`DocumentRenderer.java`) renders them with the shared
+  `_brand.ftlh` and the pack's `branding/`.
 - **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
 - **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
   namespace.

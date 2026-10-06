@@ -35,7 +35,7 @@ public class ReservedBeansPlugin extends AbstractProcessEnginePlugin {
 
   /** Spring bean names that a process variable may never shadow. */
   public static final Set<String> RESERVED_NAMES =
-      Set.of("busBaseUrl", "frontendBaseUrl", "pdf", "links");
+      Set.of("busBaseUrl", "frontendBaseUrl", "pdf", "links", "documents");
 
   private final ApplicationContext applicationContext;
 

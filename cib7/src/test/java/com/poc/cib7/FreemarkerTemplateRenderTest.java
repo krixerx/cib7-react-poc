@@ -2,6 +2,7 @@ package com.poc.cib7;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.poc.cib7.documents.DocumentRenderer;
 import com.poc.cib7.links.CapabilityLinks;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
@@ -27,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.cibseven.bpm.engine.delegate.DelegateExecution;
+import org.cibseven.bpm.engine.variable.Variables;
 import org.cibseven.spin.Spin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -79,6 +82,26 @@ class FreemarkerTemplateRenderTest {
           Duration.ofDays(14),
           Duration.ofDays(30),
           Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+
+  /**
+   * The engine's `documents` bean, reading the pack's documents/ and branding/ from the classpath.
+   */
+  static final DocumentRenderer DOCUMENTS =
+      new DocumentRenderer(
+          Map.<String, Object>of("frontendBaseUrl", "http://localhost:3000", "links", LINKS)::get,
+          "documents",
+          "branding");
+
+  /**
+   * Adds the `documents` bean and lets the fake execution hand the model's variables to it, as
+   * {@code execution.getVariables()} does in the engine.
+   */
+  private static Map<String, Object> withDocuments(Map<String, Object> m) {
+    m.put("documents", DOCUMENTS);
+    DelegateExecution execution = (DelegateExecution) m.get("execution");
+    when(execution.getVariables()).thenReturn(Variables.fromMap(m));
+    return m;
+  }
 
   private static Object spinJson(Object value) {
     try {
@@ -162,7 +185,7 @@ class FreemarkerTemplateRenderTest {
                 "aoa.pdf",
                 "contentType",
                 "application/pdf")));
-    return m;
+    return withDocuments(m);
   }
 
   static final String HOSTILE_NAME = "Ka\"rl \\ O'Kaasa\nsutaja";
@@ -226,7 +249,7 @@ class FreemarkerTemplateRenderTest {
                 "aoa\n.pdf",
                 "contentType",
                 "application/pdf")));
-    return m;
+    return withDocuments(m);
   }
 
   private static Map<String, Object> modelByName(String name) {
@@ -323,6 +346,77 @@ class FreemarkerTemplateRenderTest {
       String text = MAPPER.readTree(render(template, cleanModel())).path("Text").asText();
       assertFalse(text.contains("/pay/" + PI), template + " still links the bare instance id");
       assertTrue(text.matches("(?s).*/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+.*"), template);
+    }
+  }
+
+  /**
+   * Regression: the vehicle send-back and reviewer-reminder emails were inline JSON in the BPMN,
+   * where JUEL put the reviewer's reason and the applicant's name in unescaped; a quote or a line
+   * break made the payload invalid and stopped the case with an incident.
+   */
+  @Test
+  void vehicleSendBackCarriesAHostileReasonIntact() throws Exception {
+    Map<String, Object> m = hostileModel();
+    JsonNode sendBack = MAPPER.readTree(render("vehicle-sendback-email.json.ftl", m));
+    assertTrue(
+        sendBack.path("Text").asText().contains("Reason: " + m.get("sendBackReason")),
+        sendBack.toString());
+
+    JsonNode reminder = MAPPER.readTree(render("reviewer-reminder-email.json.ftl", m));
+    assertTrue(
+        reminder.path("Text").asText().contains(m.get("firstName") + " " + m.get("lastName")),
+        reminder.toString());
+  }
+
+  /** PDF documents are .ftlh: every value is HTML-escaped without a ?html in the document. */
+  @Test
+  void pdfDocumentsEscapeValuesForHtml() throws Exception {
+    String html =
+        MAPPER.readTree(render("approval-pdf.json.ftl", hostileModel())).path("html").asText();
+
+    assertTrue(html.contains("ldaja\t&lt;b&gt;"), html);
+    assertFalse(html.contains("<b>"), "a variable's markup reached the PDF");
+  }
+
+  /** Every PDF carries the pack's brand: the portal name and the logo, inlined as a data URI. */
+  @Test
+  void pdfDocumentsCarryTheBrand() throws Exception {
+    for (String template :
+        List.of(
+            "approval-pdf.json.ftl",
+            "certificate-pdf.json.ftl",
+            "bcard-pdf.json.ftl",
+            "business-fee-invoice-pdf.json.ftl")) {
+      String html = MAPPER.readTree(render(template, cleanModel())).path("html").asText();
+      assertTrue(html.contains("Issued through eRegistrations"), template);
+      assertTrue(html.contains("<img src=\"data:image/svg+xml;base64,"), template);
+    }
+  }
+
+  /**
+   * A case variable cannot stand in for the brand or the link minting: `brand`, `links` and
+   * `execution` are set after the variables (docs/security.md rule 2).
+   */
+  @Test
+  void variablesCannotShadowDocumentBeans() throws Exception {
+    Map<String, Object> m = cleanModel();
+    m.put("brand", Map.of("name", "Evil Corp", "primary", "red;}", "logo", "javascript:x"));
+    m.put("links", "not the links bean");
+    withDocuments(m);
+    DelegateExecution execution = (DelegateExecution) m.get("execution");
+
+    String html = DOCUMENTS.html("vehicle-certificate", execution);
+    assertTrue(html.contains("Issued through eRegistrations"), html);
+    assertFalse(html.contains("Evil Corp"), html);
+    String text = DOCUMENTS.text("vehicle-approval", execution);
+    assertTrue(text.matches("(?s).*/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+.*"), text);
+  }
+
+  @Test
+  void documentNamesCannotLeaveTheirFolder() {
+    DelegateExecution execution = (DelegateExecution) cleanModel().get("execution");
+    for (String name : List.of("../templates/approval-email.json", "Pdf", "a/b", "")) {
+      assertThrows(IllegalArgumentException.class, () -> DOCUMENTS.html(name, execution), name);
     }
   }
 

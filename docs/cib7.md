@@ -70,8 +70,15 @@ packs/reference/engine/                    — the service pack's engine files (
     │   ├── <service>.bpmn, *.dmn
     │   ├── variable-policy.json           — which variables clients may write (generated, see below)
     │   └── schemas/<form-id>.json         — which values they may hold (generated, see below)
-    └── templates/*.json.ftl               — FreeMarker payloads for the http-connector: Mailpit
-                                             emails, pdf-renderer renders, backend /api/internal calls
+    ├── templates/*.json.ftl               — FreeMarker payloads for the http-connector: Mailpit
+    │                                        emails, pdf-renderer renders, backend /api/internal calls
+    └── documents/                         — hand-designed documents, rendered by the `documents` bean
+        ├── _brand.ftlh                    — shared PDF layout and house style, brand bar
+        ├── pdf/*.ftlh                     — certificates, invoices, extracts (HTML, auto-escaped)
+        └── email/*.ftl                    — email bodies (plain text) and the shared _footer.ftl
+
+packs/reference/branding/                  — on the classpath as branding/: portal name, primary
+                                             colour and logo for the documents (also the SPA's brand)
 ```
 
 The `com.poc.cib7.keycloak` package contains five classes verbatim from the
@@ -139,6 +146,30 @@ JUEL/FreeMarker have no built-in base64 and we deliberately want the PDF
 stored as a `byte[]` process variable. See
 [§ Large process variables](#large-process-variables-bytes-typed) for the
 rationale.
+
+### `documents/DocumentRenderer.java`
+
+`@Component("documents")`. Payload templates call
+`${documents.html("<name>", execution)?json_string}` for a PDF document and
+`${documents.text("<name>", execution)?json_string}` for an email body; the
+document is the pack's `documents/pdf/<name>.ftlh` or
+`documents/email/<name>.ftl`. It exists because the engine's FreeMarker
+script engine builds its `Configuration` with no template loader (checked in
+the 2.2.0 jar), so a payload template cannot `<#include>` or `<#import>`;
+every document used to repeat its layout and the brand inside its payload.
+The bean's own configuration loads from the classpath, so documents share
+`_brand.ftlh` and `_footer.ftl`.
+
+A document sees the case's variables (`execution.getVariables()`, loop
+variables included), then `frontendBaseUrl`, `links`, `execution` and
+`brand`, which win over variables of the same name. `.ftlh` escapes every
+value for HTML (no `?html` needed or allowed); `?new` and `?api` are off;
+the locale is `en_US` with number format `computer`, so a year prints as
+2017, not 2,017. A name outside lowercase-kebab is refused.
+`documents/DocumentBrand.java` reads `branding/` once: the English portal
+name, the light `primary` colour (hex only, since it lands in a `<style>`
+block) and the light logo as a data URI, because Gotenberg renders the HTML
+with no base URL. Missing or invalid values fall back to the core defaults.
 
 ### `AuthorizationBootstrap.java`
 
@@ -216,7 +247,7 @@ nobody else's.
 ### `ReservedBeansPlugin.java`
 
 Configuration beans used in BPMN expressions and FreeMarker templates
-(`busBaseUrl`, `frontendBaseUrl`, `pdf`, listed once in
+(`busBaseUrl`, `frontendBaseUrl`, `pdf`, `links`, `documents`, listed once in
 `ReservedBeansPlugin.RESERVED_NAMES`) resolve before process variables of the
 same name. Stock JUEL asks the variable scope before the Spring context, so a
 variable called `busBaseUrl` would otherwise redirect that case's connectors.

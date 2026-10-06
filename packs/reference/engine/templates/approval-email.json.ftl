@@ -24,38 +24,15 @@
   The pay link carries a payment capability token minted by
   links.payment(execution) (docs/security.md rules 3 and 4), not the
   process instance id.
+
+  The body is the pack document documents/email/vehicle-approval.ftl.
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
-<#assign payUrl = frontendBaseUrl + "/pay/" + links.payment(execution)>
-<#-- price can surface as a locale-formatted String ("38,000") on some
-     engine→FreeMarker paths — same defensive coercion as approval-pdf. -->
-<#assign rawPrice = (price!0)>
-<#if rawPrice?is_number>
-  <#assign vehicleValue = rawPrice>
-<#else>
-  <#assign vehicleValue = rawPrice?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
-</#if>
-<#assign body>Hi ${firstName!""},
-
-Your vehicle registration with Transpordiamet has been approved. The
-State fee invoice is attached — pay the listed amount to complete the
-registration. Once the payment is received, your Vehicle Registration
-Certificate (tehniline pass) will be issued.
-
-Owner: ${fullName}
-Vehicle code: ${objectId!""}
-Vehicle value: €${vehicleValue?string("0.00")}
-
-Pay the state fee here:
-${payUrl}
-
-Thanks,
-Transpordiamet POC</#assign>
 {
   "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
   "To": [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
   "Subject": "Your vehicle registration is approved — state fee invoice attached",
-  "Text": "${body?json_string}",
+  "Text": "${documents.text("vehicle-approval", execution)?json_string}",
   "Attachments": [
     {
       "Filename": "${(approvalPdfFilename!"state-fee-invoice.pdf")?json_string}",

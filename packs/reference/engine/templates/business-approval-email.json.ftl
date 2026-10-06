@@ -16,7 +16,7 @@
   We base64-encode the PDF bytes here (rather than carrying a base64
   String process variable) because String variables in CIB seven cap at
   4000 chars in ACT_HI_VARINST.TEXT_. Same byte[]→base64 trip as
-  personReg's approval-email.json.ftl.
+  the vehicle service's approval-email.json.ftl.
 
   Recipient is the applicant's own email — Gateway_SendApprovalEmail
   upstream guarantees it is non-null and contains '@' before this
@@ -25,59 +25,15 @@
   The pay link carries a payment capability token minted by
   links.payment(execution) (docs/security.md rules 3 and 4), not the
   process instance id.
+
+  The body is the pack document documents/email/business-approval.ftl.
 -->
-<#assign caseRef = execution.processInstanceId>
-<#assign regCode = "1" + caseRef?replace("-", "")?substring(0, 7)>
 <#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
-<#assign members>
-<#list boardMembers.elements() as m>
-- ${(m.prop("firstName").stringValue())!""} ${(m.prop("lastName").stringValue())!""} (isikukood ${(m.prop("personalCode").stringValue())!""})
-</#list>
-</#assign>
-<#-- shareCapital can surface as a locale-formatted String ("2,500") on some
-     engine→FreeMarker paths — same defensive coercion as bcard-pdf. -->
-<#assign rawCapital = (shareCapital!0)>
-<#if rawCapital?is_number>
-  <#assign capitalNumber = rawCapital>
-<#else>
-  <#assign capitalNumber = rawCapital?replace(",", "")?replace(" ", "")?replace(" ", "")?replace("$", "")?replace("€", "")?number>
-</#if>
-<#assign residencyRaw = (applicantResidency!"citizen")>
-<#if residencyRaw == "e-resident">
-  <#assign residencyLabel = "e-resident">
-<#elseif residencyRaw == "foreign">
-  <#assign residencyLabel = "foreign founder">
-<#else>
-  <#assign residencyLabel = "Estonian citizen">
-</#if>
-<#assign body>Tere ${(applicantFirstName!"")} ${(applicantLastName!"")},
-
-Your Estonian OÜ has been approved by the Business Register and the
-state fee invoice is attached. Pay the listed amount and your B-card
-extract will be issued.
-
-Business Register code:  ${regCode}
-Company:                 ${(companyName!"")}
-Share capital:           ${capitalNumber?string("0.00")} EUR
-Founder residency:       ${residencyLabel}
-Board members:
-${members}
-Decision made by:        ${((autoDecision!"")=="approve")?then("automated decision table (DMN)", "manual review by the Business Register")}
-
-Pay the state fee here:
-${frontendBaseUrl}/pay/${links.payment(execution)}
-
-Once payment is received, the B-card extract will be available in the My
-processes page in the SPA.
-
-Tervitustega,
-Äriregister POC
-</#assign>
 {
   "From":    { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
   "To":      [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
   "Subject": "${("Estonian OÜ registered: " + (companyName!""))?json_string}",
-  "Text":    "${body?json_string}",
+  "Text":    "${documents.text("business-approval", execution)?json_string}",
   "Attachments": [
     {
       "Filename": "${(feeInvoicePdfFilename!"state-fee-invoice.pdf")?json_string}",

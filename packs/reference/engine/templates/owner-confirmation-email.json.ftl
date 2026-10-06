@@ -16,30 +16,15 @@
   ?json_string escapes embedded quotes / backslashes / newlines so the
   emitted payload is always valid JSON regardless of what the applicant
   typed into the co-owner editor.
+
+  The body is the pack document documents/email/vehicle-owner-signing.ftl.
 -->
 <#assign ownerName = owner.prop("name").stringValue()>
 <#assign ownerEmail = owner.prop("email").stringValue()>
-<#assign ownerToken = links.owner(execution, owner.prop("partyId").stringValue())>
 <#assign applicantName = (firstName!"") + " " + (lastName!"")>
-<#assign confirmUrl = frontendBaseUrl + "/confirm-owner/" + ownerToken>
-<#assign body>Hello ${ownerName},
-
-${applicantName} has named you as a co-owner of a vehicle registration
-with Transpordiamet and needs your signature before it can proceed.
-
-Open this link to review the registration and approve or reject:
-${confirmUrl}
-
-If you reject, the case is sent back to ${applicantName} with the reason
-you provide. Once every co-owner has signed, any owner can click "Send
-to Transport Authority" on the confirmation page to forward the case for
-review.
-
-Thanks,
-Transpordiamet POC</#assign>
 {
   "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
   "To": [ { "Email": "${ownerEmail?json_string}", "Name": "${ownerName?json_string}" } ],
   "Subject": "Please sign: vehicle registration with ${applicantName?json_string}",
-  "Text": "${body?json_string}"
+  "Text": "${documents.text("vehicle-owner-signing", execution)?json_string}"
 }

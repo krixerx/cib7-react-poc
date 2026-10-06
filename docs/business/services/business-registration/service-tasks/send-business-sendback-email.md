@@ -1,31 +1,57 @@
 # Service task: `send-business-sendback-email`
 
-**BPMN task:** `Task_SendBackEmail`
-**Kind:** http-connector → Mailpit
-**Async:** `asyncBefore="true"`
+**Task id:** `send-business-sendback-email`
+**BPMN task id:** `Task_SendBackEmail`
+**Display name:** `Send sent-back email`
+**Connector:** `http-connector`
+**Async-before:** `true`
 
-## Endpoint
+Tells the applicant the registration came back from the Business Register or a co-founder, with the reason.
 
-| HTTP | URL | Headers |
-|---|---|---|
-| POST | `${busBaseUrl}/api/v1/send` | `Content-Type: application/json` |
+## Request
 
-## Payload
+| Field | Value |
+|---|---|
+| Method | `POST` |
+| URL | `${busBaseUrl}/api/v1/send` |
+| Headers | `Content-Type: application/json` |
 
-FreeMarker template at `packs/reference/engine/templates/business-sendback-email.json.ftl`.
-Variables in scope: `companyName`, `applicantFirstName`,
-`applicantLastName`, `sendBackReason`.
+Downstream: Mailpit (the bus routes `/api/v1/send`).
 
-The template renders the Mailpit `/api/v1/send` JSON payload. The `Text`
-body includes the applicant's name, the company name they tried to
-register, the civil-servant's send-back reason, and a link back to the
-React portal so the applicant can resubmit.
+## Payload (request body)
 
-## Why these notes matter
+```
+payload-template: business-sendback-email.json.ftl
+```
 
-- `sendBackReason` is required at this point — the civil-servant form
-  enforces non-empty on "Send back..." submit, and the gateway only
-  routes here when `decision == "sendback"`. The applicant's next-iteration
-  `business-details` form reads the same variable to render the banner;
-  the loop is closed.
-- The template escapes all string values with `?json_string`.
+**Document:** `documents/email/business-sendback.ftl`, hand-designed and owned by the pack, not generated. The template only wraps it.
+
+```ftl
+<#--
+  Mailpit /api/v1/send payload for the businessRegistration send-back email.
+  Variables in scope: companyName, applicantFirstName, applicantLastName,
+  applicantEmail (optional), initiator, sendBackReason, frontendBaseUrl
+  (from FrontendConfiguration).
+
+  Recipient: the applicant's own email when they gave one, otherwise the
+  initiator-derived demo address — same rule the vehicle process uses. A
+  fixed address here would silently swallow every other user's send-backs.
+
+  The body is the pack document documents/email/business-sendback.ftl.
+-->
+<#assign toEmail = ((applicantEmail!"")?contains("@"))?then(applicantEmail, (initiator!"applicant") + "@cib7-poc.local")>
+{
+  "From":    { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
+  "To":      [ { "Email": "${toEmail?json_string}" } ],
+  "Subject": "${("OÜ registration sent back for corrections: " + (companyName!""))?json_string}",
+  "Text":    "${documents.text("business-sendback", execution)?json_string}"
+}
+```
+
+## Response mapping
+
+None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.
+
+## Notes
+
+- Goes to the applicant's email when it has one, else to the initiator's demo address.

@@ -26,27 +26,25 @@ the markdown under `docs/business/services/<service>/`; everything else is
 generated. The goal is that **regenerating the same spec produces the same
 output**, so modifications work by editing the spec and re-running.
 
-Two canonical references — read both before generating a new service:
+Two reference services, both complete specs (README, `forms/`,
+`service-tasks/`, `decisions/`, `data/` or `consent.md`, `build/`); read
+both before generating a new service:
 
-- **`person-registration`** — the older, denser spec (everything in
-  `README.md`, no `forms/` or `decisions/` subfolders). Useful for seeing
-  the upper bound of what a service can do (multi-instance subprocess,
-  receive tasks, PDF generation, public confirmation page).
-- **`business-registration`** — the cleaner reference (separate `forms/`,
-  `service-tasks/`, `decisions/`, `build/` folders). Useful for seeing
-  the recommended file layout and the spec-first × MCP pipeline
-  end-to-end.
+- **`vehicle-registration`** — a registry lookup, a DMN, co-owner
+  signatures (multi-instance subprocess), a reminder timer, a state fee
+  with payment, two PDFs.
+- **`business-registration`** — the same shape with a file upload,
+  co-founder signatures and a different issuing authority.
 
-Per-service files (paths under `cib7-react-poc/`):
-
-| | person-registration | business-registration |
+| | vehicle-registration | business-registration |
 |---|---|---|
-| Spec | [`docs/business/services/person-registration/README.md`](../../../docs/business/services/person-registration/README.md) | [`docs/business/services/business-registration/README.md`](../../../docs/business/services/business-registration/README.md) |
-| BPMN | [`packs/reference/engine/processes/person-registration.bpmn`](../../../packs/reference/engine/processes/person-registration.bpmn) | [`packs/reference/engine/processes/business-registration/business-registration.bpmn`](../../../packs/reference/engine/processes/business-registration/business-registration.bpmn) |
-| DMN | [`cib7/.../auto-approval.dmn`](../../../packs/reference/engine/processes/auto-approval.dmn) | [`cib7/.../business-auto-approval.dmn`](../../../packs/reference/engine/processes/business-registration/business-auto-approval.dmn) |
+| Spec | [`README.md`](../../../docs/business/services/vehicle-registration/README.md) | [`README.md`](../../../docs/business/services/business-registration/README.md) |
+| BPMN | [`vehicle-registration.bpmn`](../../../packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn) | [`business-registration.bpmn`](../../../packs/reference/engine/processes/business-registration/business-registration.bpmn) |
+| DMN | [`vehicle-auto-approval.dmn`](../../../packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn) | [`business-auto-approval.dmn`](../../../packs/reference/engine/processes/business-registration/business-auto-approval.dmn) |
 | Forms | [`owner-vehicle.json`](../../../packs/reference/frontend/forms/owner-vehicle.json), [`vehicle-review.json`](../../../packs/reference/frontend/forms/vehicle-review.json) | [`business-details.json`](../../../packs/reference/frontend/forms/business-details.json), [`review-business-registration.json`](../../../packs/reference/frontend/forms/review-business-registration.json) |
-| MCP manifest | [`build/mcp-service.json`](../../../docs/business/services/person-registration/build/mcp-service.json) | [`build/mcp-service.json`](../../../docs/business/services/business-registration/build/mcp-service.json) |
-| MCP training | [`build/mcp-training.md`](../../../docs/business/services/person-registration/build/mcp-training.md) | [`build/mcp-training.md`](../../../docs/business/services/business-registration/build/mcp-training.md) |
+| Service tasks | [`service-tasks/`](../../../docs/business/services/vehicle-registration/service-tasks/) | [`service-tasks/`](../../../docs/business/services/business-registration/service-tasks/) |
+| MCP manifest | [`build/mcp-service.json`](../../../docs/business/services/vehicle-registration/build/mcp-service.json) | [`build/mcp-service.json`](../../../docs/business/services/business-registration/build/mcp-service.json) |
+| MCP training | [`build/mcp-training.md`](../../../docs/business/services/vehicle-registration/build/mcp-training.md) | [`build/mcp-training.md`](../../../docs/business/services/business-registration/build/mcp-training.md) |
 
 Cross-service artifacts:
 
@@ -323,6 +321,15 @@ at "files written, please test".
 
 ## 4. Validation rules
 
+`cib7/src/test/java/com/poc/cib7/ServiceSpecsTest.java` enforces the
+spec-first contract on every build: each BPMN service task has exactly one
+`service-tasks/*.md` naming it in `**BPMN task id:**`; a spec's
+`payload-template:` is the template the task uses and its ```` ```ftl ````
+block equals the template file; each DMN has a `decisions/<id>.md`; and no
+payload is inline JSON with `${...}` (JUEL cannot escape for JSON, so use a
+template with `?json_string`). Emit specs and output together so it stays
+green.
+
 Reject the run if **any** of these fail. List every violation, don't
 short-circuit on the first one.
 
@@ -516,20 +523,8 @@ Hit policies the analyst can ask for: `FIRST` (most common), `UNIQUE`,
 
 ## 7. FreeMarker payload templates
 
-Path: `packs/reference/engine/templates/<task-id>.json.ftl`. Pattern:
-
-```ftl
-<#-- short description of what process variables are in scope -->
-<#assign body>Hi ${firstName!""},
-…
-</#assign>
-{
-  "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
-  "To":   [ { "Email": "${(applicantEmail!"")?json_string}" } ],
-  "Subject": "<subject>",
-  "Text":    "${body?json_string}"
-}
-```
+Path: `packs/reference/engine/templates/<task-id>.json.ftl`: the JSON the
+connector sends, nothing else.
 
 Rules:
 
@@ -537,6 +532,27 @@ Rules:
 - Default every process variable that might be null with `!""` (string) or
   `!0` (number).
 - For `byte[]` attachments, re-encode with `${pdf.encode(varName)}`.
+- **A document is not generated.** An email body or a PDF is a
+  hand-designed document in `packs/reference/engine/documents/`
+  (`email/<name>.ftl`, plain text; `pdf/<name>.ftlh`, HTML on the shared
+  `/_brand.ftlh` layout). The generated payload only wraps it:
+  `"Text": "${documents.text("<name>", execution)?json_string}"` or
+  `"html": "${documents.html("<name>", execution)?json_string}"`. The
+  service-task spec names the document; if the document does not exist yet,
+  write a first version from the spec's description and say so, since a
+  designer owns it from then on. Never `<#include>` in a payload template:
+  the engine's FreeMarker has no template loader.
+
+```ftl
+<#-- what this payload is for; the body is documents/email/<name>.ftl -->
+<#assign fullName = (firstName!"") + " " + (lastName!"")>
+{
+  "From": { "Email": "process@cib7-poc.local", "Name": "<issuer> POC" },
+  "To":   [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
+  "Subject": "<subject>",
+  "Text":    "${documents.text("<name>", execution)?json_string}"
+}
+```
 
 ---
 
@@ -750,10 +766,10 @@ serves the LLM-callable tools. To make a service MCP-callable, the skill
 generates three artifacts: a per-service manifest (data), per-service
 training markdown (prose), and an aggregated index.
 
-The hand-written reference for `personRegistration` lives at
-[`docs/business/services/person-registration/build/mcp-service.json`](../../../docs/business/services/person-registration/build/mcp-service.json)
+The reference output for `vehicleRegistration` lives at
+[`docs/business/services/vehicle-registration/build/mcp-service.json`](../../../docs/business/services/vehicle-registration/build/mcp-service.json)
 and
-[`docs/business/services/person-registration/build/mcp-training.md`](../../../docs/business/services/person-registration/build/mcp-training.md).
+[`docs/business/services/vehicle-registration/build/mcp-training.md`](../../../docs/business/services/vehicle-registration/build/mcp-training.md).
 Read them before generating a new service — same shape, same field order.
 
 ### 11.1 `mcp-service.json`
@@ -834,7 +850,7 @@ Walk every user task in the flow. For each one:
 3. For review-style forms with multiple action buttons (Accept / Send back),
    produce a schema with an `enum` on `decision` and a conditional `required`
    for `sendBackReason` (see the canonical
-   `review-application` entry in `person-registration/build/mcp-service.json`).
+   `vehicle-review` entry in `vehicle-registration/build/mcp-service.json`).
 
 NEVER include variables in `userTasks[].schema` that are written by service
 tasks, DMNs, or correlated message events — those are engine-internal and

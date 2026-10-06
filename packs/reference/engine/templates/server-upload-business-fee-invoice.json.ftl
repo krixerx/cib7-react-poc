@@ -10,7 +10,7 @@
 
   feeInvoicePdfBytes stays in scope after this task so the subsequent
   Task_SendApprovalEmail can re-encode it for the Mailpit attachment —
-  same byte[]→base64 trip as personReg's approval PDF pipeline.
+  same byte[]→base64 trip as the vehicle service's state fee invoice.
 -->
 {
   "processInstanceId": "${execution.processInstanceId?json_string}",
