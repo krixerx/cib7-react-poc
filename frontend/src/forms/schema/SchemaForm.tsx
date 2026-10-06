@@ -5,14 +5,18 @@ import type { FormProps } from '../types';
 import { formatCurrency, formatNumber } from '../../i18n/format';
 import {
   completion,
+  interpolation,
   InvalidDefinition,
+  listEntries,
   parseDefinition,
   present,
   revealedFields,
   shown,
+  summaryPresent,
   type Action,
   type Format,
   type FormDefinition,
+  type SummaryItem,
 } from './definition';
 
 /** Where the service pack's form definitions are served (nginx in the image, Vite in dev). */
@@ -141,13 +145,13 @@ function DefinedForm({
         <dl className="summary">
           {definition.summary
             .filter(
-              (s) => shown(s.show, readOnly) && (s.show === 'always' || present(data[s.variable])),
+              (s) => shown(s.show, readOnly) && (s.show === 'always' || summaryPresent(s, data)),
             )
             .map((s) => (
               <div className="summary-row" key={s.variable + s.label}>
                 <dt>{t(s.label)}</dt>
                 <dd className={decisionClass(s.format, data[s.variable])}>
-                  {formatted(data[s.variable], s.format, t)}
+                  <SummaryValue item={s} data={data} t={t} />
                 </dd>
               </div>
             ))}
@@ -239,6 +243,39 @@ function DefinedForm({
       )}
     </div>
   );
+}
+
+/** The value cell of a summary row, per its kind. */
+function SummaryValue({
+  item,
+  data,
+  t,
+}: {
+  item: SummaryItem;
+  data: Record<string, unknown>;
+  t: TFunction;
+}) {
+  if (item.template) {
+    return <>{t(item.template.key, interpolation(item.template.variables, data))}</>;
+  }
+  const value = data[item.variable];
+  if (item.options) {
+    const key = typeof value === 'string' ? item.options[value] : undefined;
+    return <>{key ? t(key) : present(value) ? String(value) : '—'}</>;
+  }
+  if (item.item) {
+    const entries = listEntries(value);
+    if (entries.length === 0) return <>{'—'}</>;
+    const itemKey = item.item;
+    return (
+      <ul className="board-list">
+        {entries.map((entry, i) => (
+          <li key={i}>{t(itemKey, interpolation(Object.keys(entry), entry))}</li>
+        ))}
+      </ul>
+    );
+  }
+  return <>{formatted(value, item.format, t)}</>;
 }
 
 function buttonClass(action: Action): string {

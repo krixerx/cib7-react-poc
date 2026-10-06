@@ -423,7 +423,9 @@ checks it with `parseDefinition` (`forms/schema/definition.ts`) and draws it
 with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
 `form-error`), so it looks like the generated TSX forms.
 
-- **Elements:** intro texts, a read-only summary, fields of type `display`,
+- **Elements:** intro texts, a read-only summary (plain values, a template
+  over several variables, a coded value shown as text, or a list), fields of
+  type `display`,
   `text` or `textarea`, notices, and actions that complete the task with
   fixed values or field input. An action that reveals fields (for example
   "Send back…" with a reason) works in two steps: show the fields, then
@@ -437,8 +439,8 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   honest 404 for a missing file); `npm run dev` does the same through the
   `serve-pack` plugin in `vite.config.ts`. A customer pack replaces the
   directory without rebuilding the SPA.
-- **Migrated so far:** `vehicle-review`. The other forms stay TSX until their
-  turn (`Renderer: tsx` in their specs).
+- **Migrated so far:** `vehicle-review`, `review-business-registration`. The
+  other forms stay TSX until their turn (`Renderer: tsx` in their specs).
 
 ## REST client (`api/`)
 

@@ -7,9 +7,10 @@
     "companyName": "Company name",
     "shareCapital": "Share capital",
     "founder": "Founder",
-    "founderAge": "(age {{age}})",
+    "founderValue": "{{applicantFirstName}} {{applicantLastName}} (age {{applicantAge}})",
     "residency": "Residency",
     "boardMembers": "Board members",
+    "boardMemberItem": "{{firstName}} {{lastName}} ({{personalCode}})",
     "decision": "Decision",
     "sendBackReason": "Send-back reason"
   },

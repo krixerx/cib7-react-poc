@@ -31,12 +31,23 @@ export type Show = 'always' | 'readOnly' | 'editing';
 /** How a value is displayed. */
 export type Format = 'text' | 'number' | 'currency' | 'decision';
 
-/** A read-only `label: value` row above the fields, read from a process variable. */
+/**
+ * A read-only `label: value` row above the fields. Besides a plain variable
+ * (`format`), a row can be:
+ * - `template`: one text key interpolating several variables, e.g. a name and an age;
+ * - `options`: a coded value shown as the text key mapped to it, e.g. `citizen`;
+ * - `item`: a list variable shown as a bulleted list, each entry through a text
+ *   key that interpolates the entry's own properties.
+ */
 export interface SummaryItem {
   label: string;
+  /** The variable shown; for a template row, the first of `variables`. */
   variable: string;
   format: Format;
   show: Show;
+  template?: { key: string; variables: string[] };
+  options?: Record<string, string>;
+  item?: string;
 }
 
 /** A field: `display` shows a variable; `text` and `textarea` take input. */
@@ -137,14 +148,52 @@ export function parseDefinition(raw: unknown, expectedForm: string): FormDefinit
   if (form !== expectedForm) fail(`definition is for '${form}', not '${expectedForm}'`);
   const intro = record(root.intro, 'intro', ['edit', 'readOnly']);
 
-  const summary = list(root.summary, 'summary').map((item, i) => {
-    const s = record(item, `summary[${i}]`, ['label', 'variable', 'format', 'show']);
-    return {
-      label: text(s.label, KEY, `summary[${i}].label`),
-      variable: text(s.variable, NAME, `summary[${i}].variable`),
-      format: oneOf(s.format, FORMATS, 'text', `summary[${i}].format`),
-      show: oneOf(s.show, SHOWS, 'always', `summary[${i}].show`),
+  const summary = list(root.summary, 'summary').map((item, i): SummaryItem => {
+    const what = `summary[${i}]`;
+    const s = record(item, what, [
+      'label',
+      'variable',
+      'format',
+      'show',
+      'template',
+      'variables',
+      'options',
+      'item',
+    ]);
+    const kinds = ['template', 'options', 'item'].filter((k) => s[k] !== undefined);
+    if (kinds.length > 1) fail(`${what} may use only one of template, options, item`);
+    const base = {
+      label: text(s.label, KEY, `${what}.label`),
+      format: oneOf(s.format, FORMATS, 'text', `${what}.format`),
+      show: oneOf(s.show, SHOWS, 'always', `${what}.show`),
     };
+    if (s.template !== undefined) {
+      if (s.variable !== undefined) fail(`${what} with a template names its variables instead`);
+      const variables = list(s.variables, `${what}.variables`).map((v, j) =>
+        text(v, NAME, `${what}.variables[${j}]`),
+      );
+      if (variables.length === 0) fail(`${what}.variables must not be empty`);
+      return {
+        ...base,
+        variable: variables[0],
+        template: { key: text(s.template, KEY, `${what}.template`), variables },
+      };
+    }
+    if (s.variables !== undefined) fail(`${what}.variables needs a template`);
+    const variable = text(s.variable, NAME, `${what}.variable`);
+    if (s.options !== undefined) {
+      const options = record(s.options, `${what}.options`, Object.keys(s.options ?? {}));
+      const mapped: Record<string, string> = {};
+      for (const [value, key] of Object.entries(options)) {
+        mapped[text(value, ID, `${what}.options key`)] = text(key, KEY, `${what}.options.${value}`);
+      }
+      if (Object.keys(mapped).length === 0) fail(`${what}.options must not be empty`);
+      return { ...base, variable, options: mapped };
+    }
+    if (s.item !== undefined) {
+      return { ...base, variable, item: text(s.item, KEY, `${what}.item`) };
+    }
+    return { ...base, variable };
   });
 
   const actions = list(root.actions, 'actions').map((item, i) => {
@@ -269,6 +318,39 @@ export function shown(show: Show, readOnly: boolean): boolean {
 /** True for a value worth drawing: not null, undefined or an empty string. */
 export function present(value: unknown): boolean {
   return value !== null && value !== undefined && value !== '';
+}
+
+/** True when a summary row has something to show: any of its template variables, or its variable. */
+export function summaryPresent(item: SummaryItem, data: Record<string, unknown>): boolean {
+  return item.template
+    ? item.template.variables.some((v) => present(data[v]))
+    : present(data[item.variable]);
+}
+
+/**
+ * The entries of a list variable: a JSON array as it comes from history or a
+ * Json variable, or a JSON string of one. Anything else is an empty list.
+ */
+export function listEntries(value: unknown): Record<string, unknown>[] {
+  let parsed = value;
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(parsed)
+    ? parsed.filter((e): e is Record<string, unknown> => typeof e === 'object' && e !== null)
+    : [];
+}
+
+/** The interpolation values for a text key: each named variable, `—` when absent. */
+export function interpolation(
+  names: string[],
+  source: Record<string, unknown>,
+): Record<string, string> {
+  return Object.fromEntries(names.map((n) => [n, present(source[n]) ? String(source[n]) : '—']));
 }
 
 /** The fields an action reveals before it can be confirmed. */

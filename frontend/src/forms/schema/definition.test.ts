@@ -3,10 +3,13 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   completion,
+  interpolation,
   InvalidDefinition,
+  listEntries,
   parseDefinition,
   revealedFields,
   shown,
+  summaryPresent,
   type FormDefinition,
 } from './definition';
 
@@ -111,5 +114,57 @@ describe('definitions outside format v1 are refused whole', () => {
     expect(() => parseDefinition(packDefinition('vehicle-review'), 'owner-vehicle')).toThrow(
       InvalidDefinition,
     );
+  });
+});
+
+describe('summary rows beyond a plain variable', () => {
+  function businessReview(): FormDefinition {
+    return parseDefinition(
+      packDefinition('review-business-registration'),
+      'review-business-registration',
+    );
+  }
+
+  it('a template row names its variables and shows when any is set', () => {
+    const founder = businessReview().summary.find((s) => s.template)!;
+    expect(founder.template!.variables).toEqual([
+      'applicantFirstName',
+      'applicantLastName',
+      'applicantAge',
+    ]);
+    expect(summaryPresent(founder, { applicantFirstName: 'Frida' })).toBe(true);
+    expect(summaryPresent(founder, {})).toBe(false);
+    expect(
+      interpolation(founder.template!.variables, { applicantFirstName: 'Frida', applicantAge: 34 }),
+    ).toEqual({
+      applicantFirstName: 'Frida',
+      applicantLastName: '—',
+      applicantAge: '34',
+    });
+  });
+
+  it('an options row maps coded values to text keys', () => {
+    const residency = businessReview().summary.find((s) => s.options)!;
+    expect(residency.options!['e-resident']).toBe('residency.eResident');
+  });
+
+  it('a list row reads a JSON array or a JSON string of one', () => {
+    const rows = [{ firstName: 'Bart', lastName: 'S', personalCode: '39001010000' }];
+    expect(listEntries(rows)).toEqual(rows);
+    expect(listEntries(JSON.stringify(rows))).toEqual(rows);
+    expect(listEntries('not json')).toEqual([]);
+    expect(listEntries({ firstName: 'x' })).toEqual([]);
+  });
+
+  it.each([
+    ['a template with a variable', { label: 'a', template: 'b', variables: ['x'], variable: 'x' }],
+    ['variables without a template', { label: 'a', variable: 'x', variables: ['x'] }],
+    ['two kinds at once', { label: 'a', variable: 'x', options: { a: 'b' }, item: 'c' }],
+    ['empty options', { label: 'a', variable: 'x', options: {} }],
+    ['an options value that is no id', { label: 'a', variable: 'x', options: { '<b>': 'c' } }],
+  ])('refuses %s', (_, row) => {
+    const d = structuredClone(packDefinition('vehicle-review')) as Record<string, unknown>;
+    d.summary = [row];
+    expect(() => parseDefinition(d, 'vehicle-review')).toThrow(InvalidDefinition);
   });
 });

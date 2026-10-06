@@ -1,0 +1,61 @@
+{
+  "$comment": "Generated from docs/business/services/business-registration/forms/review-business-registration.md. Do not hand-edit. Drawn by frontend/src/forms/schema/SchemaForm.tsx (format v1).",
+  "version": 1,
+  "form": "review-business-registration",
+  "process": "businessRegistration",
+  "i18n": "review-business-registration",
+  "intro": { "edit": "intro.review", "readOnly": "intro.readOnly" },
+  "summary": [
+    { "label": "summary.companyName", "variable": "companyName" },
+    { "label": "summary.shareCapital", "variable": "shareCapital", "format": "currency" },
+    {
+      "label": "summary.founder",
+      "template": "summary.founderValue",
+      "variables": ["applicantFirstName", "applicantLastName", "applicantAge"]
+    },
+    {
+      "label": "summary.residency",
+      "variable": "applicantResidency",
+      "options": {
+        "citizen": "residency.citizen",
+        "e-resident": "residency.eResident",
+        "foreign": "residency.foreign"
+      }
+    },
+    { "label": "summary.boardMembers", "variable": "boardMembers", "item": "summary.boardMemberItem" },
+    { "label": "summary.decision", "variable": "decision", "format": "decision", "show": "readOnly" },
+    { "label": "summary.sendBackReason", "variable": "sendBackReason", "show": "readOnly" }
+  ],
+  "fields": [
+    {
+      "name": "sendBackReason",
+      "label": "fields.sendBackReason.label",
+      "type": "textarea",
+      "placeholder": "fields.sendBackReason.placeholder",
+      "rows": 3,
+      "revealedBy": "sendback",
+      "requiredMessage": "errors.reasonRequired"
+    }
+  ],
+  "notices": [{ "label": "previousReason", "variable": "sendBackReason", "show": "editing" }],
+  "actions": [
+    {
+      "id": "approve",
+      "label": "common:actions.approve",
+      "style": "primary",
+      "workingLabel": "common:feedback.submitting",
+      "complete": { "decision": { "value": "approve", "type": "String" } }
+    },
+    {
+      "id": "sendback",
+      "label": "actions.openSendBack",
+      "style": "danger",
+      "confirmLabel": "actions.confirmSendBack",
+      "workingLabel": "common:feedback.submitting",
+      "complete": {
+        "decision": { "value": "sendback", "type": "String" },
+        "sendBackReason": { "field": "sendBackReason", "type": "String" }
+      }
+    }
+  ]
+}

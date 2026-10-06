@@ -7,9 +7,10 @@
     "companyName": "اسم الشركة",
     "shareCapital": "رأس المال",
     "founder": "المؤسس",
-    "founderAge": "(العمر: {{age}})",
+    "founderValue": "{{applicantFirstName}} {{applicantLastName}} (العمر: {{applicantAge}})",
     "residency": "صفة الإقامة",
     "boardMembers": "أعضاء مجلس الإدارة",
+    "boardMemberItem": "{{firstName}} {{lastName}} ({{personalCode}})",
     "decision": "القرار",
     "sendBackReason": "سبب الإعادة للتصحيح"
   },

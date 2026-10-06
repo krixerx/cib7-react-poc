@@ -4,28 +4,40 @@
 **BPMN task:** `Task_ReviewBusinessRegistration`
 **Audience:** `civil-servant`
 **Mode:** `review` (read-only data display with two action buttons)
-**Renderer:** `tsx` until migrated to a form definition (core/pack split, task S44)
+**Renderer:** `schema` (JSON definition drawn by the core form renderer)
+**Texts:** i18n namespace `review-business-registration`
 
 ## Intro
 
-"Review the proposed business registration. Approve to register the
-company; send back with a reason to ask the applicant for corrections."
+| When | Text key | English |
+|---|---|---|
+| editing | `intro.review` | Business Register review. Approve to enter the OÜ in the äriregister; send back with a reason to ask the founder for corrections. |
+| read-only | `intro.readOnly` | A read-only view of the submitted OÜ founding details and the reviewer's decision. |
+
+## Summary
+
+| Label key | Shows | Format | Shown |
+|---|---|---|---|
+| `summary.companyName` | `companyName` | text | always |
+| `summary.shareCapital` | `shareCapital` | currency | always |
+| `summary.founder` | template `summary.founderValue` over `applicantFirstName`, `applicantLastName`, `applicantAge` ("Frida Asutaja (age 34)") | template | always |
+| `summary.residency` | `applicantResidency` as `citizen` → `residency.citizen`, `e-resident` → `residency.eResident`, `foreign` → `residency.foreign` | options | always |
+| `summary.boardMembers` | `boardMembers` as a list, each entry `summary.boardMemberItem` ("Bart Simpson (39001010000)") | list | always |
+| `summary.decision` | `decision` | decision | read-only |
+| `summary.sendBackReason` | `sendBackReason` | text | read-only |
 
 ## Fields
 
-All inputs are `disabled` — civil servant only views the data. Each row
-maps to a process variable from `data`.
-
-| Field name | UI label | Input type | Required | Default (from variable) | Validation |
+| Field name | UI label key | Input type | Required | Default (from variable) | Validation |
 |---|---|---|---|---|---|
-| `companyName` | `Company name` | `text` | n/a (read-only) | `data.companyName` | — |
-| `boardMembers` | `Board members` | `repeating-rows` read-only | n/a | `data.boardMembers` | — |
-| `shareCapital` | `Share capital (EUR)` | `number` | n/a | `data.shareCapital` | — |
-| `applicantFirstName` | `Applicant first name` | `text` | n/a | `data.applicantFirstName` | — |
-| `applicantLastName` | `Applicant last name` | `text` | n/a | `data.applicantLastName` | — |
-| `applicantAge` | `Applicant age` | `number` | n/a | `data.applicantAge` | — |
 | `decision` | — (set by the action buttons) | hidden | yes | — | one of approve, sendback |
-| `sendBackReason` | `Reason (for send back)` | `textarea` | only when sending back | `''` | — |
+| `sendBackReason` | `fields.sendBackReason.label`, placeholder `fields.sendBackReason.placeholder` | `textarea` (3 rows), revealed by `sendback` | only when sending back (message `errors.reasonRequired`) | `data.sendBackReason` | — |
+
+## Notices
+
+| Label key | Variable | Shown |
+|---|---|---|
+| `previousReason` | `sendBackReason` | editing |
 
 ## Conditional rules
 
@@ -35,10 +47,12 @@ maps to a process variable from `data`.
 
 ## Actions
 
-| Button label | When enabled | complete-with |
-|---|---|---|
-| `Approve` | not submitting | `decision="approve":String` |
-| `Send back...` | reason non-empty AND not submitting | `decision="sendback":String, sendBackReason:String` |
+| Id | Button label key | Style | Confirm label key | complete-with |
+|---|---|---|---|---|
+| `approve` | `common:actions.approve` | primary | — | `decision="approve":String` |
+| `sendback` | `actions.openSendBack` | danger | `actions.confirmSendBack` | `decision="sendback":String, sendBackReason:String` (from the field) |
+
+While a completion is in flight every button shows `common:feedback.submitting`.
 
 ## Send-back loop
 
@@ -48,16 +62,12 @@ the target. The reason it writes is consumed by the applicant's
 
 ## Read-only mode
 
-When `readOnly` is true (process is finished), the action row is hidden
-and the reason textarea is removed. Field defaults still apply so the
-data is visible.
+When `readOnly` is true (process is finished), the action row and the
+reason textarea are hidden; the decision and the reason appear in the
+summary.
 
 ## Notes
 
-- Mirrors `review-application.tsx` from personRegistration — same overall
-  shape, different field set.
-- The reason textarea is only relevant when "Send back..." is pressed.
-  Keep it visible alongside the action row so the civil servant can write
-  the reason before committing.
-- Estonian personal codes display as-is (11 digits). No PII redaction in
-  the POC.
+- The reviewer is an authenticated civil servant, so board members show
+  with their personal codes (11 digits, as entered). The public co-founder
+  page shows names only (`consent.md`).

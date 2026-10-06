@@ -549,7 +549,7 @@ a whole. Map the spec one to one:
 |---|---|
 | header `Form id`, `Texts` (i18n namespace), the process id | `form`, `i18n`, `process`; `"version": 1` |
 | Intro table | `intro: {edit, readOnly}` (text keys) |
-| Summary table | `summary: [{label, variable, format, show}]`; format `text` `number` `currency` `decision`; show `always` `readOnly` `editing` (a non-`always` row is hidden while its value is empty) |
+| Summary table | `summary: [{label, variable, format, show}]`; format `text` `number` `currency` `decision`; show `always` `readOnly` `editing` (a non-`always` row is hidden while its value is empty). Instead of a plain variable a row can be: a template, `{label, template: <key>, variables: [...]}` (one text interpolating several variables, missing ones as `—`); options, `{label, variable, options: {<value>: <key>}}` (a coded value shown as text); or a list, `{label, variable, item: <key>}` (a JSON list, each entry through a key interpolating its own properties) |
 | Fields table, input types `display` `text` `textarea` | `fields: [{name, label, type, format, placeholder, rows, revealedBy, requiredMessage}]`; `revealedBy` = the action id that reveals the field |
 | Notices table | `notices: [{label, variable, show}]` |
 | Actions table | `actions: [{id, label, style, workingLabel, confirmLabel, complete}]`; `complete` maps each `complete-with` variable to `{value, type}` or `{field, type}` |
