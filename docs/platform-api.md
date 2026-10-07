@@ -69,7 +69,8 @@ refuses the file (or the start), never half of it.
 │   ├── catalog.json
 │   ├── forms/<form-id>.json
 │   └── locales/<lang>/<namespace>.json
-├── docker/frontend.Dockerfile        the portal image: FROM the core frontend image, adds frontend/ and branding/
+├── docker/<image>.Dockerfile         the pack's images: each FROM a core image, adds the pack's files
+│                                     (frontend, engine, backend, mcp)
 └── branding/                         served at /pack/branding/, engine classpath branding/
     ├── brand.json, tokens.json, logo and favicon images
     └── locales/<lang>/brand.json

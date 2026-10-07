@@ -107,9 +107,13 @@ Module responsibilities are strict and worth preserving:
   files. It holds Keycloak identity wiring, the variable policy filter and the
   Connect http-connector config. The BPMN/DMN, variable policies and FreeMarker
   connector payloads live in the service pack, `packs/reference/engine/`
-  (with the hand-designed PDF and email documents in its `documents/`), which
-  the image copies to `/opt/services` and puts on the classpath with
-  `PropertiesLauncher` and `loader.path` (see `cib7/Dockerfile`). Tests and
+  (with the hand-designed PDF and email documents in its `documents/`). The
+  core image (`cib7/Dockerfile`) holds no pack; the pack's layer
+  (`packs/reference/docker/engine.Dockerfile`) copies it to `/opt/services`,
+  which the core puts on the classpath with `PropertiesLauncher` and
+  `loader.path`. Backend, mcp and frontend are built the same way: a
+  pack-less `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`)
+  and a thin layer from `packs/reference/docker/`. Tests and
   `mvn spring-boot:run` add the same directory through the pom's
   `services.pack.dir`.
 - **`backend/` owns every `/api/**` surface**: public token-link pages

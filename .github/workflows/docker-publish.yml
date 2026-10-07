@@ -24,22 +24,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The core SPA image, with no pack; cib7-poc-frontend (the reference
-          # pack's portal) is built FROM it in the job below.
+          # The *-core images hold no service pack; the reference pack's
+          # images (same names without -core) are built FROM them below.
           - image: cib7-poc-frontend-core
             context: .
             dockerfile: ./frontend/Dockerfile
           - image: cib7-poc-mobile
             context: .
             dockerfile: ./mobile/Dockerfile
-          - image: cib7-poc-cib7
+          - image: cib7-poc-cib7-core
             context: .
             dockerfile: ./cib7/Dockerfile
             trivyignores: cib7/.trivyignore.yaml
-          - image: cib7-poc-backend
+          - image: cib7-poc-backend-core
             context: .
             dockerfile: ./backend/Dockerfile
-          - image: cib7-poc-mcp
+          - image: cib7-poc-mcp-core
             context: .
             dockerfile: ./mcp/Dockerfile
           - image: cib7-poc-pdf-renderer
@@ -106,14 +106,32 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-  # The reference pack's portal image: a thin layer adding the pack's data to
-  # the core image this run just pushed (by its sha tag, so a later push to
-  # latest cannot slip in between). Same scan gate as the core images. The
-  # deploy bundle pulls this one, so its name is unchanged.
+  # The reference pack's images: thin layers adding the pack's data to the
+  # core images this run just pushed (by their sha tag, so a later push to
+  # latest cannot slip in between), built from packs/reference/docker/. Same
+  # scan gate as the core images. The deploy bundle pulls these, so their
+  # names are the ones it always used.
   reference-pack-images:
-    name: Build & push cib7-poc-frontend (reference pack)
+    name: Build & push ${{ matrix.image }} (reference pack)
     needs: [build-and-push]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: cib7-poc-frontend
+            layer: frontend
+            arg: FRONTEND_CORE
+          - image: cib7-poc-cib7
+            layer: engine
+            arg: ENGINE_CORE
+            trivyignores: cib7/.trivyignore.yaml
+          - image: cib7-poc-backend
+            layer: backend
+            arg: BACKEND_CORE
+          - image: cib7-poc-mcp
+            layer: mcp
+            arg: MCP_CORE
     steps:
       - uses: actions/checkout@v4
 
@@ -127,38 +145,39 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cib7-poc-frontend
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           tags: |
             type=raw,value=latest
             type=sha,format=short,prefix=
 
       - id: core
-        run: echo "image=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cib7-poc-frontend-core:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: echo "image=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}-core:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Build for scanning
         uses: docker/build-push-action@v6
         with:
           context: ./packs/reference
-          file: ./packs/reference/docker/frontend.Dockerfile
-          build-args: FRONTEND_CORE=${{ steps.core.outputs.image }}
+          file: ./packs/reference/docker/${{ matrix.layer }}.Dockerfile
+          build-args: ${{ matrix.arg }}=${{ steps.core.outputs.image }}
           load: true
           push: false
-          tags: scan/cib7-poc-frontend:${{ github.sha }}
+          tags: scan/${{ matrix.image }}:${{ github.sha }}
 
       - name: Scan image (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: scan/cib7-poc-frontend:${{ github.sha }}
+          image-ref: scan/${{ matrix.image }}:${{ github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
           format: table
+          trivyignores: ${{ matrix.trivyignores }}
 
       - uses: docker/build-push-action@v6
         with:
           context: ./packs/reference
-          file: ./packs/reference/docker/frontend.Dockerfile
-          build-args: FRONTEND_CORE=${{ steps.core.outputs.image }}
+          file: ./packs/reference/docker/${{ matrix.layer }}.Dockerfile
+          build-args: ${{ matrix.arg }}=${{ steps.core.outputs.image }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

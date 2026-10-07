@@ -1,7 +1,7 @@
 # Applies to docker builds that use the repo root as context and bring no
 # <module>/Dockerfile.dockerignore of their own: today only mcp/, which
-# reads the pack's specs folder and engine form schemas, and the core's
-# shared schema definitions (the one file kept from cib7/ below).
+# needs the core's shared schema definitions (the one file kept from cib7/
+# below); the pack's files come in its own image layer.
 
 # Git + per-machine state.
 .git
@@ -30,7 +30,6 @@ scripts
 README.md
 TODOS.md
 
-# Top-level docs are excluded; mcp needs only the pack's specs folder.
-# (packs/ intentionally NOT excluded — the matchers above
-# don't reach into it.)
+# The pack is a layer on top of the mcp image, not part of it.
+packs
 docs/*.md

@@ -343,14 +343,16 @@ camunda.bpm:
 ## Per-service deployments (`ServiceDeployments.java`)
 
 `com.poc.cib7.ServiceDeployments` scans `classpath*:processes/*/` at
-startup. The jar contains no service files: the image copies the service pack
-(`packs/reference/engine/`) to `/opt/services` and starts through Spring Boot's
+startup. Neither the jar nor the core image contains service files: the
+pack's image layer (`packs/reference/docker/engine.Dockerfile`, `FROM` the
+core image) copies the service pack (`packs/reference/engine/`, its
+`branding/` and `pack.yaml`) to `/opt/services`, and the core starts through Spring Boot's
 `PropertiesLauncher` with `-Dloader.path=/opt/services`, which puts that
 directory on the classpath. The same mechanism serves the FreeMarker templates
 (BPMN `resource="templates/..."` loads from the classpath) and the
 `variable-policy.json` files. Locally, tests and `mvn spring-boot:run` add the
 directory through the pom property `services.pack.dir`. A customer pack
-replaces `/opt/services` with a bind mount or a thin image layer.
+builds the same layer from its own repository on a published core image.
 
 The scan creates **one named engine deployment per service folder**
 (deployment name = folder name = the spec folder name under

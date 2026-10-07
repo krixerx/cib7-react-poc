@@ -251,7 +251,12 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   (realm + clients + role + group + user). Publishes port `8180` mapped to
   container port `8080`. `KC_HOSTNAME_URL=http://localhost:8180` pins a
   single canonical issuer URL.
-- **cib7** — built from `cib7/Dockerfile`. Build context is `./cib7`.
+- **cib7** — the reference pack's engine layer
+  (`packs/reference/docker/engine.Dockerfile`) on the core image, which
+  compose builds from `cib7/Dockerfile` as `cib7-core` (`scale: 0`); the
+  same split holds for **backend** (`backend-core`) and **mcp** (`mcp-core`).
+  CI publishes the core images as `cib7-poc-<name>-core` and the reference
+  pack's layers under the names the deploy bundle pulls.
   Network-internal on port `8080` (reached through Traefik / the frontend
   nginx). Reaches Keycloak over the docker network at `http://keycloak:8080`
   (internal), while the browser uses `http://localhost:8180` (external) —
@@ -263,7 +268,8 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   system. The engine no longer carries `MAIL_API_URL` / `PDF_API_URL` /
   `BACKEND_API_URL` / `INTERNAL_TASK_TOKEN`, and no longer knows any
   individual system's address.
-- **backend** — built from `backend/Dockerfile`. Network-internal on port
+- **backend** — core image from `backend/Dockerfile`, pack layer
+  `packs/reference/docker/backend.Dockerfile`. Network-internal on port
   `8085`; Traefik (and the frontend nginx fallback) route `/api` to it.
   Owns the `/api/**` business surface; depends on `keycloak` (healthy),
   `rustfs` (healthy), and `cib7` (started). Authenticates its
@@ -311,9 +317,9 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `/api/internal` route. Not in `esb.depends_on`'s
   `backend` (that would be a `backend → cib7 → esb` startup cycle); the route
   resolves the backend at request time.
-- **mcp** — built from `mcp/Dockerfile` with the repo root as build
-  context (so the Dockerfile can COPY both `mcp/` source AND
-  `packs/reference/docs/business/services/` for the per-service MCP manifests). Node 24 +
+- **mcp** — core image from `mcp/Dockerfile` (repo root as context, for
+  the core's `core-v1.json`), pack layer `packs/reference/docker/mcp.Dockerfile`
+  (the pack's specs folder and engine form schemas). Node 24 +
   TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`. Internal
   only on port 8090; exposed publicly via nginx at `/mcp` and the
   OAuth resource metadata at `/.well-known/oauth-protected-resource`.
@@ -436,7 +442,8 @@ declared in the service pack, not written as Java. The spec's
 `packs/reference/docs/business/services/<service>/data/<entity>.md` becomes, through the
 service builder, a descriptor `packs/reference/backend/registry/<entity>.yaml`
 and a Flyway migration `packs/reference/backend/db/registry/V<n>__*.sql`
-(table plus seed rows). The backend image carries them in `/opt/services`
+(table plus seed rows). The pack's backend layer
+(`packs/reference/docker/backend.Dockerfile`) puts them in `/opt/services`
 on the classpath (`PropertiesLauncher`, `loader.path`), like the engine's pack.
 
 - `RegistryMigrations` runs the pack's migrations in their own `registry`

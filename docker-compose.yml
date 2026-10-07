@@ -246,6 +246,15 @@ services:
       retries: 30
       start_period: 10s
 
+  # The core MCP sidecar image, with no pack. Built only as the base of `mcp`
+  # below; scale 0 keeps it from running on its own.
+  mcp-core:
+    scale: 0
+    build:
+      context: .
+      dockerfile: mcp/Dockerfile
+    image: cib7-poc-mcp-core:local
+
   mcp:
     # Standalone MCP microservice — the "AI front door" sidecar. Wraps
     # /engine-rest with applicant-side MCP tools (start_process,
@@ -255,12 +264,15 @@ services:
     # T1 (current): hello-world echo tool + OAuth2 PKCE-loopback challenge.
     # Verifies that Claude Desktop completes the auth flow against Keycloak
     # before any production tool code lands. See mcp/README.md.
+    # The reference pack's layer on the core image built from this checkout
+    # (packs/reference/docker/mcp.Dockerfile), the way a customer pack builds its own.
     build:
-      # Build context is the repo root so the Dockerfile can COPY both
-      # mcp/ source AND packs/reference/docs/business/services/ (LLM manifests + training
-      # md). Excludes are handled by the repo-root .dockerignore.
-      context: .
-      dockerfile: mcp/Dockerfile
+      context: ./packs/reference
+      dockerfile: docker/mcp.Dockerfile
+      additional_contexts:
+        mcp-core: service:mcp-core
+      args:
+        MCP_CORE: mcp-core
     container_name: cib7-poc-mcp
     # edge: reached from the ingress. app: calls cib7, backend, keycloak.
     # gelf-mcp: its own line to Graylog, so logging does not connect the MCP
@@ -429,6 +441,15 @@ services:
       retries: 30
     restart: unless-stopped
 
+  # The core backend image, with no pack. Built only as the base of `backend`
+  # below; scale 0 keeps it from running on its own.
+  backend-core:
+    scale: 0
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: cib7-poc-backend-core:local
+
   backend:
     # Business microservice (Spring Boot 4). Owns every /api/** surface:
     # public owner-confirmation / founder-signature / payment endpoints,
@@ -436,10 +457,15 @@ services:
     # Talks to the engine exclusively via /engine-rest using the
     # cib7-business Keycloak service account — the engine itself stays a
     # clean CIB seven distribution of plugins and connectors.
-    # Repo root as context: the image carries packs/reference/backend.
+    # The reference pack's layer on the core image built from this checkout
+    # (packs/reference/docker/backend.Dockerfile), the way a customer pack builds its own.
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./packs/reference
+      dockerfile: docker/backend.Dockerfile
+      additional_contexts:
+        backend-core: service:backend-core
+      args:
+        BACKEND_CORE: backend-core
     container_name: cib7-poc-backend
     # edge: from the ingress. app: engine + keycloak, and called by mcp.
     # storage: RustFS. esb-backend: called by the bus on /api/internal and
@@ -524,11 +550,25 @@ services:
       cib7:
         condition: service_started
 
-  cib7:
-    # Repo root as context: the image carries packs/reference/engine.
+  # The core engine image, with no pack. Built only as the base of `cib7`
+  # below; scale 0 keeps it from running on its own.
+  cib7-core:
+    scale: 0
     build:
       context: .
       dockerfile: cib7/Dockerfile
+    image: cib7-poc-cib7-core:local
+
+  cib7:
+    # The reference pack's layer on the core image built from this checkout
+    # (packs/reference/docker/engine.Dockerfile), the way a customer pack builds its own.
+    build:
+      context: ./packs/reference
+      dockerfile: docker/engine.Dockerfile
+      additional_contexts:
+        cib7-core: service:cib7-core
+      args:
+        ENGINE_CORE: cib7-core
     container_name: cib7-poc-cib7
     # edge: from the ingress (and the frontend/mobile nginx). app: keycloak,
     # and called by backend + mcp. bus: the ESB, its only outbound channel

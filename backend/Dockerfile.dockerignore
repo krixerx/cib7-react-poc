@@ -1,9 +1,8 @@
 # Dockerfile-specific ignore file: BuildKit uses it instead of the repo-root
 # .dockerignore when building backend/Dockerfile with the repo root as context.
-# Only the backend module and the service packs go into the context.
+# Only the backend module goes into the context; the pack is a layer on top.
 *
 !backend
-!packs
 backend/target
 backend/.idea
 backend/*.iml

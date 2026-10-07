@@ -132,10 +132,10 @@ mcp/
         └── manifest.ts         # walks /app/services-spec, compiles the engine form schemas, indexes by formKey
 ```
 
-`/app/services-spec` is populated at image build time by the Dockerfile's
-`COPY packs/reference/docs/business/services /app/services-spec` directive. The mcp
-container ships with whatever's in the repo at build time — to add a new
-service or update one, run `/service-builder` and rebuild the image.
+`/app/services-spec` and `/app/pack-engine/processes` are filled by the
+pack's image layer (`packs/reference/docker/mcp.Dockerfile`, `FROM` the
+pack-less core image built from `mcp/Dockerfile`). To add a new service or
+update one, run `/service-builder` and rebuild the pack's image.
 
 ## The sixteen tools
 
@@ -492,8 +492,8 @@ To add MCP support for a new service:
 1. Author the spec in `packs/reference/docs/business/services/<service>/`.
 2. Run `/service-builder` — it emits the BPMN + DMN + React forms + Mcp
    manifest + training md + updates the aggregated index.
-3. `docker compose build mcp` (the Dockerfile COPYs the new manifest and
-   the pack's form schemas).
+3. `docker compose build mcp` (the pack's layer copies the new manifest
+   and form schemas onto the core image).
 4. `docker compose up mcp` — the loader picks up the new service.
 
 That's it. No code change in `mcp/` for a new service.

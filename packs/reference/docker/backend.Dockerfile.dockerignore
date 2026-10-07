@@ -1,0 +1,4 @@
+# Only what the backend reads from /opt/services.
+*
+!backend
+!pack.yaml

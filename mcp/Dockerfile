@@ -1,6 +1,10 @@
-# Build context is the repo root (see docker-compose.yml) so the COPY
-# instructions can reach the pack (manifests, training markdown, form schemas)
-# and the core's shared schema definitions in cib7/. Node 24 has native fetch + WebStreams.
+# The core MCP sidecar image, with no service pack: a pack's image is a thin
+# layer FROM this one that adds its specs folder (manifests, training
+# markdown) and its engine form schemas (packs/reference/docker/mcp.Dockerfile).
+# Without them the sidecar starts with no services.
+#
+# Build context is the repo root (see docker-compose.yml) so the COPY can
+# reach the core's shared schema definitions in cib7/. Node 24 has native fetch + WebStreams.
 # We run TypeScript directly via tsx — no tsc build step for this POC.
 FROM node:24.21.0-alpine
 
@@ -20,12 +24,10 @@ RUN npm ci --omit=dev --no-audit --no-fund \
 COPY mcp/tsconfig.json ./
 COPY mcp/src ./src
 
-# The pack's specs folder: per-service manifests (texts and offered fields)
-# and training markdown. The value rules are the engine's own form schemas
-# from the pack and the core's shared definitions, so an agent is refused
-# exactly what the engine would refuse.
-COPY packs/reference/docs/business/services /app/services-spec
-COPY packs/reference/engine/processes /app/pack-engine/processes
+# The core's shared value definitions, which the pack's form schemas $ref.
+# The pack's layer adds /app/services-spec (its specs folder: manifests and
+# training markdown) and /app/pack-engine/processes (its engine form schemas,
+# the value rules), so an agent is refused exactly what the engine would refuse.
 COPY cib7/src/main/resources/schemas/core-v1.json /app/core-schemas/core-v1.json
 
 ENV PORT=8090
