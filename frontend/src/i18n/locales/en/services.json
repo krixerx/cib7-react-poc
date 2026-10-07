@@ -4,5 +4,6 @@
   "empty": "No services are available right now.",
   "start": "Start",
   "signInToStart": "Sign in to start",
-  "starting": "Starting…"
+  "starting": "Starting…",
+  "noPack": "No service pack is installed, so service descriptions and form texts are missing. Ask the operator to deploy the portal with its pack."
 }

@@ -1,6 +1,12 @@
-# Build context is the repo root (see docker-compose.yml): the image serves the
-# reference service pack's form definitions from packs/reference/frontend.
-# frontend/Dockerfile.dockerignore limits the context to frontend/ and packs/.
+# The core frontend image: the SPA and nginx, with no service pack. /pack/ is
+# empty here; a pack's image is a thin layer FROM this one that adds its
+# frontend/ and branding/ there (packs/reference/docker/frontend.Dockerfile),
+# so a core update reaches a customer as a base image bump. Without a pack the
+# SPA still starts, on core texts and the core look, and says no pack is
+# installed.
+#
+# Build context is the repo root (see docker-compose.yml);
+# frontend/Dockerfile.dockerignore limits it to frontend/.
 
 # --- build stage ---------------------------------------------------------
 # Node 24, matching quality.yml. The lock is written with npm 11, which
@@ -31,14 +37,6 @@ FROM nginxinc/nginx-unprivileged:1.30.5-alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY frontend/docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/dist /usr/share/nginx/html
-# The service pack's data, fetched by the SPA under /pack/: catalog.json and
-# the texts in locales/ at startup, forms/<id>.json per task. Data only; a
-# customer pack replaces this directory
-# (a bind mount or a thin image layer) without rebuilding the SPA.
-COPY packs/reference/frontend/ /usr/share/nginx/html/pack/
-# The pack's branding (logo, favicon, tokens.json, brand texts) under
-# /pack/branding/, read by src/pack/brand.ts before the first render.
-COPY packs/reference/branding/ /usr/share/nginx/html/pack/branding/
 # Runtime config injection: regenerates /env.js and the SPA's CSP snippet from
 # KEYCLOAK_URL / KEYCLOAK_REALM / KEYCLOAK_CLIENT_ID / S3_PUBLIC_URL at
 # container start, so the image published to Docker Hub works on any hostname

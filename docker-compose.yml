@@ -628,11 +628,27 @@ services:
       esb:
         condition: service_started
 
-  frontend:
-    # Repo root as context: the image serves packs/reference/frontend at /pack/.
+  # The core frontend image (SPA + nginx, no pack). Built only as the base of
+  # `frontend` below; scale 0 keeps it from running on its own.
+  frontend-core:
+    scale: 0
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    image: cib7-poc-frontend-core:local
+
+  frontend:
+    # The reference pack's portal image, built the way a customer pack builds
+    # its own: a thin layer adding the pack's frontend/ and branding/ to the
+    # core image (packs/reference/docker/frontend.Dockerfile). Here the base is
+    # the core built from this checkout instead of a published release.
+    build:
+      context: ./packs/reference
+      dockerfile: docker/frontend.Dockerfile
+      additional_contexts:
+        frontend-core: service:frontend-core
+      args:
+        FRONTEND_CORE: frontend-core
     container_name: cib7-poc-frontend
     # WORKAROUND for the Traefik docker-provider "Error response from daemon: "
     # bug on Docker Desktop + new daemon API. Until Traefik gets healthy we

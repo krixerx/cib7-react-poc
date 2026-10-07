@@ -76,6 +76,7 @@ export default function ServicesPage() {
     <div className="landing">
       <h1 className="landing-title">{t('heading')}</h1>
 
+      {catalog() === null && <p className="form-error">{t('noPack')}</p>}
       {error && <p className="form-error">{error}</p>}
       {loading && !error && <p className="muted">{t('loading')}</p>}
       {!loading && !error && ordered.length === 0 && <p className="muted">{t('empty')}</p>}

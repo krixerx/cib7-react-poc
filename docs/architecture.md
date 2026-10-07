@@ -275,8 +275,13 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
   `pending/` lifecycle rule are bootstrapped by the backend on startup.
-- **frontend** — built from `frontend/Dockerfile` (multi-stage: Vite build →
-  `nginx-unprivileged`, uid 101). Publishes port `3000` mapped to container
+- **frontend** — the reference pack's portal image: a thin layer
+  (`packs/reference/docker/frontend.Dockerfile`) adding the pack's
+  `frontend/` and `branding/` under `/pack/` to the core image, which
+  compose builds from `frontend/Dockerfile` as `frontend-core` (multi-stage:
+  Vite build → `nginx-unprivileged`, uid 101; `scale: 0`, so it never runs on
+  its own). CI publishes both: `cib7-poc-frontend-core` and, from it,
+  `cib7-poc-frontend`. Publishes port `3000` mapped to container
   port `8080`. Sets the security headers and the `/api/public` and `/mcp`
   rate limits; its CSP is generated at start from `KEYCLOAK_URL` and
   `S3_PUBLIC_URL`. `depends_on: cib7` (start ordering only — nginx does not

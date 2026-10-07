@@ -221,8 +221,10 @@ containers. The short form:
   the SPA strips `react:` and `forms/resolve.ts` picks the form: a TSX component
   from `frontend/src/forms/registry.ts` if the spec says `Renderer: tsx`,
   otherwise the schema renderer, which fetches the pack's
-  `/pack/forms/<form-id>.json` (nginx serves `packs/reference/frontend` there;
-  the Vite dev server does the same). Nothing validates the id at deploy time,
+  `/pack/forms/<form-id>.json` (the pack's image layer,
+  `packs/reference/docker/frontend.Dockerfile`, puts `packs/reference/frontend`
+  there on top of the pack-less core image; the Vite dev server serves
+  `PACK_DIR` or the reference pack the same way). Nothing validates the id at deploy time,
   so a wrong id shows up only on the task page, as "No form definition found".
 - **One engine deployment per `processes/<service>/` folder.**
   `ServiceDeployments.java` scans `classpath*:processes/*/` (the pack directory

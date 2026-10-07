@@ -24,7 +24,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: cib7-poc-frontend
+          # The core SPA image, with no pack; cib7-poc-frontend (the reference
+          # pack's portal) is built FROM it in the job below.
+          - image: cib7-poc-frontend-core
             context: .
             dockerfile: ./frontend/Dockerfile
           - image: cib7-poc-mobile
@@ -103,3 +105,60 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # The reference pack's portal image: a thin layer adding the pack's data to
+  # the core image this run just pushed (by its sha tag, so a later push to
+  # latest cannot slip in between). Same scan gate as the core images. The
+  # deploy bundle pulls this one, so its name is unchanged.
+  reference-pack-images:
+    name: Build & push cib7-poc-frontend (reference pack)
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cib7-poc-frontend
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short,prefix=
+
+      - id: core
+        run: echo "image=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/cib7-poc-frontend-core:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ./packs/reference
+          file: ./packs/reference/docker/frontend.Dockerfile
+          build-args: FRONTEND_CORE=${{ steps.core.outputs.image }}
+          load: true
+          push: false
+          tags: scan/cib7-poc-frontend:${{ github.sha }}
+
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: scan/cib7-poc-frontend:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./packs/reference
+          file: ./packs/reference/docker/frontend.Dockerfile
+          build-args: FRONTEND_CORE=${{ steps.core.outputs.image }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
