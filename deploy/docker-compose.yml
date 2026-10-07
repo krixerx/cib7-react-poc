@@ -1,16 +1,23 @@
 # ============================================================================
 # cib7-react-poc — pull-only deployment (no source checkout, no build).
 #
-# All seven application images are published to Docker Hub by CI on every
-# push to main that passes the quality workflow:
+# One instance = this core deploy kit + one service pack. The kit holds
+# nothing of a pack; .env names the pack and the core release:
 #
-#   docker.io/krixerx/cib7-poc-frontend       React SPA (nginx, port 8080)
-#   docker.io/krixerx/cib7-poc-mobile         Flutter web applicant app (nginx, 8080)
-#   docker.io/krixerx/cib7-poc-cib7           CIB seven 2.1 process engine
-#   docker.io/krixerx/cib7-poc-backend        business microservice (/api)
-#   docker.io/krixerx/cib7-poc-mcp            MCP sidecar (AI front door)
-#   docker.io/krixerx/cib7-poc-pdf-renderer   Gotenberg facade
-#   docker.io/krixerx/cib7-poc-esb            integration bus (Apache Camel)
+#   ${PACK_IMAGE_PREFIX}-frontend:${PACK_TAG}  React SPA (nginx, port 8080)
+#   ${PACK_IMAGE_PREFIX}-mobile:${PACK_TAG}    Flutter web applicant app (nginx, 8080)
+#   ${PACK_IMAGE_PREFIX}-engine:${PACK_TAG}    CIB seven 2.2 process engine
+#   ${PACK_IMAGE_PREFIX}-backend:${PACK_TAG}   business microservice (/api)
+#   ${PACK_IMAGE_PREFIX}-mcp:${PACK_TAG}       MCP sidecar (AI front door)
+#     each a pack's layer on the core image of the release it names
+#   docker.io/krixerx/cib7-poc-pdf-renderer:${CORE_TAG}   Gotenberg facade
+#   docker.io/krixerx/cib7-poc-esb:${CORE_TAG}            integration bus
+#     core only, no pack in them: CORE_TAG is the pack's core release
+#
+# The pack's data for the official Keycloak image (its users file and the
+# branding of the login pages) sits in ./pack/, which the Deploy to VM
+# workflow fills from the pack repository; Keycloak itself stays the stock
+# image.
 #
 # Every image runs as a non-root user. Containers share a network only when
 # one calls the other; the map is the `networks:` block at the bottom.
@@ -128,7 +135,7 @@ services:
   keycloak:
     # Identity provider. The realm is imported on FIRST start only, from two
     # files: ./keycloak/cib7-poc-realm.json (settings, roles, groups, OAuth
-    # clients) and ./keycloak/cib7-poc-users-0.json (the users) — edit them
+    # clients) and ./pack/keycloak/cib7-poc-users-0.json (the pack's users) — edit them
     # BEFORE the first `up`. To re-import after an edit:
     #   docker compose rm -sf keycloak && docker compose up -d keycloak
     image: quay.io/keycloak/keycloak:26.1.5
@@ -186,14 +193,14 @@ services:
       - "${KEYCLOAK_HTTP_PORT:-8180}:8080"
     volumes:
       - ./keycloak/cib7-poc-realm.json:/opt/keycloak/data/import/cib7-poc-realm.json:ro
-      - ./keycloak/cib7-poc-users-0.json:/opt/keycloak/data/import/cib7-poc-users-0.json:ro
+      - ./pack/keycloak/cib7-poc-users-0.json:/opt/keycloak/data/import/cib7-poc-users-0.json:ro
       # Branded login theme (cib7), selected via the realm loginTheme attribute.
       # Shipped as files in this bundle rather than baked into the image so it
       # stays editable without a rebuild.
       - ./keycloak/themes:/opt/keycloak/themes:ro
       # The service pack's branding for the login pages (logo, colours,
       # portal name), read by the theme; the frontend image carries the same.
-      - ./branding:/opt/keycloak/themes/cib7/login/resources/pack:ro
+      - ./pack/branding:/opt/keycloak/themes/cib7/login/resources/pack:ro
     healthcheck:
       # Management port 9000 listening == server init + realm import started.
       # The engine waits on this; without it the engine races Keycloak on
@@ -209,7 +216,7 @@ services:
   pdf-renderer:
     # JSON-in/JSON-out facade in front of Gotenberg, so the BPMN can stay
     # pure http-connector + FreeMarker.
-    image: docker.io/krixerx/cib7-poc-pdf-renderer:${IMAGE_TAG:-latest}
+    image: docker.io/krixerx/cib7-poc-pdf-renderer:${CORE_TAG:-latest}
     container_name: cib7-poc-pdf-renderer
     restart: unless-stopped
     # pdf: called by the bus (Graylog sits there too). render: Gotenberg.
@@ -232,7 +239,7 @@ services:
     # declarative routes baked into the image forward each path to the real
     # system. The bus also injects the X-Internal-Token secret on the
     # document-write route, so the engine no longer holds that credential.
-    image: docker.io/krixerx/cib7-poc-esb:${IMAGE_TAG:-latest}
+    image: docker.io/krixerx/cib7-poc-esb:${CORE_TAG:-latest}
     container_name: cib7-poc-esb
     restart: unless-stopped
     # bus: the engine, its only caller. mail / pdf / esb-backend: one network
@@ -269,7 +276,7 @@ services:
     # CIB seven 2.1 process engine + Cockpit/Tasklist/Admin webapps.
     # Reachable through the frontend nginx (and Traefik in TLS mode) on
     # /engine-rest, /camunda, /oauth2, /login, /logout.
-    image: docker.io/krixerx/cib7-poc-cib7:${IMAGE_TAG:-latest}
+    image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-engine:${PACK_TAG:-latest}
     container_name: cib7-poc-cib7
     restart: unless-stopped
     # edge: frontend/mobile nginx and Traefik. app: keycloak, and called by
@@ -346,7 +353,7 @@ services:
   backend:
     # Business microservice — owns every /api/** surface (public payment /
     # confirmation endpoints, vehicle registry, document storage).
-    image: docker.io/krixerx/cib7-poc-backend:${IMAGE_TAG:-latest}
+    image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-backend:${PACK_TAG:-latest}
     container_name: cib7-poc-backend
     restart: unless-stopped
     # edge: nginx/Traefik. app: engine + keycloak, called by mcp. storage:
@@ -398,7 +405,7 @@ services:
   mcp:
     # MCP sidecar — lets AI clients (Claude Desktop, Cursor, …) drive the
     # applicant flows over OAuth2-protected MCP tools.
-    image: docker.io/krixerx/cib7-poc-mcp:${IMAGE_TAG:-latest}
+    image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-mcp:${PACK_TAG:-latest}
     container_name: cib7-poc-mcp
     restart: unless-stopped
     # edge: nginx/Traefik. app: cib7, backend, keycloak. gelf-mcp: its own
@@ -447,7 +454,7 @@ services:
     # single-machine mode port 3000 is the only front door you need.
     # Keycloak URL/realm/client are injected at CONTAINER START via /env.js
     # — no image rebuild for different hostnames.
-    image: docker.io/krixerx/cib7-poc-frontend:${IMAGE_TAG:-latest}
+    image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-frontend:${PACK_TAG:-latest}
     container_name: cib7-poc-frontend
     restart: unless-stopped
     # nginx-unprivileged (uid 101) listens on 8080 inside the container.
@@ -478,7 +485,7 @@ services:
     # :3000/mobile (single-machine front door), through Traefik under /mobile
     # in TLS mode, and directly on MOBILE_HTTP_PORT. Like the frontend, the
     # Keycloak config is injected at CONTAINER START via /mobile/env.js.
-    image: docker.io/krixerx/cib7-poc-mobile:${IMAGE_TAG:-latest}
+    image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-mobile:${PACK_TAG:-latest}
     container_name: cib7-poc-mobile
     restart: unless-stopped
     # nginx-unprivileged (uid 101) listens on 8080 inside the container.

@@ -31,7 +31,7 @@
 #      recreates the engine and WIPES running process instances (in-memory
 #      H2) — the script asks first unless --yes.
 #   4. --realm additionally recreates Keycloak so an edited
-#      realm (keycloak/cib7-poc-realm.json, cib7-poc-users-0.json) is re-imported (one-shot import; this also
+#      realm (keycloak/cib7-poc-realm.json, pack/keycloak/cib7-poc-users-0.json) is re-imported (one-shot import; this also
 #      drops users registered at runtime).
 #   5. Smoke-tests the public endpoints (PUBLIC_FRONTEND_URL from .env).
 #

@@ -12,9 +12,10 @@ deploy/
 ├── deploy.sh                          one-command upgrade + smoke test
 ├── .env.example                       configuration template
 ├── keycloak/cib7-poc-realm.json       realm: roles, groups, OAuth clients
-├── keycloak/cib7-poc-users-0.json     users (the reference pack's demo users)
 ├── keycloak/themes/                   login theme (core)
-├── branding/                          the pack's logo, colours and portal texts for the login pages
+├── pack/                              the instance's service pack data (not in the kit;
+│   ├── keycloak/cib7-poc-users-0.json   the Deploy to VM workflow fills it from the pack
+│   └── branding/                        repository): its users and its login-page branding
 ├── graylog/provision-inputs.sh        creates the GELF inputs on first start
 ├── traefik/dynamic/routes.yml.example ingress routing (only for the HTTPS setup)
 └── traefik/dynamic/tls.yml.example    supplied-cert TLS config (optional)
@@ -117,7 +118,9 @@ docker compose up -d        # recreates only the affected containers
 
 | Variable | Default | What it does |
 |---|---|---|
-| `IMAGE_TAG` | `latest` | Docker Hub tag for the six app images. Pin a commit SHA for reproducible deploys. |
+| `PACK_IMAGE_PREFIX` | `docker.io/krixerx/eregistrations-reference` | The service pack's images: `<prefix>-frontend`, `-engine`, `-backend`, `-mcp`, `-mobile`. |
+| `PACK_TAG` | `latest` | The pack's image tag (its 7-char commit SHA; the Deploy to VM workflow pins it). |
+| `CORE_TAG` | `latest` | The core release the pack names in its `docker/core.conf`, for the core-only images (esb, pdf-renderer). |
 | `PUBLIC_KEYCLOAK_URL` | `http://localhost:8180` | Browser-visible Keycloak URL. Stamped into every JWT — must match the address bar exactly. |
 | `PUBLIC_FRONTEND_URL` | `http://localhost:3000` | Browser-visible app URL. Embedded in confirmation-email links. |
 | `PUBLIC_S3_URL` | `http://localhost:9000` | Browser-visible object-storage URL (presigned upload/download links). |
@@ -436,14 +439,15 @@ docker compose pull
 docker compose up -d            # add --profile tls in the TLS setup
 ```
 
-If you pinned `IMAGE_TAG`, change it in `.env` first.
+If you pinned `PACK_TAG` and `CORE_TAG`, change them in `.env` first (and
+replace `pack/` with that pack version's users file and branding).
 **Warning:** recreating the engine container wipes all process state —
 see [Known limitations](#known-limitations-this-is-a-poc).
 
 ### Re-importing the realm
 
-Keycloak imports `keycloak/cib7-poc-realm.json` and the users in
-`keycloak/cib7-poc-users-0.json` **once**, on first start.
+Keycloak imports `keycloak/cib7-poc-realm.json` and the pack's users in
+`pack/keycloak/cib7-poc-users-0.json` **once**, on first start.
 Restarting is not enough to pick up edits — recreate the container:
 
 ```bash

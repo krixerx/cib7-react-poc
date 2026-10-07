@@ -286,8 +286,8 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `frontend/` and `branding/` under `/pack/` to the core image, which
   compose builds from `frontend/Dockerfile` as `frontend-core` (multi-stage:
   Vite build → `nginx-unprivileged`, uid 101; `scale: 0`, so it never runs on
-  its own). CI publishes both: `cib7-poc-frontend-core` and, from it,
-  `cib7-poc-frontend`. Publishes port `3000` mapped to container
+  its own). CI publishes the core image as `cib7-poc-frontend-core`; a pack
+  repository publishes its layer on it (`<IMAGE_PREFIX>-frontend`). Publishes port `3000` mapped to container
   port `8080`. Sets the security headers and the `/api/public` and `/mcp`
   rate limits; its CSP is generated at start from `KEYCLOAK_URL` and
   `S3_PUBLIC_URL`. `depends_on: cib7` (start ordering only — nginx does not

@@ -292,8 +292,9 @@ stays.
 - Every image we build runs as a non-root user.
 - Base and third-party images are pinned to a version, never `latest`.
   Exception: our own images in `deploy/docker-compose.yml` default to
-  `${IMAGE_TAG:-latest}` for a quick single-machine evaluation; the deploy
-  workflow always pins `IMAGE_TAG` to a commit SHA.
+  `latest` (`PACK_TAG`, `CORE_TAG`) for a quick single-machine evaluation;
+  the deploy workflow always pins the pack's commit SHA and the core
+  release.
 - No container mounts the Docker socket in the deploy bundle or the prod
   overlay (both run Traefik on the file provider). Only the profile-gated
   dev Traefik in `docker-compose.yml` mounts it, read-only.
