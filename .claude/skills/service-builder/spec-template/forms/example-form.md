@@ -103,6 +103,26 @@ refused.
 | `{}` | accepted | the submission above |
 | `{"<other-field>": 0}` | refused | <the rule it breaks> |
 
+## Behaviour examples
+
+Required for a form the pack defines. The core's pack checks run each row
+through the portal's form renderer (`src/pack/behaviour.test.ts`): the inputs
+a user leaves the form with (as the form holds them: numbers as text, lists
+of rows), then an action, a change to those inputs and what the form sends
+(variable values, Json ones parsed; a subset) or its error keys in form order.
+`(initial)` fills the form from task variables (the change) instead and
+compares the inputs it starts with.
+
+```json
+{"<field>": "<as typed>", "<number-field>": "30"}
+```
+
+| Action | Change | Result |
+|---|---|---|
+| `(initial)` | `{}` | `{"<field-with-default>": "<default>"}` |
+| `<action-id>` | `{}` | `{"<variable>": 30}` |
+| `<action-id>` | `{"<number-field>": ""}` | `errors.<key>` |
+
 ## Notes
 
 <Free-form context for the developer: edge cases, gotchas, why a particular

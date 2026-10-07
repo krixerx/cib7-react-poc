@@ -91,6 +91,57 @@ change replaces the named fields of the submission above.
 | `{"companyName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}` | refused | a company name is at most 200 characters |
 | `{"boardMembers": []}` | refused | at least one board member |
 
+## Behaviour examples
+
+Run through the portal's form renderer by the core's pack checks
+(`src/pack/behaviour.test.ts`): the inputs a user leaves the form with, then
+per row an action, a change to those inputs and what the form sends (values;
+Json variables parsed) or the errors it shows, in form order. `(initial)`
+fills the form from the task's variables (the change) instead.
+
+```json
+{
+  "companyName": "  Näidis ",
+  "shareCapital": "2500",
+  "applicantResidency": "citizen",
+  "boardMembers": [
+    {
+      "firstName": "Bart",
+      "lastName": "Simpson",
+      "personalCode": "39001010000"
+    },
+    {
+      "firstName": "",
+      "lastName": "",
+      "personalCode": ""
+    }
+  ],
+  "applicantFirstName": "Bart",
+  "applicantLastName": "Simpson",
+  "applicantAge": "40",
+  "applicantEmail": "",
+  "pendingAoaDocument": {
+    "pendingKey": "pending/bart/1/aoa.pdf",
+    "filename": "aoa.pdf",
+    "contentType": "application/pdf",
+    "size": 10
+  },
+  "additionalFounders": []
+}
+```
+
+| Action | Change | Result |
+|---|---|---|
+| `(initial)` | `{}` | `{"boardMembers": [{"firstName": "", "lastName": "", "personalCode": ""}], "shareCapital": "2500", "applicantResidency": "citizen"}` |
+| `submit` | `{"shareCapital": "2500.5", "applicantResidency": "e-resident"}` | `{"companyName": "Näidis OÜ", "boardMembers": [{"firstName": "Bart", "lastName": "Simpson", "personalCode": "39001010000"}], "shareCapital": 2500.5, "applicantAge": 40, "applicantResidency": "e-resident", "sendBackReason": "", "additionalFounders": []}` |
+| `submit` | `{"companyName": "  "}` | `errors.companyNameRequired` |
+| `submit` | `{"boardMembers": [{"firstName": "", "lastName": "", "personalCode": ""}]}` | `errors.boardMemberRequired` |
+| `submit` | `{"boardMembers": [{"firstName": "Bart", "lastName": "", "personalCode": "39001010000"}]}` | `errors.boardMemberIncomplete` |
+| `submit` | `{"boardMembers": [{"firstName": "Bart", "lastName": "Simpson", "personalCode": "3900101000"}]}` | `errors.personalCodeFormat` |
+| `submit` | `{"shareCapital": "2499.99"}` | `errors.shareCapitalMin` |
+| `submit` | `{"applicantAge": "131"}` | `errors.applicantAgeRange` |
+| `submit` | `{"pendingAoaDocument": null}` | `errors.aoaRequired` |
+
 ## Notes
 
 - Required `no (form: yes)`: the form insists, but the MCP agent flow does

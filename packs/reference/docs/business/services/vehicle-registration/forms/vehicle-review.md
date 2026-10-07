@@ -84,6 +84,26 @@ change replaces the named fields of the submission above.
 | `{"decision": "sendback"}` | refused | a send-back needs a reason |
 | `{"decision": "reject"}` | refused | approve or sendback only |
 
+## Behaviour examples
+
+Run through the portal's form renderer by the core's pack checks
+(`src/pack/behaviour.test.ts`): the inputs a user leaves the form with, then
+per row an action, a change to those inputs and what the form sends (values;
+Json variables parsed) or the errors it shows, in form order. `(initial)`
+fills the form from the task's variables (the change) instead.
+
+```json
+{
+  "sendBackReason": ""
+}
+```
+
+| Action | Change | Result |
+|---|---|---|
+| `approve` | `{}` | `{"decision": "approve"}` |
+| `sendback` | `{"sendBackReason": "   "}` | `errors.reasonRequired` |
+| `sendback` | `{"sendBackReason": "  ID unreadable "}` | `{"decision": "sendback", "sendBackReason": "ID unreadable"}` |
+
 ## Notes
 
 - `price` is written by the vehicle registry lookup (`Task_GetPrice`), not

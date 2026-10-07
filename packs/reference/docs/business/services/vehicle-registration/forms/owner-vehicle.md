@@ -87,6 +87,49 @@ change replaces the named fields of the submission above.
 | `{"additionalOwners": [{"name": "Marge", "email": "marge@example.com"}], "applicantEmail": "bart@example.com"}` | accepted | co-owner and applicant email |
 | `{"additionalOwners": [{"name": "Marge", "email": "marge"}], "applicantEmail": "bart@example.com"}` | refused | a co-owner needs a valid email |
 
+## Behaviour examples
+
+Run through the portal's form renderer by the core's pack checks
+(`src/pack/behaviour.test.ts`): the inputs a user leaves the form with, then
+per row an action, a change to those inputs and what the form sends (values;
+Json variables parsed) or the errors it shows, in form order. `(initial)`
+fills the form from the task's variables (the change) instead.
+
+```json
+{
+  "firstName": "Bart",
+  "lastName": "Simpson",
+  "age": "30",
+  "applicantEmail": "bart@example.com",
+  "pendingIdDocument": {
+    "pendingKey": "pending/bart/1/id.pdf",
+    "filename": "id.pdf",
+    "contentType": "application/pdf",
+    "size": 10
+  },
+  "objectId": "WP0AB2A91KS123456",
+  "additionalOwners": []
+}
+```
+
+| Action | Change | Result |
+|---|---|---|
+| `submit` | `{"additionalOwners": [{"name": " Marge ", "email": "marge@example.com"}, {"name": "", "email": ""}]}` | `{"firstName": "Bart", "lastName": "Simpson", "age": 30, "objectId": "WP0AB2A91KS123456", "applicantEmail": "bart@example.com", "sendBackReason": "", "additionalOwners": [{"name": "Marge", "email": "marge@example.com"}], "pendingIdDocument": {"pendingKey": "pending/bart/1/id.pdf", "filename": "id.pdf", "contentType": "application/pdf"}}` |
+| `submit` | `{"applicantEmail": ""}` | `{"applicantEmail": ""}` |
+| `submit` | `{"firstName": " "}` | `errors.namesRequired` |
+| `submit` | `{"age": "0"}` | `errors.ageRange` |
+| `submit` | `{"age": "30.5"}` | `errors.ageRange` |
+| `submit` | `{"age": ""}` | `errors.ageRange` |
+| `submit` | `{"applicantEmail": "bart"}` | `errors.invalidEmail` |
+| `submit` | `{"pendingIdDocument": null}` | `errors.idDocumentRequired` |
+| `submit` | `{"objectId": ""}` | `errors.vehicleRequired` |
+| `submit` | `{"additionalOwners": [{"name": "", "email": "m@example.com"}]}` | `errors.coOwnerNameRequired` |
+| `submit` | `{"additionalOwners": [{"name": "Marge", "email": "marge"}]}` | `errors.coOwnerEmailInvalid` |
+| `submit` | `{"additionalOwners": [{"name": "A", "email": "m@example.com"}, {"name": "B", "email": "M@example.com"}]}` | `errors.duplicateCoOwnerEmail` |
+| `submit` | `{"additionalOwners": [{"name": "Me", "email": "BART@example.com"}]}` | `errors.applicantEmailInCoOwners` |
+| `submit` | `{"applicantEmail": "", "additionalOwners": [{"name": "Marge", "email": "m@example.com"}]}` | `errors.applicantEmailRequiredWithCoOwners` |
+| `submit` | `{"age": "", "pendingIdDocument": null, "objectId": ""}` | `errors.ageRange, errors.idDocumentRequired, errors.vehicleRequired` |
+
 ## Notes
 
 - `pendingIdDocument` is `{pendingKey, filename, contentType}` for a fresh

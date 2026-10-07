@@ -1,13 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { completion } from './values';
 import {
   interpolation,
   InvalidDefinition,
   listEntries,
   parseDefinition,
-  revealedFields,
   shown,
   summaryPresent,
   type FormDefinition,
@@ -23,31 +21,7 @@ function vehicleReview(): FormDefinition {
   return parseDefinition(packDefinition('vehicle-review'), 'vehicle-review');
 }
 
-describe('vehicle-review behaves like the former TSX form', () => {
-  it('approve completes with the decision only', () => {
-    const d = vehicleReview();
-    const approve = d.actions.find((a) => a.id === 'approve')!;
-    expect(revealedFields(d, 'approve')).toEqual([]);
-    expect(completion(d, approve, { sendBackReason: '' })).toEqual({
-      variables: { decision: { value: 'approve', type: 'String' } },
-    });
-  });
-
-  it('send back needs a reason and sends it trimmed', () => {
-    const d = vehicleReview();
-    const sendBack = d.actions.find((a) => a.id === 'sendback')!;
-    expect(revealedFields(d, 'sendback').map((f) => f.name)).toEqual(['sendBackReason']);
-    expect(completion(d, sendBack, { sendBackReason: '   ' })).toEqual({
-      errors: [{ field: 'sendBackReason', key: 'errors.reasonRequired' }],
-    });
-    expect(completion(d, sendBack, { sendBackReason: '  ID unreadable ' })).toEqual({
-      variables: {
-        decision: { value: 'sendback', type: 'String' },
-        sendBackReason: { value: 'ID unreadable', type: 'String' },
-      },
-    });
-  });
-
+describe('show rules on vehicle-review', () => {
   it('shows the decision only on a finished case and the previous reason only while editing', () => {
     const d = vehicleReview();
     const decision = d.summary.find((s) => s.variable === 'decision')!;
