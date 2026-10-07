@@ -1,12 +1,10 @@
 package com.poc.backend.registry;
 
-import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.poc.backend.engine.EngineClient;
-import java.time.Year;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,9 +16,9 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
- * The registry module through the real filter chains: the test pack's {@code vehicles} served
- * exactly like the former hand-written controller, and the negative cases of docs/security.md rule
- * 5 with a test-only {@code plates} entity that is internal only.
+ * The registry module through the real filter chains: the negative cases of docs/security.md rule 5
+ * on the test pack's public {@code vehicles} and a test-only {@code plates} entity that is internal
+ * only.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -39,28 +37,8 @@ class RegistryControllerTest {
   @MockitoBean S3Presigner s3Presigner;
   @MockitoBean EngineClient engine;
 
-  @Test
-  void vehiclesListKeepsTheFormerResponseShape() throws Exception {
-    int age = Year.now().getValue() - 2019;
-    mvc.perform(get("/api/public/registry/vehicles"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$", hasSize(10)))
-        // Sorted by make: Audi first.
-        .andExpect(jsonPath("$[0].make").value("Audi"))
-        .andExpect(jsonPath("$[?(@.vin == 'WP0AB2A91KS123456')].model").value("911 Carrera"))
-        .andExpect(jsonPath("$[?(@.vin == 'WP0AB2A91KS123456')].value").value(88000.0))
-        .andExpect(jsonPath("$[?(@.vin == 'WP0AB2A91KS123456')].fuelType").value("Petrol"))
-        .andExpect(jsonPath("$[?(@.vin == 'WP0AB2A91KS123456')].ageYears").value(age));
-  }
-
-  @Test
-  void vehicleLookupByVin() throws Exception {
-    mvc.perform(get("/api/public/registry/vehicles/VF15RBA0H55012345"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.make").value("Renault"))
-        .andExpect(jsonPath("$.year").value(2015))
-        .andExpect(jsonPath("$.value").value(4200.0));
-  }
+  // The rows each registry serves are its spec's Seed table, checked by
+  // RegistrySeedTest (a pack check). Here the endpoint classes and refusals.
 
   @Test
   void missingOrMaliciousKeyIs404() throws Exception {

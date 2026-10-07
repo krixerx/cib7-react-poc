@@ -120,6 +120,19 @@ output `stateFee`) before the invoice, and print `stateFee` in it.
 The tier variable must be one the engine sets (a connector output), never
 one a client writes.
 
+### Fee examples
+
+Required with a State fee. The core's pack checks run each row through the
+backend's fee code (`FeeExamplesTest`); `Recipient` and `Currency` above must
+be what it charges. Tiered: the tier variable as the engine may hold it (JSON
+literal, also `null` and `"38,000"`-style strings) and the amount. Flat: only
+`Amount`.
+
+| `<variable>` | Amount |
+|---|---|
+| `<below L1>` | `<A1>` |
+| `<L1>` | `<A2>` |
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.

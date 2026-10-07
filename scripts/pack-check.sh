@@ -40,7 +40,8 @@ echo "== engine"
 mvn -B -q -f cib7/pom.xml test -Dgroups=pack \
   -Dservices.pack.dir="$pack/engine" -Dservices.docs.dir="$docs"
 echo "== backend"
-mvn -B -q -f backend/pom.xml test -Dgroups=pack -Dservices.pack.dir="$pack/backend"
+mvn -B -q -f backend/pom.xml test -Dgroups=pack \
+  -Dservices.pack.dir="$pack/backend" -Dservices.docs.dir="$docs"
 echo "== frontend"
 (cd frontend && PACK_DIR="$pack" npx vitest run src/pack)
 echo "== mcp"

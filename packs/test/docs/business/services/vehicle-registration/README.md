@@ -253,6 +253,22 @@ the charge cannot differ.
 The tier variable must be one the engine sets, never one a client writes
 (docs/security.md rule 4); `PackConformanceTest` checks this.
 
+### Fee examples
+
+Run through the backend's fee code by the core's pack checks
+(`FeeExamplesTest`): the tier variable as the engine may hold it (a JSON
+literal; a missing price, or one formatted with thousands separators), and
+the amount charged.
+
+| price | Amount |
+|---|---|
+| `4999` | `25` |
+| `5000` | `75` |
+| `19999` | `75` |
+| `20000` | `150` |
+| `null` | `25` |
+| `"38,000"` | `150` |
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.

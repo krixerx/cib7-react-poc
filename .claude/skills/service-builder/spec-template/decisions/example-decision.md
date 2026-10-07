@@ -15,6 +15,7 @@
 **Decision id:** `<decision-id>` (kebab-case, globally unique; the BPMN's
   `camunda:decisionRef` must match this exactly)
 **Display name:** `<Name shown in Cockpit>`
+**Output variable:** `<outputVar>` (the BPMN task's `camunda:resultVariable`)
 **Hit policy:** `FIRST` | `UNIQUE` | `COLLECT`
 **History TTL:** `P30D` (must match the BPMN's process-level TTL)
 
@@ -51,6 +52,28 @@ Output entries are quoted FEEL literals: `"approve"`, `100`, `true`.
 | `Rule_<Name>` | `< 18` | `-` | … | `"review"` |
 | `Rule_<Name>` | `>= 18` | `< 100` | … | `"approve"` |
 | `Rule_<Default>` | `-` | `-` | … | `"review"` |
+
+## Examples
+
+Required. The core's pack checks evaluate every row against the generated
+DMN (`DecisionExamplesTest`), so this table is the decision's test. One
+column per input, named by its source variable, and one for the output;
+values are JSON literals (`30`, `3000.0`, `"citizen"`, `null`). Cover every
+rule and each boundary.
+
+| `<input-1-variable>` | `<input-2-variable>` | `<outputVar>` |
+|---|---|---|
+| `17` | `50` | `"review"` |
+| `30` | `50` | `"approve"` |
+
+A rule that switches the real policy off (a demo rule) gets a second table,
+evaluated with that rule removed:
+
+## Examples without `Rule_<Demo>`
+
+| `<input-1-variable>` | `<input-2-variable>` | `<outputVar>` |
+|---|---|---|
+| `30` | `50` | `"approve"` |
 
 ## Notes
 

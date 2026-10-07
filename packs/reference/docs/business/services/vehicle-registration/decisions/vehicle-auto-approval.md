@@ -39,6 +39,19 @@ output row is returned (mapped to `autoDecision` via `singleEntry`).
 Rule 4 is the catch-all: without it, hit policy `FIRST` yields an empty
 result for unmatched inputs instead of a decision.
 
+## Examples
+
+Run against the DMN by the core's pack checks (`DecisionExamplesTest`):
+inputs by source variable, the expected output, values as JSON literals.
+
+| age | price | vehicleAgeYears | autoDecision |
+|---|---|---|---|
+| `30` | `3000.0` | `12` | `"approve"` |
+| `17` | `3000.0` | `12` | `"review"` |
+| `40` | `50000.0` | `12` | `"review"` |
+| `30` | `3000.0` | `5` | `"review"` |
+| `30` | `5000.0` | `20` | `"review"` |
+
 ## Why these rules
 
 - **Underage owner (rule 1):** a minor cannot be the sole registered owner,

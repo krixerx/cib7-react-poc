@@ -44,6 +44,32 @@ Rule 5 is the catch-all for anything rules 1 to 4 do not cover (an
 unexpected or missing residency value). Without it, hit policy `FIRST`
 yields an empty result for unmatched inputs instead of a decision.
 
+## Examples
+
+Run against the DMN by the core's pack checks (`DecisionExamplesTest`):
+inputs by source variable, the expected output, values as JSON literals.
+In demo mode every case is reviewed:
+
+| applicantAge | shareCapital | applicantResidency | autoDecision |
+|---|---|---|---|
+| `30` | `5000.0` | `"citizen"` | `"review"` |
+| `25` | `2500.0` | `"e-resident"` | `"review"` |
+
+## Examples without `Rule_DemoAlwaysReview`
+
+The real policy, evaluated with the demo rule removed, so it is right the
+moment rule 0 goes:
+
+| applicantAge | shareCapital | applicantResidency | autoDecision |
+|---|---|---|---|
+| `30` | `2500.0` | `"citizen"` | `"approve"` |
+| `25` | `5000.0` | `"e-resident"` | `"approve"` |
+| `17` | `5000.0` | `"citizen"` | `"review"` |
+| `30` | `1000.0` | `"citizen"` | `"review"` |
+| `40` | `10000.0` | `"foreign"` | `"review"` |
+| `30` | `5000.0` | `"martian"` | `"review"` |
+| `30` | `5000.0` | `null` | `"review"` |
+
 ## Why these rules
 
 - **Share capital floor (Rule 1)** — historical Estonian Commercial Code

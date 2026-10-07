@@ -176,6 +176,15 @@ from it for the checkout, the provider callback and the engine's quote
 | Currency | EUR |
 | Amount | 265 flat |
 
+### Fee examples
+
+Run through the backend's fee code by the core's pack checks
+(`FeeExamplesTest`).
+
+| Amount |
+|---|
+| `265` |
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.

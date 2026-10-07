@@ -167,6 +167,21 @@ list lives in `BRAND_COLOR_TOKENS` / `BRAND_FONT_TOKENS`
 (`frontend/src/pack/brand.ts`); adding a name is a minor change, removing one
 a major.
 
+## Service examples
+
+A pack carries its services' tests as data in the specs, and the core runs
+them in `scripts/pack-check.sh`, so a service's expected behaviour travels
+with the pack and holds on every core release it runs on:
+
+| In the spec | Run by | Against |
+|---|---|---|
+| `decisions/<id>.md` `## Examples` (and `## Examples without \`<rule id>\``) | `DecisionExamplesTest` (engine) | the pack's DMN, each row matching exactly one rule |
+| README `### Fee examples` under `## State fee` | `FeeExamplesTest` (backend) | the backend's `FeeSchedule` on `payment/<service>.yaml`, plus the section's recipient and currency |
+| `data/<entity>.md` `## Seed` | `RegistrySeedTest` (backend) | every row read back through the registry endpoint class each operation declares |
+
+Cells are JSON literals in backticks. Examples are required wherever the
+section exists.
+
 ## Shared value rules
 
 `cib7/src/main/resources/schemas/core-v1.json`

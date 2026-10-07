@@ -2,12 +2,9 @@ package com.poc.backend.payment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.poc.backend.engine.EngineClient;
 import com.poc.backend.engine.EngineClient.ProcessInstanceRef;
-import com.poc.backend.payment.FeeSchedule.Charge;
-import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -96,46 +93,8 @@ class PaymentLogicTest {
     }
   }
 
-  private BigDecimal vehicleFeeForPrice(Object rawPrice) {
-    when(engine.getRawVariable(PI, "price")).thenReturn(rawPrice);
-    return fees.chargeFor(new ProcessInstanceRef(PI, "vehicleRegistration")).orElseThrow().amount();
-  }
-
-  @Test
-  void vehicleFeeIs25Below5000() {
-    assertThat(vehicleFeeForPrice(4999)).isEqualByComparingTo("25");
-  }
-
-  @Test
-  void vehicleFeeIs75From5000To19999() {
-    assertThat(vehicleFeeForPrice(5000)).isEqualByComparingTo("75");
-    assertThat(vehicleFeeForPrice(19999)).isEqualByComparingTo("75");
-  }
-
-  @Test
-  void vehicleFeeIs150From20000() {
-    assertThat(vehicleFeeForPrice(20000)).isEqualByComparingTo("150");
-  }
-
-  @Test
-  void missingPriceLandsInTheLowestTier() {
-    assertThat(vehicleFeeForPrice(null)).isEqualByComparingTo("25");
-  }
-
-  @Test
-  void localeFormattedStringPriceStillTiersCorrectly() {
-    assertThat(vehicleFeeForPrice("38,000")).isEqualByComparingTo("150");
-  }
-
-  @Test
-  void businessRegistrationIsFlat265() {
-    Charge charge =
-        fees.chargeFor(new ProcessInstanceRef(PI, "businessRegistration")).orElseThrow();
-
-    assertThat(charge.amount()).isEqualByComparingTo("265");
-    assertThat(charge.currency()).isEqualTo("EUR");
-    assertThat(charge.recipient()).isEqualTo("Äriregister (Justiitsministeerium)");
-  }
+  // What each pack's fees charge is pack data: its README's Fee examples, run
+  // by FeeExamplesTest (a pack check). Here only the core's own behaviour.
 
   @Test
   void unknownDefinitionKeyHasNoCharge() {
