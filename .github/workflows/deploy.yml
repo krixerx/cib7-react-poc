@@ -83,7 +83,7 @@ jobs:
     steps:
       # Only here for ./.github/actions/vm-ssh below — a local action has to be
       # on disk before it can be used.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Network path to the host
         run: |
@@ -176,7 +176,7 @@ jobs:
       PACK_IMAGE_PREFIX: ${{ vars.PACK_IMAGE_PREFIX || 'docker.io/krixerx/eregistrations-reference' }}
     steps:
       # The core deploy kit (deploy/) of the ref this run uses.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve the pack
         id: pack
