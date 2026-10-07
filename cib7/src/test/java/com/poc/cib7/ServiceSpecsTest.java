@@ -24,7 +24,7 @@ import org.w3c.dom.NodeList;
 
 /**
  * Holds the pack to the project's spec-first rule: every BPMN service task and decision has a spec
- * under {@code packs/reference/docs/business/services/<service>/}, and the payload template a spec
+ * under the pack's {@code docs/business/services/<service>/}, and the payload template a spec
  * carries is the one the engine runs. Services once ran with most of their integrations
  * unspecified, which also hid two inline JSON payloads that could not escape a reviewer's free
  * text.

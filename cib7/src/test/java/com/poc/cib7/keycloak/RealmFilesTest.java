@@ -95,17 +95,15 @@ class RealmFilesTest {
     }
   }
 
-  /** The pull-only deploy bundle carries copies; a stale copy silently ships an old realm. */
+  /**
+   * The pull-only deploy bundle carries copies of the core's realm and login theme; a stale copy
+   * silently ships an old realm. (Its users file and branding are the deployed pack's.)
+   */
   @Test
   void theDeployBundleCopiesMatchTheirSources() throws IOException {
     assertEquals(
         read(CORE_REALM), read(Path.of("../deploy/keycloak/cib7-poc-realm.json")), "realm copy");
-    assertEquals(
-        read(Path.of("../packs/reference/keycloak/cib7-poc-users-0.json")),
-        read(Path.of("../deploy/keycloak/cib7-poc-users-0.json")),
-        "users copy");
     assertSameTree(Path.of("../keycloak/themes"), Path.of("../deploy/keycloak/themes"));
-    assertSameTree(Path.of("../packs/reference/branding"), Path.of("../deploy/branding"));
   }
 
   /** Same files with the same content; line endings may differ (Git's autocrlf). */

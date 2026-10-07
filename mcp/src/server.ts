@@ -4,8 +4,8 @@
 // touches user data forwards the caller's own token to /engine-rest or the
 // backend. Every request needs that token, the handshake included (see
 // auth/requireBearer.ts), so the client signs the user in when connecting.
-// Variable shapes come from the manifests /service-builder generates under
-// packs/reference/docs/business/services/.
+// Variable shapes come from the manifests /service-builder generates in the
+// service pack's docs/business/services/.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import express from 'express';

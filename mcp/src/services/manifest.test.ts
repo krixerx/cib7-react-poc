@@ -49,7 +49,7 @@ const ENGINE_SCHEMAS: Record<string, unknown> = {
   },
 };
 
-// Mirrors the real manifest shape in packs/reference/docs/business/services/*/build/mcp-service.json:
+// Mirrors the real manifest shape in a pack's docs/business/services/*/build/mcp-service.json:
 // texts and the offered fields only; the rules come from the engine schemas.
 const VALID_MANIFEST = {
   version: 2,
