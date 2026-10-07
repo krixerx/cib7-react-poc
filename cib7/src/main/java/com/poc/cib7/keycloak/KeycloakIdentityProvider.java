@@ -1,6 +1,6 @@
 package com.poc.cib7.keycloak;
 
-import org.cibseven.bpm.extension.keycloak.plugin.KeycloakIdentityProviderPlugin;
+import org.cibseven.community.keycloak.plugin.KeycloakIdentityProviderPlugin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 

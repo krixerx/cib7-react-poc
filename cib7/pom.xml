@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.16</version>
+    <version>4.1.1</version>
     <relativePath/>
   </parent>
 
@@ -19,16 +19,15 @@
   <description>CIB seven 2.2 process engine module for the React human-tasks POC</description>
 
   <properties>
-    <!-- Security fixes over the Spring Boot 3.5.16 BOM (Trivy image scan,
-         2026-10-06). Drop each line once the BOM manages the same or newer.
-         postgresql: CVE-2026-54291 (SCRAM channel-binding downgrade, HIGH);
-         commons-lang3 (via the CIB seven starter): CVE-2025-48924; httpclient5
-         (via the CIB seven http connector): CVE-2026-64607; log4j-api (via
-         log4j-to-slf4j): CVE-2026-49844. -->
-    <postgresql.version>42.7.13</postgresql.version>
-    <commons-lang3.version>3.18.0</commons-lang3.version>
-    <httpclient5.version>5.6.4</httpclient5.version>
-    <log4j2.version>2.25.5</log4j2.version>
+    <!-- Security pins over Boot 4.1.1's managed versions, which still carry
+         fixable HIGH/CRITICAL CVEs that fail the image scan (Trivy in
+         docker-publish.yml); the same pins as backend/. Jackson 2 is still
+         used by Spin and the engine's own JSON handling; 2.21.7 is what the
+         image scan passed with on Boot 3.5. Drop each pin once a Boot release
+         manages that version or newer. -->
+    <tomcat.version>11.0.25</tomcat.version>
+    <jackson-bom.version>3.1.7</jackson-bom.version>
+    <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
     <java.version>21</java.version>
     <logback-gelf.version>6.1.2</logback-gelf.version>
     <cibseven.version>2.2.0</cibseven.version>
@@ -38,23 +37,16 @@
          is added to the classpath instead. Override with
          -Dservices.pack.dir=... to run against another pack. -->
     <services.pack.dir>${project.basedir}/../packs/test/engine</services.pack.dir>
-    <!-- The Keycloak identity-provider extension has no 2.2.0 release (latest
-         is 2.1.0, built against Spring Framework 6.2 = the Boot 3.5 line, which
-         is exactly what this module runs). It rides its own version property so
-         the engine can move ahead of it. It is also why this module stays on
-         Boot 3.5 while backend/ runs Boot 4: CIB seven ships Boot 4 variants of
-         its starters (the `-4` artifacts), but the Keycloak extension has no
-         Spring Framework 7 build. -->
-    <cibseven.keycloak.version>2.1.0</cibseven.keycloak.version>
-    <!-- Security pins over Boot 3.5.16's managed versions, which still carry
-         fixable HIGH/CRITICAL CVEs that fail the image scan (Trivy in
-         docker-publish.yml). Boot 3.5.16 is the newest 3.5 patch, so there is
-         no parent bump to take instead. Drop each pin once a Boot release
-         manages that version or newer. -->
-    <tomcat.version>10.1.59</tomcat.version>
-    <jackson-bom.version>2.21.7</jackson-bom.version>
+    <!-- The Keycloak identity-provider extension. 2.2.x is its Spring
+         Framework 7 line; 2.1.0 is built against Spring 6.2 and fails in the
+         running engine on Spring 7 ("HttpHeaders does not implement
+         MultiValueMap"), which the tests do not show because they mock
+         Keycloak. It rides its own version property because it releases
+         separately from the engine. -->
+    <cibseven.keycloak.version>2.2.1</cibseven.keycloak.version>
+    <!-- DocumentRenderer asks for Configuration.VERSION_2_3_35, newer than the
+         FreeMarker the Boot BOM manages. -->
     <freemarker.version>2.3.35</freemarker.version>
-    <httpcore5.version>5.4.3</httpcore5.version>
   </properties>
 
   <dependencies>
@@ -70,7 +62,8 @@
       <version>${logback-gelf.version}</version>
     </dependency>
 
-    <!-- CIB seven engine + Cockpit/Tasklist/Admin webapps. The webapps
+    <!-- CIB seven engine + Cockpit/Tasklist/Admin webapps, in the Spring Boot 4
+         variants (the `-4` starters, on Spring Framework 7). The webapps
          are served from /camunda/* once the second SecurityFilterChain (see
          com.poc.cib7.keycloak.WebappSecurityConfig) is on the classpath.
          Despite the name, the webapp starter does NOT transitively register
@@ -79,7 +72,7 @@
          is what actually wires those resources into the Spring servlet. -->
     <dependency>
       <groupId>org.cibseven.bpm.springboot</groupId>
-      <artifactId>cibseven-bpm-spring-boot-starter-webapp</artifactId>
+      <artifactId>cibseven-bpm-spring-boot-starter-webapp-4</artifactId>
       <version>${cibseven.version}</version>
       <!-- cibseven-webclient-core bundles five JDBC drivers at runtime scope,
            at versions that carried the image's pgjdbc and mssql-jdbc CVEs. All
@@ -114,7 +107,7 @@
          a 404 once they pass the security filter. -->
     <dependency>
       <groupId>org.cibseven.bpm.springboot</groupId>
-      <artifactId>cibseven-bpm-spring-boot-starter-rest</artifactId>
+      <artifactId>cibseven-bpm-spring-boot-starter-rest-4</artifactId>
       <version>${cibseven.version}</version>
     </dependency>
 
@@ -185,10 +178,11 @@
          ReadOnlyIdentityProvider that queries Keycloak's Admin REST API
          for users and groups. Engine then knows who the authenticated
          caller is and which groups they belong to, so candidateGroups
-         on user tasks are actually enforced. Pinned to 2.1.0 (its latest);
-         see cibseven.keycloak.version above for why it lags the engine. -->
+         on user tasks are actually enforced. From 2.2.0 it is published
+         as org.cibseven.community.keycloak; org.cibseven.bpm.extension
+         stops at 2.1.0. -->
     <dependency>
-      <groupId>org.cibseven.bpm.extension</groupId>
+      <groupId>org.cibseven.community.keycloak</groupId>
       <artifactId>cibseven-keycloak</artifactId>
       <version>${cibseven.keycloak.version}</version>
     </dependency>
@@ -213,9 +207,11 @@
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
     </dependency>
+    <!-- Boot 4 moved Flyway's auto-configuration into its own module: with
+         flyway-core alone, nothing runs the migrations. -->
     <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-flyway</artifactId>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>
@@ -223,7 +219,8 @@
     </dependency>
     <!-- Validates submitted form values against the service pack's
          schemas/<form-id>.json (docs/security.md rule 2). The 2.x line is the
-         Jackson 2 one this Boot 3.5 module runs; 3.x needs Jackson 3. -->
+         Jackson 2 one; 3.x needs Jackson 3, and the engine's JSON handling and
+         Spin still use Jackson 2. -->
     <dependency>
       <groupId>com.networknt</groupId>
       <artifactId>json-schema-validator</artifactId>

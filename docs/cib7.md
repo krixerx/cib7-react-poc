@@ -31,8 +31,8 @@ http-connector like any other external REST service.
 | | |
 |---|---|
 | Language | Java 21 (JDK 21 enforced by the build, `eclipse-temurin:21` in the image) |
-| Framework | Spring Boot 3.5 |
-| Process engine | CIB seven 2.2 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp` (includes REST + Cockpit/Tasklist/Admin) |
+| Framework | Spring Boot 4 (Spring Framework 7, Spring Security 7) |
+| Process engine | CIB seven 2.2 (Camunda 7 fork) via `cibseven-bpm-spring-boot-starter-webapp-4` and `-rest-4`, the Boot 4 starters (REST API + Cockpit/Tasklist/Admin) |
 | Database | Postgres (`postgres` profile) in docker-compose, in-memory H2 in tests and `mvn spring-boot:run`; schema by Flyway (`db/V1__CibSevenSchema.java`) |
 | Connectors | `cibseven-engine-plugin-connect` + `cibseven-connect-http-client` (official `http-connector`) |
 | Template engine | `cibseven-template-engines-freemarker` — renders connector payloads from `templates/*.ftl` |
@@ -620,7 +620,7 @@ caller's Keycloak group membership.
 | Role | Implementation | Where |
 |---|---|---|
 | OIDC identity provider | Keycloak (realm `cib7-poc`) | `keycloak/cib7-poc-realm.json`, compose service |
-| Identity Provider Plugin | `org.cibseven.bpm.extension:cibseven-keycloak:2.1.0` | declared in `pom.xml`; activated by `KeycloakIdentityProvider.java` |
+| Identity Provider Plugin | `org.cibseven.community.keycloak:cibseven-keycloak:2.2.1` | declared in `pom.xml`; activated by `KeycloakIdentityProvider.java` |
 | JWT validation | `spring-boot-starter-oauth2-resource-server`; Boot builds the decoder from `spring.security.oauth2.resourceserver.jwt.*` | `RestApiSecurityConfig.java`, `application.yaml` |
 | Audience pin | `audiences: [cib7-rest-api]` (rejects tokens without it in `aud`, or with no `aud` at all) | `application.yaml` |
 | Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
@@ -709,7 +709,7 @@ silently.
 
 ### JDK 21
 
-CIB seven + Spring Boot 3.5 build on **JDK 21** (the minimum is 17, but the
+CIB seven + Spring Boot 4 build on **JDK 21** (the minimum is 17, but the
 project targets 21 to match CIB seven's own published Docker images). The
 default `java` on the developer's PATH may be JDK 11 — set `JAVA_HOME` to a
 JDK 21 before running Maven. The Docker build uses an `eclipse-temurin:21` base
@@ -748,7 +748,7 @@ URLs become `http://localhost:3000/engine-rest` and
 `http://localhost:3000/camunda`. `ForwardedHeaderFilter` in
 `WebappSecurityConfig` honors X-Forwarded-* so the OAuth2 redirect URI
 the engine generates uses the public host. The webapp starter
-(`cibseven-bpm-spring-boot-starter-webapp`) transitively brings the REST
+(`cibseven-bpm-spring-boot-starter-webapp-4`) transitively brings the REST
 starter.
 
 ### Webapp SSO

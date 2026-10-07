@@ -1,6 +1,6 @@
 package com.poc.cib7.keycloak;
 
-import static org.springframework.security.web.util.matcher.AntPathRequestMatcher.antMatcher;
+import static org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.pathPattern;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +31,7 @@ public class PublicEngineRestSecurityConfig {
   @Bean
   @Order(0)
   public SecurityFilterChain publicEngineRestSecurity(HttpSecurity http) throws Exception {
-    return http.securityMatcher(antMatcher(HttpMethod.GET, "/engine-rest/process-definition"))
+    return http.securityMatcher(pathPattern(HttpMethod.GET, "/engine-rest/process-definition"))
         .csrf(csrf -> csrf.disable())
         .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
         .build();

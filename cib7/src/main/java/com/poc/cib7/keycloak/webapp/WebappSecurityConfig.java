@@ -1,7 +1,8 @@
 package com.poc.cib7.keycloak.webapp;
 
 import static org.springframework.security.config.Customizer.withDefaults;
-import static org.springframework.security.web.util.matcher.AntPathRequestMatcher.antMatcher;
+import static org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.pathPattern;
+import static org.springframework.security.web.util.matcher.RegexRequestMatcher.regexMatcher;
 
 import jakarta.inject.Inject;
 import java.util.Collections;
@@ -66,15 +67,15 @@ public class WebappSecurityConfig {
         .csrf(
             csrf ->
                 csrf.ignoringRequestMatchers(
-                    antMatcher(legacyWebappPath + "/api/**"), antMatcher("/engine-rest/**")))
+                    pathPattern(legacyWebappPath + "/api/**"), pathPattern("/engine-rest/**")))
         .authorizeHttpRequests(
             authorize ->
                 authorize
                     .requestMatchers(
-                        antMatcher(legacyWebappPath + "/assets/**"),
-                        antMatcher(legacyWebappPath + "/app/**"),
-                        antMatcher(legacyWebappPath + "/api/**"),
-                        antMatcher(legacyWebappPath + "/lib/**"))
+                        pathPattern(legacyWebappPath + "/assets/**"),
+                        pathPattern(legacyWebappPath + "/app/**"),
+                        pathPattern(legacyWebappPath + "/api/**"),
+                        pathPattern(legacyWebappPath + "/lib/**"))
                     .authenticated()
                     .anyRequest()
                     .permitAll())
@@ -82,7 +83,10 @@ public class WebappSecurityConfig {
         .logout(
             logout ->
                 logout
-                    .logoutRequestMatcher(antMatcher(legacyWebappPath + "/app/**/logout"))
+                    // A path pattern allows ** only at the end; the webapps log out
+                    // from any depth under /app (the regex sees the query string too).
+                    .logoutRequestMatcher(
+                        regexMatcher(legacyWebappPath + "/app(/.*)?/logout(\\?.*)?"))
                     .logoutSuccessHandler(keycloakLogoutHandler))
         .build();
   }

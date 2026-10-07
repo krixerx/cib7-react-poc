@@ -81,7 +81,7 @@ The runtime pieces:
   `keycloak-js`, PKCE), then to the same-origin paths `/engine-rest/...`
   (Bearer JWT on every call) and `/api/...` (backend — Bearer for documents,
   public for token-link pages and the vehicle dropdown).
-- **Engine service (`cib7/`)** — Spring Boot 3.5 app embedding the CIB seven
+- **Engine service (`cib7/`)** — Spring Boot 4 app embedding the CIB seven
   2.2 process engine, exposing `/engine-rest` and the legacy `/camunda`
   webapps. Auto-deploys every BPMN/DMN on the classpath at startup. Validates
   JWTs as an OAuth2 resource server and bridges the authenticated user into
@@ -151,14 +151,14 @@ The runtime pieces:
 | Ingress (prod compose) | Traefik v3.4 | `docker-compose.yml` (`traefik` service) | Single public front door on `:3000`; path-routes `/engine-rest`, `/camunda`, `/oauth2`, `/login`, `/logout` → cib7; `/api` → backend; `/mcp`, `/.well-known/oauth-protected-resource` → mcp; everything else → frontend. The engine, backend, MCP, frontend, and Mailpit are network-internal — only Traefik, Keycloak, and RustFS publish host ports. |
 | HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA. Cross-service routing has moved to Traefik; this nginx only does the SPA fallback (`try_files $uri /index.html`). |
 | Dev server | Vite | `frontend/vite.config.ts` | Serves SPA in dev, proxies `/engine-rest` to `localhost:8080`. (Vite-dev does not use Traefik; the engine still binds 8080 when run via `mvn spring-boot:run`.) |
-| Engine app | Spring Boot 3.5, CIB seven 2.2 starter | `cib7/` | Embedded engine + REST API; no business endpoints |
+| Engine app | Spring Boot 4, CIB seven 2.2 `-4` starters | `cib7/` | Embedded engine + REST API; no business endpoints |
 | Business microservice | Spring Boot 4 (webmvc + data-jpa + security) | `backend/` | All `/api/**`: public confirmation/payment links, vehicle registry, documents (JPA `Document` metadata + S3 presigner), case cards (JPA `CaseCard`, one prose status summary per case re-posted by BPMN "Index case" milestone tasks; keyword/filter retrieval for the `search_cases` MCP tool — the AI client does the semantic matching, no embeddings); engine access via `/engine-rest` with the `cib7-business` service account |
 | Object storage | RustFS (S3-compatible) | compose service | Applicant uploads + generated PDFs under `process/{piId}/…`; presigned URLs minted by the backend |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | registered by the CIB seven Spring Boot starter | Enables `<camunda:connector>` service tasks |
 | Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin. Every call now targets `${busBaseUrl}` (the integration bus), not a downstream system directly |
 | Integration bus | Apache Camel JBang (`apache/camel-jbang`) | `esb/` (declarative YAML routes) | Mediates every engine→downstream HTTP call; engine talks only to `${busBaseUrl}` and the bus routes each path to mailpit / pdf-renderer / backend (injecting `X-Internal-Token` on `/api/documents`) |
-| Identity provider plugin | `cibseven-keycloak` 2.1.0 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
+| Identity provider plugin | `cibseven-keycloak` 2.2.1 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | The only group-level engine grants: applicants list and start services, civil servants read every case and retry jobs. Per-case access comes from `authorization/InitiatorAuthorizationListener.java` and the engine's default task authorizations (admins are handled by the plugin's `administratorGroupName`) |
 | Identity provider | Keycloak 26 | `keycloak/cib7-poc-realm.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |

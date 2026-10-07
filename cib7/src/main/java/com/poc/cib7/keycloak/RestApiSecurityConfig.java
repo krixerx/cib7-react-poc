@@ -1,6 +1,6 @@
 package com.poc.cib7.keycloak;
 
-import static org.springframework.security.web.util.matcher.AntPathRequestMatcher.antMatcher;
+import static org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.pathPattern;
 
 import com.poc.cib7.policy.FormSchemaRegistry;
 import com.poc.cib7.policy.VariablePolicyRegistry;
@@ -54,8 +54,8 @@ public class RestApiSecurityConfig {
       throws Exception {
     // Only decoder(...): the upstream example also called jwkSetUri(...), which replaces Boot's
     // decoder with a bare one and silently drops its issuer and audience validators.
-    return http.securityMatcher(antMatcher("/engine-rest/**"))
-        .csrf(csrf -> csrf.ignoringRequestMatchers(antMatcher("/engine-rest/**")))
+    return http.securityMatcher(pathPattern("/engine-rest/**"))
+        .csrf(csrf -> csrf.ignoringRequestMatchers(pathPattern("/engine-rest/**")))
         .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
         .oauth2ResourceServer(
             oauth2ResourceServer -> oauth2ResourceServer.jwt(jwt -> jwt.decoder(jwtDecoder)))

@@ -104,7 +104,7 @@ browser ──OIDC PKCE──▶ Keycloak (:8180, realm cib7-poc)
    ├─ /                → frontend/ (React SPA; nginx in Docker, Vite in dev)
    ├─ /mobile          → mobile/ (Flutter web applicant app)
    ├─ /engine-rest,
-   │  /camunda/*       → cib7/ (Spring Boot 3.5 + CIB seven 2.2 engine, Postgres)
+   │  /camunda/*       → cib7/ (Spring Boot 4 + CIB seven 2.2 engine, Postgres)
    ├─ /api/*           → backend/ (Spring Boot 4 business microservice, Postgres)
    └─ /mcp             → mcp/ (stateless Bearer-proxy MCP sidecar, 11 tools)
 

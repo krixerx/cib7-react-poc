@@ -236,7 +236,7 @@ For the step-by-step workflow see
   with a Bearer JWT where required. In Docker, **nginx**/Traefik route the
   paths; in dev, the **Vite** dev server does. No CORS configuration needed.
 - The engine validates JWTs (Spring Security OAuth2 Resource Server) and the
-  **CIB seven Keycloak Identity Provider Plugin** (`cibseven-keycloak` 2.1.0)
+  **CIB seven Keycloak Identity Provider Plugin** (`cibseven-keycloak` 2.2.1)
   reads users and groups from Keycloak's Admin REST API. Engine authorization
   is on, so `candidateGroups` on user tasks is enforced.
 - The **backend** owns every business endpoint: the public token-link pages
@@ -830,7 +830,7 @@ for the rationale and the corresponding `PdfHelper` bean.
 
 ## Cockpit / Tasklist / Admin webapps with Keycloak SSO
 
-The `cibseven-bpm-spring-boot-starter-webapp` dependency mounts the classic
+The `cibseven-bpm-spring-boot-starter-webapp-4` dependency mounts the classic
 CIB seven webapps at `/camunda/**`. A second Spring Security filter chain
 (`com.poc.cib7.keycloak.webapp.WebappSecurityConfig`) drives an OAuth2
 Authorization Code flow against the `cib7-webapps` Keycloak client; once the
@@ -963,7 +963,7 @@ This POC intentionally simplifies `docs/human-role-react-forms-spec.md`:
 | Form manifest + publish-time validation (§11) | Omitted | The BPMN is a single static file, not dynamically generated. |
 | Single `json` Spin variable (§10) | Plain typed variables (`firstName`, `objectId`, `price`, `decision`, …) | Simpler; no Spin needed for a POC. |
 | Separate edit/view form components (§8.2–8.3) | One component per form | The "entry then review" flow already gives one edit form and one read-only review form. |
-| IdP groups → candidate groups | **Keycloak groups `/applicant` (assignee via `${initiator}`) and `/civil-servant` (candidateGroup `civil-servant` — slash stripped by the plugin)** | Implemented via `cibseven-keycloak` 2.1.0 with `useGroupPathAsCamundaGroupId: true`. The plugin maps path `/civil-servant` to engine group id `civil-servant`; see [`docs/cib7.md`](docs/cib7.md#bpmn-files). |
+| IdP groups → candidate groups | **Keycloak groups `/applicant` (assignee via `${initiator}`) and `/civil-servant` (candidateGroup `civil-servant` — slash stripped by the plugin)** | Implemented via `cibseven-keycloak` 2.2.1 with `useGroupPathAsCamundaGroupId: true`. The plugin maps path `/civil-servant` to engine group id `civil-servant`; see [`docs/cib7.md`](docs/cib7.md#bpmn-files). |
 
 For a production system the spec's BFF and manifest validation would be
 reinstated.
