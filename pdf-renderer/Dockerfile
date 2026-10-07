@@ -7,8 +7,8 @@ WORKDIR /app
 # npm, corepack and yarn are removed once the dependencies are in: nothing
 # runs them at runtime, and their bundled packages (tar, undici, ...) were the
 # image's remaining CVEs.
-COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund \
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund \
   && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
             /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
             /usr/local/bin/yarn /usr/local/bin/yarnpkg /root/.npm

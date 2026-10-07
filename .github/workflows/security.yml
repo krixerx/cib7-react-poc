@@ -32,14 +32,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      # pdf-renderer has no committed lock; npm audit needs one, so resolve it
-      # here (no install, no scripts) from package.json's ranges, which is
-      # what the image build does too.
-      - name: Lock file
-        run: |
-          if [ ! -f package-lock.json ]; then
-            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          fi
       - run: npm audit --audit-level=high
 
   trivy-fs:
