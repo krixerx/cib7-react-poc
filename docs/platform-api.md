@@ -76,16 +76,16 @@ refuses the file (or the start), never half of it.
 
 The pack's specs, the source of everything generated in it, live in its
 `docs/business/services/<service>/`, together with the generated MCP
-manifests (`<service>/build/`, `build/services.json`). Until the pack has
-its own repository, its ESB routes stay in `esb/routes/` (file names and
-route ids `pack-*`).
+manifests (`<service>/build/`, `build/services.json`). Its own ESB routes,
+when it has integrations of its own, live in `esb/routes/pack-<name>.yaml`
+(the reference pack has none).
 
 ## Formats
 
 | Path in the pack | Format | Read by | Checked by |
 |---|---|---|---|
 | `pack.yaml` | YAML: `name` (kebab), `version` (`x.y.z`), `platform` (`"M.m"`) | `PackManifest` (engine, backend) | `PackManifestTest` |
-| `engine/processes/<service>/*.bpmn` | BPMN 2.0, `camunda:` namespace; user tasks `camunda:formKey="react:<form-id>"`; `candidateGroups` without a leading slash; connectors only to `${busBaseUrl}`; business rule tasks `decisionRefBinding="deployment"` | `ServiceDeployments` | `PackConformanceTest`, `ServiceSpecsTest` |
+| `engine/processes/<service>/*.bpmn` | BPMN 2.0, `camunda:` namespace; user tasks `camunda:formKey="react:<form-id>"`; `candidateGroups` without a leading slash; connectors only to the [bus paths](#what-templates-and-documents-see) offered to a pack; business rule tasks `decisionRefBinding="deployment"` | `ServiceDeployments` | `PackConformanceTest`, `PackBusTest`, `ServiceSpecsTest` |
 | `engine/processes/<service>/*.dmn` | DMN 1.3 with `camunda:historyTimeToLive` | the engine, in the service's deployment | `PackConformanceTest` |
 | `engine/processes/<service>/variable-policy.json` | `processDefinitionKey`, `start` and `forms.<form-id>`: the variables a client may write; `identity`: variable to `givenName`, `familyName` or `email`, set from the account and re-checked on completion | `VariablePolicyRegistry`, `VariableWritePolicyFilter`, `IdentityFieldRegistry` | `VariablePolicyFilesTest`, `IdentityFieldRegistryTest` |
 | `engine/processes/<service>/schemas/*.json` | JSON Schema 2020-12 with `x-process` and `x-form`; may `$ref` the [shared value rules](#shared-value-rules) | `FormSchemaRegistry` | `FormSchemaRegistryTest` |
@@ -103,6 +103,7 @@ route ids `pack-*`).
 | `branding/brand.json` | brand v1: `logo.light`, `logo.dark`, `favicon` (bare image file names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme (`keycloak/themes/cib7/login/template.ftl`) | `src/pack/brand.test.ts` |
 | `branding/tokens.json` | brand v1: [brand tokens](#brand-tokens) per scheme (hex), `fonts.display` / `fonts.body` (family names) | `src/pack/brand.ts`, `DocumentBrand`, the login theme, the mobile app (`mobile/lib/pack.dart`) | `src/pack/brand.test.ts` (with WCAG AA contrast) |
 | `branding/locales/<lang>/brand.json` | `name`, `sub`, `portal` | `loadBrand()`, `DocumentBrand`, the login theme, the mobile app (`mobile/lib/pack.dart`) | `src/pack/brand.test.ts` |
+| `esb/routes/pack-<name>.yaml` | Camel YAML DSL, route entries only, ids `pack-*`: listen on `platform-http:/pack/<name>` with `direct:bus-auth` as the first step, or on `direct:pack-*`; send only to `http(s)` systems outside the stack (a literal host or `${env.PACK_*}`), `direct:pack-*` or `log:`; read only `PACK_*` environment variables; never touch `X-Internal-Token` or `X-Bus-Token`; no code (`bean`, scripts, `groovy`, ...) | the ESB (`camel run --source-dir=/routes`) | `PackBusTest` |
 | `docs/business/services/<service>/build/mcp-service.json` | MCP manifest, `version: 2`: `key` (the process), texts, `start.fields` and per user task `fields` (offered field to its description for the agent), `requiredDocuments`; no value rules: those are the engine's `schemas/<form-id>.json` | `mcp/src/services/manifest.ts` | `mcp/src/services/pack.test.ts` (every field in the form schema, every required field offered, every form covered); `VariablePolicyFilesTest` (reference pack) |
 | `docs/business/services/<service>/build/mcp-training.md`, `docs/business/services/build/services.json` | Markdown guidance for the agent; the services index | `mcp/src/server.ts` | |
 
@@ -132,7 +133,10 @@ Bus paths a pack may call: `/api/v1/send` (mail), `/render` (PDF),
 `/api/internal/documents/move-pending` and `/server-upload` (case
 documents), `/api/{public,internal}/registry/<entity>` (its registries),
 `/api/internal/payments/quote/<processInstanceId>` (the case's state fee, as
-`amount` and `currency`), and the paths of its own `pack-*` routes.
+`amount` and `currency`), and `/pack/<name>/...`, served by its own routes.
+A connector's `url` is a plain `${busBaseUrl}<path>` value, with no query,
+fragment or `..`; a registry path names a registry the pack declares, in an
+access class one of its operations has (`PackBusTest`).
 
 ## Brand tokens
 
@@ -160,6 +164,9 @@ a major.
   no script task, no inline script, no TSX form outside the escape hatch
   (`Renderer: tsx`, which needs a core change). `PackConformanceTest` checks
   the BPMN for this.
+- Reach the core's secrets or services from its bus routes: the ESB holds
+  the token that opens the backend's internal API, so a pack route can
+  neither set it nor call a core host (`PackBusTest`).
 - Add an HTTP endpoint: registries and co-signing choose an access class
   from a closed set; everything else is core (docs/security.md rule 5).
 - Touch a core table: registry migrations run in their own schema.

@@ -259,6 +259,11 @@ stays.
   rule 12: that comparison is plain string equality, because Camel's simple
   language has no constant-time compare and the bus has no listener outside
   the internal network.
+- A service pack's own bus routes (`esb/routes/pack-*.yaml`) start with the
+  same `direct:bus-auth`, listen only under `/pack/`, and cannot set or read
+  `X-Internal-Token` or `X-Bus-Token`, read an environment variable other
+  than `PACK_*`, call a host of this stack or run code; a pack's BPMN calls
+  only the bus paths the platform API offers it. `PackBusTest` checks both.
 - Gotenberg renders with JavaScript disabled and a deny list covering every
   internal host.
 

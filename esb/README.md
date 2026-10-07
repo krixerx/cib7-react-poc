@@ -80,7 +80,14 @@ customer's registry, payment provider) go into the same `/routes` directory,
 because `camel run --source-dir` reads one directory and takes no file list
 alongside it. A pack adds them with a bind mount per file or a thin image layer
 (`COPY routes/*.yaml /routes/`). Pack route ids and file names start with
-`pack-` so they can never collide with a core route.
+`pack-` so they can never collide with a core route, and a pack route listens
+under `/pack/<name>`, where no core route does. The full rules, checked by
+`scripts/pack-check.sh` (`PackBusTest`), are in
+[`docs/platform-api.md`](../docs/platform-api.md#formats): `direct:bus-auth`
+first, only outside `http(s)` systems as targets, only `PACK_*` environment
+variables, never the core's `X-Internal-Token` or `X-Bus-Token`, no code. How
+a pack's routes get into the image is part of the pack repository templates
+(S36); the reference pack has none yet.
 
 ## Logging
 
