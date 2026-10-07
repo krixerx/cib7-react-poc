@@ -1,7 +1,7 @@
 # The core engine image: CIB seven, the core plugins and nothing of a service
 # pack. /opt/services, on the classpath through loader.path, is empty here; a
 # pack's image is a thin layer FROM this one that adds its engine files,
-# branding and pack.yaml there (packs/reference/docker/engine.Dockerfile), so
+# branding and pack.yaml there (a pack's docker/engine.Dockerfile), so
 # a core update reaches a customer as a base image bump.
 #
 # Build context is the repo root (see docker-compose.yml);

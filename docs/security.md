@@ -80,7 +80,7 @@ the internet.
 
 - A client (SPA, mobile app, MCP agent) may write only the variables its form
   declares. The allowlist per `formKey` and per start is generated from the
-  spec into `packs/reference/engine/processes/<service>/variable-policy.json`
+  spec into the pack's `engine/processes/<service>/variable-policy.json`
   and enforced by `VariableWritePolicyFilter` on every `/engine-rest` endpoint
   that writes variables: task `complete`, `submit-form` and `resolve`, and
   process `start` and `submit-form` are checked against the allowlist (start
@@ -94,7 +94,7 @@ the internet.
   no client variables at all.
 - The values are checked too. The service builder generates a JSON Schema
   per form and for the start variables from the spec's Fields table
-  (`packs/reference/engine/processes/<service>/schemas/<form-id>.json`,
+  (the pack's `engine/processes/<service>/schemas/<form-id>.json`,
   shared rules such as email and personal code in
   `cib7/src/main/resources/schemas/core-v1.json`). The same filter checks
   completions and starts against it after the name check and answers 400

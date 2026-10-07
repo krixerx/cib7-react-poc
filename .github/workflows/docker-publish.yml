@@ -28,8 +28,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The *-core images hold no service pack; the reference pack's
-          # images (same names without -core) are built FROM them below.
+          # The *-core images hold no service pack: a pack repository builds
+          # its images FROM them (its docker/*.Dockerfile and publish.yml).
           - image: cib7-poc-frontend-core
             context: .
             dockerfile: ./frontend/Dockerfile
@@ -110,83 +110,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
-
-  # The reference pack's images: thin layers adding the pack's data to the
-  # core images this run just pushed (by their sha tag, so a later push to
-  # latest cannot slip in between), built from packs/reference/docker/. Same
-  # scan gate as the core images. The deploy bundle pulls these, so their
-  # names are the ones it always used.
-  reference-pack-images:
-    name: Build & push ${{ matrix.image }} (reference pack)
-    needs: [build-and-push]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: cib7-poc-frontend
-            layer: frontend
-            arg: FRONTEND_CORE
-          - image: cib7-poc-cib7
-            layer: engine
-            arg: ENGINE_CORE
-            trivyignores: cib7/.trivyignore.yaml
-          - image: cib7-poc-backend
-            layer: backend
-            arg: BACKEND_CORE
-          - image: cib7-poc-mobile
-            layer: mobile
-            arg: MOBILE_CORE
-          - image: cib7-poc-mcp
-            layer: mcp
-            arg: MCP_CORE
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
-          tags: |
-            type=raw,value=latest
-            type=sha,format=short,prefix=
-            type=semver,pattern={{version}}
-
-      - id: core
-        run: echo "image=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}-core:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Build for scanning
-        uses: docker/build-push-action@v6
-        with:
-          context: ./packs/reference
-          file: ./packs/reference/docker/${{ matrix.layer }}.Dockerfile
-          build-args: ${{ matrix.arg }}=${{ steps.core.outputs.image }}
-          load: true
-          push: false
-          tags: scan/${{ matrix.image }}:${{ github.sha }}
-
-      - name: Scan image (Trivy)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: scan/${{ matrix.image }}:${{ github.sha }}
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-          format: table
-          trivyignores: ${{ matrix.trivyignores }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ./packs/reference
-          file: ./packs/reference/docker/${{ matrix.layer }}.Dockerfile
-          build-args: ${{ matrix.arg }}=${{ steps.core.outputs.image }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}

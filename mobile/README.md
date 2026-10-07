@@ -64,7 +64,7 @@ list loaded live from the engine. The mobile container's nginx proxies
 
 The app holds nothing customer-specific. At startup `lib/pack.dart` reads the
 pack under `/mobile/pack/`, which the pack's image layer adds on top of the
-core image (`packs/reference/docker/mobile.Dockerfile` on `mobile/Dockerfile`):
+core image (a pack's `docker/mobile.Dockerfile` on `mobile/Dockerfile`):
 `branding/` (portal name and subtitle, logo with a dark variant, the primary
 colour per scheme, which seeds the Material colour scheme) and the catalog
 texts (`locales/en/catalog.json`, the document category labels). The same

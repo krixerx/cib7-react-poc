@@ -397,7 +397,7 @@ component, or the schema renderer bound to the id, and `parseFormId` turns
 
 ### Existing forms
 
-All four are JSON definitions in `packs/reference/frontend/forms/`, generated
+All four are JSON definitions in `packs/test/frontend/forms/`, generated
 from their specs.
 
 | Form id | Reads | Writes |
@@ -473,7 +473,7 @@ form definition uses exists.
 
 Forms are data, not code. A spec with `Renderer: schema` becomes a JSON form
 definition (format v1) in the service pack,
-`packs/reference/frontend/forms/<form-id>.json`. `forms/resolve.ts` gives
+`packs/test/frontend/forms/<form-id>.json`. `forms/resolve.ts` gives
 every form id without a TSX entry in `registry.ts` to
 `forms/schema/SchemaForm.tsx`, which fetches `/pack/forms/<form-id>.json`,
 checks it with `parseDefinition` (`forms/schema/definition.ts`) and draws it
@@ -492,7 +492,7 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   "Send back…" with a reason) works in two steps: show the fields, then
   confirm or cancel.
 - **Texts** are i18n keys in the form's own namespace, shipped by the pack
-  in `packs/reference/frontend/locales/<lang>/<namespace>.json`.
+  in `packs/test/frontend/locales/<lang>/<namespace>.json`.
 - **Strict:** an unknown key, element type or a reference to a missing field
   or action refuses the whole definition with "The form definition … is
   invalid", instead of drawing half a form.
@@ -501,7 +501,7 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   `serve-pack` plugin in `vite.config.ts`, from `PACK_DIR` or the core test
   pack `packs/test`. The core image (`frontend/Dockerfile`) has no pack: a pack's portal
   image is a layer that copies its `frontend/` and `branding/` into
-  `/pack/` (`packs/reference/docker/frontend.Dockerfile`), with no SPA build.
+  `/pack/` (`packs/test/docker/frontend.Dockerfile`), with no SPA build.
   Without a pack the SPA starts on core texts and the services page says
   that no pack is installed.
 - **Fixed-length values** (`fixedLength`, the personal code): a monospaced
@@ -646,7 +646,7 @@ JSDoc) and as a row in this table.
 
 1. **BPMN** — add a `<bpmn:userTask>` with
    `camunda:formKey="react:<form-id>"` to the process file under
-   `packs/reference/engine/processes/`. (Variables it reads/writes should
+   `packs/test/engine/processes/`. (Variables it reads/writes should
    be plain typed variables; see existing tasks for examples.)
 2. **Component** — create `frontend/src/forms/<form-id>/<PascalCaseName>.tsx`
    implementing `FormProps`.

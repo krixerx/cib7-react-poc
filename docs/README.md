@@ -5,10 +5,15 @@ repo for the first time. The top-level `README.md` is the human onboarding
 entry point; these docs add the deeper, structured detail an AI needs to make
 correct changes without re-deriving everything from source.
 
-**Repo shape — monorepo.** CIB seven engine module (Spring Boot, `cib7/`),
-frontend (React + Vite, `frontend/`), the Keycloak realm export (`keycloak/`),
-Docker orchestration (`docker-compose.yml`), and these docs (`docs/`) all live
-in a single git repository and are versioned, built, and shipped together.
+**Repo shape — the core.** The CIB seven engine module (Spring Boot, `cib7/`),
+the backend, the frontend (React + Vite, `frontend/`), the mobile app, the MCP
+sidecar, the bus, the core Keycloak realm (`keycloak/`), Docker orchestration
+(`docker-compose.yml`) and these docs (`docs/`) are versioned and released
+together as core images. The services are service packs in their own
+repositories (the reference pack:
+[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack));
+`packs/test/` is a frozen copy of it for the core's tests and local stack, and
+`platform-api.md` is the contract.
 
 Each topic doc below starts with a **When to read this** block and a stable
 table of contents so it can be opened, skimmed, and closed in one pass.
@@ -23,7 +28,7 @@ The docs are split into two layers:
 - **Platform docs** (this folder) — how the platform works. Cross-cutting,
   service-agnostic.
 - **Business docs** ([`business/`](business/)) — what the platform delivers.
-  One folder per service under [`business/services/`](../packs/reference/docs/business/services/),
+  One folder per service under [`business/services/`](../packs/test/docs/business/services/),
   each describing its BPMN flow, forms, integrations, and roles.
 
 | If you need to … | Read |
@@ -39,8 +44,8 @@ The docs are split into two layers:
 | Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture-poc) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
 | Add or change an endpoint, grant, variable, token link, integration or container (mandatory rules) | [`security.md`](security.md) |
 | Reference the form contract between BPMN and React | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
-| Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](../packs/reference/docs/business/services/) |
-| Add a new business service | [`business/services/`](../packs/reference/docs/business/services/) — copy an existing service folder as a template |
+| Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](../packs/test/docs/business/services/) |
+| Add a new business service | [`business/services/`](../packs/test/docs/business/services/) — copy an existing service folder as a template |
 | Regenerate a service's flow diagram from its BPMN | [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) |
 | Run / build the app, see the high-level overview | top-level [`../README.md`](../README.md) |
 
@@ -48,8 +53,8 @@ The docs are split into two layers:
 
 | Service | Process key | Doc |
 |---|---|---|
-| Vehicle Registration | `vehicleRegistration` | [`business/services/vehicle-registration/`](../packs/reference/docs/business/services/vehicle-registration/README.md) |
-| Estonian OÜ Registration | `businessRegistration` | [`business/services/business-registration/`](../packs/reference/docs/business/services/business-registration/README.md) |
+| Vehicle Registration | `vehicleRegistration` | [`business/services/vehicle-registration/`](../packs/test/docs/business/services/vehicle-registration/README.md) |
+| Estonian OÜ Registration | `businessRegistration` | [`business/services/business-registration/`](../packs/test/docs/business/services/business-registration/README.md) |
 
 ## Conventions
 
@@ -58,7 +63,7 @@ The docs are split into two layers:
   TypeScript / React follows the
   [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
   When in doubt, match the surrounding code.
-- **BPMN files** live under `packs/reference/engine/processes/` and are
+- **BPMN files** live under `packs/test/engine/processes/` and are
   auto-deployed on startup. See [`cib7.md`](cib7.md#bpmn-files) for the
   one-file-per-process rule and how `formKey` wires a user task to a React form.
 - **Form id contract.** A BPMN user task carries `camunda:formKey="react:<id>"`;
@@ -66,7 +71,7 @@ The docs are split into two layers:
   `frontend/src/forms/registry.ts`. Details: [`frontend.md`](frontend.md#forms).
 - **Service docs are per-service.** Anything specific to a single business
   service (its flow, forms, integrations, variables, roles) belongs in
-  `packs/reference/docs/business/services/<service>/`, not in the cross-cutting platform
+  `packs/test/docs/business/services/<service>/`, not in the cross-cutting platform
   docs. The cross-cutting docs describe how the platform works in general;
   the service folder describes what one service does in particular.
 - **Flow diagrams are generated, not hand-written.** Each service README

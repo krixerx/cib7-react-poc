@@ -1,7 +1,7 @@
 # The core backend image: the business microservice and nothing of a service
 # pack. /opt/services, on the classpath through loader.path, is empty here; a
 # pack's image is a thin layer FROM this one that adds its backend files and
-# pack.yaml there (packs/reference/docker/backend.Dockerfile).
+# pack.yaml there (a pack's docker/backend.Dockerfile).
 #
 # Build context is the repo root (see docker-compose.yml);
 # backend/Dockerfile.dockerignore limits it to backend/. The pom's pack

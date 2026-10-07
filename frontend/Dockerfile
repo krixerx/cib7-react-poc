@@ -1,6 +1,6 @@
 # The core frontend image: the SPA and nginx, with no service pack. /pack/ is
 # empty here; a pack's image is a thin layer FROM this one that adds its
-# frontend/ and branding/ there (packs/reference/docker/frontend.Dockerfile),
+# frontend/ and branding/ there (a pack's docker/frontend.Dockerfile),
 # so a core update reaches a customer as a base image bump. Without a pack the
 # SPA still starts, on core texts and the core look, and says no pack is
 # installed.

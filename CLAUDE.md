@@ -4,15 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A monorepo POC ("eRegistrations") where a CIB seven 2.2 process engine runs BPMN
-e-government services and a React SPA renders each human task with a hand-written
-form. Two services ship: `vehicleRegistration` and `businessRegistration`.
-Auth is Keycloak OIDC throughout; the same deployment is also driveable over MCP.
+The **core** of eRegistrations (POC): a CIB seven 2.2 process engine that runs
+BPMN e-government services, a React SPA that renders each human task, a business
+backend, an integration bus, a Flutter applicant app and an MCP sidecar. Auth is
+Keycloak OIDC throughout; the same deployment is also driveable over MCP.
 
-The deepest thing to internalize: **business services are spec-first**. The
-markdown under `packs/reference/docs/business/services/<service>/` is the source of truth, and
-BPMN, DMN, FreeMarker templates, React forms, the form registry and the MCP
-manifests are generated from it. See "Changing a service" below.
+The services themselves are not here. They live in **service packs**, one
+repository per customer, which reach the core only through the platform API
+(`docs/platform-api.md`) and build their images as thin layers on the core's.
+The reference pack, with `vehicleRegistration` and `businessRegistration`, is
+[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack).
+This repository keeps `packs/test/`, a frozen copy of it that the core's tests,
+`docker compose`, `mvn spring-boot:run` and `npm run dev` run on.
+
+Business services are **spec-first**: a pack's markdown under
+`docs/business/services/<service>/` is the source of truth, and BPMN, DMN,
+FreeMarker templates, form definitions and the MCP manifests are generated from
+it by the `/service-builder` skill. See "Changing a service" below.
 
 ## Commands
 
@@ -76,15 +84,15 @@ node scripts/package-service-builder.mjs --version <x.y.z> [--out dist/service-b
 Check a service pack against the platform API (docs/platform-api.md):
 
 ```bash
-scripts/pack-check.sh [pack-dir]     # default packs/reference; runs the checks tagged `pack`
+scripts/pack-check.sh [pack-dir]     # default packs/test; runs the checks tagged `pack`
 ```
 
 Regenerate a service's flow diagram after touching its BPMN:
 
 ```bash
 cd scripts && npm install
-node bpmn-to-mermaid.mjs ../packs/reference/engine/processes/<service>/<service>.bpmn \
-  --out ../packs/reference/docs/business/services/<service>/README.md
+node bpmn-to-mermaid.mjs ../packs/test/engine/processes/<service>/<service>.bpmn \
+  --out ../packs/test/docs/business/services/<service>/README.md
 # rewrites the block between the bpmn-diagram:start / :end markers in place
 ```
 
@@ -113,17 +121,17 @@ Module responsibilities are strict and worth preserving:
 - **`cib7/` is engine plus plugins only.** No business endpoints and no service
   files. It holds Keycloak identity wiring, the variable policy filter and the
   Connect http-connector config. The BPMN/DMN, variable policies and FreeMarker
-  connector payloads live in the service pack, `packs/reference/engine/`
-  (with the hand-designed PDF and email documents in its `documents/`). The
-  core image (`cib7/Dockerfile`) holds no pack; the pack's layer
-  (`packs/reference/docker/engine.Dockerfile`) copies it to `/opt/services`,
-  which the core puts on the classpath with `PropertiesLauncher` and
-  `loader.path`. Backend, mcp, frontend and mobile are built the same way: a
-  pack-less `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`)
-  and a thin layer from `packs/reference/docker/`. Tests, `mvn spring-boot:run`
-  and `npm run dev` use the core test pack instead, `packs/test/` (a frozen
-  copy of the reference pack, through the pom's `services.pack.dir` and
-  `PACK_DIR`); keep it a valid pack (`scripts/pack-check.sh packs/test`).
+  connector payloads live in a service pack's `engine/` (with the
+  hand-designed PDF and email documents in its `documents/`). The core image
+  (`cib7/Dockerfile`) holds no pack; the pack's layer (its
+  `docker/engine.Dockerfile`) copies it to `/opt/services`, which the core
+  puts on the classpath with `PropertiesLauncher` and `loader.path`. Backend,
+  mcp, frontend and mobile are built the same way: a pack-less
+  `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`) and a thin
+  layer from the pack's `docker/`. Here compose, the tests (through the pom's
+  `services.pack.dir` and `PACK_DIR`), `mvn spring-boot:run` and `npm run dev`
+  use the core test pack `packs/test/`; keep it a valid pack
+  (`scripts/pack-check.sh`).
 - **`backend/` owns every `/api/**` surface**: public token-link pages
   (co-signing at `/api/public/consent/<purpose>` from the pack's
   `consent/<purpose>.yaml`, payments), the registry module that
@@ -142,8 +150,8 @@ Module responsibilities are strict and worth preserving:
 - **`mcp/` forwards the caller's own Bearer** to `/engine-rest`. There is no AI
   service account, so everything an agent does is attributable to a real
   Keycloak user. Its per-service schemas come from the generated
-  `packs/reference/docs/business/services/*/build/mcp-service.json` and the aggregated
-  `packs/reference/docs/business/services/build/services.json`.
+  `packs/test/docs/business/services/*/build/mcp-service.json` and the aggregated
+  `packs/test/docs/business/services/build/services.json`.
 
 The SPA always calls same-origin paths (`/engine-rest/...`, `/api/...`), so there
 is no CORS config on either Java service. The only cross-origin browser call is
@@ -160,7 +168,7 @@ same migrations. `docker compose down -v` wipes the data.
 ## The platform API
 
 Core and pack meet only through the formats in `docs/platform-api.md`
-(platform API `2.0`). `packs/reference/pack.yaml` states the platform API the
+(platform API `2.0`). A pack's `pack.yaml` states the platform API the
 pack needs; the engine and the backend refuse an incompatible pack at
 startup. A change to a pack format is a platform API change: additive is a
 minor (bump `PackManifest.PLATFORM_MINOR` in both Java modules and the doc),
@@ -169,28 +177,31 @@ breaking is a major. Tests that hold for any pack are tagged `pack`;
 
 ## Changing a service
 
-Never hand-edit generated files. The loop is: edit the markdown spec under
-`packs/reference/docs/business/services/<service>/` (`README.md`, `forms/*.md`,
-`service-tasks/*.md`, `decisions/*.md`), run the `/service-builder` skill
-(`.claude/skills/service-builder/SKILL.md`), test with `docker compose up --build`,
-then commit spec and generated output as one atomic change.
+Services change in their pack's repository, not here: edit the markdown spec
+under `docs/business/services/<service>/` (`README.md`, `forms/*.md`,
+`service-tasks/*.md`, `decisions/*.md`), run the pack's vendored
+`/service-builder` skill, and commit spec and generated output as one atomic
+change; the pack's CI runs this core's `scripts/pack-check.sh`, including the
+specs' service examples. Never hand-edit generated files. In this repository
+the same applies to `packs/test/`, which changes only when a core change needs
+it to (`<pack>` below is `packs/test`).
 
-Generated from the spec:
+Generated from the spec (paths in the pack):
 
-- `packs/reference/engine/processes/<service>/*.bpmn` and `*.dmn`
-- `packs/reference/engine/templates/<task>.json.ftl`
-- `packs/reference/engine/processes/<service>/variable-policy.json` and
+- `<pack>/engine/processes/<service>/*.bpmn` and `*.dmn`
+- `<pack>/engine/templates/<task>.json.ftl`
+- `<pack>/engine/processes/<service>/variable-policy.json` and
   `schemas/<form-id>.json` (which variables a client may write, and their values)
-- `packs/reference/backend/registry/<entity>.yaml` and
+- `<pack>/backend/registry/<entity>.yaml` and
   `db/registry/V<n>__*.sql` from `data/<entity>.md`
-- `packs/reference/backend/consent/<purpose>.yaml` from `consent.md`
-- `packs/reference/backend/payment/<service>.yaml` from the README's State fee
-- `packs/reference/backend/documents.json` and the `documents.*` catalog texts from the READMEs' Documents sections
-- `packs/reference/frontend/forms/<form-id>.json` (form definition, the default);
+- `<pack>/backend/consent/<purpose>.yaml` from `consent.md`
+- `<pack>/backend/payment/<service>.yaml` from the README's State fee
+- `<pack>/backend/documents.json` and the `documents.*` catalog texts from the READMEs' Documents sections
+- `<pack>/frontend/forms/<form-id>.json` (form definition, the default);
   `frontend/src/forms/<form-id>/` and `frontend/src/forms/registry.ts` only for
   `Renderer: tsx` forms
-- `packs/reference/docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
-  plus the aggregated `packs/reference/docs/business/services/build/services.json`
+- `<pack>/docs/business/services/<service>/build/mcp-service.json` and `mcp-training.md`,
+  plus the aggregated `<pack>/docs/business/services/build/services.json`
 - the mermaid block between the `bpmn-diagram:start` / `bpmn-diagram:end` markers
   in the service README
 
@@ -234,9 +245,9 @@ containers. The short form:
   from `frontend/src/forms/registry.ts` if the spec says `Renderer: tsx`,
   otherwise the schema renderer, which fetches the pack's
   `/pack/forms/<form-id>.json` (the pack's image layer,
-  `packs/reference/docker/frontend.Dockerfile`, puts `packs/reference/frontend`
+  `packs/test/docker/frontend.Dockerfile`, puts `packs/test/frontend`
   there on top of the pack-less core image; the Vite dev server serves
-  `PACK_DIR` or the reference pack the same way). Nothing validates the id at deploy time,
+  `PACK_DIR` or the core test pack the same way). Nothing validates the id at deploy time,
   so a wrong id shows up only on the task page, as "No form definition found".
 - **One engine deployment per `processes/<service>/` folder.**
   `ServiceDeployments.java` scans `classpath*:processes/*/` (the pack directory
@@ -268,7 +279,7 @@ containers. The short form:
 - **The realm is two files, imported once.** Keycloak reads one directory:
   the core realm `keycloak/cib7-poc-realm.json` (settings, roles, the core
   groups, clients and their service accounts), then the pack's users
-  `packs/reference/keycloak/cib7-poc-users-0.json`, who may only join core
+  `packs/test/keycloak/cib7-poc-users-0.json`, who may only join core
   groups (only those get engine grants; `RealmFilesTest`). `deploy/keycloak/`
   holds copies that must stay identical. The import runs on Keycloak's first
   start only, so a change needs the container recreated. The login theme
@@ -314,8 +325,8 @@ containers. The short form:
   namespace.
 - **Service texts live in the pack, core texts in the SPA.** A form's texts,
   service summaries, fee and issuer names and the BPMN display names are
-  `packs/reference/frontend/locales/<lang>/<namespace>.json`, loaded before the
-  first render for every namespace `packs/reference/frontend/catalog.json`
+  `packs/test/frontend/locales/<lang>/<namespace>.json`, loaded before the
+  first render for every namespace `packs/test/frontend/catalog.json`
   lists; a new form namespace must be listed there. Core screens glob
   `frontend/src/i18n/locales/<lang>/<namespace>.json`. Supported languages are
   `en` and `ar` (RTL), so every namespace needs both files; `src/pack/pack.test.ts`
@@ -323,7 +334,7 @@ containers. The short form:
 - **Styling is plain CSS on tokens; no component library.** Every colour is a
   token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
   literal colour in a rule breaks one scheme. The pack's
-  `packs/reference/branding/tokens.json` overrides the brand tokens listed in
+  `packs/test/branding/tokens.json` overrides the brand tokens listed in
   `frontend/src/pack/brand.ts` (and logo, favicon and portal name come from
   `brand.json` and `locales/<lang>/brand.json` beside it); every other token
   is core. Area styles live in

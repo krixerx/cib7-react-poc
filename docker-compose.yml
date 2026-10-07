@@ -264,10 +264,10 @@ services:
     # T1 (current): hello-world echo tool + OAuth2 PKCE-loopback challenge.
     # Verifies that Claude Desktop completes the auth flow against Keycloak
     # before any production tool code lands. See mcp/README.md.
-    # The reference pack's layer on the core image built from this checkout
-    # (packs/reference/docker/mcp.Dockerfile), the way a customer pack builds its own.
+    # The core test pack's layer on the core image built from this checkout
+    # (packs/test/docker/mcp.Dockerfile), the way a customer pack builds its own.
     build:
-      context: ./packs/reference
+      context: ./packs/test
       dockerfile: docker/mcp.Dockerfile
       additional_contexts:
         mcp-core: service:mcp-core
@@ -396,7 +396,7 @@ services:
       # service pack's users. Keycloak imports <realm>-realm.json first, then
       # <realm>-users-N.json into it (docs/platform-api.md).
       - ./keycloak/cib7-poc-realm.json:/opt/keycloak/data/import/cib7-poc-realm.json:ro
-      - ./packs/reference/keycloak/cib7-poc-users-0.json:/opt/keycloak/data/import/cib7-poc-users-0.json:ro
+      - ./packs/test/keycloak/cib7-poc-users-0.json:/opt/keycloak/data/import/cib7-poc-users-0.json:ro
       # Custom login theme (cib7) — branded to match the React SPA. start-dev
       # disables theme caching, so edits under keycloak/themes are picked up on
       # the next browser refresh without restarting the container. The realm's
@@ -404,7 +404,7 @@ services:
       - ./keycloak/themes:/opt/keycloak/themes:ro
       # The service pack's branding (logo, colours, portal name) for the login
       # pages, read by the theme's template.ftl; the same files the SPA reads.
-      - ./packs/reference/branding:/opt/keycloak/themes/cib7/login/resources/pack:ro
+      - ./packs/test/branding:/opt/keycloak/themes/cib7/login/resources/pack:ro
     # KC_HEALTH_ENABLED=true exposes /health/* on the management port (9000
     # in Keycloak 26+). A bash TCP probe is enough: once port 9000 is
     # listening, the server has finished its early init and the realm
@@ -457,10 +457,10 @@ services:
     # Talks to the engine exclusively via /engine-rest using the
     # cib7-business Keycloak service account — the engine itself stays a
     # clean CIB seven distribution of plugins and connectors.
-    # The reference pack's layer on the core image built from this checkout
-    # (packs/reference/docker/backend.Dockerfile), the way a customer pack builds its own.
+    # The core test pack's layer on the core image built from this checkout
+    # (packs/test/docker/backend.Dockerfile), the way a customer pack builds its own.
     build:
-      context: ./packs/reference
+      context: ./packs/test
       dockerfile: docker/backend.Dockerfile
       additional_contexts:
         backend-core: service:backend-core
@@ -560,10 +560,10 @@ services:
     image: cib7-poc-cib7-core:local
 
   cib7:
-    # The reference pack's layer on the core image built from this checkout
-    # (packs/reference/docker/engine.Dockerfile), the way a customer pack builds its own.
+    # The core test pack's layer on the core image built from this checkout
+    # (packs/test/docker/engine.Dockerfile), the way a customer pack builds its own.
     build:
-      context: ./packs/reference
+      context: ./packs/test
       dockerfile: docker/engine.Dockerfile
       additional_contexts:
         cib7-core: service:cib7-core
@@ -678,12 +678,12 @@ services:
     image: cib7-poc-frontend-core:local
 
   frontend:
-    # The reference pack's portal image, built the way a customer pack builds
+    # The core test pack's portal image, built the way a customer pack builds
     # its own: a thin layer adding the pack's frontend/ and branding/ to the
-    # core image (packs/reference/docker/frontend.Dockerfile). Here the base is
+    # core image (packs/test/docker/frontend.Dockerfile). Here the base is
     # the core built from this checkout instead of a published release.
     build:
-      context: ./packs/reference
+      context: ./packs/test
       dockerfile: docker/frontend.Dockerfile
       additional_contexts:
         frontend-core: service:frontend-core
@@ -756,10 +756,10 @@ services:
     image: cib7-poc-mobile-core:local
 
   mobile:
-    # The reference pack's layer on the core image built from this checkout
-    # (packs/reference/docker/mobile.Dockerfile), the way a customer pack builds its own.
+    # The core test pack's layer on the core image built from this checkout
+    # (packs/test/docker/mobile.Dockerfile), the way a customer pack builds its own.
     build:
-      context: ./packs/reference
+      context: ./packs/test
       dockerfile: docker/mobile.Dockerfile
       additional_contexts:
         mobile-core: service:mobile-core

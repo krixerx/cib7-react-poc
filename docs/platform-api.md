@@ -14,7 +14,9 @@ taken from the form schemas.
 **When to read this:** before writing or changing anything in a service pack,
 before changing core code that reads pack files, and before a core release.
 This is the contract between the core (this repository's modules) and a
-service pack (`packs/reference/` today, one repository per customer later).
+service pack (one repository per customer: the reference pack is
+[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack);
+the core's own tests run on `packs/test/`, a frozen copy of it).
 The core reads a pack only through the formats below; a pack reaches the core
 only through them.
 
@@ -91,7 +93,7 @@ sits in the core repository): `.claude/skills/service-builder/` (vendored by
 `.github/workflows/check.yml` (the core's `pack-check.sh` at `CORE_VERSION`,
 and the vendored skill from the same release), `.github/workflows/publish.yml`
 (the layers on the core images, Trivy, push), `renovate.json`, `README.md` and
-`CLAUDE.md`. `packs/reference/` holds the template for all of them.
+`CLAUDE.md`. The reference pack's repository is the template for all of them.
 
 The pack's specs, the source of everything generated in it, live in its
 `docs/business/services/<service>/`, together with the generated MCP
@@ -216,7 +218,7 @@ section exists; flow scenarios are recommended, not required.
 ## Checking a pack
 
 ```bash
-scripts/pack-check.sh [pack-dir]      # default: packs/reference
+scripts/pack-check.sh [pack-dir]      # default: packs/test, the core test pack
 ```
 
 Runs every check above against the pack: the engine's and the backend's

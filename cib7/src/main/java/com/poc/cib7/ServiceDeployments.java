@@ -47,7 +47,7 @@ import org.springframework.stereotype.Component;
  *       class creates.
  * </ul>
  *
- * <p>The folder name (= the spec folder name under {@code packs/reference/docs/business/services/})
+ * <p>The folder name (= the spec folder name under the pack's {@code docs/business/services/})
  * becomes the deployment name. The /service-builder skill emits into these folders; see its
  * SKILL.md conventions. They come from the service pack, not from this jar: the image puts {@code
  * /opt/services} on the classpath ({@code loader.path}, see cib7/Dockerfile), and tests and {@code

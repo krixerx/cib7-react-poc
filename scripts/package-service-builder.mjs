@@ -4,13 +4,14 @@
  * the artifact a pack repository unpacks into .claude/skills/service-builder/.
  *
  *   node scripts/package-service-builder.mjs --version 2.0.0 [--out dist/service-builder]
- *     [--repo https://github.com/<owner>/<repo>]
+ *     [--repo https://github.com/<owner>/<repo>] [--pack-repo https://github.com/<owner>/<pack-repo>]
  *
- * In the core repository the skill links to the reference pack and to core
- * files by relative path; in a pack repository neither is there. So every
- * link that leaves the skill folder is rewritten to the core repository at
- * the release tag (the reference pack lives there too), except the spec
- * template's links into the pack it is copied into, which stay relative. The
+ * In the core repository the skill links to its examples (the core test pack,
+ * a copy of the reference services) and to core files by relative path; in a
+ * pack repository neither is there. So every link that leaves the skill
+ * folder is rewritten: an example to the reference pack's repository, a core
+ * file to the core repository at the release tag. The spec template's links
+ * into the pack it is copied into stay relative. The
  * diagram tool goes into tools/, and VERSION names the core release and the
  * platform API the skill writes for. A link to a file that does not exist
  * fails the build, so a release never ships a dead reference.
@@ -22,7 +23,8 @@ import { fileURLToPath } from 'node:url';
 
 const core = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SKILL = '.claude/skills/service-builder';
-const PACK = 'packs/reference';
+/** The core test pack: the spec template's links are resolved as if it were the pack. */
+const PACK = 'packs/test';
 /** Where a copied spec template lands in a pack, for its relative links. */
 const SPEC_DEST = `${PACK}/docs/business/services/<service-id>`;
 
@@ -46,6 +48,11 @@ const repo = (
   .trim()
   .replace(/\.git$/, '');
 const blob = `${repo}/blob/v${version}`;
+/** Where the skill's reference examples live once vendored: the reference pack's repository. */
+const packRepo = (arg('pack-repo') ?? 'https://github.com/krixerx/eregistrations-reference-pack').replace(
+  /\/$/,
+  '',
+);
 
 const problems = [];
 
@@ -81,6 +88,11 @@ function rewrite(file, fromDir, keepInside, keepFrom) {
     if (keepInside && (path === keepInside || path.startsWith(`${keepInside}/`))) {
       const rel = posix.relative(keepFrom, path) || '.';
       return `](${rel}${fragment ? `#${fragment}` : ''})`;
+    }
+    // The skill's examples are the reference services, in the core as the test
+    // pack's copy and in their own repository for a pack.
+    if (path.startsWith(`${PACK}/`)) {
+      return `](${packRepo}/blob/main/${path.slice(PACK.length + 1)}${fragment ? `#${fragment}` : ''})`;
     }
     return `](${blob}/${path}${fragment ? `#${fragment}` : ''})`;
   });

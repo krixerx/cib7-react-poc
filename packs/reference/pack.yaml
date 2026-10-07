@@ -1,7 +1,0 @@
-# The service pack's manifest (docs/platform-api.md). The engine and the
-# backend read it at startup and refuse to run a pack that needs another
-# platform API major, or a newer minor than the core provides.
-name: reference
-version: "0.14.0"
-# The platform API this pack is built for: major.minor, quoted.
-platform: "2.0"

@@ -1,6 +1,6 @@
 # The core mobile image: the Flutter web app and nginx, with no service pack.
 # A pack's image is a thin layer FROM this one that adds its branding and
-# texts under /mobile/pack/ (packs/reference/docker/mobile.Dockerfile); the
+# texts under /mobile/pack/ (a pack's docker/mobile.Dockerfile); the
 # app reads them at startup (lib/pack.dart), and 40-runtime-env.sh fills the
 # page title and install manifest from them at container start.
 #

@@ -1,6 +1,6 @@
 # The core MCP sidecar image, with no service pack: a pack's image is a thin
 # layer FROM this one that adds its specs folder (manifests, training
-# markdown) and its engine form schemas (packs/reference/docker/mcp.Dockerfile).
+# markdown) and its engine form schemas (a pack's docker/mcp.Dockerfile).
 # Without them the sidecar starts with no services.
 #
 # Build context is the repo root (see docker-compose.yml) so the COPY can

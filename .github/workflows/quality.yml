@@ -35,27 +35,6 @@ jobs:
           node-version: '24'
       - run: node scripts/package-service-builder.mjs --version 0.0.0 --out dist/service-builder
 
-  # The module suites run on the core test pack (packs/test); this keeps the
-  # reference pack checked against the platform API until it moves to its
-  # own repository, whose check.yml then runs the same script.
-  reference-pack:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - run: npm ci
-        working-directory: frontend
-      - run: npm ci
-        working-directory: mcp
-      - run: scripts/pack-check.sh packs/reference
-
   java:
     runs-on: ubuntu-latest
     strategy:

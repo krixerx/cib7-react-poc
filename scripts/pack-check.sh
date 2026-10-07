@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # Checks a service pack against this core's platform API (docs/platform-api.md).
 #
-#   scripts/pack-check.sh [pack-dir]      # default: packs/reference
+#   scripts/pack-check.sh [pack-dir]      # default: packs/test, the core test pack
 #
-# Runs, with the pack in place of the reference pack, every check that holds
-# for any pack: the JUnit tests tagged `pack` in the engine and the backend
-# (manifest compatibility, deployments, specs, variable policies, value
+# Runs, with the given pack in place of the core test pack, every check that
+# holds for any pack: the JUnit tests tagged `pack` in the engine and the
+# backend (manifest compatibility, deployments, specs, variable policies, value
 # schemas, templates, documents, registry and consent descriptors and their
-# migrations), the frontend's pack tests (catalog, form definitions, texts
-# in every language, display names, branding, contrast) and the MCP sidecar's
-# (manifests against the form schemas). Checks of the reference services' own
-# behaviour are not run.
+# migrations, and the pack's own service examples: decisions, fees, registry
+# seeds, submissions, templates, flow scenarios), the frontend's pack tests
+# (catalog, form definitions, texts in every language, display names,
+# branding, contrast, form behaviour examples) and the MCP sidecar's
+# (manifests against the form schemas). A pack repository's check.yml runs it
+# from a checkout of the core release it names.
 #
 # Run from anywhere; needs JDK 21, Maven and Node 24 like the core build.
 set -euo pipefail
 
 core="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-pack="$(cd "${1:-$core/packs/reference}" && pwd)"
+pack="$(cd "${1:-$core/packs/test}" && pwd)"
 
 for part in pack.yaml engine backend frontend branding; do
   if [ ! -e "$pack/$part" ]; then

@@ -10,6 +10,14 @@ one with the PDF attached — to [Mailpit](https://mailpit.axllent.org/)). A
 **Cockpit / Tasklist / Admin** webapps are also bundled with full Keycloak
 SSO.
 
+> **This repository is the core.** The services (vehicle and business
+> registration) are a service pack in their own repository,
+> [krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack),
+> built as thin image layers on this core's images. `packs/test/` here is a
+> frozen copy of that pack, which the core's tests and `docker compose` run
+> on; paths below that point into it describe a pack's layout.
+> `docs/platform-api.md` is the contract between the two.
+
 The React SPA and the Keycloak login are branded **eRegistrations**;
 "CIB seven" throughout this repo always refers to the underlying process
 engine ([cibseven.org](https://cibseven.org)), not the app.
@@ -83,7 +91,7 @@ Role notes:
   `cib7-poc` realm: the core realm
   [`keycloak/cib7-poc-realm.json`](keycloak/cib7-poc-realm.json) plus the
   service pack's users,
-  [`packs/reference/keycloak/cib7-poc-users-0.json`](packs/reference/keycloak/cib7-poc-users-0.json).
+  [`packs/test/keycloak/cib7-poc-users-0.json`](packs/test/keycloak/cib7-poc-users-0.json).
 
 The SPA picks the role-appropriate UI from the JWT's realm roles:
 
@@ -95,7 +103,7 @@ The SPA picks the role-appropriate UI from the JWT's realm roles:
   application, then **Accept** (process ends approved) or **Send back…**
   (writes a reason variable and loops back to the applicant task).
 
-Full realm in `keycloak/cib7-poc-realm.json`, the demo users in `packs/reference/keycloak/cib7-poc-users-0.json`.
+Full realm in `keycloak/cib7-poc-realm.json`, the demo users in `packs/test/keycloak/cib7-poc-users-0.json`.
 
 ---
 
@@ -143,7 +151,7 @@ labels in the back-office worklist.
 ## Spec-first services — portable across instances
 
 A business service is defined **once** as a markdown spec under
-`packs/reference/docs/business/services/<service>/`. Everything else — BPMN, DMN, React
+`packs/test/docs/business/services/<service>/`. Everything else — BPMN, DMN, React
 forms, FreeMarker payloads, the form registry — is generated from it by the
 [`/service-builder`](.claude/skills/service-builder/SKILL.md) skill. The
 markdown folder is the portable unit: copy it into another instance of this
@@ -156,7 +164,7 @@ flowchart LR
 
   subgraph EE["Estonia — cib7-react-poc instance"]
     direction TB
-    EE_Spec[/"packs/reference/docs/business/services/<br/>business-registry/<br/>README.md · forms/*.md<br/>service-tasks/*.md · decisions/*.md"/]
+    EE_Spec[/"packs/test/docs/business/services/<br/>business-registry/<br/>README.md · forms/*.md<br/>service-tasks/*.md · decisions/*.md"/]
     EE_Builder[["/service-builder"]]
     EE_Code["BPMN + DMN + FreeMarker<br/>React forms + registry<br/>(generated)"]
     EE_Run["docker compose up<br/>then git commit"]
@@ -165,7 +173,7 @@ flowchart LR
 
   subgraph FI["Finland — cib7-react-poc instance (same app code)"]
     direction TB
-    FI_Spec[/"packs/reference/docs/business/services/<br/>business-registry/<br/>(copied + FI tweaks:<br/>labels, fields, rules, fees)"/]
+    FI_Spec[/"packs/test/docs/business/services/<br/>business-registry/<br/>(copied + FI tweaks:<br/>labels, fields, rules, fees)"/]
     FI_Builder[["/service-builder"]]
     FI_Code["BPMN + DMN + FreeMarker<br/>React forms + registry<br/>(generated, FI variant)"]
     FI_Run["docker compose up<br/>then git commit"]
@@ -546,7 +554,7 @@ generated from it. No one hand-edits BPMN or registers a form by hand.
 
 ```
   1) Analyst writes spec        2) Service builder generates       3) Test          4) Commit
-  packs/reference/docs/business/services/   ─▶  cib7/.../processes/*.bpmn      ─▶  docker     ─▶  git
+  packs/test/docs/business/services/   ─▶  cib7/.../processes/*.bpmn      ─▶  docker     ─▶  git
     <service>/                  cib7/.../processes/*.dmn           compose         add + commit
       README.md                 cib7/.../templates/*.ftl           up --build      a single
       forms/*.md                frontend/src/forms/<id>/                            atomic
@@ -556,7 +564,7 @@ generated from it. No one hand-edits BPMN or registers a form by hand.
 
 ### 1. Define (analyst — markdown only)
 
-One folder per service under [`packs/reference/docs/business/services/<service>/`](packs/reference/docs/business/services/).
+One folder per service under [`packs/test/docs/business/services/<service>/`](packs/test/docs/business/services/).
 Two starting points:
 
 - **Blank skeleton** —
@@ -565,7 +573,7 @@ Two starting points:
   and `decisions/example-decision.md` with placeholder fields and inline
   documentation on every section.
 - **Worked example** —
-  [`vehicle-registration/`](packs/reference/docs/business/services/vehicle-registration/README.md)
+  [`vehicle-registration/`](packs/test/docs/business/services/vehicle-registration/README.md)
   is the canonical filled-in spec. Read it side-by-side with the templates
   to see what good looks like.
 
@@ -578,8 +586,8 @@ What the spec must cover:
 |---|---|---|
 | `README.md` | Flow narrative, mermaid diagram, role/authorization matrix, process variables, known trade-offs | BPMN skeleton; the mermaid block is rewritten from the generated BPMN by [`scripts/bpmn-to-mermaid.mjs`](scripts/bpmn-to-mermaid.mjs) |
 | `forms/<form-id>.md` | One file per user task: form id, audience, fields (name / type / required / validation), submit variables, send-back behaviour | One React component per form + a `registry.ts` entry; one `<bpmn:userTask camunda:formKey="react:<form-id>">` per file |
-| `service-tasks/<task-id>.md` | One file per integration: HTTP method + URL, headers, payload template, response mapping, async semantics | One `<bpmn:serviceTask>` with inline `http-connector` config; FreeMarker payload under `packs/reference/engine/templates/` if non-trivial |
-| `decisions/<decision-id>.md` (optional) | DMN inputs, outputs, hit policy, rules table | One `.dmn` file under `packs/reference/engine/processes/`; one `<bpmn:businessRuleTask camunda:decisionRef="...">` |
+| `service-tasks/<task-id>.md` | One file per integration: HTTP method + URL, headers, payload template, response mapping, async semantics | One `<bpmn:serviceTask>` with inline `http-connector` config; FreeMarker payload under `packs/test/engine/templates/` if non-trivial |
+| `decisions/<decision-id>.md` (optional) | DMN inputs, outputs, hit policy, rules table | One `.dmn` file under `packs/test/engine/processes/`; one `<bpmn:businessRuleTask camunda:decisionRef="...">` |
 
 **Conventions the builder relies on:**
 
@@ -602,12 +610,12 @@ Run [`/service-builder`](.claude/skills/service-builder/SKILL.md) on the
 service folder. It reads every markdown file, validates them against the
 conventions above, and writes:
 
-- `packs/reference/engine/processes/<service>.bpmn`
-- `packs/reference/engine/processes/<decision>.dmn` (if any)
-- `packs/reference/engine/templates/<task>.json.ftl` (if any)
+- `packs/test/engine/processes/<service>.bpmn`
+- `packs/test/engine/processes/<decision>.dmn` (if any)
+- `packs/test/engine/templates/<task>.json.ftl` (if any)
 - `frontend/src/forms/<form-id>/` (one component per `forms/*.md`)
 - `frontend/src/forms/registry.ts` — entries added / removed in place
-- `packs/reference/docs/business/services/<service>/README.md` — the mermaid block is
+- `packs/test/docs/business/services/<service>/README.md` — the mermaid block is
   regenerated by [`scripts/bpmn-to-mermaid.mjs`](scripts/bpmn-to-mermaid.mjs)
 
 **Modifications work the same way** — edit the markdown, re-run the
@@ -656,9 +664,9 @@ Commit the spec **and** the generated files in a single atomic change so
 the repo always builds:
 
 ```
-packs/reference/docs/business/services/<service>/...   (the source of truth)
-packs/reference/engine/processes/...  (generated)
-packs/reference/engine/templates/...  (generated, if any)
+packs/test/docs/business/services/<service>/...   (the source of truth)
+packs/test/engine/processes/...  (generated)
+packs/test/engine/templates/...  (generated, if any)
 frontend/src/forms/...                 (generated)
 frontend/src/forms/registry.ts         (generated)
 ```
@@ -702,10 +710,10 @@ Each BPMN user task carries a `camunda:formKey`:
 
 The React app reads the task's `formKey` from the REST API, strips the
 `react:` prefix, and draws the form from its JSON definition in the service
-pack (`/pack/forms/<form-id>.json`, from `packs/reference/frontend/forms/`)
+pack (`/pack/forms/<form-id>.json`, from `packs/test/frontend/forms/`)
 with the core schema renderer (`src/forms/schema/`).
 
-**To add a form:** write its spec under `packs/reference/docs/business/services/<service>/forms/`
+**To add a form:** write its spec under `packs/test/docs/business/services/<service>/forms/`
 and run `/service-builder`; it emits the definition, the BPMN user task with
 the `camunda:formKey`, the value schema and the texts. No React code is written.
 
@@ -749,7 +757,7 @@ button).
 
 ## DMN decision table
 
-[`packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
+[`packs/test/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](packs/test/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
 is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
 `price` (Double) — and a single string output `autoDecision`. Hit policy is
 `FIRST`: minors always go to review, adults with cheap picks auto-approve,
@@ -767,7 +775,7 @@ that shipped in the same service deployment:
 ```
 
 Each service's BPMN + DMN files live under
-`packs/reference/engine/processes/<service>/` and are deployed as **one
+`packs/test/engine/processes/<service>/` and are deployed as **one
 named engine deployment per service** by
 [`ServiceDeployments.java`](cib7/src/main/java/com/poc/cib7/ServiceDeployments.java)
 (the starter's single-bundle auto-deploy is off — `camunda.bpm.auto-deployment-enabled: false`
