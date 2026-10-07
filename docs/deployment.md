@@ -1,10 +1,14 @@
 # Deployment (from source)
 
 > **Most administrators should use [`deploy/README.md`](../deploy/README.md)
-> instead** — a pull-only setup using the pre-built images CI publishes to
-> Docker Hub (`krixerx/cib7-poc-*`): no clone, no build, just a compose
-> file + `.env`. This document covers deploying **from source**, which you
-> only need when running unpushed changes.
+> instead** — a pull-only setup: the core's deploy kit with one service
+> pack's images (published by the pack repository on the core images) and
+> the pack's users and branding in `pack/`, deployed by the Deploy to VM
+> workflow ([`ci-cd.md`](ci-cd.md)). This document covers deploying **from
+> source**, which you only need when running unpushed core changes. It
+> builds this repository's compose, so the instance runs the core **test
+> pack** (`packs/test/`), a frozen copy of the reference services, not a
+> customer's pack.
 
 **When to read this:** when deploying the POC to a server other than your
 laptop — anywhere browsers reach the SPA on something other than

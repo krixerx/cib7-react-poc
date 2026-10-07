@@ -2,14 +2,16 @@
 
 **Platform API version:** `2.0`
 
-`2.0` is not released yet: until a core release ships it to a pack other than
-the reference pack, it may still change without a major bump. Changes since
-it was first written: `links.consent(execution, purpose, partyId)` replaced
+`2.0` shipped with core 2.0.0 (2026-10-07); core 2.0.1 runs it too. From
+here on a change to a pack format follows [Versioning](#versioning): additive
+is `2.1`, breaking is `3.0`. While it was being written, before that release,
+it changed without a major bump: `links.consent(execution, purpose, partyId)` replaced
 `links.owner` / `links.founder`, policies gained `identity`, packs gained
 `backend/payment/` and `backend/documents.json`, the two consent pages
 became one, `/consent/<purpose>/<token>`, worded by the pack, and the MCP
 manifests became format 2: texts and offered fields only, with the value rules
-taken from the form schemas.
+taken from the form schemas (and `notOffered`), and the specs gained their
+service examples.
 
 **When to read this:** before writing or changing anything in a service pack,
 before changing core code that reads pack files, and before a core release.

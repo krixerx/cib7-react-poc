@@ -65,7 +65,8 @@ cib7/
         ├── application.yaml               — engine + OAuth2 client config
         └── schemas/core-v1.json           — shared value rules for the pack's form schemas
 
-packs/test/engine/                    — the service pack's engine files (on the classpath at runtime)
+<pack>/engine/                        — a service pack's engine files (on the classpath at runtime;
+                                         here packs/test/, the core test pack)
     ├── processes/<service>/               — one engine deployment per folder (ServiceDeployments.java)
     │   ├── <service>.bpmn, *.dmn
     │   ├── variable-policy.json           — which variables clients may write (generated, see below)
@@ -77,7 +78,7 @@ packs/test/engine/                    — the service pack's engine files (on th
         ├── pdf/*.ftlh                     — certificates, invoices, extracts (HTML, auto-escaped)
         └── email/*.ftl                    — email bodies (plain text) and the shared _footer.ftl
 
-packs/test/branding/                  — on the classpath as branding/: portal name, primary
+<pack>/branding/                      — on the classpath as branding/: portal name, primary
                                              colour and logo for the documents (also the SPA's brand)
 ```
 
@@ -357,7 +358,7 @@ builds the same layer from its own repository on a published core image.
 
 The scan creates **one named engine deployment per service folder**
 (deployment name = folder name = the spec folder name under
-`packs/test/docs/business/services/`), with `enableDuplicateFiltering(false)` so a
+the pack's `docs/business/services/`), with `enableDuplicateFiltering(false)` so a
 re-deploy of an unchanged service is a no-op and an edit re-versions only
 that service, always with **all** of its files. The argument is
 `deployChangedOnly`: with `true` a changed BPMN would be deployed alone,
@@ -381,7 +382,8 @@ It runs in `@PostConstruct`, before the HTTP port opens, so
 
 ## BPMN files
 
-**Location.** `packs/test/engine/processes/<service>/` — one folder
+**Location.** a pack's `engine/processes/<service>/` (in the pack repository;
+`packs/test/engine/processes/` here) — one folder
 per service; the folder name becomes the engine deployment name. A
 service's DMN files live in the same folder (required by the
 `deployment` decision binding).

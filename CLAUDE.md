@@ -175,6 +175,23 @@ minor (bump `PackManifest.PLATFORM_MINOR` in both Java modules and the doc),
 breaking is a major. Tests that hold for any pack are tagged `pack`;
 `scripts/pack-check.sh` runs exactly those.
 
+**Releases.** A core release is a `v<x.y.z>` tag on `main`: CI publishes the
+`cib7-poc-*-core` images (plus `cib7-poc-esb` and `cib7-poc-pdf-renderer`)
+as `<x.y.z>` and attaches `service-builder-<x.y.z>.tar.gz` to the GitHub
+release. A pack moves to it with its `scripts/update-core.sh <x.y.z>`
+(Renovate proposes the bump); its CI then runs this release's
+`pack-check.sh`. A release whose image scan failed has no image for that
+tag, so check Docker Hub before a pack moves to it.
+
+**Deployment.** `deploy/` is one kit for any number of instances and holds
+nothing of a pack: `.env` names the pack's images (`PACK_IMAGE_PREFIX`,
+`PACK_TAG`) and the core release for the core-only images (`CORE_TAG`), and
+the official Keycloak image mounts the pack's users file and branding from
+the host's `pack/`. The Deploy to VM workflow takes a pack commit
+(`pack_ref`), reads its core release from the pack's `docker/core.conf` and
+ships the pack's data (`docs/ci-cd.md`). Smoke tests in `deploy.sh` must not
+name a pack's services.
+
 ## Changing a service
 
 Services change in their pack's repository, not here: edit the markdown spec

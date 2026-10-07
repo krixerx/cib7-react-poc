@@ -25,11 +25,15 @@ table of contents so it can be opened, skimmed, and closed in one pass.
 
 The docs are split into two layers:
 
-- **Platform docs** (this folder) — how the platform works. Cross-cutting,
-  service-agnostic.
-- **Business docs** ([`business/`](business/)) — what the platform delivers.
-  One folder per service under [`business/services/`](../packs/test/docs/business/services/),
-  each describing its BPMN flow, forms, integrations, and roles.
+- **Core docs** (this folder): how the platform works. Cross-cutting and
+  service-agnostic; they hold for every service pack.
+- **Service docs** live in each service pack's repository, one folder per
+  service under its `docs/business/services/`: the spec of the BPMN flow,
+  forms, integrations and roles, which the service-builder generates the
+  pack's files from. The reference pack's:
+  [eregistrations-reference-pack/docs/business/services](https://github.com/krixerx/eregistrations-reference-pack/tree/main/docs/business/services);
+  the core test pack keeps a frozen copy in
+  [`../packs/test/docs/business/services/`](../packs/test/docs/business/services/).
 
 | If you need to … | Read |
 |---|---|
@@ -44,17 +48,20 @@ The docs are split into two layers:
 | Understand the auth chain end-to-end (SPA → JWT → engine identity) | [`architecture.md` § Security posture](architecture.md#security-posture-poc) + [`cib7.md` § Authentication and authorization](cib7.md#authentication-and-authorization) + [`frontend.md` § Authentication](frontend.md#authentication) |
 | Add or change an endpoint, grant, variable, token link, integration or container (mandatory rules) | [`security.md`](security.md) |
 | Reference the form contract between BPMN and React | [`human-role-react-forms-spec.md`](human-role-react-forms-spec.md) |
-| Change a specific business service (flow, forms, integrations) | [`business/services/<service>/README.md`](../packs/test/docs/business/services/) |
-| Add a new business service | [`business/services/`](../packs/test/docs/business/services/) — copy an existing service folder as a template |
-| Regenerate a service's flow diagram from its BPMN | [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) |
+| Change a specific business service (flow, forms, integrations) | its spec in the pack repository (`docs/business/services/<service>/`), then `/service-builder` there; the reference pack: [eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack) |
+| Add a new business service | the pack's spec template (`.claude/skills/service-builder/spec-template/`), in the pack repository |
+| Regenerate a service's flow diagram from its BPMN | the skill's `tools/bpmn-to-mermaid.mjs` in a pack, [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) here |
 | Run / build the app, see the high-level overview | top-level [`../README.md`](../README.md) |
 
-### Services
+### Services of the reference pack
 
-| Service | Process key | Doc |
+The core's examples and its test pack use these two; their specs live in the
+pack repository (the copies under `packs/test/` are frozen).
+
+| Service | Process key | Spec |
 |---|---|---|
-| Vehicle Registration | `vehicleRegistration` | [`business/services/vehicle-registration/`](../packs/test/docs/business/services/vehicle-registration/README.md) |
-| Estonian OÜ Registration | `businessRegistration` | [`business/services/business-registration/`](../packs/test/docs/business/services/business-registration/README.md) |
+| Vehicle Registration | `vehicleRegistration` | [`vehicle-registration/`](https://github.com/krixerx/eregistrations-reference-pack/tree/main/docs/business/services/vehicle-registration) |
+| Estonian OÜ Registration | `businessRegistration` | [`business-registration/`](https://github.com/krixerx/eregistrations-reference-pack/tree/main/docs/business/services/business-registration) |
 
 ## Conventions
 
@@ -63,33 +70,36 @@ The docs are split into two layers:
   TypeScript / React follows the
   [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html).
   When in doubt, match the surrounding code.
-- **BPMN files** live under `packs/test/engine/processes/` and are
-  auto-deployed on startup. See [`cib7.md`](cib7.md#bpmn-files) for the
-  one-file-per-process rule and how `formKey` wires a user task to a React form.
+- **BPMN files** live in a pack's `engine/processes/<service>/` (here
+  `packs/test/engine/processes/`) and are auto-deployed on startup, one
+  deployment per folder. See [`cib7.md`](cib7.md#bpmn-files) for the rules
+  and how `formKey` wires a user task to a form.
 - **Form id contract.** A BPMN user task carries `camunda:formKey="react:<id>"`;
-  the React app strips the `react:` prefix and looks `<id>` up in
-  `frontend/src/forms/registry.ts`. Details: [`frontend.md`](frontend.md#forms).
-- **Service docs are per-service.** Anything specific to a single business
-  service (its flow, forms, integrations, variables, roles) belongs in
-  `packs/test/docs/business/services/<service>/`, not in the cross-cutting platform
-  docs. The cross-cutting docs describe how the platform works in general;
+  the React app strips the `react:` prefix and draws the pack's form
+  definition `/pack/forms/<id>.json`, or a TSX component from
+  `frontend/src/forms/registry.ts` for the rare `Renderer: tsx` form.
+  Details: [`frontend.md`](frontend.md#forms).
+- **Service docs are per-service and live in the pack.** Anything specific to
+  a single business service (its flow, forms, integrations, variables, roles)
+  belongs in its pack's `docs/business/services/<service>/`, not in these
+  core docs. The core docs describe how the platform works for every pack;
   the service folder describes what one service does in particular.
 - **Flow diagrams are generated, not hand-written.** Each service README
   embeds a mermaid diagram between `<!-- bpmn-diagram:start -->` and
-  `<!-- bpmn-diagram:end -->` markers. Re-run
-  [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) after
-  changing the BPMN; don't hand-edit the block.
+  `<!-- bpmn-diagram:end -->` markers, regenerated by the service-builder
+  after changing the BPMN; don't hand-edit the block.
 
 ## How to keep these docs healthy
 
 - Update the doc in the same PR that changes the code it describes.
 - Keep each file focused on its scope — don't duplicate content across files,
   cross-link instead.
-- Cross-cutting vs service-specific: if a change touches one service only,
-  update that service's folder. If it changes how every service must behave,
-  update the cross-cutting doc and link from the affected services.
+- Core vs service-specific: if a change touches one service only, it
+  belongs to that service's pack. If it changes how every service must
+  behave, it is a core change: update the core doc here, and
+  `platform-api.md` when a pack format changes.
 - Headings are stable anchors. Don't rename a section without checking inbound
   links from sibling docs.
 - If a section grows beyond ~80 lines, consider splitting it into its own file.
-- After editing a BPMN file, regenerate the diagram for that service before
-  committing.
+- Keep `packs/test/` frozen unless a core change needs it to change, and
+  keep it a valid pack (`scripts/pack-check.sh`).

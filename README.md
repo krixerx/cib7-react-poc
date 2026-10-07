@@ -148,55 +148,60 @@ SPAs surface the case's position live: a **case-progress stepper** on every
 case view, payment-required alerts in the applicant inbox, and wait-state
 labels in the back-office worklist.
 
-## Spec-first services — portable across instances
+## Service packs — one core, a pack per instance
 
-A business service is defined **once** as a markdown spec under
-`packs/test/docs/business/services/<service>/`. Everything else — BPMN, DMN, React
-forms, FreeMarker payloads, the form registry — is generated from it by the
-[`/service-builder`](.claude/skills/service-builder/SKILL.md) skill. The
-markdown folder is the portable unit: copy it into another instance of this
-app, tweak the country-specific bits, regenerate, and you have the same
-service localized.
+The platform is a **core** (this repository: engine, backend, portal, mobile
+app, MCP sidecar, bus) released as versioned images, and **service packs**,
+one repository per country or customer, holding only data: the services'
+specs and what is generated from them (BPMN, DMN, FreeMarker payloads, form
+definitions, texts, branding, registries, users). A pack names the core
+release it runs on and builds its images as thin layers on the core's; an
+instance runs one core release with one pack. The reference pack is
+[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack).
 
 ```mermaid
 flowchart LR
-  Analyst(("Analyst<br/>writes markdown only"))
+  Core[["core repository<br/>releases v&lt;x.y.z&gt;:<br/>cib7-poc-*-core images<br/>+ service-builder"]]
 
-  subgraph EE["Estonia — cib7-react-poc instance"]
+  subgraph EE["Estonia — pack repository"]
     direction TB
-    EE_Spec[/"packs/test/docs/business/services/<br/>business-registry/<br/>README.md · forms/*.md<br/>service-tasks/*.md · decisions/*.md"/]
+    EE_Spec[/"docs/business/services/<br/>business-registration/<br/>README.md · forms/*.md<br/>service-tasks/*.md · decisions/*.md"/]
     EE_Builder[["/service-builder"]]
-    EE_Code["BPMN + DMN + FreeMarker<br/>React forms + registry<br/>(generated)"]
-    EE_Run["docker compose up<br/>then git commit"]
-    EE_Spec --> EE_Builder --> EE_Code --> EE_Run
+    EE_Code["BPMN + DMN + FreeMarker<br/>form definitions + texts<br/>(generated)"]
+    EE_Img["pack images<br/>(layers on the core images)"]
+    EE_Spec --> EE_Builder --> EE_Code --> EE_Img
   end
 
-  subgraph FI["Finland — cib7-react-poc instance (same app code)"]
+  subgraph FI["Finland — pack repository"]
     direction TB
-    FI_Spec[/"packs/test/docs/business/services/<br/>business-registry/<br/>(copied + FI tweaks:<br/>labels, fields, rules, fees)"/]
+    FI_Spec[/"docs/business/services/<br/>business-registration/<br/>(copied + FI tweaks:<br/>labels, fields, rules, fees)"/]
     FI_Builder[["/service-builder"]]
-    FI_Code["BPMN + DMN + FreeMarker<br/>React forms + registry<br/>(generated, FI variant)"]
-    FI_Run["docker compose up<br/>then git commit"]
-    FI_Spec --> FI_Builder --> FI_Code --> FI_Run
+    FI_Code["BPMN + DMN + FreeMarker<br/>form definitions + texts<br/>(generated, FI variant)"]
+    FI_Img["pack images"]
+    FI_Spec --> FI_Builder --> FI_Code --> FI_Img
   end
 
-  Analyst --> EE_Spec
+  Core --> EE_Img
+  Core --> FI_Img
+  EE_Img --> EE_Run(("Estonia<br/>instance"))
+  FI_Img --> FI_Run(("Finland<br/>instance"))
   EE_Spec -. "copy the<br/>service folder" .-> FI_Spec
 ```
 
-- **Portable:** the markdown spec folder. One analyst-authored artifact
-  describes the service end-to-end (flow, forms, integrations, decisions,
-  roles, variables).
-- **Per-instance:** the generated BPMN / React / DMN / FreeMarker
-  (re-derived on each side by `/service-builder`) and the deployment
-  (Docker, Keycloak realm, env vars).
-- **Localization** lives in the spec, not in code. The FI variant edits the
-  same markdown files — different field labels, different DMN rules
-  (e.g. local fee thresholds), different email copy — and runs the builder
-  again. The app code stays untouched.
+- **Shared:** the core. A security fix is a core release; each pack moves
+  to it by bumping `CORE_VERSION` (Renovate proposes it) and rebuilding its
+  images, with no merge between repositories.
+- **Per pack:** the markdown specs, the files generated from them, the
+  branding and the users. Localization lives in the spec: the FI variant
+  edits the same markdown files (field labels, DMN rules such as local fee
+  thresholds, email copy) and runs the builder again.
+- **Per instance:** the deployment (`deploy/`: hostnames, secrets, Keycloak,
+  certificates), running one pack on its core release.
+- **The contract** between core and pack is
+  [`docs/platform-api.md`](docs/platform-api.md); `scripts/pack-check.sh`
+  checks a pack against it, including the services' own examples.
 
-For the step-by-step workflow — what each markdown file must define, how to
-run the builder, how to test — see
+For the step-by-step workflow see
 [Add or modify a service](#add-or-modify-a-service).
 
 ## Architecture
@@ -549,45 +554,50 @@ to the engine on port 8080 and `/api` to the backend on port 8085.
 
 ## Add or modify a service
 
-Services are **spec-first**. The analyst owns the markdown; the code is
-generated from it. No one hand-edits BPMN or registers a form by hand.
+Services are **spec-first** and live in a **pack repository**, not here. The
+analyst owns the markdown; everything else is generated from it. No one
+hand-edits BPMN or a form definition. In this repository the same applies to
+the core test pack `packs/test/`, which changes only when a core change needs
+it to.
 
 ```
-  1) Analyst writes spec        2) Service builder generates       3) Test          4) Commit
-  packs/test/docs/business/services/   ─▶  cib7/.../processes/*.bpmn      ─▶  docker     ─▶  git
-    <service>/                  cib7/.../processes/*.dmn           compose         add + commit
-      README.md                 cib7/.../templates/*.ftl           up --build      a single
-      forms/*.md                frontend/src/forms/<id>/                            atomic
-      service-tasks/*.md        frontend/src/forms/registry.ts                      change
-      decisions/*.md (DMN)      docs/.../README.md ▶ mermaid
+  1) Analyst writes spec        2) Service builder generates        3) Check + test      4) Commit
+  docs/business/services/  ─▶  engine/processes/<service>/*.bpmn ─▶  pack-check (CI)  ─▶  git, in
+    <service>/                  engine/processes/<service>/*.dmn     pack images on       the pack
+      README.md                 engine/templates/*.json.ftl          a test instance      repository
+      forms/*.md                frontend/forms/<id>.json + texts
+      service-tasks/*.md        backend/ descriptors, MCP manifest
+      decisions/*.md (DMN)      README.md ▶ mermaid
 ```
 
 ### 1. Define (analyst — markdown only)
 
-One folder per service under [`packs/test/docs/business/services/<service>/`](packs/test/docs/business/services/).
+One folder per service under the pack's `docs/business/services/<service>/`.
 Two starting points:
 
-- **Blank skeleton** —
-  [`.claude/skills/service-builder/spec-template/`](.claude/skills/service-builder/spec-template/)
-  has empty `README.md`, `forms/example-form.md`, `service-tasks/example-task.md`,
+- **Blank skeleton** — the vendored skill's `spec-template/`
+  ([here](.claude/skills/service-builder/spec-template/)) has empty
+  `README.md`, `forms/example-form.md`, `service-tasks/example-task.md`,
   and `decisions/example-decision.md` with placeholder fields and inline
   documentation on every section.
-- **Worked example** —
-  [`vehicle-registration/`](packs/test/docs/business/services/vehicle-registration/README.md)
+- **Worked example** — the reference pack's
+  [`vehicle-registration/`](https://github.com/krixerx/eregistrations-reference-pack/blob/main/docs/business/services/vehicle-registration/README.md)
   is the canonical filled-in spec. Read it side-by-side with the templates
   to see what good looks like.
 
 The folder is the **single source of truth**; if a fact isn't in the spec,
-the builder won't emit code for it.
+the builder won't emit anything for it. The spec also carries the service's
+tests as examples (decisions, fees, submissions, form behaviour, templates,
+flow scenarios), which the core's pack checks run.
 
 What the spec must cover:
 
 | File | Defines | Becomes |
 |---|---|---|
-| `README.md` | Flow narrative, mermaid diagram, role/authorization matrix, process variables, known trade-offs | BPMN skeleton; the mermaid block is rewritten from the generated BPMN by [`scripts/bpmn-to-mermaid.mjs`](scripts/bpmn-to-mermaid.mjs) |
-| `forms/<form-id>.md` | One file per user task: form id, audience, fields (name / type / required / validation), submit variables, send-back behaviour | One React component per form + a `registry.ts` entry; one `<bpmn:userTask camunda:formKey="react:<form-id>">` per file |
-| `service-tasks/<task-id>.md` | One file per integration: HTTP method + URL, headers, payload template, response mapping, async semantics | One `<bpmn:serviceTask>` with inline `http-connector` config; FreeMarker payload under `packs/test/engine/templates/` if non-trivial |
-| `decisions/<decision-id>.md` (optional) | DMN inputs, outputs, hit policy, rules table | One `.dmn` file under `packs/test/engine/processes/`; one `<bpmn:businessRuleTask camunda:decisionRef="...">` |
+| `README.md` | Flow narrative, mermaid diagram, role/authorization matrix, process variables, state fee, write policy, flow scenarios | BPMN skeleton, fee descriptor, variable policy; the mermaid block is rewritten from the generated BPMN |
+| `forms/<form-id>.md` | One file per user task: form id, audience, fields (name / type / required / validation), actions, send-back behaviour, submission and behaviour examples | A form definition `frontend/forms/<form-id>.json` with its texts, a value schema, the MCP entry; one `<bpmn:userTask camunda:formKey="react:<form-id>">` |
+| `service-tasks/<task-id>.md` | One file per integration: HTTP method + URL, headers, payload template, response mapping, async semantics, examples | One `<bpmn:serviceTask>` with the `http-connector`; its FreeMarker payload under `engine/templates/` |
+| `decisions/<decision-id>.md` (optional) | DMN inputs, outputs, hit policy, rules table, examples | One `.dmn` file in `engine/processes/<service>/`; one `<bpmn:businessRuleTask camunda:decisionRef="...">` |
 
 **Conventions the builder relies on:**
 
@@ -606,73 +616,50 @@ What the spec must cover:
 
 ### 2. Generate (service-builder skill)
 
-Run [`/service-builder`](.claude/skills/service-builder/SKILL.md) on the
-service folder. It reads every markdown file, validates them against the
-conventions above, and writes:
-
-- `packs/test/engine/processes/<service>.bpmn`
-- `packs/test/engine/processes/<decision>.dmn` (if any)
-- `packs/test/engine/templates/<task>.json.ftl` (if any)
-- `frontend/src/forms/<form-id>/` (one component per `forms/*.md`)
-- `frontend/src/forms/registry.ts` — entries added / removed in place
-- `packs/test/docs/business/services/<service>/README.md` — the mermaid block is
-  regenerated by [`scripts/bpmn-to-mermaid.mjs`](scripts/bpmn-to-mermaid.mjs)
+Run `/service-builder` in the pack repository (its vendored copy, from the
+core release the pack names). It reads every markdown file, validates them
+against the conventions above, and rewrites the generated files in place:
+`engine/processes/<service>/` (BPMN, DMN, variable policy, value schemas),
+`engine/templates/`, `frontend/forms/` and `frontend/locales/`,
+`backend/` (registries, co-signing, fees, document categories), the MCP
+manifests under `docs/business/services/<service>/build/`, and the mermaid
+block in the service README.
 
 **Modifications work the same way** — edit the markdown, re-run the
-builder, and the existing code is rewritten in place. Never hand-edit
-generated files; the next builder run will overwrite the change.
+builder, and the generated files are rewritten. Never hand-edit generated
+files; the next builder run will overwrite the change. A need the formats
+cannot express (a new field type, a TSX form, a new bean) is a core change,
+not something to work around in the pack.
 
-For a new service that needs a new top-level navigation entry in PartA,
-the builder also drops a row into the Services page; for back-office tasks
-it threads them into the Tasks tree via the standard `formKey` lookup, so
-no extra wiring is needed.
+### 3. Check and test
 
-### 3. Test locally (Docker)
+- **Pack check:** the pack's CI runs this core's
+  [`scripts/pack-check.sh`](scripts/pack-check.sh) at the pack's core
+  release: formats, security rules and the spec's own examples. Locally,
+  from a core checkout: `scripts/pack-check.sh <pack-dir>`.
+- **Run it:** the pack's `publish.yml` builds its images on the core's;
+  deploy that pack version to a test instance (`deploy/`, the Deploy to VM
+  workflow takes the pack commit as input) and walk the happy path and at
+  least one edge case:
+  1. **PartA — start the service as `bart`**, fill each user form, watch
+     the row in **My processes** advance through each step.
+  2. **PartB — pick up the task as `homer`**, exercise every gateway
+     branch (approve, send-back, timer-driven side effects, …).
+  3. Check the **Mailpit** inbox for the notification emails the flow
+     emits.
+  4. Check **Cockpit** (`/camunda/app/cockpit/`) for incidents; an
+     incident means the engine hit something the spec didn't cover — fix
+     the spec, re-run the builder, redeploy.
 
-```bash
-docker compose up --build
-```
-
-The engine redeploys the BPMN / DMN on startup —
-[`ServiceDeployments.java`](cib7/src/main/java/com/poc/cib7/ServiceDeployments.java)
-creates one named deployment per `processes/<service>/` folder, with
-duplicate filtering so unchanged services don't re-version. Walk the
-happy path and at least one edge case through the SPA:
-
-1. **PartA — start the service as `bart`**, fill each user form, watch
-   the row in **My processes** advance through each step.
-2. **PartB — pick up the task as `homer`**, exercise every gateway branch
-   (approve, send-back, timer-driven side effects, …).
-3. Check **Mailpit** at <http://localhost:8025> for any notification
-   emails the flow emits (requires `docker compose --profile dev up -d
-   mailpit-ui` once per session — the default profile keeps the inbox
-   network-internal).
-4. Check **Cockpit** at <http://localhost:3000/camunda/app/cockpit/> for
-   incidents; an incident means the engine hit something the spec didn't
-   cover — fix the spec, re-run the builder, redeploy.
-
-> The frontend mounts the form via the registry, so an unknown `formKey`
-> shows up as a clear runtime error in the task page. Cockpit shows
-> connector / DMN / FreeMarker failures as engine incidents.
-
-If the change is frontend-only, `npm run dev` (Vite, terminal 2) gives a
-faster loop — see [Run locally](#run-locally-without-docker).
+In this repository, `docker compose up --build` runs the core with the test
+pack, which is the loop for core changes.
 
 ### 4. Commit
 
-Commit the spec **and** the generated files in a single atomic change so
-the repo always builds:
-
-```
-packs/test/docs/business/services/<service>/...   (the source of truth)
-packs/test/engine/processes/...  (generated)
-packs/test/engine/templates/...  (generated, if any)
-frontend/src/forms/...                 (generated)
-frontend/src/forms/registry.ts         (generated)
-```
-
-A commit message of the form `<service>: <what changed in the spec>`
-keeps `git log` readable from the analyst's perspective.
+Commit the spec **and** the generated files in a single atomic change in
+the pack repository, so it always builds and checks. A commit message of the
+form `<service>: <what changed in the spec>` keeps `git log` readable from
+the analyst's perspective.
 
 ---
 
@@ -710,11 +697,11 @@ Each BPMN user task carries a `camunda:formKey`:
 
 The React app reads the task's `formKey` from the REST API, strips the
 `react:` prefix, and draws the form from its JSON definition in the service
-pack (`/pack/forms/<form-id>.json`, from `packs/test/frontend/forms/`)
+pack (`/pack/forms/<form-id>.json`, from the pack's `frontend/forms/`)
 with the core schema renderer (`src/forms/schema/`).
 
-**To add a form:** write its spec under `packs/test/docs/business/services/<service>/forms/`
-and run `/service-builder`; it emits the definition, the BPMN user task with
+**To add a form:** write its spec under the pack's `docs/business/services/<service>/forms/`
+and run `/service-builder` in the pack repository; it emits the definition, the BPMN user task with
 the `camunda:formKey`, the value schema and the texts. No React code is written.
 
 ## Service task & the http-connector
@@ -757,8 +744,9 @@ button).
 
 ## DMN decision table
 
-[`packs/test/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](packs/test/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
-is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
+The reference pack's
+[`vehicle-auto-approval.dmn`](packs/test/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
+(here the test pack's copy) is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
 `price` (Double) — and a single string output `autoDecision`. Hit policy is
 `FIRST`: minors always go to review, adults with cheap picks auto-approve,
 everything else goes to review.
@@ -774,8 +762,8 @@ that shipped in the same service deployment:
                        camunda:resultVariable="autoDecision" />
 ```
 
-Each service's BPMN + DMN files live under
-`packs/test/engine/processes/<service>/` and are deployed as **one
+Each service's BPMN + DMN files live in its pack's
+`engine/processes/<service>/` and are deployed as **one
 named engine deployment per service** by
 [`ServiceDeployments.java`](cib7/src/main/java/com/poc/cib7/ServiceDeployments.java)
 (the starter's single-bundle auto-deploy is off — `camunda.bpm.auto-deployment-enabled: false`

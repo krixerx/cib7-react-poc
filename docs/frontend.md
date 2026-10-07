@@ -397,8 +397,9 @@ component, or the schema renderer bound to the id, and `parseFormId` turns
 
 ### Existing forms
 
-All four are JSON definitions in `packs/test/frontend/forms/`, generated
-from their specs.
+The reference pack's four forms are JSON definitions in its
+`frontend/forms/` (a frozen copy in `packs/test/frontend/forms/` here),
+generated from their specs.
 
 | Form id | Reads | Writes |
 |---|---|---|
@@ -473,7 +474,7 @@ form definition uses exists.
 
 Forms are data, not code. A spec with `Renderer: schema` becomes a JSON form
 definition (format v1) in the service pack,
-`packs/test/frontend/forms/<form-id>.json`. `forms/resolve.ts` gives
+`<pack>/frontend/forms/<form-id>.json`. `forms/resolve.ts` gives
 every form id without a TSX entry in `registry.ts` to
 `forms/schema/SchemaForm.tsx`, which fetches `/pack/forms/<form-id>.json`,
 checks it with `parseDefinition` (`forms/schema/definition.ts`) and draws it
@@ -492,7 +493,7 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   "Send back…" with a reason) works in two steps: show the fields, then
   confirm or cancel.
 - **Texts** are i18n keys in the form's own namespace, shipped by the pack
-  in `packs/test/frontend/locales/<lang>/<namespace>.json`.
+  in `<pack>/frontend/locales/<lang>/<namespace>.json`.
 - **Strict:** an unknown key, element type or a reference to a missing field
   or action refuses the whole definition with "The form definition … is
   invalid", instead of drawing half a form.
@@ -644,20 +645,29 @@ JSDoc) and as a row in this table.
 
 ## How to add a new form
 
-1. **BPMN** — add a `<bpmn:userTask>` with
-   `camunda:formKey="react:<form-id>"` to the process file under
-   `packs/test/engine/processes/`. (Variables it reads/writes should
-   be plain typed variables; see existing tasks for examples.)
-2. **Component** — create `frontend/src/forms/<form-id>/<PascalCaseName>.tsx`
-   implementing `FormProps`.
-3. **Register** — add an entry to `formRegistry` in
-   `frontend/src/forms/registry.ts`.
-4. **Restart the engine** (`ServiceDeployments` deploys the changed BPMN at
-   startup; duplicate filtering leaves unchanged services alone).
-5. **Verify** — Services → start a process → walk through the new task.
+A form belongs to its service, so it is added in the pack repository, not
+here:
 
-There is no manifest validation. A `formKey` referencing a non-registered id
-shows "No React form is registered for formKey …" on the TaskDetail page.
+1. **Spec** — write `docs/business/services/<service>/forms/<form-id>.md`
+   (the spec template's `forms/example-form.md`) and add the user task to
+   the service README's flow.
+2. **Generate** — run `/service-builder` in the pack repository. It writes
+   the BPMN user task with `camunda:formKey="react:<form-id>"`, the form
+   definition `frontend/forms/<form-id>.json`, its texts in every language,
+   the variable policy and value schema, and the MCP manifest entry.
+3. **Check** — the pack's CI runs this core's `scripts/pack-check.sh`,
+   including the spec's Submission and Behaviour examples.
+4. **Verify** — build the pack's images (or run them on a test instance),
+   start a process and walk through the new task.
+
+A form the definition format cannot express is a `Renderer: tsx` form: a
+React component in `frontend/src/forms/<form-id>/` plus an entry in
+`frontend/src/forms/registry.ts`. That is a core change, released with the
+core.
+
+A `formKey` whose id has neither a definition nor a TSX entry shows "No
+form definition found" on the task page; nothing validates it at deploy
+time, but the pack checks require a definition for every form of a policy.
 
 ## Dev server, build, typecheck
 
