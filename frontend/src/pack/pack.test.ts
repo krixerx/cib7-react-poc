@@ -1,10 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import i18next from 'i18next';
 import { describe, expect, it } from 'vitest';
-import { translateBackendName } from '../i18n/backendNames';
 import { parseDefinition, type FormDefinition } from '../forms/schema/definition';
-import { InvalidCatalog, parseCatalog } from './catalog';
+import { parseCatalog } from './catalog';
 
 /** The pack under test: PACK_DIR (scripts/pack-check.sh), else the reference pack. */
 const PACK_ROOT = process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/reference');
@@ -166,54 +164,5 @@ describe('the pack', () => {
         expect(keys.has(`issuers.${id}.name`), `${lang} issuer ${id}`).toBe(true);
       }
     }
-  });
-});
-
-describe('catalog format v1 is strict', () => {
-  const valid = () => json(resolve(PACK, 'catalog.json'));
-
-  it.each<[string, (c: Record<string, unknown>) => void]>([
-    ['an unknown key', (c) => (c.script = 'x')],
-    ['another version', (c) => (c.version = 2)],
-    ['a namespace that is no id', (c) => (c.namespaces = ['catalog', 'names', '../common'])],
-    ['no names namespace', (c) => (c.namespaces = ['catalog'])],
-    [
-      'an unknown category',
-      (c) =>
-        ((c.services as Record<string, { category: string }>).vehicleRegistration.category =
-          'space'),
-    ],
-    [
-      'an issuer that does not exist',
-      (c) =>
-        ((c.services as Record<string, { issuer: string }>).vehicleRegistration.issuer = 'nobody'),
-    ],
-    [
-      'an unknown tone',
-      (c) =>
-        ((c.issuers as Record<string, { tone: string }>)['business-register'].tone = '#ff0000'),
-    ],
-  ])('refuses %s', (_, change) => {
-    const c = valid();
-    change(c);
-    expect(() => parseCatalog(c)).toThrow(InvalidCatalog);
-  });
-});
-
-describe('display names from the pack', () => {
-  it('translates BPMN names, also with dots and colons, and passes unknown ones through', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'ar',
-      resources: {
-        ar: { names: { 'Vehicle Registration': 'تسجيل المركبات', 'Step 1.2: check': 'خطوة' } },
-      },
-    });
-    expect(translateBackendName(i18n.t, 'Vehicle Registration')).toBe('تسجيل المركبات');
-    expect(translateBackendName(i18n.t, 'Step 1.2: check')).toBe('خطوة');
-    expect(translateBackendName(i18n.t, 'Free text from a reviewer.')).toBe(
-      'Free text from a reviewer.',
-    );
-    expect(translateBackendName(i18n.t, null)).toBe('');
   });
 });

@@ -104,7 +104,13 @@ the internet.
 - System-owned variables (DMN outputs, connector results, payment and consent
   state, anything a gateway depends on that no human decides) are never in an
   allowlist. They are set by the engine, a DMN, a connector response or the
-  backend's service account. A human decision (`decision`, `medicalResult`,
+  backend's service account. The names the core itself writes for every pack
+  (the co-signing round and party, `paymentReceived`, `paymentReference`,
+  `paidAmount`) are in `VariablePolicyRegistry.NEVER_WRITABLE` with the
+  reserved beans and `initiator`: the engine refuses to start with a policy
+  that lists one. A pack's own system state (DMN and connector results, the
+  co-signing variables its consent descriptors name) is checked by
+  `VariablePolicyFilesTest`, a pack check. A human decision (`decision`, `medicalResult`,
   ...) is writable only from the reviewer form that owns it, never from an
   applicant form or a start.
 - Identity fields (`firstName`, `applicantName`, `applicantEmail`, ...) may be

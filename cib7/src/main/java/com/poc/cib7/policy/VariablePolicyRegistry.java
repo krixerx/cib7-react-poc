@@ -3,6 +3,7 @@ package com.poc.cib7.policy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.poc.cib7.ReservedBeansPlugin;
+import com.poc.cib7.links.CapabilityLinks;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -41,14 +42,22 @@ public class VariablePolicyRegistry {
   private static final ObjectMapper JSON = new ObjectMapper();
 
   /**
-   * Names no policy may list whatever the spec says: the reserved configuration beans and the
-   * initiator the engine sets from the authenticated user.
+   * Names no policy may list whatever the spec says: the reserved configuration beans, the
+   * initiator the engine sets from the authenticated user, and the state the core itself writes for
+   * every pack: the co-signing round and party a capability link is bound to (docs/security.md rule
+   * 3) and the payment facts the backend sets only on a signed provider callback (rule 4).
    */
   static final Set<String> NEVER_WRITABLE;
 
   static {
     Set<String> names = new LinkedHashSet<>(ReservedBeansPlugin.RESERVED_NAMES);
     names.add("initiator");
+    names.add(CapabilityLinks.ROUND_VARIABLE);
+    names.add("partyId");
+    names.add("applicantToken");
+    names.add("paymentReceived");
+    names.add("paymentReference");
+    names.add("paidAmount");
     NEVER_WRITABLE = Set.copyOf(names);
   }
 

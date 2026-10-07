@@ -39,8 +39,24 @@ function coreToken(scheme: Scheme, name: string): string {
 }
 
 describe('brand format v1 is strict', () => {
-  const tokens = () => json(resolve(BRANDING, 'tokens.json'));
-  const brand = () => json(resolve(BRANDING, 'brand.json'));
+  // Inline, not the pack's files: these cases test the parser, and must hold
+  // for any pack pack-check.sh points at.
+  const tokens = () => ({
+    version: 1,
+    light: { primary: '#0b57c9' },
+    dark: { primary: '#8ab4f8' },
+    fonts: { body: 'Sora' },
+  });
+  const brand = (): Record<string, unknown> => ({
+    version: 1,
+    logo: { light: 'logo-light.svg', dark: 'logo-dark.svg' },
+    favicon: 'favicon.svg',
+  });
+
+  it('accepts valid tokens and a valid brand', () => {
+    expect(() => parseTokens(tokens())).not.toThrow();
+    expect(() => parseBrand(brand())).not.toThrow();
+  });
 
   it.each<[string, (t: Record<string, Record<string, unknown>>) => void]>([
     ['a core-only token', (t) => (t.light.danger = '#ff0000')],
@@ -50,7 +66,7 @@ describe('brand format v1 is strict', () => {
     ['an unknown font token', (t) => (t.fonts.mono = 'Courier')],
     ['another version', (t) => ((t as Record<string, unknown>).version = 2)],
   ])('refuses tokens with %s', (_, change) => {
-    const t = tokens() as Record<string, Record<string, unknown>>;
+    const t = tokens() as unknown as Record<string, Record<string, unknown>>;
     change(t);
     expect(() => parseTokens(t)).toThrow(InvalidBrand);
   });

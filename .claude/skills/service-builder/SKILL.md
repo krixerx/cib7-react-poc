@@ -374,7 +374,7 @@ short-circuit on the first one.
 | Security: no client-minted secrets | Forms never generate tokens, link ids, payment references or any other credential in the browser (`crypto.randomUUID()` for a link token is a violation). Capability links are minted server-side (docs/security.md rule 3). |
 | Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].fields` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`busBaseUrl`, `frontendBaseUrl`, `pdf`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
 | Variable policy coverage | `variable-policy.json` exists, its `processDefinitionKey` is the BPMN process id, and its `forms` keys equal the set of `camunda:formKey` ids in the emitted BPMN, no more and no fewer. `VariablePolicyFilesTest` fails the cib7 build otherwise. |
-| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].fields` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP `start.fields`. A field the MCP manifest offers but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change in the core repository's reference pack, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
+| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].fields` plus its `notOffered`; `start` equals the MCP `start.fields` plus `start.notOffered`. `VariablePolicyFilesTest` (a pack check) holds them equal. A field the MCP manifest offers but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. |
 | Security: no wildcard grants | The spec never asks for engine grants; access comes from `camunda:assignee="${initiator}"` and `candidateGroups`. If a spec needs a new role, stop and ask (docs/security.md rule 1). |
 | Security: endpoint class | Connector calls to the backend use `/api/internal/**` for anything that writes data or returns personal data (docs/security.md rule 5). |
 | services.json completeness | `<pack>/docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
@@ -827,7 +827,8 @@ what each one means. Schema:
       "audience": "<applicant | civil-servant | ...>",
       "description": "<one sentence about what the audience is doing on this task>",
       "requiredDocuments": [ { "category": "<applicant category>", "writeTo": "<field>", "accept": ["application/pdf"], "maxBytes": 10485760, "description": "<...>" } ],
-      "fields": { "<varName>": "<description>" }
+      "fields": { "<varName>": "<description>" },
+      "notOffered": ["<varName>", "..."]
     }
   ]
 }
@@ -840,7 +841,9 @@ the policy's `start` list (step 10), each a property of `schemas/start.json`.
 variables `complete_task` may send: the form's policy list minus the
 fields the README's "Variable write policy" section names as SPA-only
 (identity fields the engine fills from the account, form-internal state
-the agent surface deliberately leaves out). Rules the loader enforces, and
+the agent surface deliberately leaves out). Those SPA-only fields are the
+task's **`notOffered`** list (omit it when empty), so policy = `fields` +
+`notOffered`, exactly; the same holds for `start`. Rules the loader enforces, and
 `mcp/src/services/pack.test.ts` checks:
 
 - every field is a property of the form's schema, or one its `allOf`

@@ -23,6 +23,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * Guards the generated {@code variable-policy.json} files against the BPMN they protect and the MCP
@@ -34,7 +37,7 @@ class VariablePolicyFilesTest {
   private static final Path PROCESSES =
       Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "processes");
   private static final Path SERVICE_SPECS =
-      Path.of("..", "packs", "reference", "docs", "business", "services");
+      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
   private static final ObjectMapper JSON = new ObjectMapper();
 
   private static final Pattern PROCESS = Pattern.compile("<bpmn:process\\s[^>]*id=\"([^\"]+)\"");
@@ -46,52 +49,36 @@ class VariablePolicyFilesTest {
   private static final Pattern DMN_OUTPUT =
       Pattern.compile("<(?:dmn:)?output\\s[^>]*name=\"([^\"]+)\"");
 
-  /**
-   * State that only the engine, a connector or the backend's service account may write: consent and
-   * payment state (docs/security.md rules 3 and 4) and the gateway flags of the consent loops.
-   */
-  private static final Set<String> SYSTEM_OWNED =
-      Set.of(
-          "applicantToken",
-          "ownerConfirmations",
-          "founderSignatures",
-          "consentRound",
-          "partyId",
-          "rejectedByOwner",
-          "sentToProcess",
-          "rejectedByFounder",
-          "sentToRegister",
-          "paymentReceived",
-          "paymentReference",
-          "paidAmount",
-          "autoDecision");
+  /** The pack's co-signing descriptors, beside its engine/ folder. */
+  private static final Path CONSENT = PROCESSES.getParent().resolveSibling("backend/consent");
 
   /**
-   * Variables the SPA form writes but the MCP manifest does not offer, per form id. Everything else
-   * must match the manifest exactly.
-   *
-   * <ul>
-   *   <li>Identity fields ({@code firstName}, {@code applicantName}, {@code applicantEmail}, ...):
-   *       the SPA resubmits the prefilled value, the MCP path omits it and keeps the value {@code
-   *       IdentityPopulationListener} set at start. Either way {@code IdentityValidationListener}
-   *       rejects a value that differs from the Keycloak profile.
-   *   <li>{@code sendBackReason} on applicant forms: the SPA clears the reviewer's banner text on
-   *       resubmit; it drives no gateway.
-   *   <li>Business registration: the SPA collects residency, co-founders and the articles of
-   *       association document, which the MCP surface deliberately does not offer.
-   * </ul>
+   * The co-signing state the backend's service account writes for a pack: every variable a consent
+   * descriptor names except the parties list, which the applicant's form submits (docs/security.md
+   * rule 3). Core-owned state (round, party, payment) is in {@link
+   * VariablePolicyRegistry#NEVER_WRITABLE}, which the engine enforces at startup.
    */
-  private static final Map<String, Set<String>> SPA_ONLY =
-      Map.of(
-          "owner-vehicle", Set.of("firstName", "lastName", "applicantEmail", "sendBackReason"),
-          "business-details",
-              Set.of(
-                  "applicantFirstName",
-                  "applicantLastName",
-                  "applicantEmail",
-                  "applicantResidency",
-                  "additionalFounders",
-                  "pendingAoaDocument"));
+  private static Set<String> consentOwned() throws IOException {
+    Set<String> names = new TreeSet<>();
+    if (!Files.isDirectory(CONSENT)) {
+      return names;
+    }
+    Yaml yaml = new Yaml(new SafeConstructor(new LoaderOptions()));
+    try (Stream<Path> files = Files.list(CONSENT)) {
+      for (Path file : files.filter(p -> p.toString().endsWith(".yaml")).toList()) {
+        Map<?, ?> descriptor = yaml.load(Files.readString(file));
+        if (descriptor.get("variables") instanceof Map<?, ?> variables) {
+          variables.forEach(
+              (role, name) -> {
+                if (!"parties".equals(role)) {
+                  names.add(String.valueOf(name));
+                }
+              });
+        }
+      }
+    }
+    return names;
+  }
 
   @Tag("pack")
   @Test
@@ -128,7 +115,7 @@ class VariablePolicyFilesTest {
   void noPolicyListsSystemOwnedOrEngineSetVariables() throws IOException {
     for (Path service : services()) {
       VariablePolicy policy = policy(service).orElseThrow();
-      Set<String> forbidden = new TreeSet<>(SYSTEM_OWNED);
+      Set<String> forbidden = consentOwned();
       forbidden.addAll(VariablePolicyRegistry.NEVER_WRITABLE);
       for (Path bpmn : files(service, ".bpmn")) {
         collect(SYSTEM_OUTPUT, Files.readString(bpmn), forbidden);
@@ -181,6 +168,14 @@ class VariablePolicyFilesTest {
     }
   }
 
+  /**
+   * Each form's policy equals what the MCP manifest offers plus what it declares as not offered
+   * (fields only the portal form writes: identity fields it resubmits, a cleared banner text, parts
+   * of the form the agent surface leaves out). A field offered but not writable makes complete_task
+   * fail with 403; a writable field the manifest neither offers nor declares is an unreviewed open
+   * write.
+   */
+  @Tag("pack")
   @Test
   void policiesMatchTheMcpManifests() throws IOException {
     for (Path service : services()) {
@@ -192,29 +187,51 @@ class VariablePolicyFilesTest {
 
       assertEquals(
           policy.start(),
-          fieldNames(manifest.path("start").path("fields")),
-          service.getFileName() + ": start policy must equal the MCP start fields");
+          union(manifest.path("start")),
+          service.getFileName() + ": start policy must equal the MCP start fields and notOffered");
 
       for (JsonNode task : manifest.path("userTasks")) {
         String form = VariablePolicy.formId(task.path("formKey").asText());
-        Set<String> mcp = fieldNames(task.path("fields"));
-        Set<String> allowed = policy.form(form).orElse(Set.of());
-        Set<String> expected = new TreeSet<>(mcp);
-        expected.addAll(SPA_ONLY.getOrDefault(form, Set.of()));
+        Set<String> offered = fieldNames(task.path("fields"));
+        for (JsonNode name : task.path("notOffered")) {
+          assertFalse(
+              offered.contains(name.asText()),
+              service.getFileName()
+                  + " "
+                  + form
+                  + ": '"
+                  + name.asText()
+                  + "' is both offered and not");
+        }
         assertEquals(
-            expected,
-            new TreeSet<>(allowed),
+            union(task),
+            new TreeSet<>(policy.form(form).orElse(Set.of())),
             service.getFileName()
                 + " "
                 + form
-                + ": policy must equal the MCP fields plus the documented SPA-only fields");
+                + ": policy must equal the MCP fields plus the manifest's notOffered");
       }
     }
   }
 
+  private static Set<String> union(JsonNode part) {
+    Set<String> names = fieldNames(part.path("fields"));
+    part.path("notOffered").forEach(n -> names.add(n.asText()));
+    return names;
+  }
+
   @Test
   void registryRefusesReservedNames() {
-    for (String reserved : List.of("busBaseUrl", "frontendBaseUrl", "pdf", "initiator")) {
+    for (String reserved :
+        List.of(
+            "busBaseUrl",
+            "frontendBaseUrl",
+            "pdf",
+            "initiator",
+            "consentRound",
+            "partyId",
+            "paymentReceived",
+            "paidAmount")) {
       JsonNode policy =
           JSON.createObjectNode()
               .put("processDefinitionKey", "x")

@@ -49,6 +49,12 @@ interface ManifestTaskFile {
   description?: string;
   requiredDocuments?: RequiredDocumentDescriptor[];
   fields: FieldDescriptions;
+  /**
+   * Fields the form's variable policy allows that an agent is deliberately not offered (identity
+   * fields the engine fills, what only the portal form writes). The sidecar refuses them like any
+   * other unoffered field; the list is there so the pack check can hold policy and manifest equal.
+   */
+  notOffered?: string[];
 }
 
 interface ManifestFile {
@@ -268,6 +274,15 @@ function loadOne(serviceDir: string, forms: Map<string, Schema>): CompiledManife
     const engine = forms.get(`${file.key}/${task.formKey}`);
     if (!engine) throw new Error(`${at}: the engine has no form schema ${task.formKey}.json`);
     const form = compileForm(engine, fieldDescriptions(task.fields, at), at);
+    if (task.notOffered !== undefined) {
+      if (!Array.isArray(task.notOffered) || task.notOffered.some((n) => typeof n !== 'string')) {
+        throw new Error(`${at}: "notOffered" must be a list of field names`);
+      }
+      const both = task.notOffered.filter((n) => form.compiled.offered.has(n));
+      if (both.length > 0) {
+        throw new Error(`${at}: ${both.join(', ')} both offered and in "notOffered"`);
+      }
+    }
     for (const doc of task.requiredDocuments ?? []) {
       if (!form.compiled.offered.has(doc.writeTo)) {
         throw new Error(`${at}: document writeTo "${doc.writeTo}" is not an offered field`);

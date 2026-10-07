@@ -33,7 +33,15 @@
         "shareCapital": "Share capital in EUR. Minimum 2500 by historical Estonian Commercial Code; the React form, DMN, and Ajv all enforce this floor.",
         "applicantAge": "Applicant's age in years. Drives the auto-approval DMN (minors always need human review). Autofill via query_user_history('age').",
         "sendBackReason": "Always empty on submit — the form clears the previous reason on resubmit so a future cycle starts clean."
-      }
+      },
+      "notOffered": [
+        "applicantFirstName",
+        "applicantLastName",
+        "applicantEmail",
+        "applicantResidency",
+        "additionalFounders",
+        "pendingAoaDocument"
+      ]
     },
     {
       "formKey": "review-business-registration",

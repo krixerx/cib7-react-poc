@@ -72,6 +72,7 @@ const VALID_MANIFEST = {
       name: 'Submit toy details',
       audience: 'applicant',
       fields: { toyName: 'Name of the toy.', fragile: 'Breaks easily.', parts: 'Loose parts.' },
+      notOffered: ['spaOnly'],
     },
   ],
 };
@@ -85,6 +86,13 @@ const BROKEN_MANIFESTS: Record<string, unknown> = {
     ...VALID_MANIFEST,
     key: 'toyRegistration',
     userTasks: [{ formKey: 'toy-details', fields: { toyName: 'x', colour: 'Not in the schema.' } }],
+  },
+  'offered-and-not': {
+    ...VALID_MANIFEST,
+    key: 'toyRegistration',
+    userTasks: [
+      { formKey: 'toy-details', fields: { toyName: 'x' }, notOffered: ['toyName', 'spaOnly'] },
+    ],
   },
   'required-not-offered': {
     ...VALID_MANIFEST,
@@ -153,6 +161,7 @@ describe('loadManifests', () => {
     'manifest version 1, this sidecar reads 2',
     `"colour" is not a field of the engine's form schema`,
     'required field(s) toyName are not offered',
+    'toyName both offered and in "notOffered"',
   ])('refuses a manifest: %s', (message) => {
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining(message));
   });

@@ -43,7 +43,13 @@
         "objectId": "Vehicle VIN, matched against the curated registry.",
         "additionalOwners": "Optional list of co-owners that must sign the registration before it reaches Transport Authority review. Leave empty unless the owner explicitly asks for it. Note: the co-owner sign-off flow uses applicantEmail + per-owner tracking links and is best driven from the web portal — MCP does not surface the sign-off receive task today.",
         "pendingIdDocument": "Reference to an ID document staged via the upload_document tool. Required. Shape exactly matches the upload_document response."
-      }
+      },
+      "notOffered": [
+        "firstName",
+        "lastName",
+        "applicantEmail",
+        "sendBackReason"
+      ]
     },
     {
       "formKey": "vehicle-review",

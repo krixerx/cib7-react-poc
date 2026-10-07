@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { completion } from './values';
@@ -22,17 +22,6 @@ function packDefinition(id: string): unknown {
 function vehicleReview(): FormDefinition {
   return parseDefinition(packDefinition('vehicle-review'), 'vehicle-review');
 }
-
-describe('reference pack definitions', () => {
-  it('every definition in the pack parses as format v1', () => {
-    const files = readdirSync(PACK_FORMS).filter((f) => f.endsWith('.json'));
-    expect(files.length).toBeGreaterThan(0);
-    for (const file of files) {
-      const id = file.replace(/\.json$/, '');
-      expect(() => parseDefinition(packDefinition(id), id), file).not.toThrow();
-    }
-  });
-});
 
 describe('vehicle-review behaves like the former TSX form', () => {
   it('approve completes with the decision only', () => {

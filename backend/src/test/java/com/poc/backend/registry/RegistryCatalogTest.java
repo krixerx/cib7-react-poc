@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.poc.backend.registry.RegistryDescriptor.Access;
 import com.poc.backend.registry.RegistryDescriptor.Operation;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -31,14 +31,14 @@ class RegistryCatalogTest {
         lookup: { access: public }
       """;
 
+  /** Every registry descriptor of the pack parses; load() refuses the first one that does not. */
+  @Tag("pack")
   @Test
-  void theReferencePackDescriptorLoads() throws Exception {
-    Map<String, RegistryDescriptor> loaded = RegistryCatalog.load("classpath*:registry/*.yaml");
-    RegistryDescriptor vehicles = loaded.get("vehicles");
-    assertEquals("reg_vehicles", vehicles.table());
-    assertEquals("make", vehicles.sort());
-    assertEquals(Access.PUBLIC, vehicles.access(Operation.LOOKUP).orElseThrow());
-    assertEquals("fuel_type", vehicles.field("fuelType").column());
+  void everyRegistryDescriptorOfThePackLoads() throws Exception {
+    for (Map.Entry<String, RegistryDescriptor> e :
+        RegistryCatalog.load("classpath*:registry/*.yaml").entrySet()) {
+      assertEquals(e.getKey(), e.getValue().entity(), "entity of " + e.getKey());
+    }
   }
 
   @Test

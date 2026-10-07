@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.poc.backend.consent.ConsentCatalog.Descriptor;
-import com.poc.backend.consent.ConsentCatalog.DetailType;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -41,13 +41,14 @@ class ConsentCatalogTest {
         companyName: { variable: companyName, type: string }
       """;
 
+  /** Every co-signing descriptor of the pack parses; load() refuses the first one that does not. */
+  @Tag("pack")
   @Test
-  void theReferencePackDescriptorsLoad() throws Exception {
-    Map<String, Descriptor> loaded = ConsentCatalog.load("classpath*:consent/*.yaml");
-    assertEquals("vehicleRegistration", loaded.get("owner").config().processKey());
-    Descriptor founder = loaded.get("founder");
-    assertEquals(DetailType.NAMES, founder.details().get("boardMembers").type());
-    assertEquals("founder-articles-of-association", founder.documents().get("articles").category());
+  void everyConsentDescriptorOfThePackLoads() throws Exception {
+    for (Map.Entry<String, Descriptor> e :
+        ConsentCatalog.load("classpath*:consent/*.yaml").entrySet()) {
+      assertEquals(e.getKey(), e.getValue().config().purpose(), "purpose of " + e.getKey());
+    }
   }
 
   @Test
