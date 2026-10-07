@@ -185,6 +185,57 @@ Run through the backend's fee code by the core's pack checks
 |---|
 | `265` |
 
+## Flow scenarios
+
+Run on the deployed process by the core's pack checks (`FlowScenariosTest`),
+with the job executor off: a case stops at its first asynchronous step, so
+these cover the routing (gateways, decisions, listeners), not the
+integrations.
+
+### Scenario: a sole founder completed with only the MCP fields
+
+```json
+{
+  "start": {
+    "initiator": "bart"
+  },
+  "steps": [
+    {
+      "expectTask": "Task_SubmitBusinessDetails"
+    },
+    {
+      "complete": "Task_SubmitBusinessDetails",
+      "variables": {
+        "companyName": "Acme OÜ",
+        "boardMembers": [
+          {
+            "firstName": "Bart",
+            "lastName": "Simpson",
+            "personalCode": "39912312345"
+          }
+        ],
+        "shareCapital": 2500.0,
+        "applicantFirstName": "Bart",
+        "applicantLastName": "Simpson",
+        "applicantAge": 30
+      }
+    },
+    {
+      "expectVariables": {
+        "autoDecision": "review"
+      }
+    },
+    {
+      "expectTask": "Task_ReviewBusinessRegistration"
+    }
+  ]
+}
+```
+
+Without `additionalFounders` and `applicantResidency`, which the MCP
+surface does not offer, the case must still complete and get a
+decision (in demo mode `review`).
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.

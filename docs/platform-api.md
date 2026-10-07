@@ -180,10 +180,11 @@ with the pack and holds on every core release it runs on:
 | `data/<entity>.md` `## Seed` | `RegistrySeedTest` (backend) | every row read back through the registry endpoint class each operation declares |
 | `forms/<id>.md` `## Submission examples` | `SubmissionExamplesTest` (engine) | the form's value schema, the one the engine checks completions with |
 | `forms/<id>.md` `## Behaviour examples` | `src/pack/behaviour.test.ts` (frontend) | the portal's form renderer on `frontend/forms/<id>.json`: what an action sends, or the errors it shows; `(initial)` the starting inputs |
+| README `## Flow scenarios`, one `### Scenario: <name>` each | `FlowScenariosTest` (engine) | the deployed process with the job executor off: start, complete tasks, expected tasks, variables and the step the case waits at |
 | `service-tasks/<task>.md` `## Example` (and `## Example: <case>`) | `TemplateExamplesTest` (engine) | the payload template with the engine's beans, expectations by JSON pointer; again with a hostile suffix on every string of text, which must still give a JSON object |
 
 Cells are JSON literals in backticks. Examples are required wherever the
-section exists.
+section exists; flow scenarios are recommended, not required.
 
 ## Shared value rules
 

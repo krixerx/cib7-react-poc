@@ -133,6 +133,29 @@ literal, also `null` and `"38,000"`-style strings) and the amount. Flat: only
 | `<below L1>` | `<A1>` |
 | `<L1>` | `<A2>` |
 
+## Flow scenarios
+
+Recommended: the cases the process must route correctly. The core's pack
+checks run each on the deployed process (`FlowScenariosTest`) with the job
+executor off, so a case stops at its first asynchronous step. Steps:
+`expectTask`, `complete` (with `variables`; an object or a list is stored as
+JSON), `expectVariables`, `expectWaitingAt` (a user task, a receive task or
+an asynchronous step).
+
+### Scenario: <a case in words>
+
+```json
+{
+  "start": {"initiator": "bart"},
+  "steps": [
+    {"expectTask": "<user task id>"},
+    {"complete": "<user task id>", "variables": {"<variable>": "<value>"}},
+    {"expectVariables": {"<variable>": "<value>"}},
+    {"expectWaitingAt": "<activity id>"}
+  ]
+}
+```
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.

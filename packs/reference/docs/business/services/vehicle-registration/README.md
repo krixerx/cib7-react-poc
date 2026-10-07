@@ -269,6 +269,109 @@ the amount charged.
 | `null` | `25` |
 | `"38,000"` | `150` |
 
+## Flow scenarios
+
+Run on the deployed process by the core's pack checks (`FlowScenariosTest`),
+with the job executor off: a case stops at its first asynchronous step, so
+these cover the routing (gateways, decisions, listeners), not the
+integrations.
+
+### Scenario: a sole owner without a new ID document
+
+```json
+{
+  "start": {
+    "initiator": "bart"
+  },
+  "steps": [
+    {
+      "expectTask": "Task_SubmitDetails"
+    },
+    {
+      "complete": "Task_SubmitDetails",
+      "variables": {
+        "age": 30,
+        "objectId": "WP0AB2A91KS123456",
+        "pendingIdDocument": null,
+        "additionalOwners": [],
+        "applicantEmail": "",
+        "sendBackReason": ""
+      }
+    },
+    {
+      "expectWaitingAt": "Task_GetPrice"
+    }
+  ]
+}
+```
+
+### Scenario: a new ID document is attached first
+
+```json
+{
+  "start": {
+    "initiator": "bart"
+  },
+  "steps": [
+    {
+      "complete": "Task_SubmitDetails",
+      "variables": {
+        "age": 30,
+        "objectId": "WP0AB2A91KS123456",
+        "pendingIdDocument": {
+          "pendingKey": "pending/bart/1/id.pdf",
+          "filename": "id.pdf",
+          "contentType": "application/pdf"
+        },
+        "additionalOwners": [],
+        "applicantEmail": "",
+        "sendBackReason": ""
+      }
+    },
+    {
+      "expectWaitingAt": "Task_AttachIdDocument"
+    }
+  ]
+}
+```
+
+### Scenario: a co-owner must sign
+
+```json
+{
+  "start": {
+    "initiator": "bart"
+  },
+  "steps": [
+    {
+      "complete": "Task_SubmitDetails",
+      "variables": {
+        "age": 30,
+        "objectId": "WP0AB2A91KS123456",
+        "pendingIdDocument": null,
+        "additionalOwners": [
+          {
+            "name": "Marge",
+            "email": "marge@example.com"
+          }
+        ],
+        "applicantEmail": "bart@example.com",
+        "sendBackReason": ""
+      }
+    },
+    {
+      "expectVariables": {
+        "rejectedByOwner": false,
+        "sentToProcess": false
+      }
+    },
+    {
+      "expectWaitingAt": "Task_SendApplicantTrackingEmail"
+    }
+  ]
+}
+```
+
 ## Variable write policy
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
