@@ -24,6 +24,17 @@ jobs:
       - uses: actions/checkout@v4
       - run: diff -r keycloak/themes deploy/keycloak/themes
 
+  # The vendorable service-builder (release.yml ships it on a v<x.y.z> tag):
+  # packaging fails on any link that would be dead in a pack repository.
+  service-builder-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/package-service-builder.mjs --version 0.0.0 --out dist/service-builder
+
   java:
     runs-on: ubuntu-latest
     strategy:

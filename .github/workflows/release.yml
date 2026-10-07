@@ -1,0 +1,38 @@
+# A core release: on a v<major>.<minor>.<patch> tag, attaches the vendorable
+# service-builder skill to the tag's GitHub release (created if missing).
+# docker-publish.yml publishes the images of the same tag as <x.y.z>.
+#
+# A pack repository vendors the skill by unpacking the archive into
+# .claude/skills/service-builder/; its VERSION names the core release and the
+# platform API the skill writes for.
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  service-builder:
+    runs-on: ubuntu-latest
+    permissions:
+      # Creating the release and uploading its asset.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Package
+        run: |
+          node scripts/package-service-builder.mjs --version "${GITHUB_REF_NAME#v}" --out dist/service-builder
+          tar -czf "dist/service-builder-${GITHUB_REF_NAME#v}.tar.gz" -C dist service-builder
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "dist/service-builder-${GITHUB_REF_NAME#v}.tar.gz" --clobber

@@ -2,13 +2,14 @@
 name: service-builder
 description: |
   Generate or modify a CIB seven business service from its markdown spec under
-  packs/reference/docs/business/services/<service>/. Reads README.md, forms/*.md, service-tasks/*.md,
+  docs/business/services/<service>/ of a service pack (packs/reference/ in the
+  core repository, the repository root in a pack repository). Reads README.md, forms/*.md, service-tasks/*.md,
   and decisions/*.md; emits BPMN, DMN, FreeMarker payload templates, React form
   components, registry entries, MCP manifest + LLM training markdown for the
   /mcp microservice, and a regenerated mermaid diagram. Use when asked to "build
   the service", "generate from the spec", "scaffold a new service", "regenerate
   the BPMN", "regenerate the MCP manifest", or after editing any file under
-  packs/reference/docs/business/services/.
+  a pack's docs/business/services/.
 allowed-tools:
   - Read
   - Write
@@ -22,9 +23,30 @@ allowed-tools:
 # /service-builder — spec-first CIB seven service generator
 
 This skill turns a service's markdown spec into running code. The analyst owns
-the markdown under `packs/reference/docs/business/services/<service>/`; everything else is
+the markdown under `<pack>/docs/business/services/<service>/`; everything else is
 generated. The goal is that **regenerating the same spec produces the same
 output**, so modifications work by editing the spec and re-running.
+
+## Where you run
+
+The skill writes into a **service pack**, written `<pack>` below:
+
+- **In the core repository** (this skill at `.claude/skills/service-builder/`
+  beside `packs/reference/`): `<pack>` is `packs/reference`, the reference
+  pack. `<tools>` is `scripts/` (run `npm ci` there once). Check the result
+  with `scripts/pack-check.sh` and the core's test suites.
+- **In a pack repository** (a vendored copy of this skill, `pack.yaml` at the
+  repository root): `<pack>` is the repository root, and `<tools>` is
+  `.claude/skills/service-builder/tools/` (run `npm ci` there once). The
+  core's code is not in the repository, so a `Renderer: tsx` form, a new
+  shared value rule or anything else under "do not edit" below is a core
+  change: stop and ask. Check the result with the core's
+  `scripts/pack-check.sh <pack-dir>` from a checkout of the core version in
+  `VERSION` (the pack repository's CI does that).
+
+Paths below without `<pack>/` are the core repository's. Links to the
+reference pack resolve in the core repository; a vendored copy has them
+rewritten (`scripts/package-service-builder.mjs`).
 
 Two reference services, both complete specs (README, `forms/`,
 `service-tasks/`, `decisions/`, `data/` or `consent.md`, `build/`); read
@@ -49,7 +71,7 @@ both before generating a new service:
 Cross-service artifacts:
 
 - Form registry: [`frontend/src/forms/registry.ts`](../../../frontend/src/forms/registry.ts) (full rewrite per run)
-- Aggregated MCP index: [`packs/reference/docs/business/services/build/services.json`](../../../packs/reference/docs/business/services/build/services.json)
+- Aggregated MCP index: [`<pack>/docs/business/services/build/services.json`](../../../packs/reference/docs/business/services/build/services.json)
 - Mermaid generator: [`scripts/bpmn-to-mermaid.mjs`](../../../scripts/bpmn-to-mermaid.mjs)
 
 The top-level [`README.md` § "Add or modify a service"](../../../README.md#add-or-modify-a-service)
@@ -62,7 +84,7 @@ explains the human workflow around this skill.
 A service folder looks like:
 
 ```
-packs/reference/docs/business/services/<service>/
+<pack>/docs/business/services/<service>/
 ├── README.md                  required — flow, roles, variables, trade-offs
 ├── forms/
 │   └── <form-id>.md           one per user task
@@ -83,33 +105,33 @@ and ask** rather than guessing.
 
 | Source file | Generated file(s) |
 |---|---|
-| `<service>/README.md` (flow section) | `packs/reference/engine/processes/<service>/<service>.bpmn` |
-| `<service>/decisions/<id>.md` | `packs/reference/engine/processes/<service>/<id>.dmn` |
-| `<service>/service-tasks/<id>.md` with payload-template body | `packs/reference/engine/templates/<id>.json.ftl` |
-| `<service>/forms/<id>.md` with `Renderer: schema` (the default) | `packs/reference/frontend/forms/<id>.json` (form definition v1; § 8.0) and its texts `packs/reference/frontend/locales/{en,ar}/<namespace>.json` |
-| Every `<service>/README.md` § Catalog, plus every form's namespace | `packs/reference/frontend/catalog.json` and `packs/reference/frontend/locales/{en,ar}/catalog.json` (catalog format v1; § 8.1) |
-| Every `name=` in every generated BPMN | `packs/reference/frontend/locales/{en,ar}/names.json` (display names; § 8.1) |
-| `<service>/forms/<id>.md` with `Renderer: tsx` (escape hatch only) | `frontend/src/forms/<id>/<PascalCase>Form.tsx` (§ 8) |
-| Every form across every service | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
+| `<service>/README.md` (flow section) | `<pack>/engine/processes/<service>/<service>.bpmn` |
+| `<service>/decisions/<id>.md` | `<pack>/engine/processes/<service>/<id>.dmn` |
+| `<service>/service-tasks/<id>.md` with payload-template body | `<pack>/engine/templates/<id>.json.ftl` |
+| `<service>/forms/<id>.md` with `Renderer: schema` (the default) | `<pack>/frontend/forms/<id>.json` (form definition v1; § 8.0) and its texts `<pack>/frontend/locales/{en,ar}/<namespace>.json` |
+| Every `<service>/README.md` § Catalog, plus every form's namespace | `<pack>/frontend/catalog.json` and `<pack>/frontend/locales/{en,ar}/catalog.json` (catalog format v1; § 8.1) |
+| Every `name=` in every generated BPMN | `<pack>/frontend/locales/{en,ar}/names.json` (display names; § 8.1) |
+| `<service>/forms/<id>.md` with `Renderer: tsx` (escape hatch only; core repository only) | `frontend/src/forms/<id>/<PascalCase>Form.tsx` (§ 8) |
+| Every `Renderer: tsx` form (core repository only) | `frontend/src/forms/registry.ts` (full rewrite, alphabetical by id) |
 | `<service>.bpmn` after regeneration | mermaid block inside `<service>/README.md` |
 | `<service>/README.md` (variables + forms) + `<service>/forms/*.md` | `<service>/build/mcp-service.json` (MCP manifest: texts and offered fields; § 11) |
 | `<service>/README.md` + form audiences | `<service>/build/mcp-training.md` (LLM training markdown; § 11) |
-| Every `<service>/build/mcp-service.json` across every service | `packs/reference/docs/business/services/build/services.json` (aggregated MCP index; § 11) |
-| `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `packs/reference/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2; plus `identity`: variable to `givenName`, `familyName` or `email` from the README's **Identity** line) |
-| `<service>/consent.md` | `packs/reference/backend/consent/<purpose>.yaml` (co-signing descriptor; step 10c) |
-| Every `<service>/README.md` § Documents | `packs/reference/backend/documents.json` (`platform: 2`, `categories: { <name>: { by: applicant \| system } }`, without the core's `generated-certificate`; read by the backend's `DocumentCategories`) and the labels as `documents.<category>` in `packs/reference/frontend/locales/{en,ar}/catalog.json` |
-| `<service>/README.md` § State fee | `packs/reference/backend/payment/<service>.yaml`: `platform: 2`, `process`, `service` (fee name), `recipient`, `currency`, and `amount: { flat: N }` or `amount: { tiers: { variable, below: [{limit, amount}, ...] ascending, otherwise } }`; read by the backend's `FeeCatalog` |
-| `<service>/data/<entity>.md` | `packs/reference/backend/registry/<entity>.yaml` (descriptor) and `packs/reference/backend/db/registry/V<n>__<entity>.sql` (table + seed; step 10b) |
-| `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `packs/reference/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
+| Every `<service>/build/mcp-service.json` across every service | `<pack>/docs/business/services/build/services.json` (aggregated MCP index; § 11) |
+| `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `<pack>/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2; plus `identity`: variable to `givenName`, `familyName` or `email` from the README's **Identity** line) |
+| `<service>/consent.md` | `<pack>/backend/consent/<purpose>.yaml` (co-signing descriptor; step 10c) |
+| Every `<service>/README.md` § Documents | `<pack>/backend/documents.json` (`platform: 2`, `categories: { <name>: { by: applicant \| system } }`, without the core's `generated-certificate`; read by the backend's `DocumentCategories`) and the labels as `documents.<category>` in `<pack>/frontend/locales/{en,ar}/catalog.json` |
+| `<service>/README.md` § State fee | `<pack>/backend/payment/<service>.yaml`: `platform: 2`, `process`, `service` (fee name), `recipient`, `currency`, and `amount: { flat: N }` or `amount: { tiers: { variable, below: [{limit, amount}, ...] ascending, otherwise } }`; read by the backend's `FeeCatalog` |
+| `<service>/data/<entity>.md` | `<pack>/backend/registry/<entity>.yaml` (descriptor) and `<pack>/backend/db/registry/V<n>__<entity>.sql` (table + seed; step 10b) |
+| `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `<pack>/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 
 The three `build/`-typed outputs above are the contract with the `mcp/` Node
-sidecar — its `Dockerfile` COPYs `packs/reference/docs/business/services/` into the image
-and the loader walks every `<service>/build/mcp-service.json + mcp-training.md`
+sidecar — the pack's `docker/mcp.Dockerfile` layer copies
+`<pack>/docs/business/services/` into the image and the loader walks every `<service>/build/mcp-service.json + mcp-training.md`
 pair. See [`mcp/src/services/manifest.ts`](../../../mcp/src/services/manifest.ts)
 for the consumer side.
 
 **Deployment convention:** each service's BPMN + DMN files go into their own
-`packs/reference/engine/processes/<service>/` folder (folder name = spec
+`<pack>/engine/processes/<service>/` folder (folder name = spec
 folder name). `ServiceDeployments.java` turns every folder into ONE named
 engine deployment at startup — that's what makes per-service versioning,
 per-service rollback, and `decisionRefBinding="deployment"` work. Never emit
@@ -130,7 +152,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
 
 1. **Locate the service.** If invoked with a service name, use it. Otherwise
    ask: "Which service?" with one option per folder under
-   `packs/reference/docs/business/services/`.
+   `<pack>/docs/business/services/`.
 2. **Read every spec file** in the service folder. Build an in-memory model:
    process id (camelCase = folder name in kebab transformed; usually written
    explicitly in the README), start event, nodes (user tasks, service tasks,
@@ -139,22 +161,22 @@ generated files get rewritten in place; idempotent runs are a no-op.
    templates.
 3. **Validate** against [§ 4](#4-validation-rules). On failure, list every
    violation in one message and stop — don't generate partial output.
-4. **Emit BPMN** at `packs/reference/engine/processes/<service>/<service>.bpmn` using
+4. **Emit BPMN** at `<pack>/engine/processes/<service>/<service>.bpmn` using
    the patterns in [§ 5](#5-bpmn-authoring-patterns). Include BPMNDI layout
    bounds so Cockpit can render the diagram; pack them on a horizontal
    waterline (y=160, x advances by 140 per task) and let the modeller adjust
    later if needed. Don't try to be clever — readable lanes beat dense lanes.
 5. **Emit DMN** for each `decisions/<id>.md` at
-   `packs/reference/engine/processes/<service>/<id>.dmn` using the pattern in
+   `<pack>/engine/processes/<service>/<id>.dmn` using the pattern in
    [§ 6](#6-dmn-authoring-patterns). Every DMN **must** carry
    `camunda:historyTimeToLive` matching the BPMN's TTL.
 6. **Emit FreeMarker payloads** for each `service-tasks/<id>.md` that
    declares a `payload-template:` body — write
-   `packs/reference/engine/templates/<id>.json.ftl`. Inline payloads
+   `<pack>/engine/templates/<id>.json.ftl`. Inline payloads
    (short, no template marker) go inside the BPMN as `<camunda:inputParameter
    name="payload">…</camunda:inputParameter>` instead.
 7. **Emit the forms.** A spec with `Renderer: schema` (the default) becomes a
-   JSON definition at `packs/reference/frontend/forms/<id>.json` following
+   JSON definition at `<pack>/frontend/forms/<id>.json` following
    [§ 8.0](#80-form-definition-v1); no React code is written for it. Only a
    spec that says `Renderer: tsx` gets a React component at
    `frontend/src/forms/<id>/<PascalCase>Form.tsx`, following
@@ -172,10 +194,10 @@ generated files get rewritten in place; idempotent runs are a no-op.
    The value rules are not repeated; the sidecar takes them from the form
    schemas step 10 writes.
 10. **Emit the variable write policy** at
-    `packs/reference/engine/processes/<service>/variable-policy.json`:
+    `<pack>/engine/processes/<service>/variable-policy.json`:
     ```json
     {
-      "$comment": "Generated from packs/reference/docs/business/services/<service>. Do not hand-edit.",
+      "$comment": "Generated from <pack>/docs/business/services/<service>. Do not hand-edit.",
       "processDefinitionKey": "<process id>",
       "start": ["<names>"],
       "forms": { "<form-id>": ["<names>"] }
@@ -194,7 +216,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     listener rejects a changed value). `VariableWritePolicyFilter` enforces
     the file; a service without one accepts no client variables at all.
 10a. **Emit the value schemas** at
-    `packs/reference/engine/processes/<service>/schemas/<form-id>.json`, one
+    `<pack>/engine/processes/<service>/schemas/<form-id>.json`, one
     per form whose Fields table has a writable field, plus `schemas/start.json`
     when the policy's `start` list is non-empty. Each is a JSON Schema
     2020-12 object over the submitted variable values (a `Json` variable as
@@ -202,7 +224,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     ```json
     {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "$comment": "Generated from packs/reference/docs/business/services/<service>/forms/<id>.md. Do not hand-edit.",
+      "$comment": "Generated from <pack>/docs/business/services/<service>/forms/<id>.md. Do not hand-edit.",
       "x-process": "<process id>",
       "x-form": "<form-id>",
       "type": "object",
@@ -242,9 +264,9 @@ generated files get rewritten in place; idempotent runs are a no-op.
     `FormSchemaRegistry` and answers 400 with the failed rules.
 10b. **Emit the registries** for every `<service>/data/<entity>.md`. The
     backend's registry module serves them; never write Java for a registry.
-    Descriptor at `packs/reference/backend/registry/<entity>.yaml`:
+    Descriptor at `<pack>/backend/registry/<entity>.yaml`:
     ```yaml
-    # Generated from packs/reference/docs/business/services/<service>/data/<entity>.md. Do not hand-edit.
+    # Generated from <pack>/docs/business/services/<service>/data/<entity>.md. Do not hand-edit.
     platform: 2
     entity: <entity>            # [a-z][a-z0-9-]*, the URL segment
     table: reg_<name>           # must start with reg_
@@ -264,7 +286,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     An access level, type, operation or derived rule outside this list is a
     spec gap: stop and ask. `RegistryCatalog` refuses to start on it anyway.
 
-    Migration at `packs/reference/backend/db/registry/V<n>__<entity>.sql`,
+    Migration at `<pack>/backend/db/registry/V<n>__<entity>.sql`,
     the next free version across the folder. The first one creates the table
     and inserts the Seed rows; every later spec change is a new file that
     alters what is there, never an edit of an applied one. Quote every
@@ -276,7 +298,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     stop and ask.
 10c. **Emit the co-signing descriptor** when the service has a `consent.md`
     (other parties confirm or sign through emailed capability links), at
-    `packs/reference/backend/consent/<purpose>.yaml`. Copy the spec's tables
+    `<pack>/backend/consent/<purpose>.yaml`. Copy the spec's tables
     into: `platform: 2`, `purpose`, `process`, `applicant: {firstName,
     lastName}`, `variables: {parties, confirmations, rejected, sent}`,
     `messages: {signature, send}`, `wording` (all ten keys: `party`,
@@ -295,15 +317,15 @@ generated files get rewritten in place; idempotent runs are a no-op.
     the "What to ask for" from the first user task's form Fields, and the
     "Status interpretation" mapping from the BPMN's end states.
 12. **Update the aggregated services index** at
-    `packs/reference/docs/business/services/build/services.json` to include this service's
+    `<pack>/docs/business/services/build/services.json` to include this service's
     `key`, `name`, `description`, `audience`, and a relative `manifestPath`
     to its `mcp-service.json`. List every service the skill knows about;
     the index is a full rewrite, alphabetical by `key`.
 13. **Regenerate the mermaid diagram.** Run:
     ```sh
-    cd scripts && node bpmn-to-mermaid.mjs \
-      ../packs/reference/engine/processes/<service>/<service>.bpmn \
-      --out ../packs/reference/docs/business/services/<service>/README.md
+    node <tools>/bpmn-to-mermaid.mjs \
+      <pack>/engine/processes/<service>/<service>.bpmn \
+      --out <pack>/docs/business/services/<service>/README.md
     ```
     The script replaces the block between `<!-- bpmn-diagram:start -->` and
     `<!-- bpmn-diagram:end -->`. If the markers are missing, add them around
@@ -311,8 +333,8 @@ generated files get rewritten in place; idempotent runs are a no-op.
 14. **Report.** Summarise what changed in one short paragraph: service id,
     counts of forms / service tasks / decisions, list of generated files
     (including the three `build/` MCP artifacts), and the next manual step
-    ("run `docker compose up --build` to test, including the `mcp` container
-    which COPYs the new manifests at build time").
+    ("run `docker compose up --build` to test; the pack's image layers,
+    the `mcp` one included, copy the new files in").
 
 Never commit anything from this skill — that's a human step. The skill stops
 at "files written, please test".
@@ -352,10 +374,10 @@ short-circuit on the first one.
 | Security: no client-minted secrets | Forms never generate tokens, link ids, payment references or any other credential in the browser (`crypto.randomUUID()` for a link token is a violation). Capability links are minted server-side (docs/security.md rule 3). |
 | Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].fields` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`busBaseUrl`, `frontendBaseUrl`, `pdf`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
 | Variable policy coverage | `variable-policy.json` exists, its `processDefinitionKey` is the BPMN process id, and its `forms` keys equal the set of `camunda:formKey` ids in the emitted BPMN, no more and no fewer. `VariablePolicyFilesTest` fails the cib7 build otherwise. |
-| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].fields` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP `start.fields`. A field the MCP manifest offers but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
+| Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].fields` plus the SPA-only fields the README's "Variable write policy" section lists; `start` equals the MCP `start.fields`. A field the MCP manifest offers but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. When the exceptions change in the core repository's reference pack, update `SPA_ONLY` in `VariablePolicyFilesTest` in the same change. |
 | Security: no wildcard grants | The spec never asks for engine grants; access comes from `camunda:assignee="${initiator}"` and `candidateGroups`. If a spec needs a new role, stop and ask (docs/security.md rule 1). |
 | Security: endpoint class | Connector calls to the backend use `/api/internal/**` for anything that writes data or returns personal data (docs/security.md rule 5). |
-| services.json completeness | `packs/reference/docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
+| services.json completeness | `<pack>/docs/business/services/build/services.json` lists every service whose folder has a `build/mcp-service.json`. No orphan entries; no missing entries. |
 
 ---
 
@@ -523,7 +545,7 @@ Hit policies the analyst can ask for: `FIRST` (most common), `UNIQUE`,
 
 ## 7. FreeMarker payload templates
 
-Path: `packs/reference/engine/templates/<task-id>.json.ftl`: the JSON the
+Path: `<pack>/engine/templates/<task-id>.json.ftl`: the JSON the
 connector sends, nothing else.
 
 Rules:
@@ -533,7 +555,7 @@ Rules:
   `!0` (number).
 - For `byte[]` attachments, re-encode with `${pdf.encode(varName)}`.
 - **A document is not generated.** An email body or a PDF is a
-  hand-designed document in `packs/reference/engine/documents/`
+  hand-designed document in `<pack>/engine/documents/`
   (`email/<name>.ftl`, plain text; `pdf/<name>.ftlh`, HTML on the shared
   `/_brand.ftlh` layout). The generated payload only wraps it:
   `"Text": "${documents.text("<name>", execution)?json_string}"` or
@@ -574,7 +596,7 @@ a whole. Map the spec one to one:
 | Actions table | `actions: [{id, label, resubmitLabel, style, workingLabel, confirmLabel, complete}]`; `complete` maps each `complete-with` variable to `{value, type}` or `{field, type}`; `contacts`, `file` and `rows` fields complete as `Json` |
 
 Texts are keys in the form's locale namespace; write the English text into
-`packs/reference/frontend/locales/en/<namespace>.json` and the Arabic into
+`<pack>/frontend/locales/en/<namespace>.json` and the Arabic into
 `ar/<namespace>.json`, and list the namespace in `catalog.json` (§ 8.1). A
 key with a namespace prefix (`common:actions.submit`) is a core text and
 stays in the core. A spec that needs an input type, format or behaviour
@@ -589,11 +611,11 @@ The SPA holds nothing service-specific. At startup it reads the pack's
 strict like the form definitions) and the texts of every namespace it lists,
 before the first render.
 
-`packs/reference/frontend/catalog.json`, rewritten in full from every service:
+`<pack>/frontend/catalog.json`, rewritten in full from every service:
 
 ```json
 {
-  "$comment": "Generated from the Catalog sections of packs/reference/docs/business/services/*/README.md. Do not hand-edit. Read by frontend/src/pack/catalog.ts (catalog format v1).",
+  "$comment": "Generated from the Catalog sections of <pack>/docs/business/services/*/README.md. Do not hand-edit. Read by frontend/src/pack/catalog.ts (catalog format v1).",
   "version": 1,
   "namespaces": ["catalog", "names", "<every form namespace, alphabetical>"],
   "services": { "<processKey>": { "category": "<category>", "issuer": "<issuer-id>" } },
@@ -741,9 +763,9 @@ export function parseFormId(formKey: string | null | undefined): string | null {
 After writing the BPMN, regenerate the diagram block in the service README:
 
 ```sh
-cd scripts && node bpmn-to-mermaid.mjs \
-  ../packs/reference/engine/processes/<service>/<service>.bpmn \
-  --out ../packs/reference/docs/business/services/<service>/README.md
+node <tools>/bpmn-to-mermaid.mjs \
+  <pack>/engine/processes/<service>/<service>.bpmn \
+  --out <pack>/docs/business/services/<service>/README.md
 ```
 
 If the README is brand new, **first** add the marker block under the
@@ -767,14 +789,14 @@ generates three artifacts: a per-service manifest (data), per-service
 training markdown (prose), and an aggregated index.
 
 The reference output for `vehicleRegistration` lives at
-[`packs/reference/docs/business/services/vehicle-registration/build/mcp-service.json`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-service.json)
+[`<pack>/docs/business/services/vehicle-registration/build/mcp-service.json`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-service.json)
 and
-[`packs/reference/docs/business/services/vehicle-registration/build/mcp-training.md`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-training.md).
+[`<pack>/docs/business/services/vehicle-registration/build/mcp-training.md`](../../../packs/reference/docs/business/services/vehicle-registration/build/mcp-training.md).
 Read them before generating a new service — same shape, same field order.
 
 ### 11.1 `mcp-service.json`
 
-Path: `packs/reference/docs/business/services/<service>/build/mcp-service.json`.
+Path: `<pack>/docs/business/services/<service>/build/mcp-service.json`.
 Format 2 (docs/platform-api.md). The manifest holds no value rules: the
 sidecar validates with the engine's own form schemas (step 10's
 `schemas/<form-id>.json` and `schemas/start.json`, core definitions
@@ -837,7 +859,7 @@ business setting them through `complete_task`.
 
 ### 11.2 `mcp-training.md`
 
-Path: `packs/reference/docs/business/services/<service>/build/mcp-training.md`. Template
+Path: `<pack>/docs/business/services/<service>/build/mcp-training.md`. Template
 (fill from the README and form specs):
 
 ```markdown
@@ -896,7 +918,7 @@ paragraph.
 
 ### 11.3 `services.json` (aggregated index)
 
-Path: `packs/reference/docs/business/services/build/services.json`. The MCP sidecar reads
+Path: `<pack>/docs/business/services/build/services.json`. The MCP sidecar reads
 this as the top-level discovery surface (also served at
 `/.well-known/mcp/services.json` via nginx — see
 [`frontend/nginx.conf`](../../../frontend/nginx.conf)). Schema:
@@ -970,17 +992,17 @@ Next:
   → Mailpit:    http://localhost:8025                       (notifications)
   → MCP via Claude Desktop: configured per /mcp/README.md   (LLM round trip)
 
-The mcp container COPYs packs/reference/docs/business/services/ at image build time, so the
+The mcp container COPYs <pack>/docs/business/services/ at image build time, so the
 new manifest + training markdown ship into the image automatically. Verify
 with:
   docker exec cib7-poc-mcp ls /app/services-spec/<service>/build/
   curl http://localhost:3000/.well-known/mcp/services.json
 
 When the flow works end-to-end, commit the spec and generated files together:
-  git add packs/reference/docs/business/services/<service>/ \
-          packs/reference/docs/business/services/build/services.json \
-          packs/reference/engine/processes/ \
-          packs/reference/engine/templates/ \
+  git add <pack>/docs/business/services/<service>/ \
+          <pack>/docs/business/services/build/services.json \
+          <pack>/engine/processes/ \
+          <pack>/engine/templates/ \
           frontend/src/forms/
   git commit -m "<service>: <one-line summary>"
 ```

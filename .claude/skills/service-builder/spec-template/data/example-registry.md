@@ -1,8 +1,8 @@
 <!--
   Registry spec — one file per registry entity the service needs (reference
   data, lookups the engine makes). The service-builder skill (step 10b) emits:
-    packs/reference/backend/registry/<entity>.yaml        (descriptor)
-    packs/reference/backend/db/registry/V<n>__<entity>.sql (table + seed)
+    <pack>/backend/registry/<entity>.yaml        (descriptor)
+    <pack>/backend/db/registry/V<n>__<entity>.sql (table + seed)
   The backend's registry module serves it; no Java is written per registry.
 
   Replace ALL `<…>` placeholders. Only the types, operations, access levels

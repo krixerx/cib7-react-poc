@@ -66,6 +66,13 @@ Node 24 for `frontend` (npm 10 crashes resolving vitest 4's peers, so write
 locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
 modules (enforced: the poms refuse another JDK, so point `JAVA_HOME` at a JDK 21).
 
+Package the service-builder skill the way a core release ships it (pack
+repositories vendor this; fails on a link that would be dead there):
+
+```bash
+node scripts/package-service-builder.mjs --version <x.y.z> [--out dist/service-builder]
+```
+
 Check a service pack against the platform API (docs/platform-api.md):
 
 ```bash

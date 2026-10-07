@@ -34,6 +34,10 @@ The platform API has a `major.minor` version, stated above and in
   token. A pack built for `2.0` runs on every `2.x`.
 - **A major may break:** a key renamed or removed, a meaning changed. Packs
   move to it with the core release notes.
+- **The service-builder writes for one platform API.** Each core release
+  ships it as `service-builder-<x.y.z>.tar.gz` on its GitHub release
+  (`release.yml`); a pack repository vendors the copy for the core version it
+  runs on, and its `VERSION` file names both.
 - **The pack states what it needs** in `pack.yaml` (`platform: "2.0"`). The
   engine (before deploying anything) and the backend (before reading any
   descriptor) refuse to start with another major or a newer minor, and say

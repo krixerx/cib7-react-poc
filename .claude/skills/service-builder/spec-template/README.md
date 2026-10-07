@@ -1,18 +1,18 @@
 <!--
   Service spec — the single source of truth for one business service.
-  Copy this folder to packs/reference/docs/business/services/<service-id>/ and edit every
+  Copy this folder to <pack>/docs/business/services/<service-id>/ and edit every
   section. The service-builder skill reads this file to generate the BPMN
   and to rewrite the mermaid block below.
 
   Replace ALL `<…>` placeholders. Leave the bpmn-diagram markers untouched —
-  scripts/bpmn-to-mermaid.mjs fills the block in.
+  the bpmn-to-mermaid tool (see the skill's "Where you run") fills the block in.
 -->
 
 # <Service Display Name>
 
 **Status:** draft
 **Process key:** `<processKeyCamelCase>`
-**BPMN:** [`packs/reference/engine/processes/<service-id>/<service-id>.bpmn`](../../../../engine/processes/<service-id>/<service-id>.bpmn)
+**BPMN:** [`<pack>/engine/processes/<service-id>/<service-id>.bpmn`](../../../../engine/processes/<service-id>/<service-id>.bpmn)
 
 **When to read this:** before changing the <service-id> flow, its forms, or
 its integrations. Cross-cutting topics live in
@@ -124,7 +124,7 @@ one a client writes.
 
 The variables a client (SPA, MCP agent) may write, per start and per form.
 `/service-builder` generates
-`packs/reference/engine/processes/<service>/variable-policy.json` from this
+`<pack>/engine/processes/<service>/variable-policy.json` from this
 table and `VariableWritePolicyFilter` refuses anything else with 403
 (docs/security.md rule 2). Everything not listed here is system-owned.
 

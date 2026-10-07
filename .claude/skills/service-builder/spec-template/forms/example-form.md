@@ -1,7 +1,7 @@
 <!--
   Form spec — one file per BPMN user task. Filename = form id (kebab-case).
   The service-builder skill reads this file to emit the form definition
-    packs/reference/frontend/forms/<form-id>.json
+    <pack>/frontend/forms/<form-id>.json
   drawn by the core form renderer (Renderer: schema). Only a spec that says
   Renderer: tsx gets React code (frontend/src/forms/<form-id>/) instead.
 
