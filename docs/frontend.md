@@ -498,8 +498,8 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
   invalid", instead of drawing half a form.
 - **Serving:** nginx serves the pack at `/pack/` (`location ^~ /pack/`, an
   honest 404 for a missing file); `npm run dev` does the same through the
-  `serve-pack` plugin in `vite.config.ts`, from `PACK_DIR` or the reference
-  pack. The core image (`frontend/Dockerfile`) has no pack: a pack's portal
+  `serve-pack` plugin in `vite.config.ts`, from `PACK_DIR` or the core test
+  pack `packs/test`. The core image (`frontend/Dockerfile`) has no pack: a pack's portal
   image is a layer that copies its `frontend/` and `branding/` into
   `/pack/` (`packs/reference/docker/frontend.Dockerfile`), with no SPA build.
   Without a pack the SPA starts on core texts and the services page says

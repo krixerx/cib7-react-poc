@@ -1,0 +1,1013 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_BusinessRegistration"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="cib7-react-poc" exporterVersion="0.6.0">
+  <!--
+    Estonian OÜ Registration process.
+
+      start (initiator = starting applicant founder)
+        -> [Submit OÜ founding details]  user task         (applicant — PartA)
+                                            form also captures additionalFounders
+                                            and uploads the Articles of Association
+        -> <New Articles of Association?> exclusive gateway
+             yes -> [Attach Articles of Association] service task
+                       (moves pending object into process scope; creates
+                        Camunda Attachment with category=
+                        founder-articles-of-association)
+             no  -> skip to next gateway (resubmit kept existing file)
+        -> <Co-founder signatures needed?> exclusive gateway
+             additionalFounders empty -> [Auto-approval policy]  (skip whole signing block)
+             else                     -> (Send applicant tracking email)
+        -> (Send applicant tracking email) service task    (Mailpit; applicant's own
+                                                              /consent/founder/{token} link)
+        -> [Co-founder signatures]        subprocess        (parallel multi-instance
+                                                              over additionalFounders)
+              per instance:
+                  (Send co-founder signing email) service task
+                  -> [Wait for co-founder signature] receiveTask    (msg "FounderSignature"
+                                                                      correlated on local
+                                                                      partyId)
+              completionCondition: ${rejectedByFounder == true}  (any reject short-circuits)
+        -> <Anyone rejected?>             exclusive gateway
+             rejectedByFounder == true -> (Send sent-back email) -> Submit (loop)
+             else                      -> [Wait for submit-to-register] receiveTask
+                                            (msg "SubmitToRegister")
+        -> {Auto-approval policy}        business rule task  (DMN)
+        -> <Auto-approve?>               exclusive gateway
+             autoDecision == approve -> <Has applicant email?>
+             else                    -> [Business Register review]  (civil-servant — PartB)
+        -> <Decision?>                   exclusive gateway
+             decision == approve -> <Has applicant email?>
+             else                -> (Send sent-back email) -> Submit (loop)
+        -> <Has applicant email?>        exclusive gateway   (merges both approved paths)
+             applicantEmail valid -> (Generate state fee invoice)
+                                      -> (Store fee invoice)
+                                      -> (Send approval email) -> (merge)
+             else (default)       -> (merge)
+        -> (merge)                       (Gateway_BeforeBcard — joins email + no-email paths)
+        -> (Generate B-card extract)     service task        (pdf-renderer)
+        -> (Store B-card extract)        service task        (server-upload)
+        -> end (OÜ entered in Business Register)
+
+    Process variables:
+      initiator           - login of the user that started the instance.
+      companyName         - written by submit-business-details. Must end in "OÜ".
+      boardMembers        - written by submit-business-details. Spin Json list of
+                            {firstName, lastName, personalCode}.
+      shareCapital        - written by submit-business-details. Double; >= 2500.
+      applicantFirstName  - written by submit-business-details.
+      applicantLastName   - same.
+      applicantAge        - same. Drives the auto-approval DMN.
+      applicantEmail      - written by submit-business-details. Required when
+                            additionalFounders is non-empty (we need to email
+                            the applicant their tracking link).
+      additionalFounders  - written by submit-business-details as {name, email}
+                            entries, then rewritten by ConsentPartiesListener
+                            (task complete) to [{partyId, name, email}] with
+                            server-assigned party ids p1, p2, ... Anything else
+                            the client sent is dropped. Always set (an empty list
+                            when the client sent none). Drives the multi-instance
+                            subprocess.
+      consentRound        - written by ConsentPartiesListener on every submission
+                            (epoch millis). Signed into every signing link; the
+                            backend rejects links from an earlier round.
+      founderSignatures   - initialised by ConsentPartiesListener with the
+                            applicant ("applicant") approved, then updated by
+                            the backend ConsentController (purpose founder) on every approve/reject;
+                            Spin Json map of partyId -> {status, reason?, signedAt}.
+                            Signing links are never stored: the `links` bean
+                            (CapabilityLinks) signs them into the emails, see
+                            docs/security.md rule 3.
+      rejectedByFounder   - reset to false by ConsentPartiesListener, set by
+                            the backend ConsentController (purpose founder) on reject; Boolean.
+                            Drives the multi-instance completionCondition and the
+                            post-subprocess gateway.
+      sentToRegister      - reset to false by ConsentPartiesListener, set by the
+                            SubmitToRegister message correlation;
+                            Boolean. Used by the public status endpoint.
+      autoDecision        - written by the DMN ("approve" / "review").
+      decision            - written by the review user task ("approve" / "sendback").
+      sendBackReason      - written by the review user task on sendback. Also
+                            written by the backend ConsentController (purpose founder) on reject so the
+                            existing Task_SendBackEmail can notify the applicant
+                            without a separate task.
+      pendingAoaDocument        - written by the founder form when a new
+                                  Articles of Association was just uploaded into
+                                  the pending/ prefix of RustFS. Spin Json:
+                                  {pendingKey, filename, contentType}. Consumed
+                                  by Task_AttachAoaDocument which moves the
+                                  object into process/ and creates a Camunda
+                                  Attachment. Absent on resubmit-without-
+                                  replacing-the-file — see Gateway_HasPendingAoa.
+      aoaDocumentAttachmentId   - written by Task_AttachAoaDocument. The id of
+                                  the Camunda Attachment row that holds the
+                                  Articles of Association; surfaced in the SPA
+                                  so it can render a download button next to
+                                  the existing attachment instead of asking
+                                  for a fresh upload on every resubmit.
+      feeInvoicePdfBytes        - written by Task_GenerateFeeInvoicePdf
+                                  (Gotenberg via pdf-renderer); raw PDF bytes.
+                                  Stored as a bytes-typed variable so the engine
+                                  spills it to ACT_GE_BYTEARRAY instead of the
+                                  4000-char ACT_HI_VARINST.TEXT_ column.
+      feeInvoicePdfFilename     - written by Task_GenerateFeeInvoicePdf;
+                                  suggested filename used as the Mailpit
+                                  attachment name.
+      feeInvoicePdfAttachmentId - written by Task_StoreFeeInvoicePdf; the id
+                                  of the Camunda Attachment row holding the
+                                  state fee invoice in RustFS.
+      bcardPdfBytes             - written by Task_GenerateBcardPdf via
+                                  pdf-renderer, same bytes-typed pattern as
+                                  feeInvoicePdfBytes.
+      bcardPdfFilename          - written by Task_GenerateBcardPdf.
+      bcardPdfAttachmentId      - written by Task_StoreBcardPdf.
+
+    Spec lives at docs/business/services/business-registration/. Hand-edited
+    in PR #3 of the redomain plan to add the co-founder signing block.
+  -->
+
+  <!--
+    Message definitions used by the receiveTasks in the founder-signing block.
+    the backend ConsentController (purpose founder) correlates these from Spring via
+    runtimeService.createMessageCorrelation(...).
+  -->
+  <bpmn:message id="Message_FounderSignature" name="FounderSignature" />
+  <bpmn:message id="Message_SubmitToRegister" name="SubmitToRegister" />
+  <bpmn:message id="Message_PaymentReceived" name="PaymentReceived" />
+
+  <bpmn:process id="businessRegistration" name="Estonian OÜ Registration"
+                isExecutable="true" camunda:historyTimeToLive="P30D">
+    <bpmn:startEvent id="StartEvent_1" name="Registration started"
+                     camunda:initiator="initiator">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Task_SubmitBusinessDetails" name="Submit OÜ founding details"
+                   camunda:formKey="react:business-details"
+                   camunda:assignee="${initiator}">
+      <!--
+        Server-side consent state (docs/security.md rule 3): keeps only name
+        and email of each co-founder, assigns party ids, resets the
+        signatures map and the reject/sent flags, and starts a new
+        consentRound so earlier signing links stop verifying.
+      -->
+      <bpmn:extensionElements>
+        <camunda:taskListener class="com.poc.cib7.consent.ConsentPartiesListener" event="complete">
+          <camunda:field name="partiesVariable" stringValue="additionalFounders" />
+          <camunda:field name="confirmationsVariable" stringValue="founderSignatures" />
+          <camunda:field name="rejectedVariable" stringValue="rejectedByFounder" />
+          <camunda:field name="sentVariable" stringValue="sentToRegister" />
+        </camunda:taskListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:incoming>Flow_SentBackEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_Submit_HasPendingAoa</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="Flow_Submit_HasPendingAoa"
+                       sourceRef="Task_SubmitBusinessDetails" targetRef="Gateway_HasPendingAoa" />
+
+    <!--
+      The founder form may submit a pendingAoaDocument variable (Spin Json
+      with pendingKey/filename/contentType) when a fresh Articles of
+      Association has just been uploaded into the pending/ prefix of RustFS.
+      On the first submit this variable is always present; on a resubmit
+      after a sendback the applicant may have kept the existing attachment,
+      in which case the form omits the variable so we skip the migration
+      entirely.
+
+      The condition uses execution.hasVariable() to defend against the
+      JUEL PropertyNotFoundException that a bare reference would throw
+      when the variable is missing — same defensive pattern as vehicle-registration's
+      Gateway_HasPendingUpload.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_HasPendingAoa" name="New Articles of Association?"
+                           default="Flow_HasPendingAoa_Skip">
+      <bpmn:incoming>Flow_Submit_HasPendingAoa</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasPendingAoa_Attach</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HasPendingAoa_Skip</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_HasPendingAoa_Attach" name="yes"
+                       sourceRef="Gateway_HasPendingAoa" targetRef="Task_AttachAoaDocument">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("pendingAoaDocument") and execution.getVariable("pendingAoaDocument") != null}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_HasPendingAoa_Skip" name="no"
+                       sourceRef="Gateway_HasPendingAoa" targetRef="Gateway_NeedsSignatures" />
+
+    <!--
+      Migrates the just-uploaded object from pending/{userId}/... to
+      process/{piId}/... and creates a Camunda Attachment on the process
+      instance with type=founder-articles-of-association. Internal-only
+      endpoint — DocumentsApiSecurityConfig matches the X-Internal-Token
+      header instead of a JWT. The engine no longer sets that header; the
+      call crosses the integration bus (esb), which injects X-Internal-Token
+      on the /api/internal route.
+    -->
+    <bpmn:serviceTask id="Task_AttachAoaDocument" name="Attach Articles of Association"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/move-pending-aoa.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="aoaDocumentAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+            <!-- pendingAoaDocument is reset to null by the founder form on
+                 every submit (see forms/business-details.md) — no need to
+                 clear it here. Gateway_HasPendingAoa re-reads the latest
+                 value on the next iteration of a resubmit. -->
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasPendingAoa_Attach</bpmn:incoming>
+      <bpmn:outgoing>Flow_AttachAoa_NeedsSignatures</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_AttachAoa_NeedsSignatures"
+                       sourceRef="Task_AttachAoaDocument" targetRef="Gateway_NeedsSignatures" />
+
+    <!--
+      Routes the case past the whole signing block when there are no
+      additional founders. The applicant alone is treated as already
+      confirmed (the form submission is their signature).
+
+      Default branch goes through the signing path so any malformed
+      additionalFounders variable fails loudly rather than silently skipping.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_NeedsSignatures"
+                           name="Co-founder signatures needed?"
+                           default="Flow_NeedsSignatures_TrackingEmail">
+      <bpmn:incoming>Flow_HasPendingAoa_Skip</bpmn:incoming>
+      <bpmn:incoming>Flow_AttachAoa_NeedsSignatures</bpmn:incoming>
+      <bpmn:outgoing>Flow_NeedsSignatures_AutoDecide</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NeedsSignatures_TrackingEmail</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!--
+      "sole founder" branch. The condition must defend against a missing
+      additionalFounders variable: the SPA business-details form always
+      writes it, but the MCP start/complete path only sends the six
+      manifest fields and never sets it. A bare ${additionalFounders ...}
+      reference throws JUEL PropertyNotFoundException for an unset variable
+      (surfacing as ENGINE-REST HTTP500 on complete_task), so guard with
+      execution.hasVariable() — same defensive pattern as Gateway_HasPendingAoa
+      and Gateway_SendApprovalEmail above.
+    -->
+    <bpmn:sequenceFlow id="Flow_NeedsSignatures_AutoDecide" name="sole founder"
+                       sourceRef="Gateway_NeedsSignatures" targetRef="Task_AutoDecide">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${!execution.hasVariable("additionalFounders") || execution.getVariable("additionalFounders") == null || execution.getVariable("additionalFounders").elements().isEmpty()}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NeedsSignatures_TrackingEmail" name="has co-founders"
+                       sourceRef="Gateway_NeedsSignatures"
+                       targetRef="Task_SendApplicantTrackingEmail" />
+
+    <!--
+      Emails the applicant their own tracking link. Same UI as every other
+      co-founder — the applicant is pre-confirmed at submit time, so
+      opening the link shows status + the "Submit to register" button once
+      all co-founders have signed.
+    -->
+    <bpmn:serviceTask id="Task_SendApplicantTrackingEmail"
+                      name="Send applicant tracking email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/founder-tracking-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NeedsSignatures_TrackingEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_TrackingEmail_FounderSubprocess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_TrackingEmail_FounderSubprocess"
+                       sourceRef="Task_SendApplicantTrackingEmail"
+                       targetRef="SubProcess_FounderSignatures" />
+
+    <!--
+      Parallel multi-instance subprocess. One instance per element of
+      additionalFounders (a Spin Json list). Each instance gets its own
+      element variable `founder` (a SpinJsonNode) plus a local `partyId`
+      set from founder.partyId via inputOutput — the receiveTask correlation
+      keys off that local variable so the public signing endpoint reaches
+      exactly the waiting execution.
+
+      completionCondition fires as soon as ANY instance writes
+      rejectedByFounder=true at process scope, which cancels the remaining
+      waiters and routes the case back to the applicant via the existing
+      send-back email.
+    -->
+    <bpmn:subProcess id="SubProcess_FounderSignatures" name="Co-founder signatures">
+      <bpmn:incoming>Flow_TrackingEmail_FounderSubprocess</bpmn:incoming>
+      <bpmn:outgoing>Flow_FounderSubprocess_AllSigned</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="false"
+                                             camunda:collection="${additionalFounders.elements()}"
+                                             camunda:elementVariable="founder">
+        <bpmn:completionCondition xsi:type="bpmn:tFormalExpression">${rejectedByFounder == true}</bpmn:completionCondition>
+      </bpmn:multiInstanceLoopCharacteristics>
+
+      <bpmn:startEvent id="StartEvent_FounderInstance">
+        <bpmn:outgoing>Flow_Founder_Start_SendEmail</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <bpmn:sequenceFlow id="Flow_Founder_Start_SendEmail"
+                         sourceRef="StartEvent_FounderInstance"
+                         targetRef="Task_SendFounderSigningEmail" />
+
+      <bpmn:serviceTask id="Task_SendFounderSigningEmail"
+                        name="Send co-founder signing email"
+                        camunda:asyncBefore="true">
+        <bpmn:extensionElements>
+          <camunda:connector>
+            <camunda:connectorId>http-connector</camunda:connectorId>
+            <camunda:inputOutput>
+              <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+              <camunda:inputParameter name="method">POST</camunda:inputParameter>
+              <camunda:inputParameter name="headers">
+                <camunda:map>
+                  <camunda:entry key="Content-Type">application/json</camunda:entry>
+                </camunda:map>
+              </camunda:inputParameter>
+              <camunda:inputParameter name="payload">
+                <camunda:script scriptFormat="freemarker" resource="templates/founder-signing-email.json.ftl" />
+              </camunda:inputParameter>
+            </camunda:inputOutput>
+          </camunda:connector>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Founder_Start_SendEmail</bpmn:incoming>
+        <bpmn:outgoing>Flow_Founder_SendEmail_Wait</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+      <bpmn:sequenceFlow id="Flow_Founder_SendEmail_Wait"
+                         sourceRef="Task_SendFounderSigningEmail"
+                         targetRef="ReceiveTask_FounderSignature" />
+
+      <!--
+        Park until the co-founder clicks Approve/Reject in their signing page.
+        The inputOutput mapping promotes founder.partyId to a flat local
+        variable so the controller's localCorrelationKeys {partyId} (taken from
+        the verified link token, never from the request body) find this exact
+        execution.
+      -->
+      <bpmn:receiveTask id="ReceiveTask_FounderSignature"
+                        name="Wait for co-founder signature"
+                        messageRef="Message_FounderSignature">
+        <bpmn:extensionElements>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="partyId">${founder.prop('partyId').stringValue()}</camunda:inputParameter>
+          </camunda:inputOutput>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Founder_SendEmail_Wait</bpmn:incoming>
+        <bpmn:outgoing>Flow_Founder_Wait_End</bpmn:outgoing>
+      </bpmn:receiveTask>
+
+      <bpmn:sequenceFlow id="Flow_Founder_Wait_End"
+                         sourceRef="ReceiveTask_FounderSignature"
+                         targetRef="EndEvent_FounderInstance" />
+
+      <bpmn:endEvent id="EndEvent_FounderInstance">
+        <bpmn:incoming>Flow_Founder_Wait_End</bpmn:incoming>
+      </bpmn:endEvent>
+    </bpmn:subProcess>
+
+    <bpmn:sequenceFlow id="Flow_FounderSubprocess_AllSigned"
+                       sourceRef="SubProcess_FounderSignatures"
+                       targetRef="Gateway_AllSigned" />
+
+    <!--
+      After the multi-instance subprocess exits: either everyone signed
+      (default path -> wait for submit-to-register), or someone rejected
+      (loop back via the existing send-back email). The controller writes
+      sendBackReason on reject so the existing email template renders
+      cleanly without a separate "founder-reject" task.
+    -->
+    <bpmn:exclusiveGateway id="Gateway_AllSigned" name="Anyone rejected?"
+                           default="Flow_AllSigned_WaitSubmitToRegister">
+      <bpmn:incoming>Flow_FounderSubprocess_AllSigned</bpmn:incoming>
+      <bpmn:outgoing>Flow_AllSigned_SendBack</bpmn:outgoing>
+      <bpmn:outgoing>Flow_AllSigned_WaitSubmitToRegister</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_AllSigned_SendBack" name="rejected"
+                       sourceRef="Gateway_AllSigned" targetRef="Task_SendBackEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rejectedByFounder == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_AllSigned_WaitSubmitToRegister" name="all signed"
+                       sourceRef="Gateway_AllSigned" targetRef="Task_WaitSubmitToRegister" />
+
+    <!--
+      Final synchronisation gate. The process parks here until any founder
+      clicks "Submit to register" in their public signing page. The
+      controller correlates the SubmitToRegister message by processInstanceId,
+      so only one instance is waiting and no correlation key is needed.
+    -->
+    <bpmn:receiveTask id="Task_WaitSubmitToRegister" name="Wait for submit-to-register"
+                      messageRef="Message_SubmitToRegister">
+      <bpmn:incoming>Flow_AllSigned_WaitSubmitToRegister</bpmn:incoming>
+      <bpmn:outgoing>Flow_WaitSubmitToRegister_AutoDecide</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <bpmn:sequenceFlow id="Flow_WaitSubmitToRegister_AutoDecide"
+                       sourceRef="Task_WaitSubmitToRegister" targetRef="Task_AutoDecide" />
+
+    <bpmn:businessRuleTask id="Task_AutoDecide" name="Auto-approval policy"
+                           camunda:decisionRef="business-auto-approval"
+                           camunda:decisionRefBinding="deployment"
+                           camunda:mapDecisionResult="singleEntry"
+                           camunda:resultVariable="autoDecision">
+      <!--
+        Default applicantResidency to "citizen" when the variable is absent.
+        The SPA business-details form always writes it (its normaliseResidency
+        helper defaults to "citizen"), but the MCP path only sends the six
+        manifest fields and never sets residency. Without this default the
+        DMN's residency column would never match the citizen/e-resident
+        approve rule, so every MCP-driven registration would fall through to
+        Rule_DefaultReview — contradicting the documented age+capital
+        auto-approval. Local input mapping: it feeds the decision evaluation
+        without mutating the process variable.
+      -->
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="applicantResidency">${execution.hasVariable("applicantResidency") and execution.getVariable("applicantResidency") != null ? execution.getVariable("applicantResidency") : "citizen"}</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NeedsSignatures_AutoDecide</bpmn:incoming>
+      <bpmn:incoming>Flow_WaitSubmitToRegister_AutoDecide</bpmn:incoming>
+      <bpmn:outgoing>Flow_AutoDecided</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <bpmn:exclusiveGateway id="Gateway_AutoApproval" name="Auto-approve?"
+                           default="Flow_NeedsReview">
+      <bpmn:incoming>Flow_AutoDecided</bpmn:incoming>
+      <bpmn:outgoing>Flow_AutoApproved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NeedsReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:userTask id="Task_ReviewBusinessRegistration"
+                   name="Business Register review"
+                   camunda:formKey="react:review-business-registration"
+                   camunda:candidateGroups="civil-servant">
+      <bpmn:incoming>Flow_NeedsReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_Reviewed</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Decision" name="Decision?"
+                           default="Flow_SentBack">
+      <bpmn:incoming>Flow_Reviewed</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SentBack</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!--
+      Joins both approval paths (auto and manual) and decides whether to
+      generate + email the state fee invoice. applicantEmail is optional
+      in the founder form, so the default branch falls through to the
+      B-card generation without sending an email; the conditional branch
+      fires only when applicantEmail looks like a real address. Defensive
+      `execution.hasVariable()` guard for cases started without the form
+      (e.g. ad-hoc /engine-rest start calls).
+    -->
+    <bpmn:exclusiveGateway id="Gateway_SendApprovalEmail"
+                           name="Has applicant email?"
+                           default="Flow_NoEmail_BeforeBcard">
+      <bpmn:incoming>Flow_AutoApproved</bpmn:incoming>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_HasEmail_GenerateFeeInvoice</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NoEmail_BeforeBcard</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_HasEmail_GenerateFeeInvoice" name="valid email"
+                       sourceRef="Gateway_SendApprovalEmail"
+                       targetRef="Task_QuoteFee">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${execution.hasVariable("applicantEmail") and execution.getVariable("applicantEmail") != null and execution.getVariable("applicantEmail").contains("@")}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_NoEmail_BeforeBcard"
+                       sourceRef="Gateway_SendApprovalEmail"
+                       targetRef="Gateway_BeforeBcard" />
+
+    <!--
+      Asks the backend for the case's state fee (the pack's backend/payment rule),
+      so the invoice prints exactly what the checkout will charge.
+      Spec: docs/business/services/business-registration/service-tasks/quote-business-state-fee.md
+    -->
+    <bpmn:serviceTask id="Task_QuoteFee" name="Quote state fee"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Accept">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:outputParameter name="stateFee">${S(response).prop('amount').numberValue()}</camunda:outputParameter>
+            <camunda:outputParameter name="stateFeeCurrency">${S(response).prop('currency').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_HasEmail_GenerateFeeInvoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_QuoteFee_Invoice</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_QuoteFee_Invoice"
+                       sourceRef="Task_QuoteFee" targetRef="Task_GenerateFeeInvoicePdf" />
+
+    <!--
+      Generates the state fee invoice PDF via the pdf-renderer sidecar.
+      Same shape as vehicle-registration's Task_GeneratePdf — JSON in, base64 PDF
+      out, decoded to byte[] so it lands in ACT_GE_BYTEARRAY instead of
+      overflowing the 4000-char ACT_HI_VARINST.TEXT_ column.
+    -->
+    <bpmn:serviceTask id="Task_GenerateFeeInvoicePdf" name="Generate state fee invoice"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/business-fee-invoice-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="feeInvoicePdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="feeInvoicePdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_QuoteFee_Invoice</bpmn:incoming>
+      <bpmn:outgoing>Flow_GenerateFeeInvoice_Store</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_GenerateFeeInvoice_Store"
+                       sourceRef="Task_GenerateFeeInvoicePdf"
+                       targetRef="Task_StoreFeeInvoicePdf" />
+
+    <bpmn:serviceTask id="Task_StoreFeeInvoicePdf" name="Store fee invoice"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/server-upload-business-fee-invoice.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="feeInvoicePdfAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GenerateFeeInvoice_Store</bpmn:incoming>
+      <bpmn:outgoing>Flow_StoreFeeInvoice_SendEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_StoreFeeInvoice_SendEmail"
+                       sourceRef="Task_StoreFeeInvoicePdf" targetRef="Task_SendApprovalEmail" />
+
+    <bpmn:serviceTask id="Task_SendApprovalEmail" name="Send approval email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/business-approval-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_StoreFeeInvoice_SendEmail</bpmn:incoming>
+      <bpmn:outgoing>Flow_SendEmail_WaitPayment</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_SendEmail_WaitPayment"
+                       sourceRef="Task_SendApprovalEmail" targetRef="Task_WaitForPayment" />
+
+    <!--
+      Park until the payment provider's signed callback reports the state
+      fee as paid (docs/security.md rule 4). The applicant pays from the
+      public /pay/{token} page; the backend's payment callback verifies the
+      provider signature and amount, then correlates PaymentReceived by
+      processInstanceId, so only this one waiter is unblocked. Cases
+      without an applicantEmail skip this branch entirely (no invoice
+      was generated to pay).
+    -->
+    <bpmn:receiveTask id="Task_WaitForPayment" name="Wait for state fee payment"
+                      messageRef="Message_PaymentReceived">
+      <bpmn:incoming>Flow_SendEmail_WaitPayment</bpmn:incoming>
+      <bpmn:outgoing>Flow_Payment_BeforeBcard</bpmn:outgoing>
+    </bpmn:receiveTask>
+
+    <bpmn:sequenceFlow id="Flow_Payment_BeforeBcard"
+                       sourceRef="Task_WaitForPayment" targetRef="Gateway_BeforeBcard" />
+
+    <!--
+      Converging join — every approved case (auto-approved + reviewed-with-
+      email + reviewed-no-email) funnels through here to the B-card
+      generation. The exclusive gateway is fine even though it has two
+      incoming sequence flows: only one fires per case (BPMN treats this
+      as a merge, not a synchronisation).
+    -->
+    <bpmn:exclusiveGateway id="Gateway_BeforeBcard" name="(merge)">
+      <bpmn:incoming>Flow_NoEmail_BeforeBcard</bpmn:incoming>
+      <bpmn:incoming>Flow_Payment_BeforeBcard</bpmn:incoming>
+      <bpmn:outgoing>Flow_BeforeBcard_Generate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_BeforeBcard_Generate"
+                       sourceRef="Gateway_BeforeBcard" targetRef="Task_GenerateBcardPdf" />
+
+    <!--
+      Generates the B-card extract via the same pdf-renderer sidecar used
+      by Task_GenerateFeeInvoicePdf. Runs for every approved case — both
+      auto-approved and Business Register approved — because the B-card
+      is the canonical record-of-registration the applicant + reviewer
+      can download from the Documents card.
+    -->
+    <bpmn:serviceTask id="Task_GenerateBcardPdf" name="Generate B-card extract"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/bcard-pdf.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="bcardPdfBytes">${pdf.decode(S(response).prop('base64').stringValue())}</camunda:outputParameter>
+            <camunda:outputParameter name="bcardPdfFilename">${S(response).prop('filename').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_BeforeBcard_Generate</bpmn:incoming>
+      <bpmn:outgoing>Flow_GenerateBcard_Store</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_GenerateBcard_Store"
+                       sourceRef="Task_GenerateBcardPdf" targetRef="Task_StoreBcardPdf" />
+
+    <bpmn:serviceTask id="Task_StoreBcardPdf" name="Store B-card extract"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/server-upload-bcard.json.ftl" />
+            </camunda:inputParameter>
+            <camunda:outputParameter name="bcardPdfAttachmentId">${S(response).prop('attachmentId').stringValue()}</camunda:outputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_GenerateBcard_Store</bpmn:incoming>
+      <bpmn:outgoing>Flow_StoreBcard_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:sequenceFlow id="Flow_StoreBcard_End"
+                       sourceRef="Task_StoreBcardPdf" targetRef="EndEvent_Approved" />
+
+    <!--
+      Shared send-back email — fires from BOTH the civil-servant Decision
+      gateway AND from any co-founder reject. The controller writes
+      sendBackReason on reject so the existing template renders cleanly
+      regardless of the source.
+    -->
+    <bpmn:serviceTask id="Task_SendBackEmail" name="Send sent-back email"
+                      camunda:asyncBefore="true">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="templates/business-sendback-email.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_SentBack</bpmn:incoming>
+      <bpmn:incoming>Flow_AllSigned_SendBack</bpmn:incoming>
+      <bpmn:outgoing>Flow_SentBackEmail</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_Approved" name="OÜ entered in Business Register">
+      <bpmn:incoming>Flow_StoreBcard_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_Start"
+                       sourceRef="StartEvent_1" targetRef="Task_SubmitBusinessDetails" />
+    <bpmn:sequenceFlow id="Flow_AutoDecided"
+                       sourceRef="Task_AutoDecide" targetRef="Gateway_AutoApproval" />
+    <bpmn:sequenceFlow id="Flow_AutoApproved" name="auto-approved"
+                       sourceRef="Gateway_AutoApproval" targetRef="Gateway_SendApprovalEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${autoDecision == "approve"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NeedsReview" name="needs review"
+                       sourceRef="Gateway_AutoApproval" targetRef="Task_ReviewBusinessRegistration" />
+    <bpmn:sequenceFlow id="Flow_Reviewed"
+                       sourceRef="Task_ReviewBusinessRegistration" targetRef="Gateway_Decision" />
+    <bpmn:sequenceFlow id="Flow_Approved" name="approved"
+                       sourceRef="Gateway_Decision" targetRef="Gateway_SendApprovalEmail">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${decision == "approve"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_SentBack" name="sent back"
+                       sourceRef="Gateway_Decision" targetRef="Task_SendBackEmail" />
+    <bpmn:sequenceFlow id="Flow_SentBackEmail"
+                       sourceRef="Task_SendBackEmail" targetRef="Task_SubmitBusinessDetails" />
+  </bpmn:process>
+
+  <!--
+    BPMNDI: hand-authored layout, organised into horizontal bands so the new
+    signing block doesn't overlap the existing main row.
+
+      y =  80          auto-approve skip arc (over the top)
+      y = 160 - 240    main row: Start -> Submit -> Gateway_NeedsSignatures ->
+                       AutoDecide -> Gateway_AutoApproval -> Review ->
+                       Gateway_Decision -> ApprovalEmail -> End
+      y = 380 - 540    signing block (tracking email -> subprocess ->
+                       Gateway_AllSigned -> Task_WaitSubmitToRegister)
+      y = 640 - 720    send-back loop (shared between civil-servant send-back
+                       AND co-founder reject)
+  -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_BusinessRegistration">
+    <bpmndi:BPMNPlane id="BPMNPlane_BusinessRegistration" bpmnElement="businessRegistration">
+
+      <!-- Main row -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="160" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="140" y="225" width="80" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SubmitBusinessDetails_di" bpmnElement="Task_SubmitBusinessDetails">
+        <dc:Bounds x="240" y="160" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NeedsSignatures_di" bpmnElement="Gateway_NeedsSignatures" isMarkerVisible="true">
+        <dc:Bounds x="415" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="392" y="132" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AutoDecide_di" bpmnElement="Task_AutoDecide">
+        <dc:Bounds x="510" y="160" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AutoApproval_di" bpmnElement="Gateway_AutoApproval" isMarkerVisible="true">
+        <dc:Bounds x="680" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="668" y="145" width="74" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReviewBusinessRegistration_di" bpmnElement="Task_ReviewBusinessRegistration">
+        <dc:Bounds x="770" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Decision_di" bpmnElement="Gateway_Decision" isMarkerVisible="true">
+        <dc:Bounds x="955" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="950" y="145" width="60" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendApprovalEmail_di" bpmnElement="Task_SendApprovalEmail">
+        <dc:Bounds x="1050" y="160" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
+        <dc:Bounds x="1240" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1215" y="225" width="86" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Signing block -->
+      <bpmndi:BPMNShape id="Task_SendApplicantTrackingEmail_di" bpmnElement="Task_SendApplicantTrackingEmail">
+        <dc:Bounds x="290" y="400" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubProcess_FounderSignatures_di" bpmnElement="SubProcess_FounderSignatures" isExpanded="true">
+        <dc:Bounds x="490" y="360" width="500" height="160" />
+        <bpmndi:BPMNLabel><dc:Bounds x="666" y="367" width="148" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_FounderInstance_di" bpmnElement="StartEvent_FounderInstance">
+        <dc:Bounds x="520" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SendFounderSigningEmail_di" bpmnElement="Task_SendFounderSigningEmail">
+        <dc:Bounds x="580" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ReceiveTask_FounderSignature_di" bpmnElement="ReceiveTask_FounderSignature">
+        <dc:Bounds x="760" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_FounderInstance_di" bpmnElement="EndEvent_FounderInstance">
+        <dc:Bounds x="935" y="422" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_AllSigned_di" bpmnElement="Gateway_AllSigned" isMarkerVisible="true">
+        <dc:Bounds x="1025" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1015" y="378" width="71" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_WaitSubmitToRegister_di" bpmnElement="Task_WaitSubmitToRegister">
+        <dc:Bounds x="1115" y="400" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Send-back loop -->
+      <bpmndi:BPMNShape id="Task_SendBackEmail_di" bpmnElement="Task_SendBackEmail">
+        <dc:Bounds x="730" y="640" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!--
+        Documents pipeline (PR #4 — Articles of Association upload).
+        Minimal stubs on a separate band so the new gateway / service task
+        don't overlap the existing rows. Same pattern as vehicle-registration's
+        documents pipeline: y=820 band, crossing arrows back to the main
+        row. Functional; not pretty — re-flow in cibseven-modeller if needed.
+      -->
+      <bpmndi:BPMNShape id="Gateway_HasPendingAoa_di" bpmnElement="Gateway_HasPendingAoa" isMarkerVisible="true">
+        <dc:Bounds x="415" y="795" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="380" y="852" width="120" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AttachAoaDocument_di" bpmnElement="Task_AttachAoaDocument">
+        <dc:Bounds x="515" y="780" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Edges: main row -->
+      <bpmndi:BPMNEdge id="Flow_Start_di" bpmnElement="Flow_Start">
+        <di:waypoint x="196" y="200" /><di:waypoint x="240" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Submit_HasPendingAoa_di" bpmnElement="Flow_Submit_HasPendingAoa">
+        <di:waypoint x="305" y="240" /><di:waypoint x="305" y="820" /><di:waypoint x="415" y="820" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HasPendingAoa_Attach_di" bpmnElement="Flow_HasPendingAoa_Attach">
+        <di:waypoint x="465" y="820" /><di:waypoint x="515" y="820" />
+        <bpmndi:BPMNLabel><dc:Bounds x="475" y="800" width="20" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_HasPendingAoa_Skip_di" bpmnElement="Flow_HasPendingAoa_Skip">
+        <di:waypoint x="440" y="795" /><di:waypoint x="440" y="200" /><di:waypoint x="465" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="445" y="500" width="18" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AttachAoa_NeedsSignatures_di" bpmnElement="Flow_AttachAoa_NeedsSignatures">
+        <di:waypoint x="675" y="820" /><di:waypoint x="720" y="820" /><di:waypoint x="720" y="200" /><di:waypoint x="465" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeedsSignatures_AutoDecide_di" bpmnElement="Flow_NeedsSignatures_AutoDecide">
+        <di:waypoint x="465" y="200" /><di:waypoint x="510" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="468" y="180" width="62" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AutoDecided_di" bpmnElement="Flow_AutoDecided">
+        <di:waypoint x="640" y="200" /><di:waypoint x="680" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AutoApproved_di" bpmnElement="Flow_AutoApproved">
+        <di:waypoint x="705" y="175" /><di:waypoint x="705" y="100" /><di:waypoint x="1120" y="100" /><di:waypoint x="1120" y="160" />
+        <bpmndi:BPMNLabel><dc:Bounds x="880" y="82" width="80" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NeedsReview_di" bpmnElement="Flow_NeedsReview">
+        <di:waypoint x="730" y="200" /><di:waypoint x="770" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="730" y="180" width="76" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reviewed_di" bpmnElement="Flow_Reviewed">
+        <di:waypoint x="910" y="200" /><di:waypoint x="955" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approved_di" bpmnElement="Flow_Approved">
+        <di:waypoint x="1005" y="200" /><di:waypoint x="1050" y="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1007" y="180" width="48" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <!--
+        PR #5: PDF pipeline (Gateway_SendApprovalEmail → fee invoice
+        → store → email → Gateway_BeforeBcard → B-card → store → end).
+        Stub shapes on a separate band at y=960 to avoid expanding the
+        main row — same "functional, not pretty" approach the AoA
+        pipeline uses. Re-flow in cibseven-modeller if needed.
+      -->
+      <bpmndi:BPMNShape id="Gateway_SendApprovalEmail_di" bpmnElement="Gateway_SendApprovalEmail" isMarkerVisible="true">
+        <dc:Bounds x="245" y="935" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="222" y="998" width="100" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerateFeeInvoicePdf_di" bpmnElement="Task_GenerateFeeInvoicePdf">
+        <dc:Bounds x="345" y="920" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreFeeInvoicePdf_di" bpmnElement="Task_StoreFeeInvoicePdf">
+        <dc:Bounds x="525" y="920" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_BeforeBcard_di" bpmnElement="Gateway_BeforeBcard" isMarkerVisible="true">
+        <dc:Bounds x="855" y="935" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_GenerateBcardPdf_di" bpmnElement="Task_GenerateBcardPdf">
+        <dc:Bounds x="935" y="920" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_StoreBcardPdf_di" bpmnElement="Task_StoreBcardPdf">
+        <dc:Bounds x="1115" y="920" width="140" height="80" />
+      </bpmndi:BPMNShape>
+      <!-- PR #7: payment wait. Sits between Task_SendApprovalEmail and
+           Gateway_BeforeBcard. Stub on the same band as the rest of the
+           PDF pipeline. -->
+      <bpmndi:BPMNShape id="Task_WaitForPayment_di" bpmnElement="Task_WaitForPayment">
+        <dc:Bounds x="700" y="920" width="140" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Edges: signing block -->
+      <bpmndi:BPMNEdge id="Flow_NeedsSignatures_TrackingEmail_di" bpmnElement="Flow_NeedsSignatures_TrackingEmail">
+        <di:waypoint x="440" y="225" /><di:waypoint x="440" y="440" /><di:waypoint x="450" y="440" />
+        <bpmndi:BPMNLabel><dc:Bounds x="345" y="300" width="100" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_TrackingEmail_FounderSubprocess_di" bpmnElement="Flow_TrackingEmail_FounderSubprocess">
+        <di:waypoint x="450" y="440" /><di:waypoint x="490" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Founder_Start_SendEmail_di" bpmnElement="Flow_Founder_Start_SendEmail">
+        <di:waypoint x="556" y="440" /><di:waypoint x="580" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Founder_SendEmail_Wait_di" bpmnElement="Flow_Founder_SendEmail_Wait">
+        <di:waypoint x="720" y="440" /><di:waypoint x="760" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Founder_Wait_End_di" bpmnElement="Flow_Founder_Wait_End">
+        <di:waypoint x="900" y="440" /><di:waypoint x="935" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FounderSubprocess_AllSigned_di" bpmnElement="Flow_FounderSubprocess_AllSigned">
+        <di:waypoint x="990" y="440" /><di:waypoint x="1025" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllSigned_WaitSubmitToRegister_di" bpmnElement="Flow_AllSigned_WaitSubmitToRegister">
+        <di:waypoint x="1075" y="440" /><di:waypoint x="1115" y="440" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1080" y="420" width="60" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_WaitSubmitToRegister_AutoDecide_di" bpmnElement="Flow_WaitSubmitToRegister_AutoDecide">
+        <di:waypoint x="1185" y="400" /><di:waypoint x="1185" y="330" /><di:waypoint x="575" y="330" /><di:waypoint x="575" y="240" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Edges: send-back loop (shared) -->
+      <bpmndi:BPMNEdge id="Flow_SentBack_di" bpmnElement="Flow_SentBack">
+        <di:waypoint x="980" y="225" /><di:waypoint x="980" y="680" /><di:waypoint x="870" y="680" />
+        <bpmndi:BPMNLabel><dc:Bounds x="916" y="660" width="55" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AllSigned_SendBack_di" bpmnElement="Flow_AllSigned_SendBack">
+        <di:waypoint x="1050" y="465" /><di:waypoint x="1050" y="720" /><di:waypoint x="870" y="720" />
+        <bpmndi:BPMNLabel><dc:Bounds x="950" y="702" width="47" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SentBackEmail_di" bpmnElement="Flow_SentBackEmail">
+        <di:waypoint x="730" y="700" /><di:waypoint x="305" y="700" /><di:waypoint x="305" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Task_QuoteFee_di" bpmnElement="Task_QuoteFee">
+        <dc:Bounds x="345" y="1040" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_HasEmail_GenerateFeeInvoice_di" bpmnElement="Flow_HasEmail_GenerateFeeInvoice">
+        <di:waypoint x="270" y="985" />
+        <di:waypoint x="270" y="1080" />
+        <di:waypoint x="345" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_QuoteFee_Invoice_di" bpmnElement="Flow_QuoteFee_Invoice">
+        <di:waypoint x="420" y="1040" />
+        <di:waypoint x="420" y="1000" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

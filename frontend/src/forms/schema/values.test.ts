@@ -10,7 +10,7 @@ import {
 } from './definition';
 import { completion, initialInputs, type FieldError, type Inputs } from './values';
 
-const PACK_FORMS = resolve(__dirname, '../../../../packs/reference/frontend/forms');
+const PACK_FORMS = resolve(__dirname, '../../../../packs/test/frontend/forms');
 
 function raw(id: string): Record<string, unknown> {
   return JSON.parse(readFileSync(resolve(PACK_FORMS, `${id}.json`), 'utf-8'));

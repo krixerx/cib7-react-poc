@@ -120,9 +120,10 @@ Module responsibilities are strict and worth preserving:
   which the core puts on the classpath with `PropertiesLauncher` and
   `loader.path`. Backend, mcp, frontend and mobile are built the same way: a
   pack-less `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`)
-  and a thin layer from `packs/reference/docker/`. Tests and
-  `mvn spring-boot:run` add the same directory through the pom's
-  `services.pack.dir`.
+  and a thin layer from `packs/reference/docker/`. Tests, `mvn spring-boot:run`
+  and `npm run dev` use the core test pack instead, `packs/test/` (a frozen
+  copy of the reference pack, through the pom's `services.pack.dir` and
+  `PACK_DIR`); keep it a valid pack (`scripts/pack-check.sh packs/test`).
 - **`backend/` owns every `/api/**` surface**: public token-link pages
   (co-signing at `/api/public/consent/<purpose>` from the pack's
   `consent/<purpose>.yaml`, payments), the registry module that

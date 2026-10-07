@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "services": [
+    {
+      "key": "businessRegistration",
+      "name": "Business Registration",
+      "description": "Register a new Estonian limited liability company (OÜ). Adult applicants with at least €2500 share capital are auto-approved by DMN; everyone else routes to a civil-servant review queue. Demo mode: currently every case goes to review.",
+      "audience": "applicant",
+      "manifestPath": "business-registration/build/mcp-service.json"
+    },
+    {
+      "key": "vehicleRegistration",
+      "name": "Vehicle Registration",
+      "description": "Register a vehicle with Transpordiamet (Estonian Transport Authority), with optional co-owner signatures. The vehicle is looked up from a curated catalog; adult sole owners of low-value (under €5k) older (10+ years) vehicles are auto-approved by DMN, everyone else routes to a Transport Authority review.",
+      "audience": "applicant",
+      "manifestPath": "vehicle-registration/build/mcp-service.json"
+    }
+  ]
+}

@@ -351,7 +351,8 @@ core image) copies the service pack (`packs/reference/engine/`, its
 directory on the classpath. The same mechanism serves the FreeMarker templates
 (BPMN `resource="templates/..."` loads from the classpath) and the
 `variable-policy.json` files. Locally, tests and `mvn spring-boot:run` add the
-directory through the pom property `services.pack.dir`. A customer pack
+core test pack's `packs/test/engine` (a frozen copy of the reference pack)
+through the pom property `services.pack.dir`. A customer pack
 builds the same layer from its own repository on a published core image.
 
 The scan creates **one named engine deployment per service folder**

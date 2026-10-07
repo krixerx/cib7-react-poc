@@ -84,7 +84,10 @@ class PaymentLogicTest {
   private final EngineClient engine = mock(EngineClient.class);
   private final FeeSchedule fees = new FeeSchedule(engine, referencePackFees());
 
-  /** The fee rules of the pack on the test classpath (the reference pack's payment/*.yaml). */
+  /**
+   * The fee rules of the pack on the test classpath (packs/test's payment/*.yaml, a copy of the
+   * reference pack's).
+   */
   private static FeeCatalog referencePackFees() {
     try {
       return new FeeCatalog(new String[] {"classpath*:payment/*.yaml"});

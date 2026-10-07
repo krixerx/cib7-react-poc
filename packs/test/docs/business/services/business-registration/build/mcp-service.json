@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "key": "businessRegistration",
+  "name": "Business Registration",
+  "description": "Register a new Estonian limited liability company (OÜ). Adult applicants submitting at least the legal minimum share capital (€2500) are auto-approved by DMN and notified by email; everyone else routes to a civil-servant review queue. Demo mode is currently on: the DMN routes every case to civil-servant review. The send-back loop lets the reviewer return the case to the applicant with a reason. The applicant's name and email are filled automatically from their signed-in account (do NOT ask for or send them). MCP-path scope: the chat path registers a SOLE-FOUNDER OÜ only (the co-founder e-signature flow uses public tracking links the web portal drives, not chat), and it does not upload the Articles of Association document. Because the applicant's email is now always known, approved cases generate a state-fee invoice and an approval email and then wait at a payment step (Task_WaitForPayment) that is only advanced by the public /pay web page — MCP has no payment tool, so over chat a registration completes up to that payment step and the user pays on the web. Applicants who need co-founders or an AoA upload should use the web portal. Tell the user this up front.",
+  "audience": "applicant",
+  "candidateGroups": [
+    "applicant"
+  ],
+  "initialTask": {
+    "formKey": "business-details",
+    "audience": "applicant",
+    "name": "Submit business details"
+  },
+  "start": {
+    "description": "Variables collected from the applicant at start time. The engine sets `initiator` from the authenticated user automatically; never include it in start_process input. The applicant's first name, last name, and email are filled automatically from their signed-in Keycloak account at process start — do NOT ask for them and do NOT send them (they are not accepted here, and the engine re-validates them on task completion).",
+    "fields": {
+      "companyName": "Trade name of the company. Must end in 'OÜ' (private limited company) — the React form appends it on blur if missing, but the MCP-driven agent should ask before submitting names without the suffix.",
+      "boardMembers": "Board members of the new OÜ. At least one is required.",
+      "shareCapital": "Share capital in EUR. Minimum 2500 by historical Estonian Commercial Code; the React form, DMN, and Ajv all enforce this floor.",
+      "applicantAge": "Applicant's age in years. Drives the auto-approval DMN (minors always need human review). Autofill via query_user_history('age')."
+    }
+  },
+  "userTasks": [
+    {
+      "formKey": "business-details",
+      "name": "Submit business details",
+      "audience": "applicant",
+      "description": "The applicant confirms (or corrects) their business registration details. Same field set as start_process input — when start_process pre-fills them, completing this task with the identical values just advances the process. On send-back resubmit the applicant sees the previous reviewer's reason as a banner.",
+      "fields": {
+        "companyName": "Trade name of the company. Must end in 'OÜ' (private limited company) — the React form appends it on blur if missing, but the MCP-driven agent should ask before submitting names without the suffix.",
+        "boardMembers": "Board members of the new OÜ. At least one is required.",
+        "shareCapital": "Share capital in EUR. Minimum 2500 by historical Estonian Commercial Code; the React form, DMN, and Ajv all enforce this floor.",
+        "applicantAge": "Applicant's age in years. Drives the auto-approval DMN (minors always need human review). Autofill via query_user_history('age').",
+        "sendBackReason": "Always empty on submit — the form clears the previous reason on resubmit so a future cycle starts clean."
+      },
+      "notOffered": [
+        "applicantFirstName",
+        "applicantLastName",
+        "applicantEmail",
+        "applicantResidency",
+        "additionalFounders",
+        "pendingAoaDocument"
+      ]
+    },
+    {
+      "formKey": "review-business-registration",
+      "name": "Review business registration",
+      "audience": "civil-servant",
+      "description": "The civil servant accepts the registration or sends it back to the applicant with a reason. If sent back, the process loops to the applicant's business-details task and the reason is shown as a banner.",
+      "fields": {
+        "decision": "approve = end the process as approved. sendback = email the applicant with the reason and loop back to the business-details task.",
+        "sendBackReason": "Required when decision = sendback. The applicant sees this above the business-details form on re-entry."
+      }
+    }
+  ]
+}

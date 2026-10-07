@@ -49,7 +49,7 @@ import tools.jackson.databind.node.ObjectNode;
  * another party's email or any token.
  *
  * <p>Security filters are off: {@code /api/public/**} is permit-all anyway, and the checks under
- * test live in {@link ConsentController}, the reference pack's co-signing descriptors and {@link
+ * test live in {@link ConsentController}, the test pack's co-signing descriptors and {@link
  * CapabilityLinkVerifier}.
  */
 @WebMvcTest(controllers = ConsentController.class)

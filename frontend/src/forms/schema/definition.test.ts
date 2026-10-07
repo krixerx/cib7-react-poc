@@ -13,7 +13,7 @@ import {
   type FormDefinition,
 } from './definition';
 
-const PACK_FORMS = resolve(__dirname, '../../../../packs/reference/frontend/forms');
+const PACK_FORMS = resolve(__dirname, '../../../../packs/test/frontend/forms');
 
 function packDefinition(id: string): unknown {
   return JSON.parse(readFileSync(resolve(PACK_FORMS, `${id}.json`), 'utf-8'));

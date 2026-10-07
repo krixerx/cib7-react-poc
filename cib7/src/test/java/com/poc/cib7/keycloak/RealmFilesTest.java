@@ -28,7 +28,7 @@ class RealmFilesTest {
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final Path CORE_REALM = Path.of("../keycloak/cib7-poc-realm.json");
   private static final Path PACK_USERS =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"))
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"))
           .resolve("../keycloak/cib7-poc-users-0.json")
           .normalize();
   private static final Set<String> CORE_GROUPS = Set.of("applicant", "civil-servant", "cib7-admin");

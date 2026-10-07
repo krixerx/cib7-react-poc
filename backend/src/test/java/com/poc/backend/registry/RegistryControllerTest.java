@@ -18,7 +18,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
- * The registry module through the real filter chains: the reference pack's {@code vehicles} served
+ * The registry module through the real filter chains: the test pack's {@code vehicles} served
  * exactly like the former hand-written controller, and the negative cases of docs/security.md rule
  * 5 with a test-only {@code plates} entity that is internal only.
  */

@@ -33,11 +33,11 @@ import org.w3c.dom.NodeList;
 class ServiceSpecsTest {
 
   private static final Path PROCESSES =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "processes");
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"), "processes");
   private static final Path TEMPLATES =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "templates");
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"), "templates");
   private static final Path SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/test/docs/business/services"));
 
   private static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
   private static final String CAMUNDA_NS = "http://camunda.org/schema/1.0/bpmn";

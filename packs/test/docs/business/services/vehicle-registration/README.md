@@ -1,0 +1,310 @@
+# Vehicle Registration
+
+**Status:** active (POC)
+**Process key:** `vehicleRegistration`
+**BPMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn`](../../../../engine/processes/vehicle-registration/vehicle-registration.bpmn)
+**DMN:** [`packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn`](../../../../engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
+
+**When to read this:** before changing the vehicle-registration flow, its forms,
+or its integrations. Cross-cutting topics (platform architecture, engine config,
+form contract) live in [`docs/architecture.md`](../../../../../../docs/architecture.md),
+[`docs/cib7.md`](../../../../../../docs/cib7.md), [`docs/frontend.md`](../../../../../../docs/frontend.md),
+and [`docs/human-role-react-forms-spec.md`](../../../../../../docs/human-role-react-forms-spec.md).
+
+## Catalog
+
+How the services page and the payment page present the service. Generated
+into the pack's `frontend/catalog.json` and `frontend/locales/<lang>/catalog.json`.
+
+| Item | Value |
+|---|---|
+| Category | `travel` |
+| Summary | en: Register a vehicle from the national catalog. · ar: سجّل مركبة من الدليل الوطني. |
+| Fee name | en: Vehicle registration state fee · ar: الرسوم الحكومية لتسجيل المركبة |
+| Issuer | `transport-authority`, tone `primary`: name Transpordiamet POC (both languages); sub en: Estonian Transport Authority · ar: هيئة النقل الإستونية |
+
+Display names (process, task and activity `name=` in the BPMN) are
+translated in the pack's `names` namespace; see the service-builder
+skill §8.1.
+
+## What this service does
+
+An applicant submits personal details and optionally a list of co-owners.
+When co-owners are listed, the engine emails each one a signed capability
+link to a public confirmation page; every co-owner has to approve before the case
+can proceed. Once all co-owners have signed, any owner can click "Send to
+process" to forward the case to the engine — at which point it follows
+the original path: fetch a price from an external API, run a DMN decision
+to see whether the case auto-approves, and otherwise route to a civil
+servant for review. The civil servant can approve or send the case back
+for corrections (which loops to the applicant). On approval, the applicant
+is emailed if they provided a valid address. A rejection from any co-owner
+also loops the case back to the applicant, with the rejection reason.
+
+## Flow diagram
+
+The block below is generated from the BPMN by
+[`scripts/bpmn-to-mermaid.mjs`](../../../../../../scripts/bpmn-to-mermaid.mjs).
+Do not edit between the markers — run the script to refresh:
+
+```sh
+cd scripts
+node bpmn-to-mermaid.mjs \
+  ../packs/reference/engine/processes/vehicle-registration/vehicle-registration.bpmn \
+  --out ../docs/business/services/vehicle-registration/README.md
+```
+
+Legend: 👤 user task · 🔌 HTTP service task · 📋 DMN business-rule task ·
+📥 receive task · ⊞ embedded (sub)process · ⏱ timer ·
+diamond = exclusive gateway · dashed edge = default flow or
+non-interrupting boundary attachment.
+
+`SubProcess_OwnerConfirmations` is a parallel multi-instance embedded
+subprocess; inside each instance the BPMN runs `Send owner confirmation
+email` → `Wait for owner confirmation` (receiveTask, message
+`OwnerConfirmation` correlated on local `partyId`). The instance count
+comes from the `additionalOwners` collection variable at runtime, and the
+subprocess completes early as soon as any instance writes
+`rejectedByOwner=true` at process scope.
+
+<!-- bpmn-diagram:start -->
+```mermaid
+flowchart LR
+  %% Vehicle Registration
+  StartEvent_1(("Registration started"))
+  Task_SubmitDetails["👤 Submit owner & vehicle details"]
+  Task_Review["👤 Transport Authority review"]
+  Gateway_HasPendingUpload{"New ID document?"}
+  Gateway_NeedsConfirmation{"Co-owner signatures needed?"}
+  Gateway_AllConfirmed{"Anyone rejected?"}
+  Gateway_AutoApproval{"Auto-approve?"}
+  Gateway_Decision{"Decision?"}
+  Gateway_SendApprovalEmail{"Has applicant email?"}
+  Gateway_BeforeCertificate{"(merge)"}
+  Task_AttachIdDocument[["🔌 Attach owner ID document"]]
+  Task_SendApplicantTrackingEmail[["🔌 Send owner tracking email"]]
+  Task_GetPrice[["🔌 Look up vehicle in registry"]]
+  Task_SendReminderEmail[["🔌 Send reviewer reminder email"]]
+  Task_QuoteFee[["🔌 Quote state fee"]]
+  Task_GeneratePdf[["🔌 Generate state fee invoice"]]
+  Task_StoreApprovalPdf[["🔌 Store fee invoice"]]
+  Task_GenerateCertificatePdf[["🔌 Generate vehicle registration certificate"]]
+  Task_StoreCertificatePdf[["🔌 Store registration certificate"]]
+  Task_SendApprovalEmail[["🔌 Send state fee invoice email"]]
+  Task_SendBackEmail[["🔌 Send &quot;sent back&quot; email"]]
+  SubProcess_OwnerConfirmations[["⊞ Co-owner signatures"]]
+  Task_WaitSendToProcess[["📥 Wait for owner to submit"]]
+  Task_WaitForPayment[["📥 Wait for state fee payment"]]
+  Task_AutoDecide[/"📋 Auto-approval policy"/]
+  BoundaryEvent_ReviewReminder(("⏱ Every 2 min"))
+  EndEvent_ReminderSent((("Reminder sent")))
+  EndEvent_Approved((("Vehicle registered")))
+  Task_Review -. attached (non-interrupting) .-> BoundaryEvent_ReviewReminder
+  StartEvent_1 --> Task_SubmitDetails
+  Task_SubmitDetails --> Gateway_HasPendingUpload
+  Gateway_HasPendingUpload -- "yes" --> Task_AttachIdDocument
+  Gateway_HasPendingUpload -. "no (default)" .-> Gateway_NeedsConfirmation
+  Task_AttachIdDocument --> Gateway_NeedsConfirmation
+  Gateway_NeedsConfirmation -- "sole owner" --> Task_GetPrice
+  Gateway_NeedsConfirmation -. "has co-owners (default)" .-> Task_SendApplicantTrackingEmail
+  Task_SendApplicantTrackingEmail --> SubProcess_OwnerConfirmations
+  SubProcess_OwnerConfirmations --> Gateway_AllConfirmed
+  Gateway_AllConfirmed -- "rejected" --> Task_SendBackEmail
+  Gateway_AllConfirmed -. "all confirmed (default)" .-> Task_WaitSendToProcess
+  Task_WaitSendToProcess --> Task_GetPrice
+  Task_GetPrice --> Task_AutoDecide
+  Task_AutoDecide --> Gateway_AutoApproval
+  Gateway_AutoApproval -- "auto-approved" --> Gateway_SendApprovalEmail
+  Gateway_AutoApproval -. "needs review (default)" .-> Task_Review
+  BoundaryEvent_ReviewReminder --> Task_SendReminderEmail
+  Task_SendReminderEmail --> EndEvent_ReminderSent
+  Task_Review --> Gateway_Decision
+  Gateway_Decision -- "approved" --> Gateway_SendApprovalEmail
+  Gateway_SendApprovalEmail -- "valid email" --> Task_QuoteFee
+  Task_QuoteFee --> Task_GeneratePdf
+  Task_GeneratePdf --> Task_StoreApprovalPdf
+  Task_StoreApprovalPdf --> Task_SendApprovalEmail
+  Gateway_SendApprovalEmail -. "default" .-> Gateway_BeforeCertificate
+  Gateway_BeforeCertificate --> Task_GenerateCertificatePdf
+  Task_GenerateCertificatePdf --> Task_StoreCertificatePdf
+  Task_StoreCertificatePdf --> EndEvent_Approved
+  Task_SendApprovalEmail --> Task_WaitForPayment
+  Task_WaitForPayment --> Gateway_BeforeCertificate
+  Gateway_Decision -. "sent back (default)" .-> Task_SendBackEmail
+  Task_SendBackEmail --> Task_SubmitDetails
+```
+<!-- bpmn-diagram:end -->
+
+## Forms
+
+| Form id (registry key) | BPMN task | Audience | Spec |
+|---|---|---|---|
+| `owner-vehicle` | `Task_SubmitDetails` | applicant (initiator) | [`forms/owner-vehicle.md`](forms/owner-vehicle.md) |
+| `vehicle-review` | `Task_Review` | `civil-servant` group | [`forms/vehicle-review.md`](forms/vehicle-review.md) |
+| n/a (public page) | n/a — public REST | each co-owner (email link) | [`frontend/src/pages/ConsentPage.tsx`](../../../../../../frontend/src/pages/ConsentPage.tsx) (`/consent/owner/<token>`) |
+
+Form contract: see [`docs/human-role-react-forms-spec.md`](../../../../../../docs/human-role-react-forms-spec.md).
+Registry resolution lives in `frontend/src/forms/registry.ts`. The owner
+confirmation page is NOT a BPMN form — it's a public, unauthenticated SPA
+route reached from `${frontendBaseUrl}/consent/owner/{token}` email links
+and backed by `/api/public/consent/owner/**`, the backend's generic co-signing
+endpoint configured by [`consent.md`](consent.md)
+([`ConsentController`](../../../../../../backend/src/main/java/com/poc/backend/consent/ConsentController.java)).
+
+## Service tasks (integrations)
+
+One spec per BPMN service task; each gives the request, the payload template and the response mapping. Outbound calls all go to `${busBaseUrl}` (the bus). Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
+
+| BPMN task | Name | Kind | Spec |
+|---|---|---|---|
+| `Task_AttachIdDocument` | Attach owner ID document | case document (backend) | [`service-tasks/attach-id-document.md`](service-tasks/attach-id-document.md) |
+| `Task_GenerateCertificatePdf` | Generate vehicle registration certificate | PDF (pdf-renderer) | [`service-tasks/generate-certificate-pdf.md`](service-tasks/generate-certificate-pdf.md) |
+| `Task_GeneratePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-fee-invoice-pdf.md`](service-tasks/generate-fee-invoice-pdf.md) |
+| `Task_GetPrice` | Look up vehicle in registry | registry read (backend) | [`service-tasks/look-up-vehicle.md`](service-tasks/look-up-vehicle.md) |
+| `Task_QuoteFee` | Quote state fee | fee quote (backend) | [`service-tasks/quote-state-fee.md`](service-tasks/quote-state-fee.md) |
+| `Task_SendApprovalEmail` | Send state fee invoice email | email (Mailpit) | [`service-tasks/send-fee-invoice-email.md`](service-tasks/send-fee-invoice-email.md) |
+| `Task_SendOwnerConfirmEmail` | Send co-owner signing email | email (Mailpit) | [`service-tasks/send-owner-signing-email.md`](service-tasks/send-owner-signing-email.md) |
+| `Task_SendApplicantTrackingEmail` | Send owner tracking email | email (Mailpit) | [`service-tasks/send-owner-tracking-email.md`](service-tasks/send-owner-tracking-email.md) |
+| `Task_SendReminderEmail` | Send reviewer reminder email | email (Mailpit) | [`service-tasks/send-reviewer-reminder-email.md`](service-tasks/send-reviewer-reminder-email.md) |
+| `Task_SendBackEmail` | Send "sent back" email | email (Mailpit) | [`service-tasks/send-sendback-email.md`](service-tasks/send-sendback-email.md) |
+| `Task_StoreCertificatePdf` | Store registration certificate | case document (backend) | [`service-tasks/store-certificate-pdf.md`](service-tasks/store-certificate-pdf.md) |
+| `Task_StoreApprovalPdf` | Store fee invoice | case document (backend) | [`service-tasks/store-fee-invoice-pdf.md`](service-tasks/store-fee-invoice-pdf.md) |
+
+## Decisions
+
+| BPMN task | DMN | Spec |
+|---|---|---|
+| `Task_AutoDecide` | `vehicle-auto-approval` (`singleEntry` -> `autoDecision`) | [`decisions/vehicle-auto-approval.md`](decisions/vehicle-auto-approval.md) |
+
+## Receive tasks (message correlation)
+
+| BPMN task | Message | Correlation | Triggered by |
+|---|---|---|---|
+| `ReceiveTask_OwnerConfirmation` (in subprocess) | `OwnerConfirmation` | local `partyId` (set from `owner.partyId` via inputOutput) | `POST /api/public/consent/owner/{token}` (approve or reject). The backend takes `processInstanceId` and `partyId` from the verified token only. |
+| `Task_WaitSendToProcess` | `SendToProcess` | `processInstanceId` | `POST /api/public/consent/owner/{token}/send` |
+| `Task_WaitForPayment` | `PaymentReceived` | `processInstanceId` | The payment provider's signed callback `POST /api/public/payments/callback` (docs/security.md rule 4), after the applicant pays from the public `/pay/{token}` page. Sets `paymentReceived`, `paymentReference`, `paidAmount`. |
+
+Confirmation and pay links carry a capability token minted by the `links`
+bean (`CapabilityLinks`) when the email is rendered: an HMAC over the case,
+the party, the purpose, the consent round and an expiry (14 days for
+confirmations, 30 for payment). The token is never stored; the backend's
+`CapabilityLinkVerifier` checks the signature, expiry, purpose and that the
+round equals the case's current `consentRound`. Any failure is the same 404
+(docs/security.md rule 3).
+
+`busBaseUrl` (the integration bus address) and `frontendBaseUrl` are exposed
+as JUEL variables by `BusConfiguration` and `FrontendConfiguration` in the
+engine. Outbound email/PDF/backend calls all go to `${busBaseUrl}`; the bus
+(`esb`, Apache Camel) routes each path to the real downstream system. The
+`pdf` bean is `PdfHelper`, the `links` bean `CapabilityLinks`. See [`docs/cib7.md`](../../../../../../docs/cib7.md) for the
+wiring.
+
+## Process variables
+
+| Variable | Set by | Type | Notes |
+|---|---|---|---|
+| `initiator` | start event | String | Login of the applicant who started the case. |
+| `firstName`, `lastName`, `age` | `Task_SubmitDetails` | String, String, Integer | |
+| `objectId` | `Task_SubmitDetails` | String | Selected product id (drives `Task_GetPrice`). |
+| `applicantEmail` | `Task_SubmitDetails` | String | Required when `additionalOwners` is non-empty (tracking email + send-back loop); otherwise optional. |
+| `additionalOwners` | `Task_SubmitDetails`, rewritten by `ConsentPartiesListener` | Json (Spin list) | The form writes `[{name, email}]`. The complete listener on `Task_SubmitDetails` keeps only those two fields and adds server-assigned `partyId`s (`p1`, `p2`, ...), so the stored value is `[{partyId, name, email}]`. Always set (empty list when none). Drives the multi-instance subprocess via `${additionalOwners.elements()}`. |
+| `consentRound` | `ConsentPartiesListener` | Long | Replaced on every submission (epoch milliseconds). Signed into every confirmation link; links from an earlier round get 404. |
+| `ownerConfirmations` | `ConsentPartiesListener` + `ConsentController (owner)` | Json (Spin map) | `{<partyId>: {status, signedAt, reason?}}`. Reset on every submission to the applicant (`"applicant"`) pre-set to `"approved"`. Updated on every approve / reject. |
+| `rejectedByOwner` | `ConsentPartiesListener` (reset) + `ConsentController (owner)` (reject) | Boolean | Drives the multi-instance `completionCondition` and the post-subprocess `Gateway_AllConfirmed`. |
+| `sentToProcess` | `ConsentPartiesListener` (reset) + `SendToProcess` correlation | Boolean | Surfaced to the SPA via the status endpoint. |
+| `paymentReceived`, `paymentReference`, `paidAmount` | `PaymentReceived` correlation (signed provider callback) | Boolean, String, Double | Written only by the backend's payment callback after the provider signature and amount check. |
+| `price` | `Task_GetPrice` | Double | Read from the REST response. |
+| `autoDecision` | `Task_AutoDecide` (DMN) | String | `"approve"` or `"review"`. |
+| `decision` | `Task_Review` | String | `"approve"` or `"sendback"`. |
+| `sendBackReason` | `Task_Review` OR `ConsentController (owner)` (reject) | String | Reason for the loop-back. Owner-reject path writes `"Owner <name> rejected the application: <reason>"` so the existing `Task_SendBackEmail` can render both kinds of send-back without a separate template. |
+| `approvalPdfBytes` | `Task_GeneratePdf` | byte[] | Raw PDF bytes. Bytes-typed so the engine spills it to `ACT_GE_BYTEARRAY` instead of the 4000-char `TEXT_` column. |
+| `approvalPdfFilename` | `Task_GeneratePdf` | String | Suggested attachment filename (e.g. `approval-<objectId>.pdf`). |
+
+## Documents
+
+The document categories this service files. Generated, together with the
+other services' categories, into the pack's `backend/documents.json`; labels
+go into the `catalog` texts as `documents.<category>`. `by: applicant` may be
+uploaded by a signed-in user; `by: system` is filed only by the engine
+through the internal endpoints (its name starts with `generated-`). The
+issued certificate is the core's `generated-certificate`.
+
+| Category | By | Label (en / ar) |
+|---|---|---|
+| `applicant-id-document` | applicant | ID document / وثيقة الهوية |
+| `generated-approval-pdf` | system | Approval PDF / مستند الموافقة (PDF) |
+| `generated-certificate` | system (core) | the vehicle registration certificate |
+
+## State fee
+
+What the applicant pays after approval. Generated into the pack's
+`backend/payment/vehicle-registration.yaml`; the backend computes the fee
+from it for the checkout, the provider callback and the engine's quote
+([`quote-state-fee`](service-tasks/quote-state-fee.md)), so the invoice and
+the charge cannot differ.
+
+| Item | Value |
+|---|---|
+| Fee name | Vehicle registration state fee |
+| Recipient | Transpordiamet |
+| Currency | EUR |
+| Amount | by `price` (the registry value, set by `look-up-vehicle`): below 5000: 25; below 20000: 75; otherwise 150 |
+
+The tier variable must be one the engine sets, never one a client writes
+(docs/security.md rule 4); `PackConformanceTest` checks this.
+
+## Variable write policy
+
+The variables a client (SPA, MCP agent) may write, per start and per form.
+`/service-builder` generates
+`packs/reference/engine/processes/vehicle-registration/variable-policy.json` from this
+table and `VariableWritePolicyFilter` refuses anything else with 403
+(docs/security.md rule 2). Everything not listed here is system-owned.
+
+| Start / form | Client may write | Notes |
+|---|---|---|
+| start | `age`, `objectId` | MCP `start_process` prefill; the SPA starts with no variables. |
+| `owner-vehicle` | `firstName`, `lastName`, `applicantEmail`, `age`, `objectId`, `additionalOwners`, `pendingIdDocument`, `sendBackReason` | Identity fields re-validated by `IdentityValidationListener`. `sendBackReason` is only cleared. SPA-only (not in the MCP schema): `firstName`, `lastName`, `applicantEmail`, `sendBackReason`. |
+| `vehicle-review` | `decision`, `sendBackReason` | The reviewer's decision; never on the applicant form. |
+
+**Identity** (set from the signed-in account at start, re-checked on every
+completion; `identity` in the policy): `firstName` = given name, `lastName`
+= family name, `applicantEmail` = email.
+
+System-owned: `initiator`, `ownerConfirmations`,
+`rejectedByOwner`, `sentToProcess`, consent round and party ids, `price`,
+vehicle lookup results, `autoDecision`, PDF and attachment variables.
+
+## Roles and authorization
+
+- **Applicant** — Keycloak group `applicant` (engine sees `applicant`, no
+  leading slash; see project memory on the cibseven-keycloak group-path
+  stripping). Owns `Task_SubmitDetails` via `camunda:assignee="${initiator}"`.
+- **Civil servant** — Keycloak group `civil-servant`. Owns `Task_Review` via
+  `candidateGroups="civil-servant"`.
+- **Co-owners** — NOT Keycloak users. They authorise themselves to the
+  public confirmation endpoints by presenting the capability token
+  embedded in their email link. The `/api/public/**` filter chain
+  ([`SecurityConfig`](../../../../../../backend/src/main/java/com/poc/backend/security/SecurityConfig.java))
+  is `permitAll()`; the token IS the credential. It acts for one owner of
+  one case in one round, and the status endpoint shows other owners' names
+  and states only, never their email or link.
+
+## Known trade-offs
+
+- The boundary reminder uses `R/PT2M` for demo visibility. In production,
+  switch to `R/PT1D` or `R/PT8H` in the BPMN.
+- `applicantEmail` validation is defense-in-depth: HTML5 `type=email` in the
+  form plus the exclusive gateway in BPMN. The service task never runs on bad
+  data even if the form is bypassed.
+- Send-back loop reuses the same `Task_SubmitDetails`. The form must accept
+  both first-submit and resubmit modes — check the form for that.
+- The token carries the process instance id, so lookup needs no scan and
+  no token index.
+- Resubmission after an owner reject starts a new consent round. Old
+  confirmation links return 404 once the applicant resubmits, so a
+  leaked-but-stale link can't be used to spoof a signature on a later
+  round. Rotating `LINK_SIGNING_SECRET` invalidates every link at once.
+- Treat the `FRONTEND_BASE_URL` env var like a secret-bearing redirect:
+  the links it prefixes are credentials, so only set it to a host you
+  control.

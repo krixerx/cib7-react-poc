@@ -24,7 +24,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 class ConsentTextsTest {
 
   private static final Path LOCALES =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/backend"))
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/backend"))
           .resolve("../frontend/locales")
           .normalize();
   private static final List<String> REQUIRED =

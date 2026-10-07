@@ -35,9 +35,9 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 class VariablePolicyFilesTest {
 
   private static final Path PROCESSES =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "processes");
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"), "processes");
   private static final Path SERVICE_SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/test/docs/business/services"));
   private static final ObjectMapper JSON = new ObjectMapper();
 
   private static final Pattern PROCESS = Pattern.compile("<bpmn:process\\s[^>]*id=\"([^\"]+)\"");

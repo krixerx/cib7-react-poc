@@ -14,10 +14,7 @@ import { initialInputs, withSuffix } from './schema/values';
 function pack(id: string): FormDefinition {
   return parseDefinition(
     JSON.parse(
-      readFileSync(
-        resolve(__dirname, `../../../packs/reference/frontend/forms/${id}.json`),
-        'utf-8',
-      ),
+      readFileSync(resolve(__dirname, `../../../packs/test/frontend/forms/${id}.json`), 'utf-8'),
     ),
     id,
   );

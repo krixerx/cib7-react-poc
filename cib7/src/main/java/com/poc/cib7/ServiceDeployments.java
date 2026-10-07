@@ -51,7 +51,7 @@ import org.springframework.stereotype.Component;
  * becomes the deployment name. The /service-builder skill emits into these folders; see its
  * SKILL.md conventions. They come from the service pack, not from this jar: the image puts {@code
  * /opt/services} on the classpath ({@code loader.path}, see cib7/Dockerfile), and tests and {@code
- * mvn spring-boot:run} add {@code packs/reference/engine} through the pom.
+ * mvn spring-boot:run} add the core test pack's {@code packs/test/engine} through the pom.
  *
  * <p>Runs in {@code @PostConstruct} — during context refresh, after the engine bean exists and
  * before the HTTP port opens, so {@code /engine-rest} never serves a window with missing

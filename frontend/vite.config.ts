@@ -14,13 +14,13 @@ const CONTENT_TYPES: Record<string, string> = {
  * Serves a service pack's data at /pack/ during `npm run dev`, as the pack's
  * image layer does with nginx: its `frontend/` (catalog, texts, form
  * definitions) and its `branding/` under /pack/branding/. The pack is
- * PACK_DIR, else the reference pack. Dev only; refuses paths that leave the
+ * PACK_DIR, else the core test pack (packs/test). Dev only; refuses paths that leave the
  * pack directory.
  */
 function servePack(): Plugin {
   const pack = process.env.PACK_DIR
     ? resolve(process.env.PACK_DIR)
-    : resolve(__dirname, '../packs/reference');
+    : resolve(__dirname, '../packs/test');
   const frontendRoot = resolve(pack, 'frontend');
   const brandingRoot = resolve(pack, 'branding');
   return {

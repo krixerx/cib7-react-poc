@@ -54,7 +54,7 @@ class FreemarkerTemplateRenderTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Path TEMPLATES_DIR =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"), "templates");
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"), "templates");
   private static final String PI = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
   private static final Configuration FREEMARKER = buildConfiguration();

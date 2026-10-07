@@ -47,7 +47,7 @@ class PackConformanceTest {
   private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
 
   private static final Path PACK =
-      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"));
+      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"));
 
   @MockitoBean private KeycloakIdentityProvider keycloakIdentityProvider;
 

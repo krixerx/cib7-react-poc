@@ -1,4 +1,4 @@
-// The reference pack's manifests load against the pack's own engine schemas
+// The pack's manifests (PACK_DIR, else the core test pack) load against the pack's own engine schemas
 // and the core's shared definitions. A manifest the loader refuses only logs
 // at runtime and drops the service from the agent's view, so this is where a
 // drift between a manifest and its forms shows up. PACK_DIR points at another
@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-const pack = resolve(process.env.PACK_DIR ?? join(__dirname, '../../../packs/reference'));
+const pack = resolve(process.env.PACK_DIR ?? join(__dirname, '../../../packs/test'));
 const specs = join(pack, 'docs/business/services');
 
 let manifest: typeof import('./manifest');
