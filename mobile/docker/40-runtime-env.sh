@@ -8,6 +8,12 @@
 #    to its localhost defaults.
 # 2. Writes /etc/nginx/snippets/headers-app.conf, whose Content-Security-Policy
 #    names the Keycloak origin the app calls for tokens.
+# 3. Fills the web shell's brand placeholders (index.html, manifest.json) from
+#    the service pack's branding under /mobile/pack/branding/, which the pack's
+#    image layer adds: a browser reads the page title and the install manifest
+#    before the app runs, so these cannot wait for lib/pack.dart. Same rules
+#    as the app: a value outside brand format v1, or no pack at all, keeps the
+#    core default.
 set -e
 
 cat > /usr/share/nginx/html/mobile/env.js <<EOT
@@ -43,3 +49,29 @@ add_header X-Frame-Options "DENY" always;
 add_header Referrer-Policy "no-referrer" always;
 add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()" always;
 EOT
+
+SHELL_DIR=/usr/share/nginx/mobile-shell
+WEB=/usr/share/nginx/html/mobile
+BRANDING="$WEB/pack/branding"
+
+# The portal name: a non-blank string of at most 60 characters.
+NAME=$(jq -r 'if (.name | type) == "string" then (.name | gsub("^\\s+|\\s+$"; "")) else "" end
+  | if length > 0 and length <= 60 then . else "" end' \
+  "$BRANDING/locales/en/brand.json" 2>/dev/null) || NAME=""
+[ -n "$NAME" ] || NAME=eRegistrations
+# The light scheme's primary colour, hex only.
+COLOR=$(jq -r 'if .version == 1 and (.light | type) == "object" and (.light.primary | type) == "string"
+  and (.light.primary | test("^#[0-9a-fA-F]{6}$")) then .light.primary else "" end' \
+  "$BRANDING/tokens.json" 2>/dev/null) || COLOR=""
+[ -n "$COLOR" ] || COLOR="#0b57c9"
+
+# jq does the replacing, so no character of the name can break out: HTML
+# escaping in the page, JSON encoding in the manifest.
+jq -Rrs --arg n "$NAME" --arg c "$COLOR" \
+  '($n | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;")) as $h
+   | gsub("__BRAND_NAME__"; $h) | gsub("__BRAND_COLOR__"; $c)' \
+  "$SHELL_DIR/index.html" > "$WEB/index.html"
+jq -Rrs --arg n "$NAME" --arg c "$COLOR" \
+  '($n | tojson) as $j
+   | gsub("\"__BRAND_NAME__\""; $j) | gsub("__BRAND_NAME__"; $j[1:-1]) | gsub("__BRAND_COLOR__"; $c)' \
+  "$SHELL_DIR/manifest.json" > "$WEB/manifest.json"

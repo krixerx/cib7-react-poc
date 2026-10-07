@@ -292,7 +292,9 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   rate limits; its CSP is generated at start from `KEYCLOAK_URL` and
   `S3_PUBLIC_URL`. `depends_on: cib7` (start ordering only — nginx does not
   wait for the engine to be healthy). **mobile** is the same shape on
-  `3001` → `8080`.
+  `3001` → `8080` (core `mobile/Dockerfile` as `mobile-core`, pack layer
+  `packs/reference/docker/mobile.Dockerfile`; its start script also fills
+  the page title and install manifest from the pack's branding).
 - **mailpit** — `axllent/mailpit:v1.31.3`. Network-internal: web UI and send
   API on `8025`, SMTP on `1025` (unused — the engine uses the HTTP API via
   the bus). The UI is published on `:8025` only through the `dev`-profile

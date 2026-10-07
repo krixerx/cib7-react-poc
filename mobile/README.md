@@ -63,15 +63,18 @@ list loaded live from the engine. The mobile container's nginx proxies
 ## Branding and texts from the service pack
 
 The app holds nothing customer-specific. At startup `lib/pack.dart` reads the
-pack under `/mobile/pack/`, which the image serves (mobile/Dockerfile):
+pack under `/mobile/pack/`, which the pack's image layer adds on top of the
+core image (`packs/reference/docker/mobile.Dockerfile` on `mobile/Dockerfile`):
 `branding/` (portal name and subtitle, logo with a dark variant, the primary
 colour per scheme, which seeds the Material colour scheme) and the catalog
 texts (`locales/en/catalog.json`, the document category labels). The same
 files drive the SPA and the Keycloak login pages, with the same rules (brand
 format v1; one invalid value refuses that file, the core default stays). A
 missing pack leaves the core look. The page title and the install manifest
-are read by the browser before the app runs, so `tool/brand_web_shell.dart`
-fills them from the pack when the image is built. A native build has no
+are read by the browser before the app runs, so the container's start script
+(`docker/40-runtime-env.sh`) fills them from the pack's branding with `jq`,
+HTML-escaped in the page and JSON-encoded in the manifest; without a pack
+they keep the core name and colour. A native build has no
 `/mobile/pack/` and keeps the core look until the pack is a build input
 there too. The app is English only.
 
@@ -83,7 +86,6 @@ The committed source is platform-agnostic. To run it locally:
 cd mobile
 flutter create --platforms web,android,ios --project-name cib7_applicant --org com.cib7 .
 cp -r web-overrides/. web/     # PWA manifest, icons, page title placeholders
-dart tool/brand_web_shell.dart ../packs/reference/branding web   # fill title + manifest from the pack
 flutter pub get
 flutter test                   # the pack loader's rules (test/pack_test.dart)
 flutter run -d chrome          # web

@@ -85,9 +85,10 @@ under `/pack/<name>`, where no core route does. The full rules, checked by
 `scripts/pack-check.sh` (`PackBusTest`), are in
 [`docs/platform-api.md`](../docs/platform-api.md#formats): `direct:bus-auth`
 first, only outside `http(s)` systems as targets, only `PACK_*` environment
-variables, never the core's `X-Internal-Token` or `X-Bus-Token`, no code. How
-a pack's routes get into the image is part of the pack repository templates
-(S36); the reference pack has none yet.
+variables, never the core's `X-Internal-Token` or `X-Bus-Token`, no code. A
+pack with routes builds its bus image as a thin layer: `FROM` the core bus
+image, `COPY esb/routes/ /routes/` (Camel reads the one directory); the
+reference pack has none, so its stack runs the core image as it is.
 
 ## Logging
 

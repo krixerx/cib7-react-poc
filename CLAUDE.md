@@ -111,7 +111,7 @@ Module responsibilities are strict and worth preserving:
   core image (`cib7/Dockerfile`) holds no pack; the pack's layer
   (`packs/reference/docker/engine.Dockerfile`) copies it to `/opt/services`,
   which the core puts on the classpath with `PropertiesLauncher` and
-  `loader.path`. Backend, mcp and frontend are built the same way: a
+  `loader.path`. Backend, mcp, frontend and mobile are built the same way: a
   pack-less `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`)
   and a thin layer from `packs/reference/docker/`. Tests and
   `mvn spring-boot:run` add the same directory through the pom's

@@ -70,7 +70,11 @@ refuses the file (or the start), never half of it.
 │   ├── forms/<form-id>.json
 │   └── locales/<lang>/<namespace>.json
 ├── docker/<image>.Dockerfile         the pack's images: each FROM a core image, adds the pack's files
-│                                     (frontend, engine, backend, mcp)
+│                                     (frontend, engine, backend, mcp, mobile); a pack with
+│                                     ESB routes adds esb.Dockerfile (FROM the bus image,
+│                                     COPY esb/routes/ to /routes/). Keycloak runs the stock
+│                                     image: the core realm and theme and the pack's users
+│                                     file and branding are mounted
 └── branding/                         served at /pack/branding/, engine classpath branding/
     ├── brand.json, tokens.json, logo and favicon images
     └── locales/<lang>/brand.json

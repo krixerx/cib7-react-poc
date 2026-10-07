@@ -746,12 +746,25 @@ services:
       # nginx proxies /mobile — the upstream name must resolve at startup.
       - mobile
 
-  mobile:
-    # Repo root as context: the image carries the service pack's branding and
-    # texts (mobile/Dockerfile.dockerignore keeps the context to mobile/ and packs/).
+  # The core mobile image (Flutter web + nginx, no pack). Built only as the
+  # base of `mobile` below; scale 0 keeps it from running on its own.
+  mobile-core:
+    scale: 0
     build:
       context: .
       dockerfile: mobile/Dockerfile
+    image: cib7-poc-mobile-core:local
+
+  mobile:
+    # The reference pack's layer on the core image built from this checkout
+    # (packs/reference/docker/mobile.Dockerfile), the way a customer pack builds its own.
+    build:
+      context: ./packs/reference
+      dockerfile: docker/mobile.Dockerfile
+      additional_contexts:
+        mobile-core: service:mobile-core
+      args:
+        MOBILE_CORE: mobile-core
     container_name: cib7-poc-mobile
     # Flutter-web applicant app (POC). nginx serves the build physically under
     # /mobile/ (the web build uses --base-href /mobile/), so no prefix stripping

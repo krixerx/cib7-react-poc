@@ -3,6 +3,10 @@ name: Build and push Docker images
 on:
   push:
     branches: [main]
+    # A core release: tag v<major>.<minor>.<patch> and every image is also
+    # published as <major>.<minor>.<patch>, the version a pack's layers name
+    # in their *_CORE argument.
+    tags: ["v*.*.*"]
   workflow_dispatch:
 
 permissions:
@@ -29,7 +33,7 @@ jobs:
           - image: cib7-poc-frontend-core
             context: .
             dockerfile: ./frontend/Dockerfile
-          - image: cib7-poc-mobile
+          - image: cib7-poc-mobile-core
             context: .
             dockerfile: ./mobile/Dockerfile
           - image: cib7-poc-cib7-core
@@ -67,6 +71,7 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,format=short,prefix=
+            type=semver,pattern={{version}}
 
       # Built into the runner's local image store first, so the scan below
       # looks at exactly what would be pushed and a failed scan pushes nothing.
@@ -129,6 +134,9 @@ jobs:
           - image: cib7-poc-backend
             layer: backend
             arg: BACKEND_CORE
+          - image: cib7-poc-mobile
+            layer: mobile
+            arg: MOBILE_CORE
           - image: cib7-poc-mcp
             layer: mcp
             arg: MCP_CORE
@@ -149,6 +157,7 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,format=short,prefix=
+            type=semver,pattern={{version}}
 
       - id: core
         run: echo "image=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}-core:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
