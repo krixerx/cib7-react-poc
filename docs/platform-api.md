@@ -73,6 +73,7 @@ refuses the file (or the start), never half of it.
 │   ├── catalog.json
 │   ├── forms/<form-id>.json
 │   └── locales/<lang>/<namespace>.json
+├── docker/core.conf                   the core release the pack runs on (CORE_VERSION; Renovate bumps it)
 ├── docker/<image>.Dockerfile         the pack's images: each FROM a core image, adds the pack's files
 │                                     (frontend, engine, backend, mcp, mobile); a pack with
 │                                     ESB routes adds esb.Dockerfile (FROM the bus image,
@@ -83,6 +84,14 @@ refuses the file (or the start), never half of it.
     ├── brand.json, tokens.json, logo and favicon images
     └── locales/<lang>/brand.json
 ```
+
+Beside these, a pack repository carries its tooling (inert while the pack
+sits in the core repository): `.claude/skills/service-builder/` (vendored by
+`scripts/update-core.sh <x.y.z>` from that core release),
+`.github/workflows/check.yml` (the core's `pack-check.sh` at `CORE_VERSION`,
+and the vendored skill from the same release), `.github/workflows/publish.yml`
+(the layers on the core images, Trivy, push), `renovate.json`, `README.md` and
+`CLAUDE.md`. `packs/reference/` holds the template for all of them.
 
 The pack's specs, the source of everything generated in it, live in its
 `docs/business/services/<service>/`, together with the generated MCP
