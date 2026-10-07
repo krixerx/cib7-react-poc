@@ -85,6 +85,24 @@ When `readOnly` is true (process is finished), every input is `disabled`
 and the action row is hidden. Field defaults still apply so the data is
 visible.
 
+## Submission examples
+
+Required for a form with a value schema. The core's pack checks run each
+row against the generated `schemas/<form-id>.json`, the schema the engine
+checks every completion with (`SubmissionExamplesTest`). A valid submission
+first; a change replaces the named fields of it (a whole list or object at
+a time). Cover every rule in Fields and Conditional rules, accepted and
+refused.
+
+```json
+{"<field>": "<valid value>", "<other-field>": 30}
+```
+
+| Change | Result | Why |
+|---|---|---|
+| `{}` | accepted | the submission above |
+| `{"<other-field>": 0}` | refused | <the rule it breaks> |
+
 ## Notes
 
 <Free-form context for the developer: edge cases, gotchas, why a particular

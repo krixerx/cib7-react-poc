@@ -48,6 +48,22 @@ payload-template: business-sendback-email.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "initiator": "lisa",
+  "applicantEmail": "ants@example.com",
+  "applicantFirstName": "Frida",
+  "applicantLastName": "Asutaja",
+  "companyName": "Näidis OÜ",
+  "sendBackReason": "Please fix the share capital."
+}
+```
+
 ## Response mapping
 
 None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.

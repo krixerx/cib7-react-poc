@@ -49,6 +49,19 @@ payload-template: server-upload-bcard.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "bcardPdfBytes": {
+    "$bytes": "fake-bcard-pdf"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

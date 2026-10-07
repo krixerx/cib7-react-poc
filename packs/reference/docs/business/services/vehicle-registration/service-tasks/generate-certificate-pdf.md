@@ -41,6 +41,35 @@ payload-template: certificate-pdf.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "initiator": "lisa",
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "vehicleMake": "Škoda",
+  "vehicleModel": "Octavia",
+  "objectId": "VIN-1234567",
+  "price": 38000,
+  "additionalOwners": [
+    {
+      "name": "Olga Omanik",
+      "email": "olga@example.com",
+      "partyId": "p1"
+    }
+  ],
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

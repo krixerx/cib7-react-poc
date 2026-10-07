@@ -41,6 +41,42 @@ payload-template: bcard-pdf.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantFirstName": "Frida",
+  "applicantLastName": "Asutaja",
+  "applicantResidency": "e-resident",
+  "companyName": "Näidis OÜ",
+  "shareCapital": 2500,
+  "additionalFounders": [
+    {
+      "name": "Karl Kaasasutaja",
+      "email": "karl@example.com",
+      "partyId": "p1"
+    }
+  ],
+  "boardMembers": [
+    {
+      "firstName": "Mari",
+      "lastName": "Maasikas",
+      "personalCode": "48001010000"
+    }
+  ],
+  "founder": {
+    "name": "Karl Kaasasutaja",
+    "email": "karl@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

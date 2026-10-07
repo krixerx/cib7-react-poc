@@ -53,6 +53,35 @@ payload-template: applicant-tracking-email.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantEmail": "ants@example.com",
+  "additionalOwners": [
+    {
+      "name": "Olga Omanik",
+      "email": "olga@example.com",
+      "partyId": "p1"
+    }
+  ],
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/Text` | `matches "/consent/owner/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
+
 ## Response mapping
 
 None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.

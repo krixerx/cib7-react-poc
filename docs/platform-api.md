@@ -178,6 +178,8 @@ with the pack and holds on every core release it runs on:
 | `decisions/<id>.md` `## Examples` (and `## Examples without \`<rule id>\``) | `DecisionExamplesTest` (engine) | the pack's DMN, each row matching exactly one rule |
 | README `### Fee examples` under `## State fee` | `FeeExamplesTest` (backend) | the backend's `FeeSchedule` on `payment/<service>.yaml`, plus the section's recipient and currency |
 | `data/<entity>.md` `## Seed` | `RegistrySeedTest` (backend) | every row read back through the registry endpoint class each operation declares |
+| `forms/<id>.md` `## Submission examples` | `SubmissionExamplesTest` (engine) | the form's value schema, the one the engine checks completions with |
+| `service-tasks/<task>.md` `## Example` (and `## Example: <case>`) | `TemplateExamplesTest` (engine) | the payload template with the engine's beans, expectations by JSON pointer; again with a hostile suffix on every string of text, which must still give a JSON object |
 
 Cells are JSON literals in backticks. Examples are required wherever the
 section exists.

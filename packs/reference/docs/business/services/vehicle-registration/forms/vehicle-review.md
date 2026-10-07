@@ -66,6 +66,24 @@ round.
 When `readOnly` is true, the action row and the reason textarea are hidden;
 the decision and the reason appear in the summary.
 
+## Submission examples
+
+Run against the form's value schema (the one the engine checks every
+completion with) by the core's pack checks (`SubmissionExamplesTest`). A
+change replaces the named fields of the submission above.
+
+```json
+{"decision": "approve"}
+```
+
+| Change | Result | Why |
+|---|---|---|
+| `{}` | accepted | approve needs nothing else |
+| `{"decision": "sendback", "sendBackReason": "fix it"}` | accepted | a send-back with a reason |
+| `{"decision": "sendback", "sendBackReason": " "}` | refused | the reason may not be blank |
+| `{"decision": "sendback"}` | refused | a send-back needs a reason |
+| `{"decision": "reject"}` | refused | approve or sendback only |
+
 ## Notes
 
 - `price` is written by the vehicle registry lookup (`Task_GetPrice`), not

@@ -41,6 +41,56 @@ payload-template: business-fee-invoice-pdf.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "applicantEmail": "ants@example.com",
+  "applicantFirstName": "Frida",
+  "applicantLastName": "Asutaja",
+  "companyName": "Näidis OÜ",
+  "shareCapital": 2500,
+  "stateFee": 75.0
+}
+```
+
+## Example: the quoted fee
+
+```json
+{
+  "applicantEmail": "ants@example.com",
+  "applicantFirstName": "Frida",
+  "applicantLastName": "Asutaja",
+  "companyName": "Näidis OÜ",
+  "shareCapital": 2500,
+  "stateFee": 123.5
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/html` | `contains "&euro;123.50"` |
+
+## Example: share capital as a formatted string
+
+```json
+{
+  "applicantEmail": "ants@example.com",
+  "applicantFirstName": "Frida",
+  "applicantLastName": "Asutaja",
+  "companyName": "Näidis OÜ",
+  "shareCapital": "2,500",
+  "stateFee": 75.0
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/html` | `contains "2500.00"` |
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

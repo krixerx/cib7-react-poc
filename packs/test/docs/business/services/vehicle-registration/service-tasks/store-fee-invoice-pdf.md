@@ -46,6 +46,19 @@ payload-template: server-upload-approval.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "approvalPdfBytes": {
+    "$bytes": "fake-approval-pdf"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

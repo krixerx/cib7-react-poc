@@ -84,6 +84,25 @@ Required template rules:
 }
 ```
 
+## Example
+
+Required with a payload template. The core's pack checks render the
+template with these case variables (`TemplateExamplesTest`); an object or a
+list becomes a Spin JSON variable, `{"$bytes": "text"}` a `byte[]`. The core
+adds `execution`, `pdf`, `links`, `documents` and `frontendBaseUrl`. It also
+renders with a quote, a backslash, a line break and markup appended to every
+string of text, which must still give valid JSON. Optional expectations: a
+JSON pointer and a JSON literal it equals, `contains "text"` or
+`matches "regex"`. Add `## Example: <case>` sections for further cases.
+
+```json
+{"<variable>": "<value>"}
+```
+
+| Path | Expected |
+|---|---|
+| `/<field>` | `contains "<text>"` |
+
 ## Response mapping
 
 How the engine reads the response. The raw body comes back in the implicit

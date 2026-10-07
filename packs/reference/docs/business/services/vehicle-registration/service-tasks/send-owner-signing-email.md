@@ -59,6 +59,46 @@ payload-template: owner-confirmation-email.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/Text` | `matches "/consent/owner/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
+
+## Example: a hostile co-owner name
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "owner": {
+    "name": "Ka\"rl \\ O'Kaasa\nsutaja",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/To/0/Name` | `"Ka\"rl \\ O'Kaasa\nsutaja"` |
+| `/Text` | `contains "Hello Ka\"rl \\ O'Kaasa\nsutaja"` |
+
 ## Response mapping
 
 None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.

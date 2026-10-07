@@ -72,6 +72,28 @@ payload-template: approval-email.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantEmail": "ants@example.com",
+  "objectId": "VIN-1234567",
+  "price": 38000,
+  "approvalPdfBytes": {
+    "$bytes": "fake-approval-pdf"
+  }
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/Text` | `matches "/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
+
 ## Response mapping
 
 None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.

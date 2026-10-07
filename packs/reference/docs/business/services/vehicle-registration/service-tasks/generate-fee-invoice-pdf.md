@@ -41,6 +41,53 @@ payload-template: approval-pdf.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantEmail": "ants@example.com",
+  "vehicleMake": "Škoda",
+  "vehicleModel": "Octavia",
+  "objectId": "VIN-1234567",
+  "price": 38000,
+  "stateFee": 75.0,
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+## Example: the quoted fee
+
+```json
+{
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantEmail": "ants@example.com",
+  "vehicleMake": "Škoda",
+  "vehicleModel": "Octavia",
+  "objectId": "VIN-1234567",
+  "price": 38000,
+  "stateFee": 123.5,
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/html` | `contains "&euro;123.50"` |
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

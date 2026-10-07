@@ -53,6 +53,26 @@ payload-template: move-pending-aoa.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "founder": {
+    "name": "Karl Kaasasutaja",
+    "email": "karl@example.com",
+    "partyId": "p1"
+  },
+  "pendingAoaDocument": {
+    "pendingKey": "pending/lisa/u2/aoa.pdf",
+    "filename": "aoa.pdf",
+    "contentType": "application/pdf"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

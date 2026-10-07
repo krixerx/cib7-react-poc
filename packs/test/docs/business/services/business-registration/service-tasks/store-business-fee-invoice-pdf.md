@@ -48,6 +48,19 @@ payload-template: server-upload-business-fee-invoice.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "feeInvoicePdfBytes": {
+    "$bytes": "fake-invoice-pdf"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

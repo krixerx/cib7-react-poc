@@ -46,6 +46,47 @@ payload-template: vehicle-sendback-email.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "initiator": "lisa",
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantEmail": "ants@example.com",
+  "sendBackReason": "Please fix the share capital.",
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+## Example: a hostile reason
+
+```json
+{
+  "initiator": "lisa",
+  "firstName": "Ants",
+  "lastName": "Avaldaja",
+  "applicantEmail": "ants@example.com",
+  "sendBackReason": "Line one,\nthen \"line two\" with a \\ backslash.",
+  "owner": {
+    "name": "Olga Omanik",
+    "email": "olga@example.com",
+    "partyId": "p1"
+  }
+}
+```
+
+| Path | Expected |
+|---|---|
+| `/Text` | `contains "Reason: Line one,\nthen \"line two\" with a \\ backslash."` |
+
 ## Response mapping
 
 None: fire-and-forget. The case does not depend on the response body; a failed call becomes an incident after the engine's retries.

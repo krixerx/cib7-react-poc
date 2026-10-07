@@ -31,6 +31,26 @@ final class SpecTables {
     return Optional.empty();
   }
 
+  /** The first fenced code block under the heading whose text equals {@code heading}. */
+  static Optional<String> codeBlock(String markdown, String heading) {
+    String[] lines = markdown.replace("\r\n", "\n").split("\n");
+    for (int i = 0; i < lines.length; i++) {
+      if (isHeading(lines[i]) && headingText(lines[i]).equals(heading)) {
+        for (int j = i + 1; j < lines.length && !isHeading(lines[j]); j++) {
+          if (lines[j].strip().startsWith("```")) {
+            StringBuilder block = new StringBuilder();
+            for (int k = j + 1; k < lines.length && !lines[k].strip().startsWith("```"); k++) {
+              block.append(lines[k]).append('\n');
+            }
+            return Optional.of(block.toString());
+          }
+        }
+        return Optional.empty();
+      }
+    }
+    return Optional.empty();
+  }
+
   /** Every heading text that starts with {@code prefix}, in document order. */
   static List<String> headingsStartingWith(String markdown, String prefix) {
     List<String> out = new ArrayList<>();

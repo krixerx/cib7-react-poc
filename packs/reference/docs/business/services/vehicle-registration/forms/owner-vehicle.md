@@ -62,6 +62,31 @@ clears it on the next submit.
 When `readOnly` is true, every input is `disabled` and the action row is
 hidden. Field defaults still apply so the data is visible.
 
+## Submission examples
+
+Run against the form's value schema (the one the engine checks every
+completion with) by the core's pack checks (`SubmissionExamplesTest`). A
+change replaces the named fields of the submission above.
+
+```json
+{"age": 30, "objectId": "WP0AB2A91KS123456", "pendingIdDocument": null, "applicantEmail": "",
+ "additionalOwners": [], "sendBackReason": ""}
+```
+
+| Change | Result | Why |
+|---|---|---|
+| `{}` | accepted | the submission above |
+| `{"age": 0}` | refused | age is 1 to 130 |
+| `{"objectId": " "}` | refused | a VIN is 17 capital letters or digits |
+| `{"objectId": "../../internal/documents"}` | refused | the VIN goes into the registry lookup path |
+| `{"objectId": "WP0AB2A91KS12345%2F"}` | refused | nothing that could leave the path segment |
+| `{"objectId": "wp0ab2a91ks123456"}` | refused | lower case |
+| `{"sendBackReason": "x"}` | refused | the applicant only clears the reason |
+| `{"pendingIdDocument": {"pendingKey": "k", "filename": "a.exe", "contentType": "application/x-msdownload"}}` | refused | ID document is PDF, JPEG or PNG |
+| `{"additionalOwners": [{"name": "Marge", "email": "marge@example.com"}]}` | refused | with co-owners the applicant needs an email |
+| `{"additionalOwners": [{"name": "Marge", "email": "marge@example.com"}], "applicantEmail": "bart@example.com"}` | accepted | co-owner and applicant email |
+| `{"additionalOwners": [{"name": "Marge", "email": "marge"}], "applicantEmail": "bart@example.com"}` | refused | a co-owner needs a valid email |
+
 ## Notes
 
 - `pendingIdDocument` is `{pendingKey, filename, contentType}` for a fresh

@@ -49,6 +49,21 @@ payload-template: move-pending.json.ftl
 }
 ```
 
+## Example
+
+Rendered with these case variables by the core's pack checks
+(`TemplateExamplesTest`), also with a hostile suffix on every string.
+
+```json
+{
+  "pendingIdDocument": {
+    "pendingKey": "pending/lisa/u1/id.png",
+    "filename": "id.png",
+    "contentType": "image/png"
+  }
+}
+```
+
 ## Response mapping
 
 | Output process variable | Type | Expression |

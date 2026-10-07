@@ -67,6 +67,30 @@ When `readOnly` is true (process is finished), every input is `disabled`
 and the action row is hidden. Field defaults still apply so the data is
 visible.
 
+## Submission examples
+
+Run against the form's value schema (the one the engine checks every
+completion with) by the core's pack checks (`SubmissionExamplesTest`). A
+change replaces the named fields of the submission above.
+
+```json
+{"companyName": "Acme OÜ", "shareCapital": 2500, "applicantAge": 40,
+ "applicantResidency": "citizen", "applicantEmail": "", "additionalFounders": [],
+ "pendingAoaDocument": {"pendingKey": "pending/u/1/aoa.pdf", "filename": "aoa.pdf",
+   "contentType": "application/pdf"},
+ "boardMembers": [{"firstName": "Bart", "lastName": "S", "personalCode": "39001010000"}]}
+```
+
+| Change | Result | Why |
+|---|---|---|
+| `{}` | accepted | the submission above |
+| `{"shareCapital": 2499.99}` | refused | share capital is at least 2500 |
+| `{"boardMembers": [{"firstName": "Bart", "lastName": "S", "personalCode": "3900101000"}]}` | refused | a personal code has 11 digits |
+| `{"applicantResidency": "martian"}` | refused | residency is citizen, e-resident or foreign |
+| `{"applicantAge": 131}` | refused | age is at most 130 |
+| `{"companyName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}` | refused | a company name is at most 200 characters |
+| `{"boardMembers": []}` | refused | at least one board member |
+
 ## Notes
 
 - Required `no (form: yes)`: the form insists, but the MCP agent flow does
