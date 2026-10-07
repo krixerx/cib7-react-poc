@@ -24,7 +24,7 @@ adding a new form, page, or REST call; when changing how a user task is rendered
 |---|---|
 | Language | TypeScript (strict — see `tsconfig.json`) |
 | Framework | React 18 |
-| Router | React Router 6 |
+| Router | React Router 7 (declarative mode, the `react-router` package) |
 | Build / dev server | Vite 5 |
 | UI components | Own CSS design system + **MUI v5** (`@mui/x-data-grid`) for the Incidents grid only |
 | Styling | Plain CSS on tokens: `src/styles/tokens.css` + one sheet per area in `src/styles/` |

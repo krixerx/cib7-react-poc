@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight, Bot, Check, CreditCard, Hourglass, UserRound } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { getPaymentLink } from '../api/paymentLinkApi';
 import { formatDateTime } from '../i18n/format';
 import { translateBackendName } from '../i18n/backendNames';

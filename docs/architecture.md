@@ -146,7 +146,7 @@ The runtime pieces:
 
 | Component | Tech | Where | Purpose |
 |---|---|---|---|
-| React SPA | React 18 + TypeScript + Vite + React Router 6 | `frontend/` | Services / Tasks / TaskDetail pages, hand-written forms |
+| React SPA | React 18 + TypeScript + Vite + React Router 7 | `frontend/` | Services / Tasks / TaskDetail pages, the pack's form definitions |
 | SPA auth client | `keycloak-js` | `frontend/src/auth/` | OIDC PKCE login + token refresh; gates every route |
 | Ingress (prod compose) | Traefik v3.4 | `docker-compose.yml` (`traefik` service) | Single public front door on `:3000`; path-routes `/engine-rest`, `/camunda`, `/oauth2`, `/login`, `/logout` → cib7; `/api` → backend; `/mcp`, `/.well-known/oauth-protected-resource` → mcp; everything else → frontend. The engine, backend, MCP, frontend, and Mailpit are network-internal — only Traefik, Keycloak, and RustFS publish host ports. |
 | HTTP server (prod) | nginx | `frontend/nginx.conf` | Serves built SPA. Cross-service routing has moved to Traefik; this nginx only does the SPA fallback (`try_files $uri /index.html`). |

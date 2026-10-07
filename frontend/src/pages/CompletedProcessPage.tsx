@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthProvider';
 import ProcessHistoryView from './ProcessHistoryView';

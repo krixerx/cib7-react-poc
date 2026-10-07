@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { ArrowRight, Check, Lock } from 'lucide-react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { checkout, getStatus, PaymentError, type PaymentStatus } from '../api/paymentsApi';
 import { translateBackendName } from '../i18n/backendNames';
 import { formatCurrency } from '../i18n/format';

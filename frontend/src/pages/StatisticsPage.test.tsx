@@ -7,7 +7,7 @@
 
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../i18n';
 import type { StatisticsFilter, StatisticsReport } from '../api/statisticsApi';

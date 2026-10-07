@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { cancel, getSession, pay, safeReturnPath, type BankSession } from '../api/mockBankApi';
 import { PaymentError } from '../api/paymentsApi';
 import { formatCurrency } from '../i18n/format';

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, NavLink, Navigate, useLocation } from 'react-router';
 import { LogOut } from 'lucide-react';
 import BrandMark from './components/BrandMark';
 import OfficialBanner from './components/OfficialBanner';
