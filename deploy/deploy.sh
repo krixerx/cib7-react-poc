@@ -253,10 +253,11 @@ say "waiting for the engine at $base (first boot takes a minute — it waits for
 # unauthenticated probe with 401, which `curl -f` reports as failure no matter
 # how healthy the engine is. It is also the better readiness signal: a non-empty
 # list proves ServiceDeployments finished deploying the BPMN, not merely that the
-# port is open.
+# port is open. Any deployed process will do: the kit runs whichever service
+# pack the instance has, so the probe names none.
 ok=0
 for _ in $(seq 1 60); do
-  if curl -fsS --max-time 5 "$base/engine-rest/process-definition" 2>/dev/null | grep -q businessRegistration; then
+  if curl -fsS --max-time 5 "$base/engine-rest/process-definition" 2>/dev/null | grep -q '"key"'; then
     ok=1; break
   fi
   sleep 5
@@ -270,8 +271,13 @@ check() { # check <label> <url> [<expected-substring>]
     && echo "PASS  $1" \
     || { echo "FAIL  $1  ($2)"; fail=1; }
 }
-check "engine          " "$base/engine-rest/process-definition" "businessRegistration"
-check "backend API     " "$base/api/public/vehicle-registry/vehicles"
+check "engine          " "$base/engine-rest/process-definition" '"key"'
+# The backend has no anonymous endpoint that every pack has (registries,
+# co-signing and payments are the pack's, or need a token). An unknown
+# registry is answered by the backend itself with 404; with the backend down
+# the ingress answers 502/503/504 instead. So 404 here means "up".
+code=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$base/api/public/registry/smoke-test-unknown" || echo 000)
+if [ "$code" = 404 ]; then echo "PASS  backend API"; else echo "FAIL  backend API       (unknown registry -> $code, expected the backend's 404)"; fail=1; fi
 check "frontend        " "$base/"
 check "mobile app      " "$base/mobile/"
 check "MCP manifest    " "$base/.well-known/mcp.json" "mcp"
