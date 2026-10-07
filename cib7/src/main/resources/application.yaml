@@ -64,24 +64,29 @@ spring:
             # and Spring extracts preferred_username from its claims — no
             # userinfo call needed.
             user-name-attribute: preferred_username
+      # Bearer tokens on /engine-rest (RestApiSecurityConfig). Boot builds the
+      # JwtDecoder from these, as in the backend:
+      #   jwk-set-uri — where the engine fetches signing keys: the internal
+      #                 docker-network URL (KEYCLOAK_URL), since the engine
+      #                 cannot reach the browser's Keycloak URL;
+      #   issuer-uri  — the public URL Keycloak stamps into `iss`; with
+      #                 jwk-set-uri also set, Boot uses it only for the
+      #                 string-equality issuer check (no OIDC discovery);
+      #   audiences   — must contain cib7-rest-api, the audience the realm's
+      #                 cib7-rest-api-audience scope adds. A token without any
+      #                 `aud` claim is rejected as well.
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
+          issuer-uri: ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}
+          audiences:
+            - ${KEYCLOAK_REST_AUDIENCE:cib7-rest-api}
 
 
-# Custom Keycloak config consumed only by RestApiSecurityConfig.
-# Intentionally NOT placed under spring.security.oauth2.client.provider.*
-# because that path triggers oauth2-client auto-config OIDC discovery, which
-# fetches the issuer URL at startup — fatal in docker-compose where the
-# backend cannot reach the browser's public Keycloak URL.
 app:
   keycloak:
-    # issuer-uri = the value Keycloak stamps into JWT `iss`. Driven by
-    # KEYCLOAK_ISSUER_URL (public) because that matches the browser's view
-    # and Keycloak's pinned KC_HOSTNAME_URL. Used for `iss` validation only
-    # — no HTTP call.
-    issuer-uri:  ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}
-    # jwk-set-uri = where the backend actually fetches signing keys.
-    # Driven by KEYCLOAK_URL (internal docker network) because the backend
-    # can't reach localhost:8180.
-    jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
+    # The token claim that names the engine user (KeycloakAuthenticationFilter)
+    # and the log's user_id (MdcUserFilter).
     user-name-attribute: preferred_username
   # Centralised logging (Graylog). Only consumed by logback-spring.xml, and only
   # when the `graylog` Spring profile is active — docker-compose.yml turns that
@@ -153,13 +158,6 @@ camunda.bpm:
   # this bootstrap just covers the cold-start before the plugin is ready.
   admin-user:
     id: admin
-
-# CIB seven REST API security — wired in
-# com/poc/cib7/keycloak/RestApiSecurityConfig.java.
-rest.security:
-  enabled: true
-  provider: keycloak
-  required-audience: ${KEYCLOAK_REST_AUDIENCE:cib7-rest-api}
 
 # CIB seven Keycloak Identity Provider Plugin — registered as a
 # ProcessEnginePlugin via com/poc/cib7/keycloak/KeycloakIdentityProvider.java.

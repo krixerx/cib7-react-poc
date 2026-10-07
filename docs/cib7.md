@@ -621,8 +621,8 @@ caller's Keycloak group membership.
 |---|---|---|
 | OIDC identity provider | Keycloak (realm `cib7-poc`) | `keycloak/cib7-poc-realm.json`, compose service |
 | Identity Provider Plugin | `org.cibseven.bpm.extension:cibseven-keycloak:2.1.0` | declared in `pom.xml`; activated by `KeycloakIdentityProvider.java` |
-| JWT validation | `spring-boot-starter-oauth2-resource-server` | `RestApiSecurityConfig.java` |
-| Audience pin | `AudienceValidator` (rejects tokens without `cib7-rest-api` in `aud`) | `AudienceValidator.java` |
+| JWT validation | `spring-boot-starter-oauth2-resource-server`; Boot builds the decoder from `spring.security.oauth2.resourceserver.jwt.*` | `RestApiSecurityConfig.java`, `application.yaml` |
+| Audience pin | `audiences: [cib7-rest-api]` (rejects tokens without it in `aud`, or with no `aud` at all) | `application.yaml` |
 | Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
 | Variable allowlist | `VariableWritePolicyFilter` (per-form and per-start variable allowlist; other variable writes admin-only) | `policy/VariableWritePolicyFilter.java`, `processes/*/variable-policy.json` |
 | Engine authorization | `camunda.bpm.authorization.enabled: true` | `application.yaml` |
@@ -632,12 +632,22 @@ caller's Keycloak group membership.
 | Working a task | Engine default task authorizations: assignee and candidate users/groups get READ + UPDATE (and HISTORIC_TASK READ) on that one task | engine, `defaultUserPermissionNameForTask` |
 | BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | all BPMNs |
 
-The five Java files under `com/poc/cib7/keycloak/` are **verbatim copies of
-the plugin's reference example** (`examples/sso-kubernetes/.../rest/` and
-`.../plugin/` packages, repackaged). They are not custom logic — they are the
-plugin author's published recipe for wiring Spring Security to the engine's
-`IdentityService`. Keep them in sync with the upstream plugin when bumping
-its version.
+`KeycloakIdentityProvider`, `KeycloakAuthenticationFilter`,
+`RestApiSecurityConfig` and the `webapp/` classes under
+`com/poc/cib7/keycloak/` come from the plugin's reference example
+(`examples/sso-kubernetes/.../rest/` and `.../plugin/` packages, repackaged):
+the plugin author's published recipe for wiring Spring Security to the
+engine's `IdentityService`. The example's own JWT decoder and audience
+validator are replaced by Spring Boot's `resourceserver.jwt` properties, the
+same configuration the backend uses. Keep the rest in sync with the upstream
+plugin when bumping its version.
+
+The CIB seven security starter (`cibseven-bpm-spring-boot-starter-security`)
+was checked as a replacement and not adopted: its engine authentication
+filter answers 401 for every `/engine-rest` request without a token, which
+would close the anonymous service catalogue
+(`PublicEngineRestSecurityConfig`), and its SSO logout needs OIDC discovery,
+which the engine cannot do against the public Keycloak URL.
 
 The custom authorization code is `AuthorizationBootstrap` (group grants, with
 wildcard resource ids so new services need no Java change) and
@@ -654,8 +664,8 @@ that service account in `/cib7-admin`.
 
 | Block | Purpose |
 |---|---|
-| `app.keycloak.{issuer-uri,jwk-set-uri,user-name-attribute}` | Read by `RestApiSecurityConfig`. Custom prefix (not `spring.security.oauth2.client.*`) so Spring Boot's auto-config doesn't try OIDC discovery against an URL the engine container can't reach. |
-| `rest.security.{enabled,provider,required-audience}` | Activates the filter chain and the audience claim check |
+| `spring.security.oauth2.resourceserver.jwt.{jwk-set-uri,issuer-uri,audiences}` | Boot's JWT decoder for `/engine-rest`. Keys come from the internal `jwk-set-uri`; with it set, `issuer-uri` is only string-compared with `iss`, so there is no OIDC discovery against a URL the engine container can't reach. `audiences` pins `cib7-rest-api` (`KEYCLOAK_REST_AUDIENCE`). |
+| `app.keycloak.user-name-attribute` | Token claim that names the engine user (`KeycloakAuthenticationFilter`) and the log's `user_id` |
 | `plugin.identity.keycloak.*` | All Keycloak Admin REST API config — issuer URL, admin URL, client credentials, `useUsernameAsCamundaUserId`, `useGroupPathAsCamundaGroupId` |
 | `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
 | `camunda.bpm.generic-properties.properties.enable-historic-instance-permissions: true` | History queries accept per-instance `HISTORIC_PROCESS_INSTANCE` / `HISTORIC_TASK` grants, which is how applicants read their own history |

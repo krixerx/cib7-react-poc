@@ -49,8 +49,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * VariableWritePolicyFilter} and the engine's JAX-RS resources.
  *
  * <p>Tokens are signed with a key generated here and served from a local JWKS endpoint that {@code
- * app.keycloak.jwk-set-uri} points at, so no Keycloak is needed. Users and groups live in the H2
- * identity tables (the Keycloak identity provider is mocked out).
+ * spring.security.oauth2.resourceserver.jwt.jwk-set-uri} points at, so no Keycloak is needed. Users
+ * and groups live in the H2 identity tables (the Keycloak identity provider is mocked out).
  *
  * <p>{@code policyTest} (src/test/resources/authz) has an applicant form allowing {@code note} and
  * {@code amount}, and a review form allowing {@code decision} and {@code sendBackReason}; {@code
@@ -100,9 +100,9 @@ class VariableWritePolicyFilterTest {
   @DynamicPropertySource
   static void jwks(DynamicPropertyRegistry registry) {
     registry.add(
-        "app.keycloak.jwk-set-uri",
+        "spring.security.oauth2.resourceserver.jwt.jwk-set-uri",
         () -> "http://127.0.0.1:" + JWKS.getAddress().getPort() + "/certs");
-    registry.add("app.keycloak.issuer-uri", () -> ISSUER);
+    registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", () -> ISSUER);
   }
 
   @AfterAll
@@ -144,6 +144,8 @@ class VariableWritePolicyFilterTest {
   void tokenWithWrongAudienceOrIssuerIsRejected() throws Exception {
     assertEquals(200, get(token("bart", ISSUER, "cib7-rest-api")).statusCode());
     assertEquals(401, get(token("bart", ISSUER, "some-other-api")).statusCode());
+    // No `aud` claim at all (e.g. a bare client-credentials token): 401, not a 500.
+    assertEquals(401, get(token("bart", ISSUER, null)).statusCode());
     assertEquals(
         401, get(token("bart", "http://evil.test/realms/cib7-poc", "cib7-rest-api")).statusCode());
     assertEquals(401, get(token("bart", null, "cib7-rest-api")).statusCode());
