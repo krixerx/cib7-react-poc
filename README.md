@@ -416,7 +416,6 @@ cib7-react-poc/
 │   └── src/main/
 │       ├── java/com/poc/cib7/
 │       │   ├── Cib7PocApplication.java
-│       │   ├── ConnectorConfiguration.java   registers the Connect plugin
 │       │   ├── BusConfiguration.java         exposes ${busBaseUrl} (integration bus)
 │       │   ├── FrontendConfiguration.java    exposes ${frontendBaseUrl} (email links)
 │       │   ├── PdfHelper.java                @Component("pdf") base64↔byte[]
@@ -711,7 +710,7 @@ The **Look up vehicle in registry** service task uses the official
 connector — a CIB seven Connect SPI connector that wraps Apache HttpClient 5.
 It is wired in two places:
 
-- **Connect plugin** — `ConnectorConfiguration` registers
+- **Connect plugin** — the CIB seven Spring Boot starter registers
   `ConnectProcessEnginePlugin` so the engine parses `<camunda:connector>`.
   The `cibseven-connect-http-client` dependency declared in `cib7/pom.xml`
   registers the connector itself through the Connect SPI.

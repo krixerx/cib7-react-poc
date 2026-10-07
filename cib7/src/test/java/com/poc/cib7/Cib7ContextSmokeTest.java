@@ -2,9 +2,18 @@ package com.poc.cib7;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.poc.cib7.keycloak.KeycloakIdentityProvider;
+import java.util.List;
+import java.util.stream.Stream;
 import org.cibseven.bpm.engine.ProcessEngine;
+import org.cibseven.bpm.engine.impl.cfg.CompositeProcessEnginePlugin;
+import org.cibseven.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.cibseven.bpm.engine.impl.cfg.ProcessEnginePlugin;
+import org.cibseven.connect.Connectors;
+import org.cibseven.connect.plugin.impl.ConnectProcessEnginePlugin;
+import org.cibseven.spin.plugin.impl.SpinProcessEnginePlugin;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -85,6 +94,30 @@ class Cib7ContextSmokeTest {
             .deploymentId(deploymentId)
             .count(),
         "vehicle-auto-approval must ship with the process");
+  }
+
+  @Test
+  void starterRegistersConnectAndSpinAndTheBusTokenRidesOnTheHttpConnector() {
+    // No configuration class of ours registers Connect or Spin: the starter
+    // does when they are on the classpath. If it ever stops, connectors and
+    // S(response) break in every service.
+    // The starter hands the engine its plugin beans wrapped in one composite.
+    List<ProcessEnginePlugin> plugins =
+        ((ProcessEngineConfigurationImpl) processEngine.getProcessEngineConfiguration())
+            .getProcessEnginePlugins().stream()
+                .flatMap(
+                    p ->
+                        p instanceof CompositeProcessEnginePlugin c
+                            ? c.getPlugins().stream()
+                            : Stream.of(p))
+                .toList();
+    assertTrue(plugins.stream().anyMatch(ConnectProcessEnginePlugin.class::isInstance));
+    assertTrue(plugins.stream().anyMatch(SpinProcessEnginePlugin.class::isInstance));
+    assertEquals(
+        1,
+        Connectors.getConnector(Connectors.HTTP_CONNECTOR_ID).getRequestInterceptors().stream()
+            .filter(BusTokenInterceptor.class::isInstance)
+            .count());
   }
 
   private long countDecision(String decisionDefinitionKey) {

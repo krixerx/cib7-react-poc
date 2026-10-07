@@ -50,7 +50,6 @@ cib7/
 └── src/main/
     ├── java/com/poc/cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
-    │   ├── ConnectorConfiguration.java    — registers ConnectProcessEnginePlugin + Spin plugin
     │   ├── BusTokenInterceptor.java       — adds X-Bus-Token to every http-connector call to the bus
     │   ├── BusConfiguration.java          — exposes ${busBaseUrl} to BPMN JUEL (the integration bus)
     │   ├── FrontendConfiguration.java     — exposes ${frontendBaseUrl} (links in emails)
@@ -99,23 +98,22 @@ endpoints go in `backend/`.
 A bare `@SpringBootApplication`. The CIB seven starter embeds the engine and
 exposes `/engine-rest`. No additional configuration is needed here.
 
-### `ConnectorConfiguration.java`
+### `BusTokenInterceptor.java`
 
-Declares a single `@Bean` of type `ConnectProcessEnginePlugin`. The CIB seven
-starter discovers all `ProcessEnginePlugin` beans and wires them into the
-engine. Without this bean, `<camunda:connector>` elements in BPMN are ignored
-and the "Get price" service task fails at deploy/runtime.
+The CIB seven Spring Boot starter registers the Connect and Spin engine
+plugins by itself whenever they are on the classpath
+(`CamundaBpmPluginConfiguration`), so there is no configuration class for
+them. `BusTokenInterceptor` is a small engine plugin of its own: in `postInit`,
+after Connect has loaded the http-connector, it adds itself as a request
+interceptor. It sets `X-Bus-Token: <app.bus.token>` (env `BUS_TOKEN`, demo
+default `bus-token-change-me`) on every request whose URL starts with
+`${busBaseUrl}`, replacing any value the BPMN set, and adds nothing to
+requests for other hosts. The ESB refuses calls without it
+(`esb/routes/bus-auth.yaml`), so the token lives in one place in the engine
+and no BPMN or template sees it.
 
-The plugin bean overrides `postInit` to add a `BusTokenInterceptor` to the
-http-connector once Connect has loaded it. The interceptor sets
-`X-Bus-Token: <app.bus.token>` (env `BUS_TOKEN`, demo default
-`bus-token-change-me`) on every request whose URL starts with `${busBaseUrl}`,
-replacing any value the BPMN set, and adds nothing to requests for other
-hosts. The ESB refuses calls without it (`esb/routes/bus-auth.yaml`), so the
-token lives in one place in the engine and no BPMN or template sees it.
-
-If you add another engine plugin (e.g. an LDAP identity provider), add it as
-another `@Bean` in the same `@Configuration` class or split per concern.
+Another engine plugin (e.g. an LDAP identity provider) is just another
+`ProcessEnginePlugin` bean; the starter picks it up.
 
 ### `BusConfiguration.java` / `FrontendConfiguration.java`
 
@@ -543,7 +541,7 @@ signed documents, OCR scans, etc.
 
 ## Connect plugin and connector
 
-The Connect plugin (registered in `ConnectorConfiguration.java`) lets the
+The Connect plugin (registered by the CIB seven Spring Boot starter) lets the
 engine parse `<camunda:connector>` extension elements. The
 [`cibseven-connect-http-client`](https://mvnrepository.com/artifact/org.cibseven.connect/cibseven-connect-http-client)
 dependency in `cib7/pom.xml` brings the official `http-connector` — a Connect

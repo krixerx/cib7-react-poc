@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
  * completion).
  *
  * <p>The CIB seven Spring Boot starter discovers every {@code ProcessEnginePlugin} bean and wires
- * it into the engine — the same mechanism that activates {@code ConnectorConfiguration}'s plugins
- * and {@code KeycloakIdentityProvider}.
+ * it into the engine — the same mechanism that activates {@code BusTokenInterceptor} and {@code
+ * KeycloakIdentityProvider}.
  */
 @Component
 public class IdentityProcessEnginePlugin extends AbstractProcessEnginePlugin {
