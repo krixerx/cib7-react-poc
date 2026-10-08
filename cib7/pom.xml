@@ -227,7 +227,7 @@
     <dependency>
       <groupId>com.networknt</groupId>
       <artifactId>json-schema-validator</artifactId>
-      <version>2.0.8</version>
+      <version>3.0.8</version>
     </dependency>
     <!-- oauth2-client drives the legacy webapps' OAuth2 login flow against
          Keycloak (Authorization Code grant). The auto-config DOES NOT call
