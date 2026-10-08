@@ -28,7 +28,7 @@ services:
     # host. Hand-testing the inbox:
     #     docker compose --profile dev up -d mailpit-ui
     # or open it inside the network from another container.
-    image: axllent/mailpit:v1.31.3
+    image: axllent/mailpit:v1.31.4
     container_name: cib7-poc-mailpit
     networks: [mail]
     expose:
@@ -122,7 +122,7 @@ services:
     #     docker compose -f docker-compose.yml -f docker-compose.prod.yml \
     #         --profile traefik up -d
     profiles: ["traefik"]
-    image: traefik:v3.4.5
+    image: traefik:v3.7.13
     container_name: cib7-poc-traefik
     networks: [edge]
     command:
@@ -219,7 +219,7 @@ services:
     # (split on docker network vs host) is the simplest correct setup.
     # See docs/deployment.md for the prod story (TLS-fronted, separate
     # subdomain, RUSTFS_DOMAIN to make virtual-host signing work).
-    image: rustfs/rustfs:1.0.0
+    image: rustfs/rustfs:1.0.1
     container_name: cib7-poc-rustfs
     # Only the backend talks to RustFS inside the stack; browsers reach it on
     # the published port with presigned URLs.
@@ -342,7 +342,7 @@ services:
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).
-    image: quay.io/keycloak/keycloak:26.1.5
+    image: quay.io/keycloak/keycloak:26.8.0
     container_name: cib7-poc-keycloak
     command: ["start-dev", "--import-realm"]
     # cib7, backend and mcp reach it as keycloak:8080 for JWKS, tokens and the
@@ -910,7 +910,7 @@ services:
     # existing inputs by title before creating anything, so it is safe on
     # every `docker compose up`. Watch it with:
     #     docker compose logs graylog-init
-    image: curlimages/curl:8.11.1
+    image: curlimages/curl:8.22.0
     container_name: cib7-poc-graylog-init
     networks: [logstore]
     entrypoint: ["/bin/sh"]
