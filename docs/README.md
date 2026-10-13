@@ -52,6 +52,7 @@ The docs are split into two layers:
 | Add a new business service | the pack's spec template (`.claude/skills/service-builder/spec-template/`), in the pack repository |
 | Regenerate a service's flow diagram from its BPMN | the skill's `tools/bpmn-to-mermaid.mjs` in a pack, [`../scripts/bpmn-to-mermaid.mjs`](../scripts/bpmn-to-mermaid.mjs) here |
 | Run / build the app, see the high-level overview | top-level [`../README.md`](../README.md) |
+| Plan a rollout of new services: hours, roles, timeline | [`delivery-estimate.md`](delivery-estimate.md) |
 
 ### Services of the reference pack
 
