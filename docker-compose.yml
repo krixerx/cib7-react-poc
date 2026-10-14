@@ -833,7 +833,7 @@ services:
     # because Data Node boots into an interactive "preflight" setup UI that
     # somebody has to click through — that would break `docker compose up`
     # as a one-command story.
-    image: opensearchproject/opensearch:2.19.6
+    image: opensearchproject/opensearch:3.8.0
     container_name: cib7-poc-opensearch
     networks: [logstore]
     environment:
