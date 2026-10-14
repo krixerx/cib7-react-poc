@@ -32,7 +32,7 @@ jobs:
         # checks the workflows themselves.
         language: [java-kotlin, javascript-typescript, actions]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Pinned to a commit, like trivy-action in security.yml.
       - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
