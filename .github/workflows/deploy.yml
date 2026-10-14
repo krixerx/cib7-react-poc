@@ -6,10 +6,10 @@
 # deployed" a question only the server could answer, and answered it wrong as
 # soon as someone edited a tracked file in place.
 #
-# What this does instead: ships the core's deploy kit FROM the commit you
-# dispatch together with one service pack's data, pins the pack's images and
-# its core release, and runs the host's deploy.sh non-interactively. The run
-# log is the deployment record.
+# What this does instead: ships one service pack's data together with the
+# deploy kit of the core release that pack names, pins the pack's images and
+# that release, and runs the host's deploy.sh non-interactively. The run log is
+# the deployment record.
 #
 # One kit, many instances: the pack is an input (pack_ref in the PACK_REPO
 # repository, default krixerx/eregistrations-reference-pack), its images are
@@ -175,7 +175,8 @@ jobs:
       PACK_REPO: ${{ vars.PACK_REPO || 'krixerx/eregistrations-reference-pack' }}
       PACK_IMAGE_PREFIX: ${{ vars.PACK_IMAGE_PREFIX || 'docker.io/krixerx/eregistrations-reference' }}
     steps:
-      # The core deploy kit (deploy/) of the ref this run uses.
+      # The workflow and its actions come from the dispatched ref; the deploy
+      # kit is swapped for the core release's below.
       - uses: actions/checkout@v4
 
       - name: Resolve the pack
@@ -219,7 +220,24 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "tag=${SHA::7}" >> "$GITHUB_OUTPUT"
           echo "core=$CORE" >> "$GITHUB_OUTPUT"
-          echo "deploying pack $PACK_REPO@$REF (${SHA::7}) on core $CORE, kit from $GITHUB_REF_NAME ($GITHUB_SHA)"
+          echo "deploying pack $PACK_REPO@$REF (${SHA::7}) on core $CORE, kit from v$CORE"
+
+      - name: Take the deploy kit from that core release
+        # The kit and the core images are one release: deploy.sh probes
+        # endpoints and compose names images that a given release has. A kit
+        # from the dispatched ref, newer than the pack's core, waited five
+        # minutes for an endpoint the deployed backend did not have yet.
+        # Index and worktree both, so `git ls-files deploy` below lists exactly
+        # the release's files.
+        env:
+          CORE: ${{ steps.pack.outputs.core }}
+        run: |
+          if ! git fetch --quiet --depth=1 origin "refs/tags/v$CORE:refs/tags/v$CORE"; then
+            echo "FATAL: this repository has no tag v$CORE, the core release docker/core.conf names."
+            exit 1
+          fi
+          git rm -r --quiet -- deploy
+          git checkout "v$CORE" -- deploy
 
       - name: Verify those images exist on Docker Hub
         env:

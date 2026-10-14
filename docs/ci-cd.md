@@ -93,8 +93,9 @@ What the run does:
    this check cannot drift from what compose will pull, and a tag nobody
    built fails the run in ten seconds instead of half-way through.
 4. **Ships the bundle and the pack's data**: every git-tracked file under
-   `deploy/` (the core kit), plus the pack's `keycloak/cib7-poc-users-0.json`
-   and `branding/` under `pack/`, as a tar over SSH. The branding is
+   `deploy/` (the core kit) at the core release's tag `v<core>`, plus the
+   pack's `keycloak/cib7-poc-users-0.json` and `branding/` under `pack/`,
+   as a tar over SSH. The branding is
    replaced whole. Because the kit's list is `git ls-files`, a new tracked
    file ships without anyone remembering to add it here, and every per-host
    file is gitignored, so it cannot be clobbered by construction.
@@ -228,8 +229,9 @@ Deploying an older build is a normal deploy of an older pack commit:
 gh workflow run deploy.yml --ref main -f pack_ref=04ea5f4
 ```
 
-The core release follows from that commit's `docker/core.conf`; the deploy
-kit itself is the dispatched ref of this repository.
+The core release follows from that commit's `docker/core.conf`, and so does
+the deploy kit: the run ships `deploy/` from this repository's `v<core>` tag,
+not from the dispatched ref, so the kit always matches the core images.
 
 The images are immutable per commit, so this puts the exact previous
 build back. Two consequences worth knowing before you do it: the
