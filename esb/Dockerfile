@@ -43,6 +43,16 @@ EXPOSE 8080
 # image default that a version bump could change.
 USER ubuntu
 
+# camel-jbang-core 4.22.1 pins Jolokia 2.6.0 (CVE-2026-84218, HIGH; Trivy
+# 2026-10-14), and the image pre-warms it in the Maven cache. A direct DEPS line
+# in the launcher script wins over that transitive pin, so JBang resolves the
+# fixed Jolokia set; the 2.6.0 jars go so nothing can load them, and resolving
+# here keeps the new jars in the image instead of downloading them at start.
+# Drop this once a camel-jbang image ships Jolokia >= 2.6.2.
+RUN sed -i '/^\/\/DEPS org.apache.camel:camel-jbang-core/a //DEPS org.jolokia:jolokia-agent-jvm:2.6.3:javaagent' /opt/jbang/CamelJBang.java \
+  && rm -rf /home/ubuntu/.m2/repository/org/jolokia \
+  && jbang info classpath /opt/jbang/CamelJBang.java > /dev/null
+
 # First start may resolve a few component jars (platform-http, http) before the
 # HTTP server is ready — give it a moment after `docker compose up`.
 CMD ["run", "--source-dir=/routes", "--logging-config-path=/etc/camel/log4j2-graylog.xml"]
