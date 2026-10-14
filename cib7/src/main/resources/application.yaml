@@ -1,5 +1,8 @@
 server:
   port: 8080
+  # Behind the ingress: build redirect URIs (the webapps' OAuth2 login) from
+  # X-Forwarded-*, so they name the public host.
+  forward-headers-strategy: framework
 
 spring:
   application:
@@ -18,9 +21,10 @@ spring:
 
   # OAuth2 client config for the legacy CIB seven webapps (Cockpit / Tasklist
   # / Admin), served from /camunda/**. Wires the Authorization Code flow
-  # against Keycloak. Picked up by Spring Boot's OAuth2ClientAutoConfiguration
-  # and consumed by com.poc.cib7.keycloak.webapp.WebappSecurityConfig via
-  # .oauth2Login(...).
+  # against Keycloak. A registered client is what switches on the security
+  # starter's webapp login chain. Its SSO logout stays off: it needs
+  # Keycloak's end_session_endpoint, which only discovery provides, so a
+  # webapp logout ends the engine session and not the Keycloak one.
   #
   # We DELIBERATELY omit `provider.keycloak.issuer-uri` here: setting it would
   # make Spring perform OIDC discovery at startup, which fails inside Docker
@@ -64,8 +68,9 @@ spring:
             # and Spring extracts preferred_username from its claims — no
             # userinfo call needed.
             user-name-attribute: preferred_username
-      # Bearer tokens on /engine-rest (RestApiSecurityConfig). Boot builds the
-      # JwtDecoder from these, as in the backend:
+      # Bearer tokens on /engine-rest (the security starter's resource server,
+      # which jwk-set-uri switches on). Boot builds the JwtDecoder from these,
+      # as in the backend:
       #   jwk-set-uri — where the engine fetches signing keys: the internal
       #                 docker-network URL (KEYCLOAK_URL), since the engine
       #                 cannot reach the browser's Keycloak URL;
@@ -74,9 +79,12 @@ spring:
       #                 string-equality issuer check (no OIDC discovery);
       #   audiences   — must contain cib7-rest-api, the audience the realm's
       #                 cib7-rest-api-audience scope adds. A token without any
-      #                 `aud` claim is rejected as well.
+      #                 `aud` claim is rejected as well;
+      #   principal-claim-name — the engine user is the login name, not
+      #                 Keycloak's UUID `sub`; a token without it gets 401.
       resourceserver:
         jwt:
+          principal-claim-name: preferred_username
           jwk-set-uri: ${KEYCLOAK_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}/protocol/openid-connect/certs
           issuer-uri: ${KEYCLOAK_ISSUER_URL:http://localhost:8180}/realms/${KEYCLOAK_REALM:cib7-poc}
           audiences:
@@ -85,8 +93,9 @@ spring:
 
 app:
   keycloak:
-    # The token claim that names the engine user (KeycloakAuthenticationFilter)
-    # and the log's user_id (MdcUserFilter).
+    # The token claim that names the log's user_id (MdcUserFilter); the same
+    # claim as resourceserver.jwt.principal-claim-name, which names the
+    # engine user.
     user-name-attribute: preferred_username
   # Centralised logging (Graylog). Only consumed by logback-spring.xml, and only
   # when the `graylog` Spring profile is active — docker-compose.yml turns that
@@ -158,6 +167,15 @@ camunda.bpm:
   # this bootstrap just covers the cold-start before the plugin is ready.
   admin-user:
     id: admin
+  # The security starter (cibseven-bpm-spring-boot-starter-security-4) would
+  # replace the engine's identity provider with one that knows only the
+  # caller's own token. The Keycloak plugin below stays the identity
+  # provider: the engine lists users and groups (Cockpit, candidate groups)
+  # from Keycloak, and the starter's authentication filters look the
+  # caller's groups up through it.
+  oauth2:
+    identity-provider:
+      enabled: false
 
 # CIB seven Keycloak Identity Provider Plugin — registered as a
 # ProcessEnginePlugin via com/poc/cib7/keycloak/KeycloakIdentityProvider.java.
@@ -178,7 +196,7 @@ plugin.identity.keycloak:
 # SevenUserProvider.init() validates that this secret is base64-decodable and
 # at least 155 characters long, otherwise the application context fails to
 # start. We don't actually rely on JWT-based local login here — auth runs
-# through Keycloak via WebappSecurityConfig — but the bean is still
+# through Keycloak via the security starter — but the bean is still
 # instantiated, so the secret has to be present.
 #
 # This is a DEV value, fine to commit for a POC. Override with the

@@ -831,15 +831,14 @@ for the rationale and the corresponding `PdfHelper` bean.
 ## Cockpit / Tasklist / Admin webapps with Keycloak SSO
 
 The `cibseven-bpm-spring-boot-starter-webapp-4` dependency mounts the classic
-CIB seven webapps at `/camunda/**`. A second Spring Security filter chain
-(`com.poc.cib7.keycloak.webapp.WebappSecurityConfig`) drives an OAuth2
-Authorization Code flow against the `cib7-webapps` Keycloak client; once the
-user is logged in, `ContainerBasedAuthenticationFilter` calls
-`KeycloakAuthenticationProvider.extractAuthenticatedUser`, which reads the
-OIDC user and queries groups via the cibseven-keycloak plugin's read-only
-`IdentityService` — the same identity model the `/engine-rest` Bearer-JWT
-filter uses. The three Java files under `com/poc/cib7/keycloak/webapp/` are
-the plugin's published recipe (`examples/sso-kubernetes`), repackaged.
+CIB seven webapps at `/camunda/**`. CIB seven's security starter
+(`cibseven-bpm-spring-boot-starter-security-4`) adds a second Spring Security
+filter chain that drives an OAuth2 Authorization Code flow against the
+`cib7-webapps` Keycloak client; once the user is logged in,
+`ContainerBasedAuthenticationFilter` hands the user to the engine, whose
+groups come from the cibseven-keycloak plugin — the same identity model the
+`/engine-rest` Bearer-JWT chain uses. Logging out of the webapps ends the
+engine session only; the Keycloak session lives on.
 
 URL split — internal vs browser-visible — is handled in
 [`application.yaml`](cib7/src/main/resources/application.yaml) by listing

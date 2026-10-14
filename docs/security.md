@@ -192,7 +192,7 @@ Every `/api/**` path belongs to exactly one class, chosen by its prefix:
 
 | Prefix | Who calls it | Authentication |
 |---|---|---|
-| `/api/public/**` | a citizen following a capability link, or anonymous read-only reference data | the capability token (rule 3); read-only reference data only if it holds no personal data |
+| `/api/public/**` | a citizen following a capability link, or anonymous read-only reference data (public registries, the service list) | the capability token (rule 3); read-only reference data only if it holds no personal data |
 | `/api/internal/**` | the engine, through the ESB | `X-Internal-Token`; never routed by the ingress |
 | everything else | the SPA, the mobile app, MCP | Keycloak JWT with the `cib7-rest-api` audience |
 

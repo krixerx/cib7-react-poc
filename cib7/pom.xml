@@ -64,8 +64,7 @@
 
     <!-- CIB seven engine + Cockpit/Tasklist/Admin webapps, in the Spring Boot 4
          variants (the `-4` starters, on Spring Framework 7). The webapps
-         are served from /camunda/* once the second SecurityFilterChain (see
-         com.poc.cib7.keycloak.WebappSecurityConfig) is on the classpath.
+         are served from /camunda/*, behind the security starter's login.
          Despite the name, the webapp starter does NOT transitively register
          the engine REST API at /engine-rest — only the JAX-RS resource
          classes (cibseven-engine-rest-core-jakarta). The REST starter below
@@ -187,17 +186,17 @@
       <version>${cibseven.keycloak.version}</version>
     </dependency>
 
-    <!-- Spring Security + OAuth2 resource server: validates incoming
-         bearer tokens (signature, expiry, issuer, audience) against
-         Keycloak's JWKS. The plugin's example RestApiSecurityConfig
-         relies on these starters being on the classpath. -->
+    <!-- CIB seven's OAuth2 integration: the /engine-rest resource server
+         (Bearer JWT, then the caller and their groups on the engine's
+         IdentityService) and the webapps' Authorization Code login. Brings
+         Spring Security with the OAuth2 resource server and client
+         starters. Its own token-based identity provider is switched off in
+         application.yaml; the Keycloak plugin above is the identity
+         provider. -->
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-security</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+      <groupId>org.cibseven.bpm.springboot</groupId>
+      <artifactId>cibseven-bpm-spring-boot-starter-security-4</artifactId>
+      <version>${cibseven.version}</version>
     </dependency>
     <!-- Persistent database (the `postgres` profile) and Flyway, which owns
          the ACT_* schema (com.poc.cib7.db.V1__CibSevenSchema). Versions are
@@ -226,16 +225,6 @@
       <artifactId>json-schema-validator</artifactId>
       <version>2.0.8</version>
     </dependency>
-    <!-- oauth2-client drives the legacy webapps' OAuth2 login flow against
-         Keycloak (Authorization Code grant). The auto-config DOES NOT call
-         OIDC discovery because we provide every endpoint explicitly under
-         spring.security.oauth2.client.provider.keycloak.* (no issuer-uri).
-         That keeps the engine startable in docker-compose, where the
-         container can't reach the browser-visible Keycloak URL. -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-oauth2-client</artifactId>
-    </dependency>
 
     <!-- JUnit 5 + AssertJ + Mockito + Spring Test. The DMN tests run the
          standalone DMN engine (cibseven-engine-dmn, already on the classpath
@@ -247,19 +236,6 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
-  <repositories>
-    <!-- Explicit Maven Central declaration. The cibseven parent POMs pull in
-         the mulesoft-releases repo, which becomes the only configured remote
-         on a fresh checkout and can't resolve AWS SDK v2 artifacts. Listing
-         central here forces Maven to try it as well. -->
-    <repository>
-      <id>central</id>
-      <url>https://repo.maven.apache.org/maven2</url>
-      <releases><enabled>true</enabled></releases>
-      <snapshots><enabled>false</enabled></snapshots>
-    </repository>
-  </repositories>
 
   <build>
     <!-- Tests deploy and render the pack's BPMN, DMN and templates, so the pack

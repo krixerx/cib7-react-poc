@@ -306,10 +306,10 @@ client writes only the variables its form declares.
   missing key once. The path is decoded and stripped of `/engine/{name}` and
   trailing slashes before matching, and a body that is not a JSON object gets
   400.
-- **Ordering.** Registered in the `/engine-rest` security chain right after
-  `KeycloakAuthenticationFilter` (`RestApiSecurityConfig`), so the engine's
-  `IdentityService` already holds the user and groups; deliberately not a
-  `Filter` bean, which Spring Boot would also register outside the chain.
+- **Ordering.** A servlet filter on `/engine-rest/*`
+  (`VariableWritePolicyConfig`) one step after the security starter's engine
+  authentication filter, so the engine's `IdentityService` already holds the
+  user and groups.
 - **Response.** 403 with `{"type":"VariablePolicyViolation","message":"variable
   'x' is not writable from form 'y'"}`; the task stays open.
 
@@ -621,9 +621,11 @@ caller's Keycloak group membership.
 |---|---|---|
 | OIDC identity provider | Keycloak (realm `cib7-poc`) | `keycloak/cib7-poc-realm.json`, compose service |
 | Identity Provider Plugin | `org.cibseven.community.keycloak:cibseven-keycloak:2.2.1` | declared in `pom.xml`; activated by `KeycloakIdentityProvider.java` |
-| JWT validation | `spring-boot-starter-oauth2-resource-server`; Boot builds the decoder from `spring.security.oauth2.resourceserver.jwt.*` | `RestApiSecurityConfig.java`, `application.yaml` |
+| JWT validation | `cibseven-bpm-spring-boot-starter-security-4`'s engine-rest chain (OAuth2 resource server); Boot builds the decoder from `spring.security.oauth2.resourceserver.jwt.*` | `pom.xml`, `application.yaml` |
 | Audience pin | `audiences: [cib7-rest-api]` (rejects tokens without it in `aud`, or with no `aud` at all) | `application.yaml` |
-| Engine identity binding | `KeycloakAuthenticationFilter` (writes `IdentityService.setAuthentication` per request) | `KeycloakAuthenticationFilter.java` |
+| Engine user | `principal-claim-name: preferred_username`: the token's login name, not its UUID `sub`; a token without it gets 401 | `application.yaml` |
+| Engine identity binding | The starter's `ProcessEngineAuthenticationFilter` with `OAuth2AuthenticationProvider` (sets `IdentityService.setAuthentication` per request, groups looked up through the Keycloak plugin) | security starter |
+| Closed engine paths | The engine's own anonymous whitelist (`/engine`, `/identity/verify`, `/setup/*`, ...), which the starter's chain skips, is denied | `keycloak/EngineRestSecurityConfig.java` |
 | Variable allowlist | `VariableWritePolicyFilter` (per-form and per-start variable allowlist; other variable writes admin-only) | `policy/VariableWritePolicyFilter.java`, `processes/*/variable-policy.json` |
 | Engine authorization | `camunda.bpm.authorization.enabled: true` | `application.yaml` |
 | Admin group → engine admin | `administratorGroupName: cib7-admin` on the identity plugin | `application.yaml` |
@@ -632,22 +634,15 @@ caller's Keycloak group membership.
 | Working a task | Engine default task authorizations: assignee and candidate users/groups get READ + UPDATE (and HISTORIC_TASK READ) on that one task | engine, `defaultUserPermissionNameForTask` |
 | BPMN gating | `camunda:assignee="${initiator}"` on the applicant task, `camunda:candidateGroups="civil-servant"` on the review task | all BPMNs |
 
-`KeycloakIdentityProvider`, `KeycloakAuthenticationFilter`,
-`RestApiSecurityConfig` and the `webapp/` classes under
-`com/poc/cib7/keycloak/` come from the plugin's reference example
-(`examples/sso-kubernetes/.../rest/` and `.../plugin/` packages, repackaged):
-the plugin author's published recipe for wiring Spring Security to the
-engine's `IdentityService`. The example's own JWT decoder and audience
-validator are replaced by Spring Boot's `resourceserver.jwt` properties, the
-same configuration the backend uses. Keep the rest in sync with the upstream
-plugin when bumping its version.
-
-The CIB seven security starter (`cibseven-bpm-spring-boot-starter-security`)
-was checked as a replacement and not adopted: its engine authentication
-filter answers 401 for every `/engine-rest` request without a token, which
-would close the anonymous service catalogue
-(`PublicEngineRestSecurityConfig`), and its SSO logout needs OIDC discovery,
-which the engine cannot do against the public Keycloak URL.
+Spring Security comes from CIB seven's own security starter
+(`cibseven-bpm-spring-boot-starter-security-4`), configured only through
+`application.yaml`: the `/engine-rest` resource server and the webapps'
+OAuth2 login. Its token-based identity provider is switched off
+(`camunda.bpm.oauth2.identity-provider.enabled: false`), so the Keycloak
+plugin (`KeycloakIdentityProvider`) stays the engine's identity provider and
+the engine can list users and groups. The engine REST API takes no anonymous
+call; the landing page's service list comes from the backend's
+`/api/public/services`.
 
 The custom authorization code is `AuthorizationBootstrap` (group grants, with
 wildcard resource ids so new services need no Java change) and
@@ -665,7 +660,9 @@ that service account in `/cib7-admin`.
 | Block | Purpose |
 |---|---|
 | `spring.security.oauth2.resourceserver.jwt.{jwk-set-uri,issuer-uri,audiences}` | Boot's JWT decoder for `/engine-rest`. Keys come from the internal `jwk-set-uri`; with it set, `issuer-uri` is only string-compared with `iss`, so there is no OIDC discovery against a URL the engine container can't reach. `audiences` pins `cib7-rest-api` (`KEYCLOAK_REST_AUDIENCE`). |
-| `app.keycloak.user-name-attribute` | Token claim that names the engine user (`KeycloakAuthenticationFilter`) and the log's `user_id` |
+| `spring.security.oauth2.resourceserver.jwt.principal-claim-name` | Token claim that names the engine user (`preferred_username`) |
+| `app.keycloak.user-name-attribute` | Token claim that names the log's `user_id` (the same claim) |
+| `camunda.bpm.oauth2.identity-provider.enabled: false` | Keeps the Keycloak plugin as the identity provider instead of the security starter's token-only one |
 | `plugin.identity.keycloak.*` | All Keycloak Admin REST API config — issuer URL, admin URL, client credentials, `useUsernameAsCamundaUserId`, `useGroupPathAsCamundaGroupId` |
 | `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
 | `camunda.bpm.generic-properties.properties.enable-historic-instance-permissions: true` | History queries accept per-instance `HISTORIC_PROCESS_INSTANCE` / `HISTORIC_TASK` grants, which is how applicants read their own history |
@@ -691,7 +688,7 @@ The engine has three concepts of "who" for a given REST call:
 1. **HTTP-layer principal** — `JwtAuthenticationToken` populated by
    spring-security after JWT validation. Identifies the bearer of the token.
 2. **Engine identity** — `IdentityService.setAuthentication(userId, groups)`
-   set by `KeycloakAuthenticationFilter` before the handler runs and cleared
+   set by the security starter's engine authentication filter before the handler runs and cleared
    after. This is what `taskService.complete()` checks against candidate
    groups, what `task.assignee = "${currentUser()}"` resolves to, and what
    ends up in history.
@@ -745,22 +742,27 @@ CIB seven webapps (Cockpit / Tasklist / Admin) on
 or the bare jar). Under `docker compose up` the engine container no longer
 publishes 8080 to the host — Traefik fronts it on `:3000`, so the same
 URLs become `http://localhost:3000/engine-rest` and
-`http://localhost:3000/camunda`. `ForwardedHeaderFilter` in
-`WebappSecurityConfig` honors X-Forwarded-* so the OAuth2 redirect URI
-the engine generates uses the public host. The webapp starter
+`http://localhost:3000/camunda`. `server.forward-headers-strategy:
+framework` honors X-Forwarded-* so the OAuth2 redirect URI the engine
+generates uses the public host. The webapp starter
 (`cibseven-bpm-spring-boot-starter-webapp-4`) transitively brings the REST
 starter.
 
 ### Webapp SSO
 
-Webapp auth lives in `com.poc.cib7.keycloak.webapp` and is the
-cibseven-keycloak plugin's `sso-kubernetes` example, repackaged:
+Webapp auth is the security starter's, switched on by the registered OAuth2
+client (`spring.security.oauth2.client.registration.keycloak`): a second
+`SecurityFilterChain` (order 2) for `/camunda/**`, `/oauth2/**`, `/login` and
+`/logout` with Authorization Code login, a filter that refreshes the access
+token, and `ContainerBasedAuthenticationFilter` with
+`OAuth2AuthenticationProvider`, which hands the user to the engine (groups
+from the Keycloak plugin).
 
-| Class | Role |
-|---|---|
-| `WebappSecurityConfig` | Second `SecurityFilterChain` (`@Order(2)`) matching `/camunda/**` + OAuth2 paths. Runs `.oauth2Login(...)`. Registers `ContainerBasedAuthenticationFilter` at order 201 to bridge the OAuth2 principal into `IdentityService`. |
-| `KeycloakAuthenticationProvider` | Reads the `OidcUser`, looks up groups via the cibseven-keycloak plugin's read-only `IdentityService`, returns the user-id + groups to the engine. |
-| `KeycloakLogoutHandler` | Redirects to Keycloak's OIDC logout endpoint with `id_token_hint` so the SSO session ends too. |
+Logout is local: `/logout` ends the engine's session, not the Keycloak one,
+so the next visit signs in again without a password while the Keycloak
+session lives. The starter's SSO logout (`camunda.bpm.oauth2.sso-logout`)
+stays off because it needs Keycloak's `end_session_endpoint`, which Spring
+only learns through OIDC discovery (see below).
 
 The Keycloak side is the `cib7-webapps` client in
 `keycloak/cib7-poc-realm.json` (confidential, standard flow,
@@ -769,8 +771,8 @@ behind the Traefik ingress, same origin as the SPA).
 
 The OAuth2 client config in `application.yaml` deliberately **omits**
 `spring.security.oauth2.client.provider.keycloak.issuer-uri` and lists every
-endpoint explicitly — the same internal-vs-browser URL split as for JWKS in
-`RestApiSecurityConfig`. Setting `issuer-uri` would trigger OIDC discovery
+endpoint explicitly — the same internal-vs-browser URL split as for the
+resource server's JWKS. Setting `issuer-uri` would trigger OIDC discovery
 against the browser-visible URL at startup, which the engine container
 can't reach inside docker-compose.
 

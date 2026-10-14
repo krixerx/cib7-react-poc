@@ -4,13 +4,9 @@
  * The browser always calls the same-origin path `/engine-rest/...`; the Vite
  * dev server (vite.config.ts) and nginx (nginx.conf) proxy it to the backend.
  *
- * Most requests carry a Keycloak-issued bearer token; the backend's
- * RestApiSecurityConfig validates it before any handler runs. The single
- * exception is the anonymous services-list call (GET /process-definition) —
- * the SPA fires it on the public landing page before the user has signed in
- * (PublicEngineRestSecurityConfig on the backend). When `keycloak.authenticated`
- * is false we therefore omit the Authorization header instead of refusing
- * to call.
+ * Requests carry a Keycloak-issued bearer token, which the engine validates
+ * before any handler runs; a call without one gets 401. The landing page's
+ * anonymous service list comes from the backend instead (servicesApi.ts).
  */
 
 import { keycloak, ensureFreshToken } from '../auth/keycloak';

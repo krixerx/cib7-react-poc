@@ -91,7 +91,8 @@ The runtime pieces:
   `/api/**` surface: the public token-link endpoints
   (`/api/public/consent/<purpose>` for co-owner confirmation and co-founder
   signature, configured per purpose by the pack's `consent/<purpose>.yaml`,
-  `/api/public/payments`), the registry module
+  `/api/public/payments`), the anonymous service list
+  (`/api/public/services`, read from the engine), the registry module
   (`/api/{public,internal}/registry/<entity>`, which serves the service
   pack's declared registries such as the `vehicles` Liiklusregister stand-in
   the engine calls via http-connector), `/api/documents` (S3 presigned upload /
@@ -159,7 +160,7 @@ The runtime pieces:
 | Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin. Every call now targets `${busBaseUrl}` (the integration bus), not a downstream system directly |
 | Integration bus | Apache Camel JBang (`apache/camel-jbang`) | `esb/` (declarative YAML routes) | Mediates every engine→downstream HTTP call; engine talks only to `${busBaseUrl}` and the bus routes each path to mailpit / pdf-renderer / backend (injecting `X-Internal-Token` on `/api/documents`) |
 | Identity provider plugin | `cibseven-keycloak` 2.2.1 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
-| REST API security | Spring Security OAuth2 Resource Server | `com/poc/cib7/keycloak/RestApiSecurityConfig.java` (verbatim from plugin's `sso-kubernetes` example) | Validates Bearer JWTs and pushes user into `IdentityService` per request |
+| REST API and webapp security | `cibseven-bpm-spring-boot-starter-security-4` (OAuth2 resource server and client) | `cib7/pom.xml`, `application.yaml`; `keycloak/EngineRestSecurityConfig.java` closes the engine's anonymous whitelist | Validates Bearer JWTs on `/engine-rest` and pushes the user into `IdentityService` per request; Authorization Code login for `/camunda` |
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | The only group-level engine grants: applicants list and start services, civil servants read every case and retry jobs. Per-case access comes from `authorization/InitiatorAuthorizationListener.java` and the engine's default task authorizations (admins are handled by the plugin's `administratorGroupName`) |
 | Identity provider | Keycloak 26 | `keycloak/cib7-poc-realm.json` + compose service | OIDC; pre-seeded realm `cib7-poc` with two users: `bart` / `bart` (applicant — PartA) and `homer` / `homer` (civil servant + admin — PartB) |
 | Database | PostgreSQL 17 | `postgres` compose service, `postgres` Spring profile, Flyway | Engine (database `cib7`) and backend (database `backend`) state on the `postgres-data` volume; in-memory H2 in tests |
@@ -181,8 +182,8 @@ Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 A single "Vehicle Registration" process instance:
 
 ```
-1. User opens Services page
-     SPA → GET /engine-rest/process-definition?latestVersion=true
+1. User opens Services page (anonymous)
+     SPA → GET /api/public/services          (backend reads the engine as cib7-business)
 2. User picks "Vehicle Registration", clicks Start
      SPA → POST /engine-rest/process-definition/key/vehicleRegistration/start
      SPA → GET  /engine-rest/task?processInstanceId={id}    (find first task)
@@ -406,11 +407,11 @@ production pattern is to use two URLs:
 | Public (`iss` claim, browser login redirects) | `http://localhost:8180` | Browser (`keycloak-js`), the engine's and backend's `iss` validators |
 | Internal (server-to-server) | `http://keycloak:8080` | Engine's identity provider plugin (Admin REST), JWKS fetches and the backend's token endpoint |
 
-The engine's `RestApiSecurityConfig.jwtDecoder()` builds a `NimbusJwtDecoder`
-with `.withJwkSetUri(jwkSetUri)` (internal URL) and validates the `iss` claim
-against the public URL with `JwtValidators.createDefaultWithIssuer` (a plain
-string compare — no HTTP call). The backend does the same split purely via
-Spring Boot properties (`spring.security.oauth2.resourceserver.jwt.*`). The
+The engine and the backend both build their JWT decoder from Spring Boot
+properties (`spring.security.oauth2.resourceserver.jwt.*`): keys from
+`jwk-set-uri` (internal URL), and the `iss` claim compared with `issuer-uri`
+(the public URL; a plain string compare, no HTTP call, because `jwk-set-uri`
+is set too). The
 plugin's Admin REST calls also use the internal URL. Tokens minted by the
 same Keycloak carry `iss=localhost:8180` regardless of which interface a
 service talks to. If you change the Keycloak hostname for production, change
@@ -500,14 +501,18 @@ End-to-end Keycloak authentication, authorization, and a single seeded user:
 - **Token attachment.** Every `/engine-rest/*` request from
   `frontend/src/api/camundaClient.ts` carries `Authorization: Bearer <jwt>`.
   `keycloak-js` refreshes the access token if it expires within 30 seconds.
-- **JWT validation.** `RestApiSecurityConfig` (the plugin's reference example,
-  copied verbatim) wires `spring-boot-starter-oauth2-resource-server` against
-  Keycloak's JWKS; signature, expiry, issuer, and the `cib7-rest-api` audience
-  are all checked. Anonymous calls get 401.
-- **Engine identity binding.** `KeycloakAuthenticationFilter` extracts
-  `preferred_username` from the validated JWT, looks up the user's groups via
-  the identity provider plugin, and calls `IdentityService.setAuthentication`
-  on the request thread. The `finally` clears it.
+- **JWT validation.** CIB seven's security starter
+  (`cibseven-bpm-spring-boot-starter-security-4`) makes `/engine-rest` an
+  OAuth2 resource server against Keycloak's JWKS; signature, expiry, issuer,
+  and the `cib7-rest-api` audience are all checked. Anonymous calls get 401;
+  the engine's own anonymous whitelist (`/identity/verify` and friends) is
+  denied (`EngineRestSecurityConfig`). The landing page's public service list
+  comes from the backend (`/api/public/services`).
+- **Engine identity binding.** The starter's engine authentication filter
+  takes the user from `preferred_username` (`principal-claim-name`), looks up
+  their groups via the identity provider plugin, and calls
+  `IdentityService.setAuthentication` on the request thread, clearing it
+  afterwards.
 - **Authorization.** `camunda.bpm.authorization.enabled: true`. The applicant
   task in each BPMN is `camunda:assignee="${initiator}"`
   (only the applicant who started the case can complete it on the initial

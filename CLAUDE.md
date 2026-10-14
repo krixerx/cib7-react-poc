@@ -134,7 +134,8 @@ Module responsibilities are strict and worth preserving:
   (`scripts/pack-check.sh`).
 - **`backend/` owns every `/api/**` surface**: public token-link pages
   (co-signing at `/api/public/consent/<purpose>` from the pack's
-  `consent/<purpose>.yaml`, payments), the registry module that
+  `consent/<purpose>.yaml`, payments), the anonymous service list
+  (`/api/public/services`; `/engine-rest` takes no anonymous call), the registry module that
   serves the pack's declared registries (`/api/{public,internal}/registry/<entity>`),
   document metadata plus RustFS S3 presigned URLs. It reaches the engine only
   through `/engine-rest` as the `cib7-business` service account.

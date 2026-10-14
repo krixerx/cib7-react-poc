@@ -45,7 +45,7 @@ function lastCall(): FetchArgs {
 }
 
 describe('request plumbing', () => {
-  it('omits the Authorization header for the anonymous landing-page call', async () => {
+  it('omits the Authorization header while signed out', async () => {
     await listProcessDefinitions();
 
     const [url, init] = lastCall();

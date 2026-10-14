@@ -88,8 +88,8 @@ This POC chose the sidecar pattern because:
 4. **Mirrors `pdf-renderer/`.** The "JSON-in/JSON-out sidecar" pattern is
    already established in this repo for the same reasons.
 5. **Cleaner JWT story.** Bearer forwarding to `/engine-rest` reuses the
-   engine's existing `RestApiSecurityConfig` validation — no in-engine
-   identity-binding magic required.
+   engine's existing Bearer-JWT validation (CIB seven's security starter) —
+   no in-engine identity-binding magic required.
 
 The architectural decisions are captured in the [office-hours design
 doc](../README.md#add-or-modify-a-service) and the eng-review report
@@ -247,9 +247,9 @@ challenges, verifies JWTs at the door, then forwards them.
    returns HTTP 401 + WWW-Authenticate, which the client treats as a
    refresh or re-auth signal.
 9. On verification success the sidecar forwards the same token to
-   /engine-rest. RestApiSecurityConfig validates issuer + audience +
-   signature again; KeycloakAuthenticationFilter binds the user into
-   IdentityService; engine enforces per-user authorization.
+   /engine-rest. The engine's security starter validates issuer + audience +
+   signature again and binds the user into IdentityService; engine enforces
+   per-user authorization.
 ```
 
 **Session length.** Access tokens live 5 minutes and the client refreshes
@@ -680,7 +680,7 @@ Every control has a negative test under `mcp/src/`.
 - [`docs/architecture.md`](architecture.md) — system overview; where the
   mcp container fits in the deployment topology.
 - [`docs/cib7.md`](cib7.md) — engine module; auth wiring on the engine
-  side (issuer + audience validation, `KeycloakAuthenticationFilter`).
+  side (issuer + audience validation, engine identity binding).
 - [`docs/frontend.md`](frontend.md) — SPA module; the `<meta>` tags
   pattern and `/mcp` nginx proxy.
 - [`mcp/README.md`](../mcp/README.md) — quick-start and Claude Desktop

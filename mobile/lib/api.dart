@@ -100,11 +100,10 @@ class Application {
 
 /// Thin client for the CIB seven REST API (`/engine-rest`).
 ///
-/// The services list (`GET /process-definition`) is the one anonymous
-/// endpoint (PublicEngineRestSecurityConfig on the backend) — the SPA also
-/// fires it on the public landing page before sign-in. Authenticated calls
-/// (my-applications, tasks) attach the Keycloak bearer token via
-/// [tokenProvider], supplied by the AuthService.
+/// Engine calls (my-applications, tasks) attach the Keycloak bearer token via
+/// [tokenProvider], supplied by the AuthService; the engine answers a call
+/// without one with 401. The services list, which the app shows before
+/// sign-in, comes from the backend's anonymous `/api/public/services`.
 class EngineClient {
   EngineClient({http.Client? client, this.tokenProvider})
       : _client = client ?? http.Client();
@@ -115,8 +114,7 @@ class EngineClient {
   late final DocumentsClient _documents =
       DocumentsClient(client: _client, tokenProvider: tokenProvider);
 
-  /// Returns a fresh access token, or null when signed out (then the request
-  /// goes anonymous — fine for the public services list).
+  /// Returns a fresh access token, or null when signed out.
   final Future<String?> Function()? tokenProvider;
 
   Future<Map<String, String>> _headers() async {
@@ -126,14 +124,12 @@ class EngineClient {
     return headers;
   }
 
+  /// The latest version of every active service; anonymous.
   Future<List<ServiceDefinition>> listServices() async {
-    final uri = engineBase.replace(
-      path: '/engine-rest/process-definition',
-      queryParameters: {'latestVersion': 'true', 'active': 'true'},
-    );
-    final res = await _client.get(uri, headers: await _headers());
+    final uri = engineBase.replace(path: '/api/public/services');
+    final res = await _client.get(uri, headers: {'Accept': 'application/json'});
     if (res.statusCode != 200) {
-      throw Exception('Engine returned HTTP ${res.statusCode}');
+      throw Exception('Backend returned HTTP ${res.statusCode}');
     }
     final list = jsonDecode(res.body) as List<dynamic>;
     return list

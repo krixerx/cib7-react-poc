@@ -60,9 +60,9 @@ import org.springframework.web.util.UriUtils;
  * cib7-business} service account, which correlates messages and sets consent and payment state)
  * bypass the policy; engine authorization still applies to them.
  *
- * <p>Runs inside the {@code /engine-rest} security chain right after {@code
- * KeycloakAuthenticationFilter}, so the engine's {@link IdentityService} already carries the user
- * and groups. Task and definition lookups run as that user: a task the caller cannot see is never
+ * <p>Runs right after the CIB seven security starter's engine authentication filter ({@link
+ * VariableWritePolicyConfig}), so the engine's {@link IdentityService} already carries the user and
+ * groups. Task and definition lookups run as that user: a task the caller cannot see is never
  * described in the response, and a write to it is refused if it carries variables.
  */
 public class VariableWritePolicyFilter extends OncePerRequestFilter {

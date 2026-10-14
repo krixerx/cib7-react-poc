@@ -3,12 +3,8 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { catalog } from '../pack/catalog';
 import { ArrowRight } from 'lucide-react';
-import {
-  listProcessDefinitions,
-  startProcess,
-  listTasksByInstance,
-  type ProcessDefinition,
-} from '../api/camundaClient';
+import { startProcess, listTasksByInstance, type ProcessDefinition } from '../api/camundaClient';
+import { listServices } from '../api/servicesApi';
 import { useAuth } from '../auth/AuthProvider';
 import { CATEGORIES, categoryOf } from '../services/categories';
 import { CategoryIcon } from '../services/CategoryIcon';
@@ -33,7 +29,7 @@ export default function ServicesPage() {
     setLoading(true);
     setError(null);
     try {
-      setServices(await listProcessDefinitions());
+      setServices(await listServices());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

@@ -45,8 +45,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
  * Negative tests for docs/security.md rule 2, end to end through the real {@code /engine-rest}
- * security chain: JWT validation, {@code KeycloakAuthenticationFilter}, {@link
- * VariableWritePolicyFilter} and the engine's JAX-RS resources.
+ * security chain: JWT validation, the CIB seven security starter's engine authentication filter,
+ * {@link VariableWritePolicyFilter} and the engine's JAX-RS resources.
  *
  * <p>Tokens are signed with a key generated here and served from a local JWKS endpoint that {@code
  * spring.security.oauth2.resourceserver.jwt.jwk-set-uri} points at, so no Keycloak is needed. Users
@@ -149,6 +149,52 @@ class VariableWritePolicyFilterTest {
     assertEquals(
         401, get(token("bart", "http://evil.test/realms/cib7-poc", "cib7-rest-api")).statusCode());
     assertEquals(401, get(token("bart", null, "cib7-rest-api")).statusCode());
+  }
+
+  @Test
+  void anonymousRequestsAreRejectedIncludingTheServiceList() throws Exception {
+    // The service list was anonymous here until the backend's /api/public/services took it over.
+    // The engine's own whitelist, which the security starter leaves out, is closed as well.
+    for (String path :
+        List.of(
+            "/process-definition",
+            "/task",
+            "/engine",
+            "/identity/verify",
+            "/identity/password-policy",
+            "/configuration",
+            "/setup/status")) {
+      HttpRequest request =
+          HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/engine-rest" + path))
+              .GET()
+              .build();
+      int status = http.send(request, HttpResponse.BodyHandlers.ofString()).statusCode();
+      assertTrue(status == 401 || status == 403, path + " answered " + status);
+    }
+  }
+
+  @Test
+  void engineUserIsPreferredUsernameNotSubject() throws Exception {
+    // Keycloak's `sub` is a UUID; the engine knows users by login name.
+    assertEquals(401, get(token("uuid-of-bart", null, ISSUER, "cib7-rest-api")).statusCode());
+
+    HttpRequest start =
+        HttpRequest.newBuilder(
+                URI.create(
+                    "http://localhost:"
+                        + port
+                        + "/engine-rest/process-definition/key/policyTest/start"))
+            .header(
+                "Authorization", "Bearer " + token("uuid-of-bart", "bart", ISSUER, "cib7-rest-api"))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("{}"))
+            .build();
+    HttpResponse<String> response = http.send(start, HttpResponse.BodyHandlers.ofString());
+    assertEquals(200, response.statusCode(), response.body());
+    String marker = "\"id\":\"";
+    int at = response.body().indexOf(marker) + marker.length();
+    String pi = response.body().substring(at, response.body().indexOf('"', at));
+    assertEquals("bart", processEngine.getRuntimeService().getVariable(pi, "initiator"));
   }
 
   private HttpResponse<String> get(String bearer) throws Exception {
@@ -455,12 +501,17 @@ class VariableWritePolicyFilterTest {
   }
 
   private static String token(String user, String issuer, String audience) throws JOSEException {
+    return token(user, user, issuer, audience);
+  }
+
+  private static String token(String subject, String user, String issuer, String audience)
+      throws JOSEException {
     Instant now = Instant.now();
     SignedJWT jwt =
         new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(KEY.getKeyID()).build(),
             new JWTClaimsSet.Builder()
-                .subject(user)
+                .subject(subject)
                 .issuer(issuer)
                 .claim("preferred_username", user)
                 .audience(audience)

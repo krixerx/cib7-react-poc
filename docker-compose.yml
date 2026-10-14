@@ -580,7 +580,7 @@ services:
     #   /engine-rest  REST API (JWT Bearer, used by the SPA + MCP)
     #   /camunda      legacy Cockpit / Tasklist / Admin webapps
     #   /oauth2 /login /logout  Spring Security OAuth2 callbacks for /camunda
-    # ForwardedHeaderFilter (WebappSecurityConfig.java) trusts X-Forwarded-*
+    # server.forward-headers-strategy=framework trusts X-Forwarded-*
     # so the OAuth2 redirect URI it generates is http://localhost:3000/...
     # — that URL is whitelisted on the cib7-webapps Keycloak client.
     expose:

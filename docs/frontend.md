@@ -72,6 +72,7 @@ frontend/src/
 │   ├── paymentLinkApi.ts          — /api/cases/{id}/payment-link (pay link for the signed-in applicant)
 │   ├── draftCaseApi.ts            — /api/cases/drafts + DELETE /api/cases/{id} (applicant's unsubmitted cases)
 │   ├── mockBankApi.ts             — /api/public/mock-provider client (demo bank page)
+│   ├── servicesApi.ts             — /api/public/services client (anonymous service list on the landing page)
 │   └── consentApi.ts              — /api/public/consent/<purpose> client (the consent page)
 ├── services/
 │   ├── categories.ts              — PartA life-event categories (the pack's catalog maps services to them)
@@ -190,7 +191,9 @@ summary comes from the service pack (`catalog:services.<processDefinitionKey>.su
 see "Service pack catalog and texts"); a service the pack does not list
 shows none.
 
-- `listProcessDefinitions()` populates the list; services are ordered by
+- `listServices()` (`api/servicesApi.ts`) populates the list from the
+  backend's anonymous `GET /api/public/services` (the engine takes no
+  anonymous call); services are ordered by
   `categoryOf(s.key)` in `CATEGORIES` order (see `services/categories.ts`).
 - `startService()`: anonymous → triggers `login()`; authenticated →
   `startProcess(key)`, then `listTasksByInstance(instanceId)` to find the
@@ -617,7 +620,7 @@ All under `/engine-rest` (standard CIB seven / Camunda 7 REST API):
 
 | Method + path | Used by |
 |---|---|
-| `GET  /process-definition?latestVersion=true` | `listProcessDefinitions` → ServicesPage, TasksPage (via `listWorklist`), MyProcessesPage, IncidentsPage |
+| `GET  /process-definition?latestVersion=true` | `listProcessDefinitions` → TasksPage (via `listWorklist`), MyProcessesPage, MyFilesPage, IncidentsPage |
 | `GET  /process-definition/key/{key}/xml` | `getProcessDefinitionXml` → IncidentsPage, ProcessHistoryView |
 | `POST /process-definition/key/{key}/start` | `startProcess` → ServicesPage |
 | `GET  /process-instance/count?…&active=true` | `countActiveProcessInstances` → TasksPage |
