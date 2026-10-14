@@ -10,12 +10,15 @@ FROM apache/camel-jbang:4.22.1-21-jdk
 
 # The base image lags Ubuntu's security pocket; OpenSSL had fixed HIGH CVEs
 # (Trivy in docker-publish.yml) that a package upgrade picks up, and curl,
-# expat and SQLite had fixed MEDIUM ones (Trivy, 2026-10-06).
+# expat and SQLite had fixed MEDIUM ones (Trivy, 2026-10-06). Pebble, the
+# Temurin base's Go-built service manager, had fixed HIGH Go stdlib CVEs
+# (2026-10-13); camel is the entrypoint and nothing starts Pebble, so it goes.
 USER root
 RUN apt-get update \
   && apt-get install -y --only-upgrade --no-install-recommends openssl libssl3t64 openssl-provider-legacy \
        curl libcurl4t64 libexpat1 libsqlite3-0 \
-  && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/* \
+  && rm -f /usr/bin/pebble
 
 # NOTE: startup logs one benign warning — "Failed to create working directory:
 # /.camel-jbang" — because the base image's user has OS home "/" (not writable).

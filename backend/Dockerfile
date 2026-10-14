@@ -20,8 +20,12 @@ FROM eclipse-temurin:21.0.12.1_1-jre
 # Runs as an unprivileged system user (docs/security.md rule 11). The jar is
 # root-owned and read-only to it; /app is its own so anything the app writes
 # next to the jar does not need root.
+# Pebble, Canonical's service manager, ships in the Temurin Ubuntu image as a
+# Go binary whose stdlib Trivy flags (CVE-2026-97031 and others, 2026-10-13).
+# The JVM is the entrypoint and nothing starts Pebble, so it goes.
 RUN groupadd --system --gid 10001 app \
- && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
+ && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app \
+ && rm -f /usr/bin/pebble
 WORKDIR /app
 COPY --from=build /build/backend/target/*.jar app.jar
 # Where a pack's layer puts its files (root-owned, read-only to the app user).
