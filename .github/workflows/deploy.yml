@@ -83,7 +83,7 @@ jobs:
     steps:
       # Only here for ./.github/actions/vm-ssh below — a local action has to be
       # on disk before it can be used.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Network path to the host
         run: |
@@ -177,7 +177,7 @@ jobs:
     steps:
       # The workflow and its actions come from the dispatched ref; the deploy
       # kit is swapped for the core release's below.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve the pack
         id: pack
