@@ -13,10 +13,10 @@ Reads the chosen vehicle from the vehicle registry and stores its value and deta
 | Field | Value |
 |---|---|
 | Method | `GET` |
-| URL | `${busBaseUrl}/api/public/registry/vehicles/${objectId}` |
+| URL | `${busBaseUrl}/api/internal/registry/vehicles/${objectId}` |
 | Headers | `Accept: application/json` |
 
-Downstream: backend registry module, public `vehicles` registry (no personal data).
+Downstream: backend registry module, internal lookup of the `vehicles` registry (the bus adds the internal token).
 
 ## Payload (request body)
 
@@ -35,6 +35,6 @@ None: a `GET` carries no body.
 
 ## Notes
 
-- The registry is declared in [`data/vehicles.md`](../data/vehicles.md); this call uses its public read endpoint, which carries no personal data.
+- The registry is declared in [`data/vehicles.md`](../data/vehicles.md); this call uses its internal lookup, which only the engine reaches, through the bus.
 - `${objectId}` goes into the URL path unencoded. That is safe only because the engine accepts nothing but a VIN there: the form schema holds `objectId` to the shared `vin` rule (17 characters, `A-Z0-9`, docs/security.md rule 2). Keep that rule if this changes.
 - Every mapping has a default, so a response without a field still yields a value; `price` defaults to 9999, which the decision neither auto-approves nor treats as luxury, so the case goes to review.

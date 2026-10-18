@@ -32,10 +32,12 @@ VIN.
 | Operation | Access | Notes |
 |---|---|---|
 | list | public | The owner form's dropdown. |
-| lookup by `vin` | public | `Task_GetPrice` through the bus. A missing VIN answers 404, which raises an incident. |
+| lookup by `vin` | internal | `Task_GetPrice` through the bus, which adds the internal token. A missing VIN answers 404, which raises an incident. |
 
 `public` is allowed only because the data is harmless reference data
-(docs/security.md rule 5).
+(docs/security.md rule 5); with real registry data the list must not be
+public. The lookup has no caller outside the engine, so it is `internal`
+and the ingress never routes it.
 
 ## Seed
 
