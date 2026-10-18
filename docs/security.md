@@ -294,7 +294,10 @@ stays.
 
 ## 11. Containers and supply chain
 
-- Every image we build runs as a non-root user.
+- Every image we build runs as a non-root user. A pack's layers set no
+  `USER` of their own and inherit the core image's; the pack's
+  `publish.yml` refuses to push a layer whose image user is empty, `root`
+  or `0`.
 - Base and third-party images are pinned to a version, never `latest`.
   Exception: our own images in `deploy/docker-compose.yml` default to
   `latest` (`PACK_TAG`, `CORE_TAG`) for a quick single-machine evaluation;
