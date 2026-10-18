@@ -77,7 +77,7 @@ refuses the file (or the start), never half of it.
 │   ├── catalog.json
 │   ├── forms/<form-id>.json
 │   └── locales/<lang>/<namespace>.json
-├── docker/core.conf                   the core release the pack runs on (CORE_VERSION; Renovate bumps it)
+├── docker/core.conf                   the core release the pack runs on (CORE_VERSION; Renovate bumps it) and its images' digests (*_CORE_DIGEST)
 ├── docker/<image>.Dockerfile         the pack's images: each FROM a core image, adds the pack's files
 │                                     (frontend, engine, backend, mcp, mobile); a pack with
 │                                     ESB routes adds esb.Dockerfile (FROM the bus image,

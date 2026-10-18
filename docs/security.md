@@ -52,6 +52,11 @@ findings:
   routes neither `DELETE` nor Mailpit's send API, so a visitor cannot empty
   the inbox or plant a fake process mail. Mail never leaves the stack.
   A real deployment drops Mailpit for an SMTP relay.
+- The `latest` tag on our own images: the `*_CORE` build-argument defaults
+  in a pack's `docker/*.Dockerfile` (and `packs/test/docker/`) and the
+  `PACK_TAG` / `CORE_TAG` defaults in `deploy/docker-compose.yml`. The
+  published pack images and the deploy workflow never use them (see rule 11).
+  A real deployment replaces every `latest` with a pinned version.
 
 Everything below applies regardless. In particular, a self-registered user is
 an ordinary applicant, so the authorization rules must hold against anyone on
@@ -294,7 +299,12 @@ stays.
   Exception: our own images in `deploy/docker-compose.yml` default to
   `latest` (`PACK_TAG`, `CORE_TAG`) for a quick single-machine evaluation;
   the deploy workflow always pins the pack's commit SHA and the core
-  release.
+  release. Likewise a pack's `docker/*.Dockerfile` defaults its `*_CORE`
+  base image to `latest` for a bare `docker build`; the pack's
+  `publish.yml` always passes the core release from `docker/core.conf`,
+  pinned by the digests `scripts/update-core.sh` writes there, and the
+  pack's `check.yml` fails when the release tag no longer matches them.
+  Both are demo exemptions (see above) and go away in a real deployment.
 - No container mounts the Docker socket in the deploy bundle or the prod
   overlay (both run Traefik on the file provider). Only the profile-gated
   dev Traefik in `docker-compose.yml` mounts it, read-only.
