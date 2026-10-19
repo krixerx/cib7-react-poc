@@ -63,6 +63,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # The build date, passed as PACKAGES_REFRESH so a Dockerfile's
+      # package-upgrade layer is rebuilt at least daily instead of being
+      # served from the gha cache with fixes it predates. Computed once so
+      # the scanned build and the pushed build share every layer.
+      - id: refresh
+        run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
       # Produces `latest` and `sha-<short>` tags for every push to main.
       - id: meta
         uses: docker/metadata-action@v5
@@ -84,6 +91,7 @@ jobs:
           push: false
           tags: scan/${{ matrix.image }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
+          build-args: PACKAGES_REFRESH=${{ steps.refresh.outputs.date }}
 
       # Fails on HIGH/CRITICAL vulnerabilities that have a fix available.
       # Accepted findings go in a per-image ignore file (matrix.trivyignores)
@@ -109,4 +117,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
+          build-args: PACKAGES_REFRESH=${{ steps.refresh.outputs.date }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}

@@ -13,6 +13,10 @@ FROM apache/camel-jbang:4.22.1-21-jdk
 # expat and SQLite had fixed MEDIUM ones (Trivy, 2026-10-06). Pebble, the
 # Temurin base's Go-built service manager, had fixed HIGH Go stdlib CVEs
 # (2026-10-13); camel is the entrypoint and nothing starts Pebble, so it goes.
+# PACKAGES_REFRESH (the build date, docker-publish.yml) changes daily, so the
+# CI layer cache cannot keep serving an upgrade layer older than Ubuntu's
+# newest fixes (a fixed HIGH in libcurl4t64 blocked publishing, 2026-10-19).
+ARG PACKAGES_REFRESH
 USER root
 RUN apt-get update \
   && apt-get install -y --only-upgrade --no-install-recommends openssl libssl3t64 openssl-provider-legacy \

@@ -46,6 +46,9 @@ COPY frontend/docker/40-runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
 USER root
 # Pull Alpine security fixes newer than the base tag (Trivy blocks publishing
 # on fixable HIGH/CRITICAL findings, e.g. pcre2 CVE-2026-103111).
+# PACKAGES_REFRESH (the build date, docker-publish.yml) changes daily, so the
+# CI layer cache cannot keep serving an older upgrade.
+ARG PACKAGES_REFRESH
 # The entrypoint script runs as uid 101, so the two files it rewrites must be
 # writable by it. Running it once here also bakes a localhost-default
 # headers-spa.conf, so nginx starts even if the script were skipped.
