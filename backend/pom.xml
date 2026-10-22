@@ -31,7 +31,7 @@
     <logback-gelf.version>6.1.2</logback-gelf.version>
     <!-- AWS SDK v2 pinned directly (no BOM) — same rationale as before the
          move out of cib7: one artifact isn't worth the BOM resolution step. -->
-    <awssdk.version>2.55.8</awssdk.version>
+    <awssdk.version>2.56.0</awssdk.version>
     <!-- Security pins over Boot 4.1.1's managed versions, which still carry
          fixable HIGH/CRITICAL CVEs that fail the image scan (Trivy in
          docker-publish.yml). 4.1.1 is the newest Boot release. Drop each pin
@@ -219,7 +219,7 @@
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
-        <version>3.10.3</version>
+        <version>3.10.4</version>
         <configuration>
           <java>
             <googleJavaFormat>
