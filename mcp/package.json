@@ -33,7 +33,7 @@
     "prettier": "^3.4.2",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.19.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "proxy-addr": "^2.0.8"
