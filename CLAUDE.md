@@ -375,6 +375,22 @@ containers. The short form:
 - **Cockpit is the debugger.** Connector, DMN and FreeMarker failures surface as
   engine incidents at `/camunda/app/cockpit/`; an incident usually means the spec
   did not cover a case.
+- **nginx upstreams are variables, and `index.html` is never cached.** A literal
+  host in `proxy_pass` is resolved once per worker, so a recreated container
+  answers 502 until nginx restarts; `frontend/nginx.conf` and
+  `mobile/nginx.conf` use `resolver 127.0.0.11` plus a variable. A cached
+  `index.html` asks for bundles the new image no longer has, and a missing
+  `/assets/*.js` must be a 404, not the SPA shell. See `deployment-conventions`
+  D1 and D2.
+
+## Review rules
+
+The rules a change is checked against live in three skills in `.claude/skills/`:
+`backend-conventions`, `frontend-conventions` and `deployment-conventions`.
+Each is a table of rule IDs and severities; where a rule is already written
+down here or in `docs/security.md` the table points there, and the rest carry
+their reasoning in the skill. `/review` checks staged changes against all
+three and ends with BLOCKED, ALLOWED WITH WARNINGS or PASSED.
 
 ## Conventions
 
