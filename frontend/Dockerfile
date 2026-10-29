@@ -11,7 +11,7 @@
 # --- build stage ---------------------------------------------------------
 # Node 24, matching quality.yml. The lock is written with npm 11, which
 # Node 24 ships.
-FROM node:24.21.0-alpine AS build
+FROM node:24.22.1-alpine AS build
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
@@ -33,7 +33,7 @@ RUN npm run build
 # --- runtime stage -------------------------------------------------------
 # nginx-unprivileged runs as uid 101 and listens on 8080 (docs/security.md
 # rule 11: no image we build runs as root).
-FROM nginxinc/nginx-unprivileged:1.30.6-alpine
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY frontend/docker/snippets/ /etc/nginx/snippets/
 COPY --from=build /app/dist /usr/share/nginx/html
