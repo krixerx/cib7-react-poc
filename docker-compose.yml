@@ -28,7 +28,7 @@ services:
     # host. Hand-testing the inbox:
     #     docker compose --profile dev up -d mailpit-ui
     # or open it inside the network from another container.
-    image: axllent/mailpit:v1.31.3
+    image: axllent/mailpit:v1.32.0
     container_name: cib7-poc-mailpit
     networks: [mail]
     expose:
@@ -122,7 +122,7 @@ services:
     #     docker compose -f docker-compose.yml -f docker-compose.prod.yml \
     #         --profile traefik up -d
     profiles: ["traefik"]
-    image: traefik:v3.4.5
+    image: traefik:v3.7.16
     container_name: cib7-poc-traefik
     networks: [edge]
     command:
@@ -160,7 +160,7 @@ services:
     # Headless Chromium wrapped in a REST API. Used by pdf-renderer to convert
     # the approval-email HTML to a PDF for the email attachment. Internal-only
     # — no host port mapping needed; only pdf-renderer talks to it.
-    image: gotenberg/gotenberg:8.37.0
+    image: gotenberg/gotenberg:8.38.1
     container_name: cib7-poc-gotenberg
     # `render` is internal (no route out of the host) and shared with
     # pdf-renderer only: whatever a template makes Chromium fetch, the only
@@ -219,7 +219,7 @@ services:
     # (split on docker network vs host) is the simplest correct setup.
     # See docs/deployment.md for the prod story (TLS-fronted, separate
     # subdomain, RUSTFS_DOMAIN to make virtual-host signing work).
-    image: rustfs/rustfs:1.0.0
+    image: rustfs/rustfs:1.0.4
     container_name: cib7-poc-rustfs
     # Only the backend talks to RustFS inside the stack; browsers reach it on
     # the published port with presigned URLs.
@@ -342,7 +342,7 @@ services:
   keycloak:
     # quay.io/keycloak/keycloak:26.x is the version line the cibseven-keycloak
     # plugin 2.1.0 was last tested against (see the plugin README).
-    image: quay.io/keycloak/keycloak:26.1.5
+    image: quay.io/keycloak/keycloak:26.8.1-1
     container_name: cib7-poc-keycloak
     command: ["start-dev", "--import-realm"]
     # cib7, backend and mcp reach it as keycloak:8080 for JWKS, tokens and the
@@ -863,7 +863,7 @@ services:
     # Pinned to the 7.1 line. Override GRAYLOG_IMAGE if you need to move it —
     # the only contract this stack depends on is the GELF UDP/TCP input on
     # 12201 and the REST API on 9000.
-    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1.9}
+    image: ${GRAYLOG_IMAGE:-graylog/graylog:7.2.1-1}
     container_name: cib7-poc-graylog
     # logstore: its own MongoDB + OpenSearch. The others are the networks its
     # GELF shippers already sit on (bus: cib7 + esb, pdf: pdf-renderer,
@@ -910,7 +910,7 @@ services:
     # existing inputs by title before creating anything, so it is safe on
     # every `docker compose up`. Watch it with:
     #     docker compose logs graylog-init
-    image: curlimages/curl:8.11.1
+    image: curlimages/curl:8.22.0
     container_name: cib7-poc-graylog-init
     networks: [logstore]
     entrypoint: ["/bin/sh"]
