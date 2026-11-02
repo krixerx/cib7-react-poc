@@ -28,8 +28,8 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | B7 | BLOCKER P1 | The caller's scope goes into the query, never into a filter on its answer | [B7](#b7) |
 | B8 | BLOCKER P1 | No check-then-act on writes | [B8](#b8) |
 | B9 | BLOCKER P1 | Every security fix lands with a negative test | `docs/security.md` §13 |
-| B10 | BLOCKER P2 | An entity change ships a Flyway migration; a CIB seven bump ships an engine migration | `CLAUDE.md` gotchas |
-| B11 | BLOCKER P2 | Variables over ~4 kB are `byte[]` | `CLAUDE.md` gotchas |
+| B10 | BLOCKER P2 | An entity change ships a Flyway migration; a CIB seven bump ships an engine migration | [B10](#b10) |
+| B11 | BLOCKER P2 | Variables over ~4 kB are `byte[]` | [B11](#b11) |
 | B12 | BLOCKER P2 | A registry or integration call keeps "found", "not found" and "failed" apart; an absent record derives nothing | [B12](#b12) |
 | B13 | BLOCKER P2 | Every endpoint has authorization tests: allowed role, wrong role, another person's object, no token | [B13](#b13) |
 | B14 | BLOCKER P2 | A refusal test asserts status and message; an absence is asserted only after asserting success | [B14](#b14) |
@@ -39,7 +39,7 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | B18 | WARNING | A request that fails leaves a log line | [B18](#b18) |
 | B19 | WARNING | A lookup before a form is advisory; the process decides | [B19](#b19) |
 | B20 | BLOCKER P3 | Fixture dates that a validity period is measured against are relative | [B20](#b20) |
-| B21 | BLOCKER P3 | `MdcUserFilter` stays after Spring Security; a new profile lists `graylog` beside it | `CLAUDE.md` gotchas |
+| B21 | BLOCKER P3 | `MdcUserFilter` stays after Spring Security; a new profile lists `graylog` beside it | [B21](#b21) |
 
 ## Details
 
@@ -182,3 +182,47 @@ expiry, payment deadlines) use offsets from today, not calendar dates, or the ha
 on a schedule.
 
 *From roppoc.*
+
+### B10
+
+**BLOCKER P2.** An entity change ships a Flyway migration; a CIB seven bump ships an engine migration.
+
+**An entity change needs a backend migration.** Hibernate runs with
+`ddl-auto: validate`, so a new or changed column without a
+`backend/src/main/resources/db/migration/V<n>__*.sql` stops the backend at
+startup.
+
+**A CIB seven upgrade needs a Flyway migration.** `schema-update` is `false`:
+the engine only checks that the schema version equals its own and refuses
+to start otherwise (`true` would create missing tables but never apply an
+upgrade). Bumping `cibseven.version` therefore means adding a
+`V<n>__CibSeven...` Java migration next to `V1__CibSevenSchema` that runs the
+new jar's `db/upgrade/<db>_engine_<from>_to_<to>.sql`.
+`ProcessEngineAfterFlywayDetector` (registered in `META-INF/spring.factories`)
+makes the engine wait for Flyway; without it the engine may build first.
+
+### B11
+
+**BLOCKER P2.** Variables over ~4 kB are `byte[]`.
+
+**Variables over ~4 kB must be `byte[]`.** The engine schema (H2 and Postgres
+alike) stores String/Text variables in a `VARCHAR(4000)` column, so a large String fails during the history flush. PDFs
+and similar payloads are decoded to `byte[]` with the `pdf` helper bean
+(`PdfHelper.java`) so they spill to `ACT_GE_BYTEARRAY`, and re-encoded to base64
+in the FreeMarker payload at send time.
+
+### B21
+
+**BLOCKER P3.** `MdcUserFilter` stays after Spring Security; a new profile lists `graylog` beside it.
+
+**The `graylog` Spring profile is what turns GELF on.** `cib7` and `backend`
+define their GELF appender inside `<springProfile name="graylog">` in
+`logback-spring.xml`, and docker-compose sets `SPRING_PROFILES_ACTIVE=graylog`.
+A bare `mvn spring-boot:run` logs to the console only, on purpose — the
+`graylog` hostname does not resolve outside the compose network. Adding a
+second profile to a service means listing `graylog` alongside it.
+
+**`user_id` in logs comes from the MDC, set after Spring Security.**
+`MdcUserFilter` is registered at servlet order `-99`, one step after Spring
+Security's chain at `-100`. Move it earlier and it silently sees an empty
+`SecurityContext` and logs no user at all.

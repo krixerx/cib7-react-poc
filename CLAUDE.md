@@ -59,7 +59,7 @@ cd mcp && npm run format:check && npm run lint && npm run typecheck && npm test 
 Single tests:
 
 ```bash
-mvn -f cib7/pom.xml test -Dtest=DmnEvaluationTest
+mvn -f cib7/pom.xml test -Dtest=DecisionExamplesTest
 cd frontend && npm test -- --run src/api/bpmn.test.ts
 ```
 
@@ -106,7 +106,7 @@ browser ──OIDC PKCE──▶ Keycloak (:8180, realm cib7-poc)
    ├─ /engine-rest,
    │  /camunda/*       → cib7/ (Spring Boot 4 + CIB seven 2.2 engine, Postgres)
    ├─ /api/*           → backend/ (Spring Boot 4 business microservice, Postgres)
-   └─ /mcp             → mcp/ (stateless Bearer-proxy MCP sidecar, 11 tools)
+   └─ /mcp             → mcp/ (stateless Bearer-proxy MCP sidecar, 16 tools)
 
 cib7 engine ──all outbound HTTP──▶ esb/ (Apache Camel JBang, YAML routes)
                                      ├─▶ mailpit  (notification emails)
@@ -258,139 +258,75 @@ containers. The short form:
 
 ## Contracts and gotchas that bite
 
-- **`formKey` to form.** A user task carries `camunda:formKey="react:<form-id>"`;
-  the SPA strips `react:` and `forms/resolve.ts` picks the form: a TSX component
-  from `frontend/src/forms/registry.ts` if the spec says `Renderer: tsx`,
-  otherwise the schema renderer, which fetches the pack's
-  `/pack/forms/<form-id>.json` (the pack's image layer,
-  `packs/test/docker/frontend.Dockerfile`, puts `packs/test/frontend`
-  there on top of the pack-less core image; the Vite dev server serves
-  `PACK_DIR` or the core test pack the same way). Nothing validates the id at deploy time,
-  so a wrong id shows up only on the task page, as "No form definition found".
-- **One engine deployment per `processes/<service>/` folder.**
-  `ServiceDeployments.java` scans `classpath*:processes/*/` (the pack directory
-  is on the classpath, the jar holds none) in `@PostConstruct`
-  with duplicate filtering that redeploys a changed service whole
-  (`deployChangedOnly=false`: a BPMN deployed without its DMN breaks
-  `decisionRefBinding="deployment"`). A service's DMNs must live in the same folder because
-  business rule tasks use `camunda:decisionRefBinding="deployment"`.
-- **Group ids have no leading slash.** The Keycloak group path is
-  `/civil-servant`, but the cibseven-keycloak plugin maps it to the engine group
-  id `civil-servant`. `candidateGroups` and authorization grants must use the
-  slash-less form; the realm export keeps the canonical paths.
-- **Variables over ~4 kB must be `byte[]`.** The engine schema (H2 and Postgres
-  alike) stores String/Text variables in a `VARCHAR(4000)` column, so a large String fails during the history flush. PDFs
-  and similar payloads are decoded to `byte[]` with the `pdf` helper bean
-  (`PdfHelper.java`) so they spill to `ACT_GE_BYTEARRAY`, and re-encoded to base64
-  in the FreeMarker payload at send time.
-- **The realm's `frontendUrl` outranks every `KC_HOSTNAME*` setting.** The
-  `attributes.frontendUrl` in `keycloak/cib7-poc-realm.json` decides every URL
-  Keycloak writes into a login page for the `cib7-poc` realm, so it carries the
-  `${PUBLIC_KEYCLOAK_URL}` placeholder and must never be hardcoded: pinned to
-  localhost it produced a login form posting to `http://localhost:8180` on a
-  public deployment whose containers were all configured correctly, with nothing
-  in any log to say so. Related: Keycloak 26 **ignores** the v1 hostname options
-  (`KC_HOSTNAME_URL`, `KC_HOSTNAME_STRICT_HTTPS`) after logging `Hostname v1
-  options ... are still in use`, so the setting is `KC_HOSTNAME`, and the old
-  spelling looks correct in `docker inspect` while configuring nothing. Both are
-  import-time, so changing either needs Keycloak recreated, not restarted.
-- **The realm is two files, imported once.** Keycloak reads one directory:
-  the core realm `keycloak/cib7-poc-realm.json` (settings, roles, the core
-  groups, clients and their service accounts), then the pack's users
-  `packs/test/keycloak/cib7-poc-users-0.json`, who may only join core
-  groups (only those get engine grants; `RealmFilesTest`). `deploy/keycloak/`
-  holds copies that must stay identical. The import runs on Keycloak's first
-  start only, so a change needs the container recreated. The login theme
-  (`keycloak/themes/cib7`) is core and reads the pack's `branding/`, mounted at
-  `login/resources/pack`, at render time: logo, portal texts and brand tokens,
-  checked like the SPA checks them.
-- **The realm export holds no secrets, only placeholders.** The three
-  confidential clients carry `${KEYCLOAK_BACKEND_CLIENT_SECRET}` and friends,
-  resolved from the Keycloak container's environment at import time, so `.env`
-  is the single source and every compose file must pass those variables to
-  Keycloak. They were literals, which put each value in two files that had to
-  agree; a mismatch takes the engine down at startup with
-  `unauthorized_client / Invalid client credentials` from the token endpoint,
-  naming neither file.
-- **Realm placeholders are `${VAR}`, never `${env.VAR}`.** Measured on Keycloak
-  26.1: a client whose secret is `${PROBE_SECRET}` imports as the environment's
-  value, and one written `${env.PROBE_SECRET}` imports as that literal string,
-  silently. An unresolved placeholder becomes the credential, so the symptom is
-  a 401 from the token endpoint rather than any import error. Applies to every
-  placeholder in the realm file — the client secrets, the clients'
-  `${PUBLIC_FRONTEND_URL}` redirect URIs and the realm's `${PUBLIC_KEYCLOAK_URL}`
-  `frontendUrl` alike.
-- **A CIB seven upgrade needs a Flyway migration.** `schema-update` is `false`:
-  the engine only checks that the schema version equals its own and refuses
-  to start otherwise (`true` would create missing tables but never apply an
-  upgrade). Bumping `cibseven.version` therefore means adding a
-  `V<n>__CibSeven...` Java migration next to `V1__CibSevenSchema` that runs the
-  new jar's `db/upgrade/<db>_engine_<from>_to_<to>.sql`.
-  `ProcessEngineAfterFlywayDetector` (registered in `META-INF/spring.factories`)
-  makes the engine wait for Flyway; without it the engine may build first.
-- **An entity change needs a backend migration.** Hibernate runs with
-  `ddl-auto: validate`, so a new or changed column without a
-  `backend/src/main/resources/db/migration/V<n>__*.sql` stops the backend at
-  startup.
-- **A payload template cannot `<#include>`.** The engine's FreeMarker script
-  engine has no template loader, so layouts live in the pack's `documents/`
-  and a payload calls `${documents.html("<name>", execution)}` (PDF, `.ftlh`,
-  HTML-escaped automatically) or `${documents.text(...)}` (email body); the
-  `documents` bean (`DocumentRenderer.java`) renders them with the shared
-  `_brand.ftlh` and the pack's `branding/`.
-- **DMN files must declare `historyTimeToLive`** (CIB seven 2.2 hard rule).
-- **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
-  namespace.
-- **Service texts live in the pack, core texts in the SPA.** A form's texts,
-  service summaries, fee and issuer names and the BPMN display names are
-  `packs/test/frontend/locales/<lang>/<namespace>.json`, loaded before the
-  first render for every namespace `packs/test/frontend/catalog.json`
-  lists; a new form namespace must be listed there. Core screens glob
-  `frontend/src/i18n/locales/<lang>/<namespace>.json`. Supported languages are
-  `en` and `ar` (RTL), so every namespace needs both files; `src/pack/pack.test.ts`
-  fails on a missing key or an untranslated BPMN name.
-- **Styling is plain CSS on tokens; no component library.** Every colour is a
-  token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
-  literal colour in a rule breaks one scheme. The pack's
-  `packs/test/branding/tokens.json` overrides the brand tokens listed in
-  `frontend/src/pack/brand.ts` (and logo, favicon and portal name come from
-  `brand.json` and `locales/<lang>/brand.json` beside it); every other token
-  is core. Area styles live in
-  `frontend/src/styles/*.css`, one sheet per area (base, shell, landing,
-  cases, forms, backoffice, public). Generated forms rely on the class contract in the service-builder
-  template (`field`, `field-input`, `form-banner`, `btn`), so restyle those
-  classes rather than editing forms. Icons are `lucide-react`. MUI v5 is kept
-  only for the `IncidentsPage.tsx` DataGrid, themed per scheme in
-  `src/theme/mui.ts`.
-- **The `graylog` Spring profile is what turns GELF on.** `cib7` and `backend`
-  define their GELF appender inside `<springProfile name="graylog">` in
-  `logback-spring.xml`, and docker-compose sets `SPRING_PROFILES_ACTIVE=graylog`.
-  A bare `mvn spring-boot:run` logs to the console only, on purpose — the
-  `graylog` hostname does not resolve outside the compose network. Adding a
-  second profile to a service means listing `graylog` alongside it.
-- **`user_id` in logs comes from the MDC, set after Spring Security.**
-  `MdcUserFilter` is registered at servlet order `-99`, one step after Spring
-  Security's chain at `-100`. Move it earlier and it silently sees an empty
-  `SecurityContext` and logs no user at all.
+Lessons that apply to one area live in its skill in `.claude/skills/`, each with a rule table and the full story behind every rule: `backend-conventions` (B), `frontend-conventions` (F), `deployment-conventions` (D), `process-artifacts` (P), `esb-conventions` (E), `mcp-conventions` (MCP), `mobile-conventions` (MOB) and `pdf-renderer-conventions` (PDF). A new lesson goes into the skill with one line here, so this file stays small: it is loaded into every session and every agent. `.claude/rules/` points each module at its skill when its files are touched.
+
+- A wrong form id shows up only on the task page, as "No form definition found". See `process-artifacts` P1.
+- One engine deployment per service folder; its DMNs live there too. See `process-artifacts` P2.
+- Group ids have no leading slash (`civil-servant`). See `process-artifacts` P3.
+- A payload template cannot `<#include>`; call the `documents` bean. See `process-artifacts` P4.
+- DMN files declare `historyTimeToLive`, and the namespace is `camunda:`. See `process-artifacts` P5, P6.
+- Variables over ~4 kB must be `byte[]`. See `backend-conventions` B11.
+- A CIB seven upgrade or an entity change needs a Flyway migration. See `backend-conventions` B10.
+- The `graylog` profile turns GELF on; `MdcUserFilter` stays at order `-99`. See `backend-conventions` B21.
+- The realm's `frontendUrl` outranks every `KC_HOSTNAME*` setting, and the v1 hostname options are ignored. See `deployment-conventions` D9.
+- The realm is two files imported once; `deploy/keycloak/` copies stay identical. See `deployment-conventions` D10.
+- The realm export holds only placeholders, written `${VAR}`, never `${env.VAR}`. See `deployment-conventions` D8.
+- nginx upstreams are variables, and `index.html` is never cached. See `deployment-conventions` D1, D2.
+- Service texts live in the pack, core texts in the SPA, in `en` and `ar`. See `frontend-conventions` F6.
+- Styling is plain CSS on tokens, with no component library. See `frontend-conventions` F4.
 - **Cockpit is the debugger.** Connector, DMN and FreeMarker failures surface as
   engine incidents at `/camunda/app/cockpit/`; an incident usually means the spec
   did not cover a case.
-- **nginx upstreams are variables, and `index.html` is never cached.** A literal
-  host in `proxy_pass` is resolved once per worker, so a recreated container
-  answers 502 until nginx restarts; `frontend/nginx.conf` and
-  `mobile/nginx.conf` use `resolver 127.0.0.11` plus a variable. A cached
-  `index.html` asks for bundles the new image no longer has, and a missing
-  `/assets/*.js` must be a 404, not the SPA shell. See `deployment-conventions`
-  D1 and D2.
+
+## Team
+
+The roles are subagents in `.claude/agents/`, built in the teambuilder format; `_team.md` lists them and `_stack.md`, `_standards.md` and `_testing.md` are the shared context they read. `.claude/skills/` holds the rules, and each persona preloads only the ones it needs through `skills:` in its frontmatter. Sonnet runs the roles that work inside strong rule tables (designer, frontend, tester); Opus runs the rest.
+
+## Spec-first workflow (OpenSpec)
+
+Services are specified in their pack (see "Changing a service"). Non-trivial **core** work goes through an OpenSpec change: propose, specs, apply, archive, driven by `/opsx:*` (`.claude/commands/opsx/`). `openspec/specs/` records current behaviour as changes archive into it, and starts empty. Route to personas:
+
+- `/opsx:explore` → `analyst`
+- `/opsx:propose` → `architect`
+- `/opsx:apply` → infer from pending tasks: design → `designer`; service spec or generated artifacts → `process-modeller`; implementation → `programmer-<variant>`; testing → `tester`
+- Before commit → `reviewer` or `/review`
+
+## Agent handoffs
+
+Agents do not talk to each other: the session that runs them carries what one leaves for the next, and whatever exists only in a final report is gone when that session ends. So a handoff is written down.
+
+- **Anything another agent needs goes in `openspec/changes/<change>/handoffs.md`**: a bus route specification, the scenarios a test must cover, a question for the analyst. The first agent with something to hand over creates the file. With no OpenSpec change, it goes in the final report under *For others*.
+- **One entry per handoff, newest last:**
+
+  ```markdown
+  ## <short title>
+
+  - From: process-modeller
+  - To: programmer-backend
+  - Status: open
+  - Task: 2.3 in tasks.md
+
+  What the other agent needs, complete enough to act on without this conversation.
+  ```
+
+- **Before starting, an agent reads the open entries addressed to it.** When it has finished one it sets `Status: done`; a question it cannot answer stays open with a line saying why. Nobody deletes an entry. A change with an open entry is not ready for `/opsx:archive`.
+- **Every agent ends its run with this report:**
+
+  ```markdown
+  Done: what was finished, by task number where there is one
+  Changed: files
+  Verified: commands run and their result, or "not verified" and why
+  For others: handoff entries written, or the handoff itself with no change
+  Blocked: open questions, or "nothing"
+  ```
 
 ## Review rules
 
-The rules a change is checked against live in three skills in `.claude/skills/`:
-`backend-conventions`, `frontend-conventions` and `deployment-conventions`.
-Each is a table of rule IDs and severities; where a rule is already written
+The rules a change is checked against live in the conventions skills in
+`.claude/skills/`, one per module. Each is a table of rule IDs and severities; where a rule is already written
 down here or in `docs/security.md` the table points there, and the rest carry
-their reasoning in the skill. `/review` checks staged changes against all
-three and ends with BLOCKED, ALLOWED WITH WARNINGS or PASSED.
+their reasoning in the skill. `/review` checks staged changes against
+them and ends with BLOCKED, ALLOWED WITH WARNINGS or PASSED.
 
 ## Conventions
 
