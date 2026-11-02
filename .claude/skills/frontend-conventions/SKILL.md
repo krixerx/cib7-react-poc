@@ -21,9 +21,9 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | F1 | BLOCKER P1 | No raw HTML from data: no `dangerouslySetInnerHTML`, `innerHTML =`, `insertAdjacentHTML` | [F1](#f1) |
 | F2 | BLOCKER P1 | No `eval`, `new Function(string)`, `document.write`, string `setTimeout`; no inline `<script>` | [F2](#f2) |
 | F3 | BLOCKER P1 | No secrets in frontend source; `env.js` holds only public values | [F3](#f3) |
-| F4 | BLOCKER P2 | Every colour is a token with a light and a dark value; generated forms keep the class contract | `CLAUDE.md` "Styling is plain CSS on tokens" |
+| F4 | BLOCKER P2 | Every colour is a token with a light and a dark value; generated forms keep the class contract | [F4](#f4) |
 | F5 | BLOCKER P2 | Logical CSS properties (`inset-inline-start`, `margin-inline-end`), never `left`/`right` | [F5](#f5) |
-| F6 | BLOCKER P2 | Every text in both `en` and `ar`; service texts in the pack, core texts in the SPA | `CLAUDE.md` "Service texts live in the pack" |
+| F6 | BLOCKER P2 | Every text in both `en` and `ar`; service texts in the pack, core texts in the SPA | [F6](#f6) |
 | F7 | BLOCKER P2 | Every awaited API call has error handling that renders the server's message as text | [F7](#f7) |
 | F8 | BLOCKER P2 | State that must outlive a conditionally rendered child is owned by the parent | [F8](#f8) |
 | F9 | BLOCKER P2 | A component reads only route params its route declares | [F9](#f9) |
@@ -155,3 +155,34 @@ configured, a leak will fail unrelated files on machines with fewer cores, as it
 `@media (prefers-reduced-motion: no-preference)` or switch them off under `reduce`.
 
 *From roppoc.*
+
+### F4
+
+**BLOCKER P2.** Every colour is a token with a light and a dark value; generated forms keep the class contract.
+
+**Styling is plain CSS on tokens; no component library.** Every colour is a
+token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
+literal colour in a rule breaks one scheme. The pack's
+`packs/test/branding/tokens.json` overrides the brand tokens listed in
+`frontend/src/pack/brand.ts` (and logo, favicon and portal name come from
+`brand.json` and `locales/<lang>/brand.json` beside it); every other token
+is core. Area styles live in
+`frontend/src/styles/*.css`, one sheet per area (base, shell, landing,
+cases, forms, backoffice, public). Generated forms rely on the class contract in the service-builder
+template (`field`, `field-input`, `form-banner`, `btn`), so restyle those
+classes rather than editing forms. Icons are `lucide-react`. MUI v5 is kept
+only for the `IncidentsPage.tsx` DataGrid, themed per scheme in
+`src/theme/mui.ts`.
+
+### F6
+
+**BLOCKER P2.** Every text in both `en` and `ar`; service texts in the pack, core texts in the SPA.
+
+**Service texts live in the pack, core texts in the SPA.** A form's texts,
+service summaries, fee and issuer names and the BPMN display names are
+`packs/test/frontend/locales/<lang>/<namespace>.json`, loaded before the
+first render for every namespace `packs/test/frontend/catalog.json`
+lists; a new form namespace must be listed there. Core screens glob
+`frontend/src/i18n/locales/<lang>/<namespace>.json`. Supported languages are
+`en` and `ar` (RTL), so every namespace needs both files; `src/pack/pack.test.ts`
+fails on a missing key or an untranslated BPMN name.

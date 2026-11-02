@@ -28,9 +28,9 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | D5 | BLOCKER P1 | `/api/internal/**` answers 404 at every ingress | `docs/security.md` §5, §8 |
 | D6 | BLOCKER P1 | The ESB injects `X-Internal-Token` only for callers presenting `X-Bus-Token` | `docs/security.md` §9 |
 | D7 | BLOCKER P1 | A port published by the deploy kit is a configurable binding or profile-gated | [D7](#d7) |
-| D8 | BLOCKER P1 | No secret literal in the realm export or compose files; realm placeholders are `${VAR}` | `CLAUDE.md` gotchas; `docs/security.md` §12 |
-| D9 | BLOCKER P2 | `frontendUrl` and `KC_HOSTNAME` are placeholders; a realm change needs Keycloak recreated | `CLAUDE.md` gotchas |
-| D10 | BLOCKER P2 | `keycloak/` and `deploy/keycloak/` copies stay identical | `CLAUDE.md` "The realm is two files" |
+| D8 | BLOCKER P1 | No secret literal in the realm export or compose files; realm placeholders are `${VAR}` | [D8](#d8); `docs/security.md` §12 |
+| D9 | BLOCKER P2 | `frontendUrl` and `KC_HOSTNAME` are placeholders; a realm change needs Keycloak recreated | [D9](#d9) |
+| D10 | BLOCKER P2 | `keycloak/` and `deploy/keycloak/` copies stay identical | [D10](#d10) |
 | D11 | BLOCKER P2 | Brute-force protection on, permanent lockout off; a password policy fits the seeded users | [D11](#d11) |
 | D12 | BLOCKER P2 | Compose merges `ports` by concatenation; narrow a binding in the base file, not an overlay | [D12](#d12) |
 | D13 | BLOCKER P2 | Containers run as non-root on pinned images | `docs/security.md` §11 |
@@ -120,3 +120,56 @@ feature with no log. The deploy step lists the secrets it forwards and aborts on
 `deploy.sh` does for the dev defaults.
 
 *From roppoc.*
+
+### D8
+
+**BLOCKER P1.** No secret literal in the realm export or compose files; realm placeholders are `${VAR}`.
+
+**The realm export holds no secrets, only placeholders.** The three
+confidential clients carry `${KEYCLOAK_BACKEND_CLIENT_SECRET}` and friends,
+resolved from the Keycloak container's environment at import time, so `.env`
+is the single source and every compose file must pass those variables to
+Keycloak. They were literals, which put each value in two files that had to
+agree; a mismatch takes the engine down at startup with
+`unauthorized_client / Invalid client credentials` from the token endpoint,
+naming neither file.
+
+**Realm placeholders are `${VAR}`, never `${env.VAR}`.** Measured on Keycloak
+26.1: a client whose secret is `${PROBE_SECRET}` imports as the environment's
+value, and one written `${env.PROBE_SECRET}` imports as that literal string,
+silently. An unresolved placeholder becomes the credential, so the symptom is
+a 401 from the token endpoint rather than any import error. Applies to every
+placeholder in the realm file — the client secrets, the clients'
+`${PUBLIC_FRONTEND_URL}` redirect URIs and the realm's `${PUBLIC_KEYCLOAK_URL}`
+`frontendUrl` alike.
+
+### D9
+
+**BLOCKER P2.** `frontendUrl` and `KC_HOSTNAME` are placeholders; a realm change needs Keycloak recreated.
+
+**The realm's `frontendUrl` outranks every `KC_HOSTNAME*` setting.** The
+`attributes.frontendUrl` in `keycloak/cib7-poc-realm.json` decides every URL
+Keycloak writes into a login page for the `cib7-poc` realm, so it carries the
+`${PUBLIC_KEYCLOAK_URL}` placeholder and must never be hardcoded: pinned to
+localhost it produced a login form posting to `http://localhost:8180` on a
+public deployment whose containers were all configured correctly, with nothing
+in any log to say so. Related: Keycloak 26 **ignores** the v1 hostname options
+(`KC_HOSTNAME_URL`, `KC_HOSTNAME_STRICT_HTTPS`) after logging `Hostname v1
+options ... are still in use`, so the setting is `KC_HOSTNAME`, and the old
+spelling looks correct in `docker inspect` while configuring nothing. Both are
+import-time, so changing either needs Keycloak recreated, not restarted.
+
+### D10
+
+**BLOCKER P2.** `keycloak/` and `deploy/keycloak/` copies stay identical.
+
+**The realm is two files, imported once.** Keycloak reads one directory:
+the core realm `keycloak/cib7-poc-realm.json` (settings, roles, the core
+groups, clients and their service accounts), then the pack's users
+`packs/test/keycloak/cib7-poc-users-0.json`, who may only join core
+groups (only those get engine grants; `RealmFilesTest`). `deploy/keycloak/`
+holds copies that must stay identical. The import runs on Keycloak's first
+start only, so a change needs the container recreated. The login theme
+(`keycloak/themes/cib7`) is core and reads the pack's `branding/`, mounted at
+`login/resources/pack`, at render time: logo, portal texts and brand tokens,
+checked like the SPA checks them.
