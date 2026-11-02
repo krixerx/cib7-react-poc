@@ -8,19 +8,19 @@
 # esb/routes/ — no Dockerfile change.
 FROM apache/camel-jbang:4.22.1-21-jdk
 
-# The base image lags Ubuntu's security pocket; OpenSSL had fixed HIGH CVEs
-# (Trivy in docker-publish.yml) that a package upgrade picks up, and curl,
-# expat and SQLite had fixed MEDIUM ones (Trivy, 2026-10-06). Pebble, the
-# Temurin base's Go-built service manager, had fixed HIGH Go stdlib CVEs
-# (2026-10-13); camel is the entrypoint and nothing starts Pebble, so it goes.
+# The base image lags Ubuntu's security pocket, so every package is upgraded
+# rather than a named list: the list blocked publishing each time a fix landed
+# in a package it did not name yet (libbrotli1, CVE-2026-111497, 2026-11-02).
+# Pebble, the Temurin base's Go-built service manager, had fixed HIGH Go stdlib
+# CVEs (2026-10-13); camel is the entrypoint and nothing starts Pebble, so it
+# goes.
 # PACKAGES_REFRESH (the build date, docker-publish.yml) changes daily, so the
 # CI layer cache cannot keep serving an upgrade layer older than Ubuntu's
 # newest fixes (a fixed HIGH in libcurl4t64 blocked publishing, 2026-10-19).
 ARG PACKAGES_REFRESH
 USER root
 RUN apt-get update \
-  && apt-get install -y --only-upgrade --no-install-recommends openssl libssl3t64 openssl-provider-legacy \
-       curl libcurl4t64 libexpat1 libsqlite3-0 \
+  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/* \
   && rm -f /usr/bin/pebble
 
