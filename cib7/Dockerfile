@@ -9,7 +9,7 @@
 # is a test resource only, and the tests are skipped here.
 
 # --- build stage ---------------------------------------------------------
-FROM maven:3.9.16-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build/cib7
 COPY cib7/ .
 RUN mvn -B -DskipTests clean package
@@ -17,7 +17,7 @@ RUN mvn -B -DskipTests clean package
 # --- runtime stage -------------------------------------------------------
 # Pinned to a Temurin patch release; Dependabot's docker ecosystem proposes
 # the next one.
-FROM eclipse-temurin:21.0.12.1_1-jre
+FROM eclipse-temurin:21.0.13_9-jre
 # Runs as an unprivileged system user (docs/security.md rule 11). The jar is
 # root-owned and read-only to it; /app is its own so anything the app writes
 # next to the jar does not need root.
