@@ -9,7 +9,7 @@
 # is a test resource only, and the tests are skipped here.
 
 # --- build stage ---------------------------------------------------------
-FROM maven:3.9.16-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build/cib7
 COPY cib7/ .
 RUN mvn -B -DskipTests clean package
