@@ -14,13 +14,12 @@ taken from the form schemas (and `notOffered`), and the specs gained their
 service examples.
 
 **When to read this:** before writing or changing anything in a service pack,
-before changing core code that reads pack files, and before a core release.
-This is the contract between the core (this repository's modules) and a
-service pack (one repository per customer: the reference pack is
-[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack);
-the core's own tests run on `packs/test/`, a frozen copy of it).
-The core reads a pack only through the formats below; a pack reaches the core
-only through them.
+and before changing core code that reads pack files. This is the contract
+between the core (this repository's modules) and a service pack (one
+directory `packs/<pack>/` per customer; the reference pack, `packs/reference/`,
+is the one the core's own tests run on). The core reads a pack only through
+the formats below; a pack reaches the core only through them. A new customer's
+pack is a new directory under `packs/` with the same layout.
 
 Contents: [Versioning](#versioning) · [Pack layout](#pack-layout) ·
 [Formats](#formats) · [What templates and documents see](#what-templates-and-documents-see) ·
@@ -36,16 +35,16 @@ The platform API has a `major.minor` version, stated above and in
 
 - **A minor only adds:** an optional key, a new field type, a new bean, a new
   token. A pack built for `2.0` runs on every `2.x`.
-- **A major may break:** a key renamed or removed, a meaning changed. Packs
-  move to it with the core release notes.
-- **The service-builder writes for one platform API.** Each core release
-  ships it as `service-builder-<x.y.z>.tar.gz` on its GitHub release
-  (`release.yml`); a pack repository vendors the copy for the core version it
-  runs on, and its `VERSION` file names both.
+- **A major may break:** a key renamed or removed, a meaning changed. Every
+  pack under `packs/` moves to it in the same change, by regenerating with
+  the service-builder.
+- **The service-builder writes for the current platform API.** It lives in
+  `.claude/skills/service-builder/` and changes in the same commit as the
+  formats it writes.
 - **The pack states what it needs** in `pack.yaml` (`platform: "2.0"`). The
   engine (before deploying anything) and the backend (before reading any
-  descriptor) refuse to start with another major or a newer minor, and say
-  which core release fits.
+  descriptor) refuse to start with another major or a newer minor, so a
+  pack image built on mismatched core images fails at startup.
 - **Formats also carry their own version** where they are read by the SPA,
   which cannot read `pack.yaml`: form definitions, the catalog, `brand.json`
   and `tokens.json` say `"version": 1` and are refused whole at another
@@ -77,8 +76,8 @@ refuses the file (or the start), never half of it.
 │   ├── catalog.json
 │   ├── forms/<form-id>.json
 │   └── locales/<lang>/<namespace>.json
-├── docker/core.conf                   the core release the pack runs on (CORE_VERSION; Renovate bumps it) and its images' digests (*_CORE_DIGEST)
-├── docker/<image>.Dockerfile         the pack's images: each FROM a core image, adds the pack's files
+├── docker/<image>.Dockerfile         the pack's images: each FROM a core image (a build argument
+│                                     such as ENGINE_CORE names it), adds the pack's files
 │                                     (frontend, engine, backend, mcp, mobile); a pack with
 │                                     ESB routes adds esb.Dockerfile (FROM the bus image,
 │                                     COPY esb/routes/ to /routes/). Keycloak runs the stock
@@ -89,13 +88,10 @@ refuses the file (or the start), never half of it.
     └── locales/<lang>/brand.json
 ```
 
-Beside these, a pack repository carries its tooling (inert while the pack
-sits in the core repository): `.claude/skills/service-builder/` (vendored by
-`scripts/update-core.sh <x.y.z>` from that core release),
-`.github/workflows/check.yml` (the core's `pack-check.sh` at `CORE_VERSION`,
-and the vendored skill from the same release), `.github/workflows/publish.yml`
-(the layers on the core images, Trivy, push), `renovate.json`, `README.md` and
-`CLAUDE.md`. The reference pack's repository is the template for all of them.
+A pack carries no tooling of its own: the service-builder, `pack-check.sh`
+and the workflows that build its layers (`docker-publish.yml`) and deploy it
+(`deploy.yml`, variable `PACK`) are the repository's. A pack has a short
+`README.md`.
 
 The pack's specs, the source of everything generated in it, live in its
 `docs/business/services/<service>/`, together with the generated MCP
@@ -175,7 +171,7 @@ a major.
 
 A pack carries its services' tests as data in the specs, and the core runs
 them in `scripts/pack-check.sh`, so a service's expected behaviour travels
-with the pack and holds on every core release it runs on:
+with the pack and holds on every core change:
 
 | In the spec | Run by | Against |
 |---|---|---|
@@ -220,7 +216,7 @@ section exists; flow scenarios are recommended, not required.
 ## Checking a pack
 
 ```bash
-scripts/pack-check.sh [pack-dir]      # default: packs/test, the core test pack
+scripts/pack-check.sh [pack-dir]      # default: packs/reference
 ```
 
 Runs every check above against the pack: the engine's and the backend's

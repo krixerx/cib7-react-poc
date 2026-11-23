@@ -22,9 +22,8 @@ is and how to operate the host) and [`deployment.md`](deployment.md)
 
 | Workflow | Runs when | Does |
 |---|---|---|
-| [`quality.yml`](../.github/workflows/quality.yml) | every PR; on `main` as the first job of `docker-publish.yml` (reusable workflow) | `mvn verify` for `cib7` + `backend` (Spotless included), format/lint/typecheck/test/build for `frontend` and `mcp`, and packaging the vendorable service-builder (`scripts/package-service-builder.mjs`, which fails on a link that would be dead in a pack repository). The same commands as the ones in `CLAUDE.md`, so a green local run means a green CI run. |
-| [`docker-publish.yml`](../.github/workflows/docker-publish.yml) | every push to `main`, a `v<x.y.z>` tag, or by hand | Runs `quality.yml`, and only if it passes builds the seven core images (`krixerx/cib7-poc-*-core` for frontend, mobile, cib7, backend and mcp, plus `cib7-poc-pdf-renderer` and `cib7-poc-esb`, which hold nothing of a pack), scans each with Trivy (fails on a fixable HIGH or CRITICAL vulnerability, before anything is pushed) and pushes them. A pack's images are layers on these, built and pushed by the pack repository's own `publish.yml` (the reference pack: [krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack)). Every image is tagged `latest` and the commit's 7-character SHA; a `v<x.y.z>` tag also tags it `<x.y.z>`, the core version a pack's layers name in their `*_CORE` build argument. |
-| [`release.yml`](../.github/workflows/release.yml) | a `v<x.y.z>` tag | Packages the service-builder skill for that core release and attaches `service-builder-<x.y.z>.tar.gz` to the tag's GitHub release (creating the release if needed). A pack repository unpacks it into `.claude/skills/service-builder/`; its `VERSION` names the core release and the platform API. |
+| [`quality.yml`](../.github/workflows/quality.yml) | every PR; on `main` as the first job of `docker-publish.yml` (reusable workflow) | `mvn verify` for `cib7` + `backend` (Spotless included) and format/lint/typecheck/test/build for `frontend` and `mcp`, all run on the reference pack `packs/reference/`. The same commands as the ones in `CLAUDE.md`, so a green local run means a green CI run. |
+| [`docker-publish.yml`](../.github/workflows/docker-publish.yml) | every push to `main`, a `v<x.y.z>` tag, or by hand | Runs `quality.yml`, and only if it passes builds the seven core images (`krixerx/cib7-poc-*-core` for frontend, mobile, cib7, backend and mcp, plus `cib7-poc-pdf-renderer` and `cib7-poc-esb`, which hold nothing of a pack), scans each with Trivy (fails on a fixable HIGH or CRITICAL vulnerability, before anything is pushed) and pushes them, each tagged `latest` and the commit's 7-character SHA, and on a `v<x.y.z>` tag also `<x.y.z>`. Then job `pack-layers` builds the reference pack's five layers (`packs/reference/docker/<layer>.Dockerfile`, each FROM the core image of the same commit through its `*_CORE` build argument), checks that each runs as non-root, scans it with Trivy (with the module's own `.trivyignore.yaml`) and pushes it as `eregistrations-reference-<layer>`, tagged `latest`, the short SHA and the pack version from `pack.yaml`. |
 | [`security.yml`](../.github/workflows/security.yml) | every PR, every push to `main`, Mondays 05:17 UTC | `npm audit --audit-level=high` for `frontend`, `mcp`, `scripts` and `pdf-renderer`, and a Trivy filesystem scan (Maven poms, npm locks, committed secrets; HIGH and CRITICAL with a fix). Not a publish gate, so a new advisory turns it red without blocking unrelated merges. |
 | [`codeql.yml`](../.github/workflows/codeql.yml) | **only when you ask** (`workflow_dispatch`) | CodeQL static analysis with the `security-extended` queries for `java-kotlin` (`cib7`, `backend`), `javascript-typescript` (`frontend`, `mcp`, `pdf-renderer`, `scripts`) and `actions`, all in build-mode none. Findings go to Security > Code scanning. Fails only if the analysis itself fails, not on findings. |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | **only when you ask** (`workflow_dispatch`) | Ships the `deploy/` bundle to the VM over SSH and runs the host's `deploy.sh`. Builds nothing. |
@@ -50,7 +49,7 @@ exceptions. There is one:
 `cib7/.trivyignore.yaml` is empty: the engine's one accepted finding
 (Spring MVC's XsltView, CVE-2026-47884) went with the move to Spring Boot 4.
 The file stays, because `security.yml` passes it to the filesystem scan and
-service packs scan their engine layer with the core release's copy.
+`pack-layers` scans the pack's engine layer with it.
 
 The deploy is manual on purpose: a deploy restarts the engine and can run
 schema migrations against the live Postgres data, which is not something a
@@ -69,7 +68,7 @@ Inputs, all optional:
 
 | Input | Default | Meaning |
 |---|---|---|
-| `pack_ref` | `main` | Commit, tag or branch of the service pack repository (`PACK_REPO`) to deploy. Its images (`<PACK_IMAGE_PREFIX>-*:<7-char SHA>`) and its core release (`docker/core.conf`) follow from it. Name an older commit to roll back. |
+| `ref` | the dispatched commit | Commit, tag or branch of this repository to deploy. Its deploy kit, its pack data and its images (core and pack, both tagged with its 7-char SHA) follow from it. Name an older commit to roll back. |
 | `ship_realm` | off | Also overwrite `keycloak/cib7-poc-realm.json` and the pack's `pack/keycloak/cib7-poc-users-0.json` on the host. Off by default because the host's copy may be customised, and the import is one-shot. |
 | `recreate_keycloak` | off | Recreate Keycloak so an edited realm is re-imported. Drops every session and every runtime-registered user. |
 | `skip_backup` | off | Skip the rustfs volume backup (uploaded documents, generated PDFs). |
@@ -84,17 +83,18 @@ What the run does:
    (see below), so a host whose `routes.yml` or `.env` is not ready for
    this commit fails here, before the bundle is shipped. Always runs; a
    deploy never starts against a host it cannot reach or is not ready.
-2. **Resolves the pack**: clones `PACK_REPO` at `pack_ref`, takes its
-   commit's 7-char SHA as the pack image tag and `CORE_VERSION` from its
-   `docker/core.conf` as the core release.
-3. **Verifies the images exist**: the pack's five layers under its tag and
-   the core-only images (esb, pdf-renderer) under the core release. The
+2. **Resolves the commit**: checks out `ref` and takes its 7-char SHA as
+   both `PACK_TAG` and `CORE_TAG`. The pack is `packs/$PACK` (variable
+   `PACK`, default `reference`), which must hold
+   `keycloak/cib7-poc-users-0.json` and `branding/brand.json`.
+3. **Verifies the images exist**: the pack's five layers and the core-only
+   images (esb, pdf-renderer), all under that SHA. The
    image names are read out of `deploy/docker-compose.yml` itself, so
    this check cannot drift from what compose will pull, and a tag nobody
    built fails the run in ten seconds instead of half-way through.
 4. **Ships the bundle and the pack's data**: every git-tracked file under
-   `deploy/` (the core kit) at the core release's tag `v<core>`, plus the
-   pack's `keycloak/cib7-poc-users-0.json` and `branding/` under `pack/`,
+   `deploy/` (the core kit) at that commit, plus `packs/$PACK`'s
+   `keycloak/cib7-poc-users-0.json` and `branding/` under `pack/`,
    as a tar over SSH. The branding is
    replaced whole. Because the kit's list is `git ls-files`, a new tracked
    file ships without anyone remembering to add it here, and every per-host
@@ -109,8 +109,8 @@ What the run does:
    Those tests run on the host deliberately — the runner's only route in
    is port 22, so probing from the runner would fail a good deploy.
 7. **Asserts the running images are the expected builds**: the pack's
-   layers carry the pack commit, the core-only images the commit of the
-   core release tag, by the `org.opencontainers.image.revision` label
+   layers and the core-only images all carry the deployed commit, by the
+   `org.opencontainers.image.revision` label
    rather than the image ID (an ID is the config digest in the classic
    image store and the manifest digest in the containerd one, so
    comparing IDs fails a perfectly good deploy).
@@ -134,8 +134,8 @@ a secret if you prefer:
 | `VM_HOST` | `poc.example.com` | Hostname or IP of the VM. |
 | `VM_USER` | `deploy` | SSH login. Must be in the `docker` group. |
 | `VM_DEPLOY_DIR` | `/opt/cib7-poc/deploy` | Optional; that value is the default. |
-| `PACK_REPO` | `krixerx/eregistrations-reference-pack` | Optional; the service pack this instance runs. Another country or customer: another pack repository (and its own instance). |
-| `PACK_IMAGE_PREFIX` | `docker.io/krixerx/eregistrations-reference` | Optional; that pack's images, as its repository's `IMAGE_PREFIX` variable publishes them. |
+| `PACK` | `reference` | Optional; the directory under `packs/` this instance runs. Another country or customer: another pack directory (and its own instance). `docker-publish.yml` builds only `packs/reference`'s layers today, so another pack first needs its layers built there. |
+| `PACK_IMAGE_PREFIX` | `docker.io/krixerx/eregistrations-reference` | Optional; that pack's images, as `docker-publish.yml` names them (`<prefix>-<layer>`). |
 
 Repository **secrets**:
 
@@ -144,7 +144,6 @@ Repository **secrets**:
 | `VM_SSH_PRIVATE_KEY` | The private half of a key whose public half is in `~/$VM_USER/.ssh/authorized_keys` on the VM. Paste it whole, or as one base64 line — the workflow accepts either and strips CRs. |
 | `VM_KNOWN_HOSTS` | `ssh-keyscan <VM_HOST>` (without `-H`, so each line names the host in clear and can be checked). The first field must be exactly the `VM_HOST` value, or a comma-separated list containing it — a pin written for the hostname does not match when `VM_HOST` is the IP. **Required**: with it empty, every job that would log in fails before connecting (there is no trust-on-first-use). That failing run prints the scanned lines and their fingerprints for you; check the fingerprints against the VM before pasting them. |
 | `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | Already set for `docker-publish.yml`. The deploy uses them only so its tag check does not spend the shared runner's anonymous pull quota. |
-| `PACK_REPO_TOKEN` | Optional: read access to a private pack repository. A public pack needs none. |
 
 The deploy job declares `environment: vm`, so GitHub records a
 deployment per commit. Add a required reviewer or a wait timer under
@@ -223,21 +222,18 @@ SSH to that host. Three ways out, best first:
 
 ## Rolling back
 
-Deploying an older build is a normal deploy of an older pack commit:
+Deploying an older build is a normal deploy of an older commit:
 
 ```bash
-gh workflow run deploy.yml --ref main -f pack_ref=04ea5f4
+gh workflow run deploy.yml --ref main -f ref=04ea5f4
 ```
 
-The core release follows from that commit's `docker/core.conf`, and so does
-the deploy kit: the run ships `deploy/` from this repository's `v<core>` tag,
-not from the dispatched ref, so the kit always matches the core images.
+The run checks out that commit, so the deploy kit, the pack's data and the
+images all come from it and match each other.
 
 The images are immutable per commit, so this puts the exact previous
-build back. Two consequences worth knowing before you do it: the
-revision assertion is skipped (that tag is not this ref's commit), and
-recreating the engine means the cases running right now are gone — see
-below.
+build back. One consequence worth knowing before you do it: recreating the
+engine means the cases running right now are gone, see below.
 
 ## Gotchas
 

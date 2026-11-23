@@ -12,4 +12,4 @@
 
 ## Quality gate
 
-Done means the commands under "Quality gates" in `CLAUDE.md` pass (the same as `quality.yml`), `scripts/pack-check.sh` passes when the change touches a pack format or `packs/test/`, and every security fix has a negative test. CI also checks the Keycloak theme sync and the service-builder package.
+Done means the commands under "Quality gates" in `CLAUDE.md` pass (the same as `quality.yml`), `scripts/pack-check.sh` passes when the change touches a pack format or `packs/reference/`, and every security fix has a negative test. CI also checks the Keycloak theme sync.

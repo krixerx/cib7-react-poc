@@ -1,9 +1,0 @@
-# Generated from docs/business/services/business-registration/README.md (State fee).
-# Do not hand-edit. Read by the backend's FeeCatalog.
-platform: 2
-process: businessRegistration
-service: OÜ registration state fee
-recipient: Äriregister (Justiitsministeerium)
-currency: EUR
-amount:
-  flat: 265

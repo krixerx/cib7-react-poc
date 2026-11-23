@@ -17,8 +17,8 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 /**
  * The registry module through the real filter chains: the negative cases of docs/security.md rule 5
- * on the test pack's public {@code vehicles} and a test-only {@code plates} entity that is internal
- * only.
+ * on the reference pack's public {@code vehicles} and a test-only {@code plates} entity that is
+ * internal only.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

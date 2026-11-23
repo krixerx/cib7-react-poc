@@ -18,19 +18,18 @@ or deployment unit; when debugging "who calls whom" questions.
 
 ## System overview
 
-**Repo shape — core and service packs.** This repository is the core: the
+**Repo shape — core and service packs.** This repository holds the core: the
 CIB seven engine module (`cib7/`), the business microservice (`backend/`),
 the frontend (`frontend/`), the mobile app (`mobile/`), the MCP sidecar
 (`mcp/`), the bus (`esb/`), the core Keycloak realm and login theme
-(`keycloak/`), Docker orchestration and the docs. They are versioned and
-released together (`v<x.y.z>` tags, images `cib7-poc-*-core`), so one change
-can still cross the React ↔ engine boundary atomically. The services are
-**service packs**, one repository per customer (the reference pack:
-[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack)):
-data only, read through the platform API ([`platform-api.md`](platform-api.md)),
-shipped as thin image layers on the core images. Paths written `<pack>/`
-below are inside a pack; in this repository that is `packs/test/`, a frozen
-copy of the reference pack that the tests and `docker compose` run on.
+(`keycloak/`), Docker orchestration and the docs, built together as the
+images `cib7-poc-*-core`, so one change can still cross the React ↔ engine
+boundary atomically. The services are **service packs** in the same
+repository, one directory `packs/<pack>/` per customer: data only, read
+through the platform API ([`platform-api.md`](platform-api.md)), shipped as
+thin image layers on the core images of the same commit. Paths written
+`<pack>/` below are inside a pack; the reference pack `packs/reference/` is
+the one the tests and `docker compose` run on.
 
 **Module split.** `cib7/` is a *clean engine*: CIB seven 2.2 + plugins +
 connectors + BPMN/DMN/FreeMarker resources, no business endpoints. Every
@@ -259,13 +258,12 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   (realm + clients + role + group + user). Publishes port `8180` mapped to
   container port `8080`. `KC_HOSTNAME_URL=http://localhost:8180` pins a
   single canonical issuer URL.
-- **cib7** — the test pack's engine layer
-  (`packs/test/docker/engine.Dockerfile`) on the core image, which
+- **cib7** — the reference pack's engine layer
+  (`packs/reference/docker/engine.Dockerfile`) on the core image, which
   compose builds from `cib7/Dockerfile` as `cib7-core` (`scale: 0`); the
   same split holds for **backend** (`backend-core`) and **mcp** (`mcp-core`).
-  CI publishes the core images as `cib7-poc-<name>-core`; a pack
-  repository builds and publishes its layers on them, and a deployment
-  runs those (`deploy/`, [`ci-cd.md`](ci-cd.md)).
+  CI publishes the core images as `cib7-poc-<name>-core` and the reference
+  pack's layers on them, and a deployment runs those (`deploy/`, [`ci-cd.md`](ci-cd.md)).
   Network-internal on port `8080` (reached through Traefik / the frontend
   nginx). Reaches Keycloak over the docker network at `http://keycloak:8080`
   (internal), while the browser uses `http://localhost:8180` (external) —
@@ -278,7 +276,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `BACKEND_API_URL` / `INTERNAL_TASK_TOKEN`, and no longer knows any
   individual system's address.
 - **backend** — core image from `backend/Dockerfile`, pack layer
-  `packs/test/docker/backend.Dockerfile`. Network-internal on port
+  `packs/reference/docker/backend.Dockerfile`. Network-internal on port
   `8085`; Traefik (and the frontend nginx fallback) route `/api` to it.
   Owns the `/api/**` business surface; depends on `keycloak` (healthy),
   `rustfs` (healthy), and `cib7` (started). Authenticates its
@@ -290,19 +288,19 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
   `pending/` lifecycle rule are bootstrapped by the backend on startup.
-- **frontend** — the test pack's portal image: a thin layer
-  (`packs/test/docker/frontend.Dockerfile`) adding the pack's
+- **frontend** — the reference pack's portal image: a thin layer
+  (`packs/reference/docker/frontend.Dockerfile`) adding the pack's
   `frontend/` and `branding/` under `/pack/` to the core image, which
   compose builds from `frontend/Dockerfile` as `frontend-core` (multi-stage:
   Vite build → `nginx-unprivileged`, uid 101; `scale: 0`, so it never runs on
-  its own). CI publishes the core image as `cib7-poc-frontend-core`; a pack
-  repository publishes its layer on it (`<IMAGE_PREFIX>-frontend`). Publishes port `3000` mapped to container
+  its own). CI publishes the core image as `cib7-poc-frontend-core` and the pack's
+  layer on it (`eregistrations-reference-frontend`). Publishes port `3000` mapped to container
   port `8080`. Sets the security headers and the `/api/public` and `/mcp`
   rate limits; its CSP is generated at start from `KEYCLOAK_URL` and
   `S3_PUBLIC_URL`. `depends_on: cib7` (start ordering only — nginx does not
   wait for the engine to be healthy). **mobile** is the same shape on
   `3001` → `8080` (core `mobile/Dockerfile` as `mobile-core`, pack layer
-  `packs/test/docker/mobile.Dockerfile`; its start script also fills
+  `packs/reference/docker/mobile.Dockerfile`; its start script also fills
   the page title and install manifest from the pack's branding).
 - **mailpit** — `axllent/mailpit:v1.31.3`. Network-internal: web UI and send
   API on `8025`, SMTP on `1025` (unused — the engine uses the HTTP API via
@@ -329,7 +327,7 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `backend` (that would be a `backend → cib7 → esb` startup cycle); the route
   resolves the backend at request time.
 - **mcp** — core image from `mcp/Dockerfile` (repo root as context, for
-  the core's `core-v1.json`), pack layer `packs/test/docker/mcp.Dockerfile`
+  the core's `core-v1.json`), pack layer `packs/reference/docker/mcp.Dockerfile`
   (the pack's specs folder and engine form schemas). Node 24 +
   TypeScript + Express + `@modelcontextprotocol/sdk` + `jose`. Internal
   only on port 8090; exposed publicly via nginx at `/mcp` and the
@@ -454,7 +452,7 @@ declared in the service pack, not written as Java. The spec's
 service builder, a descriptor `<pack>/backend/registry/<entity>.yaml`
 and a Flyway migration `<pack>/backend/db/registry/V<n>__*.sql`
 (table plus seed rows). The pack's backend layer
-(`packs/test/docker/backend.Dockerfile`) puts them in `/opt/services`
+(`packs/reference/docker/backend.Dockerfile`) puts them in `/opt/services`
 on the classpath (`PropertiesLauncher`, `loader.path`), like the engine's pack.
 
 - `RegistryMigrations` runs the pack's migrations in their own `registry`

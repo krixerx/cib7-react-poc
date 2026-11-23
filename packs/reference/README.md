@@ -1,16 +1,14 @@
 # Reference service pack
 
 The services, texts, branding and users of one eRegistrations deployment,
-as data for the eRegistrations core. This pack ships two services,
-`vehicleRegistration` and `businessRegistration`. The core (engine,
-backend, portal, mobile app, MCP sidecar, bus) is a separate, versioned
-product: this pack names the core release it runs on in
-[`docker/core.conf`](docker/core.conf), and a core update reaches it as a
-version bump, not a merge.
+as data for the core in this repository. This pack ships two services,
+`vehicleRegistration` and `businessRegistration`. The core's tests,
+`docker compose`, `mvn spring-boot:run` and `npm run dev` run on it.
 
-Core and pack meet only through the formats of the core's
-[platform API](https://github.com/krixerx/cib7-react-poc/blob/main/docs/platform-api.md);
-`pack.yaml` says which platform API this pack is written for.
+Core and pack meet only through the formats of the
+[platform API](../../docs/platform-api.md); `pack.yaml` says which platform
+API this pack is written for. Another customer's pack is another directory
+under `packs/` with the same layout.
 
 ## What is here
 
@@ -23,35 +21,28 @@ Core and pack meet only through the formats of the core's
 | `frontend/` | catalog, form definitions, texts in every language |
 | `branding/` | logo, colours, portal name |
 | `keycloak/` | the realm's users (they join the core's groups) |
-| `docker/` | the pack's images, each a thin layer on a core image; `core.conf` names the core release |
-| `.claude/skills/service-builder/` | the service-builder of that core release (vendored by `scripts/update-core.sh`) |
-| `.github/workflows/` | `check.yml` (the core's pack-check at that release), `publish.yml` (the images) |
+| `docker/` | the pack's images, each a thin layer on a core image |
 
 ## Changing a service
 
 Specs first: edit the markdown under `docs/business/services/<service>/`,
 run `/service-builder` in Claude Code, and commit the spec with what it
-generated. Never hand-edit a generated file. A pull request runs the core's
-pack checks; a merge to `main` publishes the images.
-
-## Moving to another core release
+generated as one change. Never hand-edit a generated file. Then check the
+pack:
 
 ```bash
-scripts/update-core.sh <x.y.z>   # CORE_VERSION + the matching service-builder
+scripts/pack-check.sh packs/reference
 ```
 
-Renovate proposes new core releases by changing `docker/core.conf`; that pull
-request fails `check.yml` until `scripts/update-core.sh` has run in it,
-because the vendored service-builder must come from the same release. Read
-the core release notes first: a new platform API major means changing the
-pack.
+A merge to `main` publishes the pack's images (`docker-publish.yml`, job
+`pack-layers`) on the core images of the same commit.
 
 ## Building the images by hand
 
+From the repository root, on a core image of your choice:
+
 ```bash
-. docker/core.conf
-docker build -f docker/engine.Dockerfile \
-  --build-arg ENGINE_CORE=$CORE_IMAGES/cib7-poc-cib7-core:$CORE_VERSION .
+docker build -f packs/reference/docker/engine.Dockerfile   --build-arg ENGINE_CORE=docker.io/krixerx/cib7-poc-cib7-core:<tag> packs/reference
 ```
 
 The same for `frontend`, `backend`, `mcp` and `mobile` (`FRONTEND_CORE`,

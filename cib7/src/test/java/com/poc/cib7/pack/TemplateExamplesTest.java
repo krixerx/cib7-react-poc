@@ -60,7 +60,7 @@ import org.junit.jupiter.api.Test;
 class TemplateExamplesTest {
 
   private static final Path SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../packs/test/docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
   private static final Pattern TEMPLATE = Pattern.compile("payload-template:\\s*(\\S+)");
   private static final Pattern RULE = Pattern.compile("^(contains|matches)\\s+(\".*\")$");
   private static final String HOSTILE = "\"\\\n<b>";

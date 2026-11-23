@@ -1,6 +1,6 @@
 ---
 name: process-artifacts
-description: Rules the engine imposes on the generated service artifacts in a pack's engine/ (BPMN, DMN, FreeMarker payloads, formKey, candidate groups). Use when a generated artifact misbehaves, a service will not deploy, a form is not found, when reviewing a change under packs/test/ and when running /review. To generate artifacts, use service-builder; never hand-edit them.
+description: Rules the engine imposes on the generated service artifacts in a pack's engine/ (BPMN, DMN, FreeMarker payloads, formKey, candidate groups). Use when a generated artifact misbehaves, a service will not deploy, a form is not found, when reviewing a change under packs/reference/ and when running /review. To generate artifacts, use service-builder; never hand-edit them.
 ---
 
 # Process artifacts
@@ -35,9 +35,9 @@ the SPA strips `react:` and `forms/resolve.ts` picks the form: a TSX component
 from `frontend/src/forms/registry.ts` if the spec says `Renderer: tsx`,
 otherwise the schema renderer, which fetches the pack's
 `/pack/forms/<form-id>.json` (the pack's image layer,
-`packs/test/docker/frontend.Dockerfile`, puts `packs/test/frontend`
+`packs/reference/docker/frontend.Dockerfile`, puts `packs/reference/frontend`
 there on top of the pack-less core image; the Vite dev server serves
-`PACK_DIR` or the core test pack the same way). Nothing validates the id at deploy time,
+`PACK_DIR` or `packs/reference` the same way). Nothing validates the id at deploy time,
 so a wrong id shows up only on the task page, as "No form definition found".
 
 ### P2

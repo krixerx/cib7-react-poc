@@ -6,21 +6,19 @@
 # deployed" a question only the server could answer, and answered it wrong as
 # soon as someone edited a tracked file in place.
 #
-# What this does instead: ships one service pack's data together with the
-# deploy kit of the core release that pack names, pins the pack's images and
-# that release, and runs the host's deploy.sh non-interactively. The run log is
-# the deployment record.
+# What this does instead: ships the deploy kit and the service pack's data of
+# one commit of this repository, pins that commit's images, and runs the
+# host's deploy.sh non-interactively. The run log is the deployment record.
 #
-# One kit, many instances: the pack is an input (pack_ref in the PACK_REPO
-# repository, default krixerx/eregistrations-reference-pack), its images are
-# <PACK_IMAGE_PREFIX>-*:<its 7-char SHA>, and the core-only images run the core
-# release its docker/core.conf names. Its users file and branding go to the
-# host's pack/ for the stock Keycloak image.
+# One commit is one build: docker-publish.yml tags every core image and every
+# pack layer with the commit's 7-char SHA, so the core-only images run
+# <image>:<SHA> and the pack's <PACK_IMAGE_PREFIX>-*:<SHA>. The pack is
+# packs/<PACK> (variable PACK, default reference); its users file and
+# branding go to the host's pack/ for the stock Keycloak image.
 #
 # What it deliberately does not do:
-#   * build anything — the pack repository's publish.yml and this repository's
-#     docker-publish.yml publish the images, and this job refuses to start if
-#     any of them is missing;
+#   * build anything — docker-publish.yml publishes the images, and this job
+#     refuses to start if any of them is missing;
 #   * touch deploy/.env, traefik/dynamic/*.yml, traefik/certs/ or traefik/acme/
 #     on the host. Hostnames, client secrets and certificates are that host's
 #     own state; nothing secret has to reach GitHub for a deploy to work;
@@ -36,8 +34,8 @@ name: Deploy to VM
 on:
   workflow_dispatch:
     inputs:
-      pack_ref:
-        description: "Commit, tag or branch of the pack repository (PACK_REPO) to deploy. Blank = main. Roll back by naming an older commit."
+      ref:
+        description: "Commit, tag or branch of this repository to deploy. Blank = the commit this workflow runs from. Roll back by naming an older commit."
         required: false
         type: string
       ship_realm:
@@ -172,77 +170,47 @@ jobs:
       VM_HOST: ${{ vars.VM_HOST || secrets.VM_HOST }}
       VM_USER: ${{ vars.VM_USER || secrets.VM_USER }}
       DEPLOY_DIR: ${{ vars.VM_DEPLOY_DIR || '/opt/cib7-poc/deploy' }}
-      PACK_REPO: ${{ vars.PACK_REPO || 'krixerx/eregistrations-reference-pack' }}
+      PACK: ${{ vars.PACK || 'reference' }}
       PACK_IMAGE_PREFIX: ${{ vars.PACK_IMAGE_PREFIX || 'docker.io/krixerx/eregistrations-reference' }}
     steps:
-      # The workflow and its actions come from the dispatched ref; the deploy
-      # kit is swapped for the core release's below.
+      # The commit to deploy: its deploy kit, its pack data and (by its SHA)
+      # its images. Blank input = the commit this workflow runs from.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
-      - name: Resolve the pack
+      - name: Resolve the commit
         id: pack
         # Through the environment rather than interpolated into the script: an
         # input is free text, and free text spliced into a shell line is a shell
         # line somebody else gets to finish.
         env:
-          INPUT_REF: ${{ inputs.pack_ref }}
-          PACK_TOKEN: ${{ secrets.PACK_REPO_TOKEN }}
+          INPUT_REF: ${{ inputs.ref }}
         run: |
-          REF="${INPUT_REF:-main}"
-          case "$REF" in
-            *[!A-Za-z0-9._/-]*|"") echo "FATAL: '$REF' is not a commit, tag or branch name."; exit 1 ;;
+          case "$INPUT_REF" in
+            *[!A-Za-z0-9._/-]*) echo "FATAL: '$INPUT_REF' is not a commit, tag or branch name."; exit 1 ;;
           esac
-          case "$PACK_REPO" in
-            *[!A-Za-z0-9._/-]*) echo "FATAL: PACK_REPO '$PACK_REPO' is not owner/name."; exit 1 ;;
+          case "$PACK" in
+            ""|*[!a-z0-9-]*) echo "FATAL: PACK '$PACK' is not a directory name under packs/."; exit 1 ;;
           esac
           case "$PACK_IMAGE_PREFIX" in
             *[!a-z0-9._/:-]*) echo "FATAL: PACK_IMAGE_PREFIX '$PACK_IMAGE_PREFIX' is not an image name."; exit 1 ;;
           esac
-          # A private pack repository needs PACK_REPO_TOKEN (read access).
-          URL="https://github.com/$PACK_REPO.git"
-          if [ -n "$PACK_TOKEN" ]; then URL="https://x-access-token:$PACK_TOKEN@github.com/$PACK_REPO.git"; fi
-          git clone --quiet --filter=blob:none --no-checkout "$URL" "$RUNNER_TEMP/pack"
-          git -C "$RUNNER_TEMP/pack" checkout --quiet "$REF"
-          SHA=$(git -C "$RUNNER_TEMP/pack" rev-parse HEAD)
-          # The pack's images carry its 7-char SHA (its publish.yml); its core
-          # release is what docker/core.conf names.
-          CORE=$(sed -n 's/^CORE_VERSION=\([0-9][0-9.]*\)$/\1/p' "$RUNNER_TEMP/pack/docker/core.conf")
-          if [ -z "$CORE" ]; then
-            echo "FATAL: $PACK_REPO@$REF has no CORE_VERSION in docker/core.conf."
-            exit 1
-          fi
+          SHA=$(git rev-parse HEAD)
           for f in keycloak/cib7-poc-users-0.json branding/brand.json; do
-            if [ ! -f "$RUNNER_TEMP/pack/$f" ]; then
-              echo "FATAL: $PACK_REPO@$REF has no $f (docs/platform-api.md, pack layout)."
+            if [ ! -f "packs/$PACK/$f" ]; then
+              echo "FATAL: ${SHA::7} has no packs/$PACK/$f (docs/platform-api.md, pack layout)."
               exit 1
             fi
           done
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "tag=${SHA::7}" >> "$GITHUB_OUTPUT"
-          echo "core=$CORE" >> "$GITHUB_OUTPUT"
-          echo "deploying pack $PACK_REPO@$REF (${SHA::7}) on core $CORE, kit from v$CORE"
-
-      - name: Take the deploy kit from that core release
-        # The kit and the core images are one release: deploy.sh probes
-        # endpoints and compose names images that a given release has. A kit
-        # from the dispatched ref, newer than the pack's core, waited five
-        # minutes for an endpoint the deployed backend did not have yet.
-        # Index and worktree both, so `git ls-files deploy` below lists exactly
-        # the release's files.
-        env:
-          CORE: ${{ steps.pack.outputs.core }}
-        run: |
-          if ! git fetch --quiet --depth=1 origin "refs/tags/v$CORE:refs/tags/v$CORE"; then
-            echo "FATAL: this repository has no tag v$CORE, the core release docker/core.conf names."
-            exit 1
-          fi
-          git rm -r --quiet -- deploy
-          git checkout "v$CORE" -- deploy
+          echo "deploying ${SHA::7} with pack packs/$PACK"
 
       - name: Verify those images exist on Docker Hub
         env:
           PACK_TAG: ${{ steps.pack.outputs.tag }}
-          CORE_TAG: ${{ steps.pack.outputs.core }}
+          CORE_TAG: ${{ steps.pack.outputs.tag }}
           DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
@@ -277,8 +245,8 @@ jobs:
             echo
             echo "FATAL: at least one image is not published."
             echo "Compose on the host would either fail mid-deploy or start a stale mix."
-            echo "The pack's images come from its repository's publish.yml for that commit,"
-            echo "the core's from this repository's docker-publish.yml for tag v$CORE_TAG."
+            echo "docker-publish.yml publishes all of them for a commit on main; check"
+            echo "that its run for $PACK_TAG finished green."
             exit 1
           fi
 
@@ -316,8 +284,8 @@ jobs:
           STAGE="$RUNNER_TEMP/stage"
           mkdir -p "$STAGE/pack/keycloak"
           git ls-files -z -- deploy | sed -z 's,^deploy/,,' | (cd deploy && xargs -0 cp --parents -t "$STAGE")
-          cp "$RUNNER_TEMP/pack/keycloak/cib7-poc-users-0.json" "$STAGE/pack/keycloak/"
-          cp -r "$RUNNER_TEMP/pack/branding" "$STAGE/pack/branding"
+          cp "packs/$PACK/keycloak/cib7-poc-users-0.json" "$STAGE/pack/keycloak/"
+          cp -r "packs/$PACK/branding" "$STAGE/pack/branding"
           # The realm is two files: the core realm and the pack's users, which
           # Keycloak imports from one directory (<realm>-realm.json, then
           # <realm>-users-N.json).
@@ -356,10 +324,10 @@ jobs:
           # a uid that means nothing on this host.
           tar czf - -C "$STAGE" . | ssh vm "tar xzf - --no-same-owner -C '$DEPLOY_DIR'"
 
-      - name: Pin the pack and the core release in the host's .env
+      - name: Pin the commit's images in the host's .env
         env:
           PACK_TAG: ${{ steps.pack.outputs.tag }}
-          CORE_TAG: ${{ steps.pack.outputs.core }}
+          CORE_TAG: ${{ steps.pack.outputs.tag }}
         run: |
           # These also ride the deploy.sh invocation below, and compose lets the
           # process environment win over .env - so these lines do not decide
@@ -394,7 +362,7 @@ jobs:
         # Inputs through the environment, never spliced into the script text.
         env:
           PACK_TAG: ${{ steps.pack.outputs.tag }}
-          CORE_TAG: ${{ steps.pack.outputs.core }}
+          CORE_TAG: ${{ steps.pack.outputs.tag }}
           RECREATE_KEYCLOAK: ${{ inputs.recreate_keycloak }}
           SKIP_BACKUP: ${{ inputs.skip_backup }}
         run: |
@@ -409,11 +377,11 @@ jobs:
           # port 22, so checking from the runner would fail a good deploy.
           ssh vm "cd '$DEPLOY_DIR' && $VARS ./deploy.sh $FLAGS"
 
-      - name: Assert the host runs this pack and core release
+      - name: Assert the host runs this commit's images
         env:
           PACK_SHA: ${{ steps.pack.outputs.sha }}
           PACK_TAG: ${{ steps.pack.outputs.tag }}
-          CORE_TAG: ${{ steps.pack.outputs.core }}
+          CORE_TAG: ${{ steps.pack.outputs.tag }}
         run: |
           ssh vm "cd '$DEPLOY_DIR' && docker compose ps --format 'table {{.Service}}\t{{.Image}}\t{{.Status}}'"
           # Identity is checked by the OCI revision label, not the image ID:
@@ -422,8 +390,7 @@ jobs:
           # reads the same in both image stores - whereas an image ID is the
           # config digest in the classic store and the manifest digest in the
           # containerd one, so comparing IDs fails a perfectly good deploy.
-          CORE_SHA=$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/v$CORE_TAG^{}" | cut -f1)
-          [ -n "$CORE_SHA" ] || CORE_SHA=$(git ls-remote "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/v$CORE_TAG" | cut -f1)
+          CORE_SHA="$PACK_SHA"
           LAYERS=$(grep -oE '\}-[a-z]+:\$\{PACK_TAG' deploy/docker-compose.yml \
                    | sed -E 's/^\}-//; s/:\$\{PACK_TAG$//' | sort -u)
           CORE_IMAGES=$(grep -oE 'image: docker\.io/[^:]+:\$\{CORE_TAG' deploy/docker-compose.yml \
@@ -449,9 +416,9 @@ jobs:
       - name: Summary
         if: always()
         env:
-          PACK_REF: ${{ inputs.pack_ref || 'main' }}
+          DEPLOY_REF: ${{ inputs.ref || github.ref_name }}
           PACK_TAG: ${{ steps.pack.outputs.tag }}
-          CORE_TAG: ${{ steps.pack.outputs.core }}
+          CORE_TAG: ${{ steps.pack.outputs.tag }}
           SHIP_REALM: ${{ inputs.ship_realm }}
           RECREATE_KEYCLOAK: ${{ inputs.recreate_keycloak }}
           BACKUP: ${{ inputs.skip_backup && 'skipped' || 'taken on the host' }}
@@ -462,10 +429,10 @@ jobs:
             echo
             echo "| | |"
             echo "|---|---|"
-            echo "| Pack | \`$PACK_REPO\` @ \`$PACK_REF\` (\`$PACK_TAG\`) |"
+            echo "| Commit | \`$DEPLOY_REF\` (\`$PACK_TAG\`) |"
+            echo "| Pack | \`packs/$PACK\` |"
             echo "| Pack images | \`$PACK_IMAGE_PREFIX-*:$PACK_TAG\` |"
-            echo "| Core release | \`$CORE_TAG\` |"
-            echo "| Deploy kit | \`$GITHUB_SHA\` (\`$GITHUB_REF_NAME\`) |"
+            echo "| Core images | \`*:$CORE_TAG\` |"
             echo "| Deploy dir | \`$DEPLOY_DIR\` |"
             echo "| Realm shipped | $SHIP_REALM |"
             echo "| Keycloak recreated | $RECREATE_KEYCLOAK |"

@@ -1,22 +1,23 @@
 # ============================================================================
 # cib7-react-poc — pull-only deployment (no source checkout, no build).
 #
-# One instance = this core deploy kit + one service pack. The kit holds
-# nothing of a pack; .env names the pack and the core release:
+# One instance = this deploy kit + one service pack, both from one commit.
+# The kit holds nothing of a pack; .env names the pack's images and the
+# commit they were built from:
 #
 #   ${PACK_IMAGE_PREFIX}-frontend:${PACK_TAG}  React SPA (nginx, port 8080)
 #   ${PACK_IMAGE_PREFIX}-mobile:${PACK_TAG}    Flutter web applicant app (nginx, 8080)
 #   ${PACK_IMAGE_PREFIX}-engine:${PACK_TAG}    CIB seven 2.2 process engine
 #   ${PACK_IMAGE_PREFIX}-backend:${PACK_TAG}   business microservice (/api)
 #   ${PACK_IMAGE_PREFIX}-mcp:${PACK_TAG}       MCP sidecar (AI front door)
-#     each a pack's layer on the core image of the release it names
+#     each a pack's layer on the core image of the same commit
 #   docker.io/krixerx/cib7-poc-pdf-renderer:${CORE_TAG}   Gotenberg facade
 #   docker.io/krixerx/cib7-poc-esb:${CORE_TAG}            integration bus
-#     core only, no pack in them: CORE_TAG is the pack's core release
+#     core only, no pack in them; CORE_TAG is the same commit's short SHA
 #
 # The pack's data for the official Keycloak image (its users file and the
 # branding of the login pages) sits in ./pack/, which the Deploy to VM
-# workflow fills from the pack repository; Keycloak itself stays the stock
+# workflow fills from packs/<pack>/ of that commit; Keycloak itself stays the stock
 # image.
 #
 # Every image runs as a non-root user. Containers share a network only when

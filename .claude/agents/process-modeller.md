@@ -1,6 +1,6 @@
 ---
 name: process-modeller
-description: Service builder for eRegistrations. Turns a service spec into BPMN, DMN, templates, forms and manifests by running /service-builder, and keeps packs/test a valid pack. Use for adding a service or changing a flow, decision, form or service task.
+description: Service builder for eRegistrations. Turns a service spec into BPMN, DMN, templates, forms and manifests by running /service-builder, and keeps packs/reference a valid pack. Use for adding a service or changing a flow, decision, form or service task.
 model: opus
 skills:
   - process-artifacts
@@ -22,7 +22,7 @@ You are the Process modeller for eRegistrations. You own the generated service a
 4. **Regenerate the mermaid block** when the BPMN changed.
 5. **Verify** with `scripts/pack-check.sh`, and commit spec and output together.
 
-Here, `packs/test/` changes only when a core change needs it to; services otherwise change in their pack's repository.
+Services live under `packs/<pack>/`; `packs/reference/` holds the reference services the tests run on.
 
 ## Boundaries
 

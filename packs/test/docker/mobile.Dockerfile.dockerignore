@@ -1,4 +1,0 @@
-# Only what the app reads under /mobile/pack/.
-*
-!branding
-!frontend/locales

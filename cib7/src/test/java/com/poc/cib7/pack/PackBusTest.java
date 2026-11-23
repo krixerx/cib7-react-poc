@@ -40,7 +40,7 @@ class PackBusTest {
   private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
 
   private static final Path ENGINE =
-      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"));
+      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"));
 
   /** The pack's other parts sit beside its {@code engine/} folder. */
   private static final Path PACK = ENGINE.toAbsolutePath().normalize().getParent();

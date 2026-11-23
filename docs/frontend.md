@@ -401,7 +401,7 @@ component, or the schema renderer bound to the id, and `parseFormId` turns
 ### Existing forms
 
 The reference pack's four forms are JSON definitions in its
-`frontend/forms/` (a frozen copy in `packs/test/frontend/forms/` here),
+`frontend/forms/` (`packs/reference/frontend/forms/`),
 generated from their specs.
 
 | Form id | Reads | Writes |
@@ -503,9 +503,9 @@ with the usual classes (`form`, `summary`, `field`, `field-input`, `btn`,
 - **Serving:** nginx serves the pack at `/pack/` (`location ^~ /pack/`, an
   honest 404 for a missing file); `npm run dev` does the same through the
   `serve-pack` plugin in `vite.config.ts`, from `PACK_DIR` or the core test
-  pack `packs/test`. The core image (`frontend/Dockerfile`) has no pack: a pack's portal
+  pack `packs/reference`. The core image (`frontend/Dockerfile`) has no pack: a pack's portal
   image is a layer that copies its `frontend/` and `branding/` into
-  `/pack/` (`packs/test/docker/frontend.Dockerfile`), with no SPA build.
+  `/pack/` (`packs/reference/docker/frontend.Dockerfile`), with no SPA build.
   Without a pack the SPA starts on core texts and the services page says
   that no pack is installed.
 - **Fixed-length values** (`fixedLength`, the personal code): a monospaced
@@ -648,25 +648,24 @@ JSDoc) and as a row in this table.
 
 ## How to add a new form
 
-A form belongs to its service, so it is added in the pack repository, not
-here:
+A form belongs to its service, so it is added in the service's pack
+(`packs/<pack>/`), not in the core:
 
 1. **Spec** — write `docs/business/services/<service>/forms/<form-id>.md`
    (the spec template's `forms/example-form.md`) and add the user task to
    the service README's flow.
-2. **Generate** — run `/service-builder` in the pack repository. It writes
+2. **Generate** — run `/service-builder` on the pack. It writes
    the BPMN user task with `camunda:formKey="react:<form-id>"`, the form
    definition `frontend/forms/<form-id>.json`, its texts in every language,
    the variable policy and value schema, and the MCP manifest entry.
-3. **Check** — the pack's CI runs this core's `scripts/pack-check.sh`,
-   including the spec's Submission and Behaviour examples.
+3. **Check** — `scripts/pack-check.sh packs/<pack>`, including the spec's
+   Submission and Behaviour examples.
 4. **Verify** — build the pack's images (or run them on a test instance),
    start a process and walk through the new task.
 
 A form the definition format cannot express is a `Renderer: tsx` form: a
 React component in `frontend/src/forms/<form-id>/` plus an entry in
-`frontend/src/forms/registry.ts`. That is a core change, released with the
-core.
+`frontend/src/forms/registry.ts`. That is a core change.
 
 A `formKey` whose id has neither a definition nor a TSX entry shows "No
 form definition found" on the task page; nothing validates it at deploy

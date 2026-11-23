@@ -1,4 +1,0 @@
-# Only the specs folder and the engine form schemas.
-*
-!docs/business/services
-!engine/processes

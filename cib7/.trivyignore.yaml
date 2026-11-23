@@ -1,7 +1,7 @@
 # Accepted Trivy findings for the engine: the cib7-poc-cib7 image
 # (docker-publish.yml) and cib7/pom.xml in the filesystem scan (security.yml).
-# Service packs scan their engine layer with this file of the core release
-# they name, so it stays even when empty.
+# docker-publish.yml also scans the pack's engine layer with this file, so it
+# stays even when empty.
 #
 # Every entry is scoped to the path the finding sits in and expires, so the
 # build turns red again on expiry and someone checks for a fix.

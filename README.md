@@ -10,13 +10,12 @@ one with the PDF attached — to [Mailpit](https://mailpit.axllent.org/)). A
 **Cockpit / Tasklist / Admin** webapps are also bundled with full Keycloak
 SSO.
 
-> **This repository is the core.** The services (vehicle and business
-> registration) are a service pack in their own repository,
-> [krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack),
-> built as thin image layers on this core's images. `packs/test/` here is a
-> frozen copy of that pack, which the core's tests and `docker compose` run
-> on; paths below that point into it describe a pack's layout.
-> `docs/platform-api.md` is the contract between the two.
+> **This repository holds the core and its service packs.** The services
+> (vehicle and business registration) are the reference pack in
+> [`packs/reference/`](packs/reference/), built as thin image layers on the
+> core's images. The core's tests, `docker compose` and the dev loops run on
+> it; paths below that point into it describe a pack's layout.
+> `docs/platform-api.md` is the contract between core and pack.
 
 The React SPA and the Keycloak login are branded **eRegistrations**;
 "CIB seven" throughout this repo always refers to the underlying process
@@ -91,7 +90,7 @@ Role notes:
   `cib7-poc` realm: the core realm
   [`keycloak/cib7-poc-realm.json`](keycloak/cib7-poc-realm.json) plus the
   service pack's users,
-  [`packs/test/keycloak/cib7-poc-users-0.json`](packs/test/keycloak/cib7-poc-users-0.json).
+  [`packs/reference/keycloak/cib7-poc-users-0.json`](packs/reference/keycloak/cib7-poc-users-0.json).
 
 The SPA picks the role-appropriate UI from the JWT's realm roles:
 
@@ -103,7 +102,7 @@ The SPA picks the role-appropriate UI from the JWT's realm roles:
   application, then **Accept** (process ends approved) or **Send back…**
   (writes a reason variable and loops back to the applicant task).
 
-Full realm in `keycloak/cib7-poc-realm.json`, the demo users in `packs/test/keycloak/cib7-poc-users-0.json`.
+Full realm in `keycloak/cib7-poc-realm.json`, the demo users in `packs/reference/keycloak/cib7-poc-users-0.json`.
 
 ---
 
@@ -150,20 +149,20 @@ labels in the back-office worklist.
 
 ## Service packs — one core, a pack per instance
 
-The platform is a **core** (this repository: engine, backend, portal, mobile
-app, MCP sidecar, bus) released as versioned images, and **service packs**,
-one repository per country or customer, holding only data: the services'
-specs and what is generated from them (BPMN, DMN, FreeMarker payloads, form
-definitions, texts, branding, registries, users). A pack names the core
-release it runs on and builds its images as thin layers on the core's; an
-instance runs one core release with one pack. The reference pack is
-[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack).
+The platform is a **core** (engine, backend, portal, mobile app, MCP sidecar,
+bus) built as images that hold no services, and **service packs**, one
+directory `packs/<name>/` per country or customer, holding only data: the
+services' specs and what is generated from them (BPMN, DMN, FreeMarker
+payloads, form definitions, texts, branding, registries, users). Both live in
+this repository. A pack builds its images as thin layers on the core images
+of the same commit; an instance runs one commit with one pack. The reference
+pack is [`packs/reference/`](packs/reference/).
 
 ```mermaid
 flowchart LR
-  Core[["core repository<br/>releases v&lt;x.y.z&gt;:<br/>cib7-poc-*-core images<br/>+ service-builder"]]
+  Core[["core<br/>cib7-poc-*-core images<br/>(same commit)"]]
 
-  subgraph EE["Estonia — pack repository"]
+  subgraph EE["Estonia: packs/ee/"]
     direction TB
     EE_Spec[/"docs/business/services/<br/>business-registration/<br/>README.md · forms/*.md<br/>service-tasks/*.md · decisions/*.md"/]
     EE_Builder[["/service-builder"]]
@@ -172,7 +171,7 @@ flowchart LR
     EE_Spec --> EE_Builder --> EE_Code --> EE_Img
   end
 
-  subgraph FI["Finland — pack repository"]
+  subgraph FI["Finland: packs/fi/"]
     direction TB
     FI_Spec[/"docs/business/services/<br/>business-registration/<br/>(copied + FI tweaks:<br/>labels, fields, rules, fees)"/]
     FI_Builder[["/service-builder"]]
@@ -188,15 +187,14 @@ flowchart LR
   EE_Spec -. "copy the<br/>service folder" .-> FI_Spec
 ```
 
-- **Shared:** the core. A security fix is a core release; each pack moves
-  to it by bumping `CORE_VERSION` (Renovate proposes it) and rebuilding its
-  images, with no merge between repositories.
+- **Shared:** the core. A security fix is a core change, and every pack's
+  images pick it up when they are rebuilt from that commit.
 - **Per pack:** the markdown specs, the files generated from them, the
   branding and the users. Localization lives in the spec: the FI variant
   edits the same markdown files (field labels, DMN rules such as local fee
   thresholds, email copy) and runs the builder again.
 - **Per instance:** the deployment (`deploy/`: hostnames, secrets, Keycloak,
-  certificates), running one pack on its core release.
+  certificates), running one pack's images and the core images of one commit.
 - **The contract** between core and pack is
   [`docs/platform-api.md`](docs/platform-api.md); `scripts/pack-check.sh`
   checks a pack against it, including the services' own examples.
@@ -553,17 +551,16 @@ to the engine on port 8080 and `/api` to the backend on port 8085.
 
 ## Add or modify a service
 
-Services are **spec-first** and live in a **pack repository**, not here. The
-analyst owns the markdown; everything else is generated from it. No one
-hand-edits BPMN or a form definition. In this repository the same applies to
-the core test pack `packs/test/`, which changes only when a core change needs
-it to.
+Services are **spec-first** and live in a **service pack** under
+`packs/<pack>/` (the reference services in `packs/reference/`). The analyst
+owns the markdown; everything else is generated from it. No one hand-edits
+BPMN or a form definition.
 
 ```
   1) Analyst writes spec        2) Service builder generates        3) Check + test      4) Commit
-  docs/business/services/  ─▶  engine/processes/<service>/*.bpmn ─▶  pack-check (CI)  ─▶  git, in
-    <service>/                  engine/processes/<service>/*.dmn     pack images on       the pack
-      README.md                 engine/templates/*.json.ftl          a test instance      repository
+  docs/business/services/  ─▶  engine/processes/<service>/*.bpmn ─▶  pack-check (CI)  ─▶  git, one
+    <service>/                  engine/processes/<service>/*.dmn     pack images on       atomic
+      README.md                 engine/templates/*.json.ftl          a test instance      change
       forms/*.md                frontend/forms/<id>.json + texts
       service-tasks/*.md        backend/ descriptors, MCP manifest
       decisions/*.md (DMN)      README.md ▶ mermaid
@@ -574,13 +571,13 @@ it to.
 One folder per service under the pack's `docs/business/services/<service>/`.
 Two starting points:
 
-- **Blank skeleton** — the vendored skill's `spec-template/`
+- **Blank skeleton** — the service-builder skill's `spec-template/`
   ([here](.claude/skills/service-builder/spec-template/)) has empty
   `README.md`, `forms/example-form.md`, `service-tasks/example-task.md`,
   and `decisions/example-decision.md` with placeholder fields and inline
   documentation on every section.
 - **Worked example** — the reference pack's
-  [`vehicle-registration/`](https://github.com/krixerx/eregistrations-reference-pack/blob/main/docs/business/services/vehicle-registration/README.md)
+  [`vehicle-registration/`](packs/reference/docs/business/services/vehicle-registration/README.md)
   is the canonical filled-in spec. Read it side-by-side with the templates
   to see what good looks like.
 
@@ -615,8 +612,8 @@ What the spec must cover:
 
 ### 2. Generate (service-builder skill)
 
-Run `/service-builder` in the pack repository (its vendored copy, from the
-core release the pack names). It reads every markdown file, validates them
+Run `/service-builder` on the pack (`packs/<pack>/`). It reads every
+markdown file, validates them
 against the conventions above, and rewrites the generated files in place:
 `engine/processes/<service>/` (BPMN, DMN, variable policy, value schemas),
 `engine/templates/`, `frontend/forms/` and `frontend/locales/`,
@@ -632,14 +629,14 @@ not something to work around in the pack.
 
 ### 3. Check and test
 
-- **Pack check:** the pack's CI runs this core's
-  [`scripts/pack-check.sh`](scripts/pack-check.sh) at the pack's core
-  release: formats, security rules and the spec's own examples. Locally,
-  from a core checkout: `scripts/pack-check.sh <pack-dir>`.
-- **Run it:** the pack's `publish.yml` builds its images on the core's;
-  deploy that pack version to a test instance (`deploy/`, the Deploy to VM
-  workflow takes the pack commit as input) and walk the happy path and at
-  least one edge case:
+- **Pack check:** [`scripts/pack-check.sh packs/<pack>`](scripts/pack-check.sh)
+  checks formats, security rules and the spec's own examples. The core's
+  tests run on `packs/reference/`, so CI's quality gates cover the reference
+  pack on every pull request.
+- **Run it:** `docker-publish.yml` builds the pack's images on the core
+  images of the same commit; deploy that commit to a test instance
+  (`deploy/`, the Deploy to VM workflow takes the commit as input) and walk
+  the happy path and at least one edge case:
   1. **PartA — start the service as `bart`**, fill each user form, watch
      the row in **My processes** advance through each step.
   2. **PartB — pick up the task as `homer`**, exercise every gateway
@@ -650,13 +647,12 @@ not something to work around in the pack.
      incident means the engine hit something the spec didn't cover — fix
      the spec, re-run the builder, redeploy.
 
-In this repository, `docker compose up --build` runs the core with the test
-pack, which is the loop for core changes.
+Locally, `docker compose up --build` runs the core with the reference pack.
 
 ### 4. Commit
 
-Commit the spec **and** the generated files in a single atomic change in
-the pack repository, so it always builds and checks. A commit message of the
+Commit the spec **and** the generated files in a single atomic change, so
+the pack always builds and checks. A commit message of the
 form `<service>: <what changed in the spec>` keeps `git log` readable from
 the analyst's perspective.
 
@@ -700,7 +696,7 @@ pack (`/pack/forms/<form-id>.json`, from the pack's `frontend/forms/`)
 with the core schema renderer (`src/forms/schema/`).
 
 **To add a form:** write its spec under the pack's `docs/business/services/<service>/forms/`
-and run `/service-builder` in the pack repository; it emits the definition, the BPMN user task with
+and run `/service-builder` on the pack; it emits the definition, the BPMN user task with
 the `camunda:formKey`, the value schema and the texts. No React code is written.
 
 ## Service task & the http-connector
@@ -744,8 +740,8 @@ button).
 ## DMN decision table
 
 The reference pack's
-[`vehicle-auto-approval.dmn`](packs/test/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
-(here the test pack's copy) is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
+[`vehicle-auto-approval.dmn`](packs/reference/engine/processes/vehicle-registration/vehicle-auto-approval.dmn)
+is deployed alongside the BPMN. It has two inputs — `age` (Integer) and
 `price` (Double) — and a single string output `autoDecision`. Hit policy is
 `FIRST`: minors always go to review, adults with cheap picks auto-approve,
 everything else goes to review.

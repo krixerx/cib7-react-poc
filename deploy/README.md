@@ -14,8 +14,8 @@ deploy/
 ├── keycloak/cib7-poc-realm.json       realm: roles, groups, OAuth clients
 ├── keycloak/themes/                   login theme (core)
 ├── pack/                              the instance's service pack data (not in the kit;
-│   ├── keycloak/cib7-poc-users-0.json   the Deploy to VM workflow fills it from the pack
-│   └── branding/                        repository): its users and its login-page branding
+│   ├── keycloak/cib7-poc-users-0.json   the Deploy to VM workflow fills it from
+│   └── branding/                        packs/<pack>/): its users and its login-page branding
 ├── graylog/provision-inputs.sh        creates the GELF inputs on first start
 ├── traefik/dynamic/routes.yml.example ingress routing (only for the HTTPS setup)
 └── traefik/dynamic/tls.yml.example    supplied-cert TLS config (optional)
@@ -119,8 +119,8 @@ docker compose up -d        # recreates only the affected containers
 | Variable | Default | What it does |
 |---|---|---|
 | `PACK_IMAGE_PREFIX` | `docker.io/krixerx/eregistrations-reference` | The service pack's images: `<prefix>-frontend`, `-engine`, `-backend`, `-mcp`, `-mobile`. |
-| `PACK_TAG` | `latest` | The pack's image tag (its 7-char commit SHA; the Deploy to VM workflow pins it). |
-| `CORE_TAG` | `latest` | The core release the pack names in its `docker/core.conf`, for the core-only images (esb, pdf-renderer). |
+| `PACK_TAG` | `latest` | The pack's image tag (the deployed commit's 7-char SHA; the Deploy to VM workflow pins it). |
+| `CORE_TAG` | `latest` | The tag of the core-only images (esb, pdf-renderer): the same commit SHA as `PACK_TAG`. |
 | `PUBLIC_KEYCLOAK_URL` | `http://localhost:8180` | Browser-visible Keycloak URL. Stamped into every JWT — must match the address bar exactly. |
 | `PUBLIC_FRONTEND_URL` | `http://localhost:3000` | Browser-visible app URL. Embedded in confirmation-email links. |
 | `PUBLIC_S3_URL` | `http://localhost:9000` | Browser-visible object-storage URL (presigned upload/download links). |
@@ -440,7 +440,7 @@ docker compose up -d            # add --profile tls in the TLS setup
 ```
 
 If you pinned `PACK_TAG` and `CORE_TAG`, change them in `.env` first (and
-replace `pack/` with that pack version's users file and branding).
+replace `pack/` with that commit's users file and branding from `packs/<pack>/`).
 **Warning:** recreating the engine container wipes all process state —
 see [Known limitations](#known-limitations-this-is-a-poc).
 

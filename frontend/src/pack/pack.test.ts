@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { parseDefinition, type FormDefinition } from '../forms/schema/definition';
 import { parseCatalog } from './catalog';
 
-/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the core test pack (packs/test). */
-const PACK_ROOT = process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/test');
+/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the reference pack (packs/reference). */
+const PACK_ROOT = process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/reference');
 const PACK = resolve(PACK_ROOT, 'frontend');
 const CORE_LOCALES = resolve(__dirname, '../i18n/locales');
 const LANGS = ['en', 'ar'];

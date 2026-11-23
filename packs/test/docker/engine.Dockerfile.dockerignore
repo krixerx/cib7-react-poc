@@ -1,5 +1,0 @@
-# Only what the engine reads from /opt/services.
-*
-!engine
-!branding
-!pack.yaml

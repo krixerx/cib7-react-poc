@@ -166,7 +166,7 @@ import-time, so changing either needs Keycloak recreated, not restarted.
 **The realm is two files, imported once.** Keycloak reads one directory:
 the core realm `keycloak/cib7-poc-realm.json` (settings, roles, the core
 groups, clients and their service accounts), then the pack's users
-`packs/test/keycloak/cib7-poc-users-0.json`, who may only join core
+`packs/reference/keycloak/cib7-poc-users-0.json`, who may only join core
 groups (only those get engine grants; `RealmFilesTest`). `deploy/keycloak/`
 holds copies that must stay identical. The import runs on Keycloak's first
 start only, so a change needs the container recreated. The login theme

@@ -2,8 +2,9 @@
 # files in /opt/services, which the core puts on the classpath (loader.path):
 # its registry/ descriptors and db/registry/ migrations, consent/, payment/,
 # documents.json and pack.yaml (the backend refuses a pack built for another
-# platform API). Data only, root-owned and read-only to the app user; a core
-# release reaches this pack by bumping BACKEND_CORE.
+# platform API). Data only, root-owned and read-only to the app user.
+# BACKEND_CORE names the core image; compose and docker-publish.yml pass the
+# one built from the same commit.
 #
 # Build context is the pack directory; backend.Dockerfile.dockerignore keeps
 # only backend/ and pack.yaml in it.
