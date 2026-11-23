@@ -1,0 +1,19 @@
+# Generated from docs/business/services/vehicle-registration/data/vehicles.md.
+# Do not hand-edit. Read by the backend's registry module (RegistryCatalog).
+platform: 2
+entity: vehicles
+table: reg_vehicles
+key: vin
+sort: make
+fields:
+  vin: { type: string, maxLength: 17 }
+  make: { type: string, maxLength: 100 }
+  model: { type: string, maxLength: 100 }
+  year: { type: integer }
+  value: { type: number }
+  fuelType: { type: string, maxLength: 20 }
+derived:
+  ageYears: { yearsSince: year }
+operations:
+  list: { access: public }
+  lookup: { access: public }

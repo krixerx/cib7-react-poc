@@ -1,0 +1,187 @@
+{
+  "$comment": "Generated from docs/business/services/business-registration/forms/business-details.md. Do not hand-edit. Drawn by frontend/src/forms/schema/SchemaForm.tsx (format v1).",
+  "version": 1,
+  "form": "business-details",
+  "process": "businessRegistration",
+  "i18n": "business-details",
+  "intro": {
+    "edit": "intro.default",
+    "readOnly": "intro.readOnly",
+    "resubmission": "intro.resubmission"
+  },
+  "resubmittedWhen": "sendBackReason",
+  "banner": { "title": "banner.sentBack", "variable": "sendBackReason" },
+  "fields": [
+    {
+      "name": "companyName",
+      "label": "fields.companyName.label",
+      "type": "text",
+      "placeholder": "fields.companyName.placeholder",
+      "suffix": "OÜ",
+      "requiredMessage": "errors.companyNameRequired"
+    },
+    {
+      "name": "boardMembers",
+      "label": "sections.boardMembers.legend",
+      "type": "rows",
+      "table": {
+        "legend": "sections.boardMembers.legend",
+        "add": "sections.boardMembers.add",
+        "removeAria": "sections.boardMembers.removeAria",
+        "minRows": 1,
+        "columns": [
+          {
+            "name": "firstName",
+            "placeholder": "fields.boardMember.firstNamePlaceholder"
+          },
+          {
+            "name": "lastName",
+            "placeholder": "fields.boardMember.lastNamePlaceholder"
+          },
+          {
+            "name": "personalCode",
+            "placeholder": "fields.boardMember.personalCodePlaceholder",
+            "format": "personalCodeEE",
+            "fixedLength": 11
+          }
+        ],
+        "requiredMessage": "errors.boardMemberRequired",
+        "incompleteMessage": "errors.boardMemberIncomplete",
+        "formatMessage": "errors.personalCodeFormat"
+      }
+    },
+    {
+      "name": "pendingAoaDocument",
+      "label": "fields.aoa.label",
+      "type": "file",
+      "hint": "fields.aoa.hint",
+      "requiredMessage": "errors.aoaRequired",
+      "file": {
+        "category": "founder-articles-of-association",
+        "accept": "application/pdf,image/jpeg,image/png",
+        "maxBytes": 10485760,
+        "dropLabel": "fields.aoa.uploadLabel",
+        "existingVariable": "aoaDocumentAttachmentId",
+        "existingFilename": "fields.aoa.existingFilename"
+      }
+    },
+    {
+      "name": "shareCapital",
+      "label": "fields.shareCapital.label",
+      "type": "number",
+      "decimal": true,
+      "min": 2500,
+      "step": 100,
+      "default": "2500",
+      "requiredMessage": "errors.shareCapitalMin",
+      "rangeMessage": "errors.shareCapitalMin"
+    },
+    {
+      "name": "applicantFirstName",
+      "label": "fields.applicantFirstName.label",
+      "type": "text",
+      "identity": true,
+      "requiredMessage": "errors.applicantNameRequired"
+    },
+    {
+      "name": "applicantLastName",
+      "label": "fields.applicantLastName.label",
+      "type": "text",
+      "identity": true,
+      "requiredMessage": "errors.applicantNameRequired"
+    },
+    {
+      "name": "applicantAge",
+      "label": "fields.applicantAge.label",
+      "type": "number",
+      "min": 0,
+      "max": 130,
+      "requiredMessage": "errors.applicantAgeRange",
+      "rangeMessage": "errors.applicantAgeRange"
+    },
+    {
+      "name": "applicantResidency",
+      "label": "fields.residency.legend",
+      "type": "radio",
+      "hint": "fields.residency.hint",
+      "default": "citizen",
+      "options": [
+        {
+          "value": "citizen",
+          "label": "fields.residency.options.citizen.label",
+          "hint": "fields.residency.options.citizen.hint"
+        },
+        {
+          "value": "e-resident",
+          "label": "fields.residency.options.eResident.label",
+          "hint": "fields.residency.options.eResident.hint"
+        },
+        {
+          "value": "foreign",
+          "label": "fields.residency.options.foreign.label",
+          "hint": "fields.residency.options.foreign.hint"
+        }
+      ]
+    },
+    {
+      "name": "applicantEmail",
+      "label": "fields.applicantEmail.label",
+      "type": "email",
+      "identity": true,
+      "placeholder": "fields.applicantEmail.placeholder",
+      "emailMessage": "errors.emailInvalid",
+      "requiredWhenListed": {
+        "field": "additionalFounders",
+        "message": "errors.applicantEmailRequiredForFounders"
+      }
+    },
+    {
+      "name": "additionalFounders",
+      "label": "sections.coFounders.legend",
+      "type": "contacts",
+      "hint": "sections.coFounders.hint",
+      "contacts": {
+        "legend": "sections.coFounders.legend",
+        "namePlaceholder": "fields.founder.namePlaceholder",
+        "emailPlaceholder": "fields.founder.emailPlaceholder",
+        "add": "sections.coFounders.add",
+        "removeAria": "sections.coFounders.removeAria",
+        "nameMessage": "errors.founderNameRequired",
+        "emailMessage": "errors.founderEmailInvalid",
+        "duplicateMessage": "errors.duplicateFounderEmail",
+        "notField": {
+          "field": "applicantEmail",
+          "message": "errors.applicantEmailInFounders"
+        }
+      }
+    }
+  ],
+  "actions": [
+    {
+      "id": "submit",
+      "label": "common:actions.submit",
+      "resubmitLabel": "actions.resubmit",
+      "style": "primary",
+      "workingLabel": "common:feedback.submitting",
+      "complete": {
+        "companyName": { "field": "companyName", "type": "String" },
+        "boardMembers": { "field": "boardMembers", "type": "Json" },
+        "shareCapital": { "field": "shareCapital", "type": "Double" },
+        "applicantFirstName": {
+          "field": "applicantFirstName",
+          "type": "String"
+        },
+        "applicantLastName": { "field": "applicantLastName", "type": "String" },
+        "applicantAge": { "field": "applicantAge", "type": "Integer" },
+        "applicantResidency": {
+          "field": "applicantResidency",
+          "type": "String"
+        },
+        "applicantEmail": { "field": "applicantEmail", "type": "String" },
+        "sendBackReason": { "value": "", "type": "String" },
+        "additionalFounders": { "field": "additionalFounders", "type": "Json" },
+        "pendingAoaDocument": { "field": "pendingAoaDocument", "type": "Json" }
+      }
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "$comment": "Generated from docs/business/services/vehicle-registration/forms/owner-vehicle.md. Do not hand-edit. Drawn by frontend/src/forms/schema/SchemaForm.tsx (format v1).",
+  "version": 1,
+  "form": "owner-vehicle",
+  "process": "vehicleRegistration",
+  "i18n": "owner-vehicle",
+  "intro": {
+    "edit": "intro.default",
+    "readOnly": "intro.readOnly",
+    "resubmission": "intro.resubmission"
+  },
+  "resubmittedWhen": "sendBackReason",
+  "banner": { "title": "banner.sentBackTitle", "variable": "sendBackReason" },
+  "fields": [
+    {
+      "name": "firstName",
+      "label": "fields.firstName.label",
+      "type": "text",
+      "identity": true,
+      "requiredMessage": "errors.namesRequired"
+    },
+    {
+      "name": "lastName",
+      "label": "fields.lastName.label",
+      "type": "text",
+      "identity": true,
+      "requiredMessage": "errors.namesRequired"
+    },
+    {
+      "name": "age",
+      "label": "fields.age.label",
+      "type": "number",
+      "min": 1,
+      "max": 130,
+      "requiredMessage": "errors.ageRange",
+      "rangeMessage": "errors.ageRange"
+    },
+    {
+      "name": "applicantEmail",
+      "label": "fields.email.label",
+      "type": "email",
+      "identity": true,
+      "placeholder": "fields.email.placeholder",
+      "emailMessage": "errors.invalidEmail",
+      "requiredWhenListed": {
+        "field": "additionalOwners",
+        "message": "errors.applicantEmailRequiredWithCoOwners"
+      }
+    },
+    {
+      "name": "pendingIdDocument",
+      "label": "fields.idDocument.label",
+      "type": "file",
+      "hint": "fields.idDocument.hint",
+      "requiredMessage": "errors.idDocumentRequired",
+      "file": {
+        "category": "applicant-id-document",
+        "accept": "application/pdf,image/jpeg,image/png",
+        "maxBytes": 10485760,
+        "dropLabel": "fields.idDocument.dropLabel",
+        "existingVariable": "idDocumentAttachmentId",
+        "existingFilename": "fields.idDocument.existingFilename"
+      }
+    },
+    {
+      "name": "objectId",
+      "label": "fields.vehicle.label",
+      "type": "select",
+      "placeholder": "fields.vehicle.placeholder",
+      "requiredMessage": "errors.vehicleRequired",
+      "source": {
+        "registry": "vehicles",
+        "value": "vin",
+        "label": "fields.vehicle.option",
+        "formats": { "value": "currencyWhole" },
+        "error": "errors.registryLoadFailed"
+      }
+    },
+    {
+      "name": "additionalOwners",
+      "label": "sections.coOwners.legend",
+      "type": "contacts",
+      "hint": "sections.coOwners.hint",
+      "contacts": {
+        "legend": "sections.coOwners.legend",
+        "namePlaceholder": "fields.coOwnerName.placeholder",
+        "emailPlaceholder": "fields.coOwnerEmail.placeholder",
+        "add": "actions.addCoOwner",
+        "removeAria": "actions.removeCoOwnerAria",
+        "nameMessage": "errors.coOwnerNameRequired",
+        "emailMessage": "errors.coOwnerEmailInvalid",
+        "duplicateMessage": "errors.duplicateCoOwnerEmail",
+        "notField": {
+          "field": "applicantEmail",
+          "message": "errors.applicantEmailInCoOwners"
+        }
+      }
+    }
+  ],
+  "actions": [
+    {
+      "id": "submit",
+      "label": "actions.confirm",
+      "resubmitLabel": "actions.resubmit",
+      "style": "primary",
+      "workingLabel": "actions.confirming",
+      "complete": {
+        "firstName": { "field": "firstName", "type": "String" },
+        "lastName": { "field": "lastName", "type": "String" },
+        "age": { "field": "age", "type": "Integer" },
+        "objectId": { "field": "objectId", "type": "String" },
+        "applicantEmail": { "field": "applicantEmail", "type": "String" },
+        "sendBackReason": { "value": "", "type": "String" },
+        "additionalOwners": { "field": "additionalOwners", "type": "Json" },
+        "pendingIdDocument": { "field": "pendingIdDocument", "type": "Json" }
+      }
+    }
+  ]
+}

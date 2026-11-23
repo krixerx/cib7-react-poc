@@ -1,0 +1,60 @@
+# The pack against the platform API of the core release it names
+# (docker/core.conf): the core's scripts/pack-check.sh at that tag, which runs
+# the engine's, backend's, frontend's and MCP sidecar's pack checks on this
+# pack. Also refuses a vendored service-builder from another core release, so
+# a CORE_VERSION bump (Renovate) needs scripts/update-core.sh in the same PR.
+#
+# Inert in the core repository (GitHub reads only the root .github/); live
+# once this directory is the pack repository's root.
+name: check
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pack-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: pack
+
+      - id: core
+        run: |
+          . pack/docker/core.conf
+          echo "repo=$CORE_REPO" >> "$GITHUB_OUTPUT"
+          echo "version=$CORE_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Vendored service-builder matches the core release
+        run: |
+          grep -qx "core ${{ steps.core.outputs.version }}" pack/.claude/skills/service-builder/VERSION \
+            || { echo "::error::.claude/skills/service-builder is not from core ${{ steps.core.outputs.version }}; run scripts/update-core.sh ${{ steps.core.outputs.version }}"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.core.outputs.repo }}
+          ref: v${{ steps.core.outputs.version }}
+          path: core
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: core/*/pom.xml
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - run: npm ci
+        working-directory: core/frontend
+      - run: npm ci
+        working-directory: core/mcp
+
+      - run: core/scripts/pack-check.sh "$GITHUB_WORKSPACE/pack"

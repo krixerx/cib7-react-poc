@@ -1,0 +1,59 @@
+{
+  "realm": "cib7-poc",
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Camunda",
+      "lastName": "Admin",
+      "email": "admin@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/cib7-admin"
+      ]
+    },
+    {
+      "username": "homer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Homer",
+      "lastName": "Simpson",
+      "email": "homer@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "homer",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/civil-servant"
+      ]
+    },
+    {
+      "username": "bart",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bart",
+      "lastName": "Simpson",
+      "email": "bart@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bart",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/applicant"
+      ]
+    }
+  ]
+}

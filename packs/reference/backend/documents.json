@@ -1,0 +1,18 @@
+{
+  "$comment": "Generated from the Documents sections of docs/business/services/*/README.md. Do not hand-edit. Read by the backend's DocumentCategories; generated-certificate is the core's own.",
+  "platform": 2,
+  "categories": {
+    "applicant-id-document": {
+      "by": "applicant"
+    },
+    "founder-articles-of-association": {
+      "by": "applicant"
+    },
+    "generated-approval-pdf": {
+      "by": "system"
+    },
+    "generated-business-fee-invoice": {
+      "by": "system"
+    }
+  }
+}
