@@ -14,7 +14,7 @@ UX/UI expert. Design system: the token sheet in `frontend/src/styles/`, brandabl
 
 ## Process modeller
 
-Owns the generated service artifacts: runs `/service-builder` from the spec and keeps `packs/test/` a valid pack.
+Owns the generated service artifacts: runs `/service-builder` from the spec and keeps `packs/reference/` a valid pack.
 
 ## Programmer
 

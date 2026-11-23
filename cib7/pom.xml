@@ -36,7 +36,7 @@
          /opt/services, and for tests and `mvn spring-boot:run` this directory
          is added to the classpath instead. Override with
          -Dservices.pack.dir=... to run against another pack. -->
-    <services.pack.dir>${project.basedir}/../packs/test/engine</services.pack.dir>
+    <services.pack.dir>${project.basedir}/../packs/reference/engine</services.pack.dir>
     <!-- The Keycloak identity-provider extension. 2.2.x is its Spring
          Framework 7 line; 2.1.0 is built against Spring 6.2 and fails in the
          running engine on Spring 7 ("HttpHeaders does not implement

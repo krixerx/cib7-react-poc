@@ -48,7 +48,7 @@ class RegistrySeedTest {
   static final String TOKEN = "registry-seed-test-token";
 
   private static final Path SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../packs/test/docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
 
   @Autowired MockMvc mvc;
   @Autowired RegistryCatalog catalog;

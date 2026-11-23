@@ -4,18 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-The **core** of eRegistrations (POC): a CIB seven 2.2 process engine that runs
+eRegistrations (POC): a CIB seven 2.2 process engine that runs
 BPMN e-government services, a React SPA that renders each human task, a business
 backend, an integration bus, a Flutter applicant app and an MCP sidecar. Auth is
 Keycloak OIDC throughout; the same deployment is also driveable over MCP.
 
-The services themselves are not here. They live in **service packs**, one
-repository per customer, which reach the core only through the platform API
+The code (the **core**) holds no service. Services live in **service packs**
+under `packs/<pack>/`, which reach the core only through the platform API
 (`docs/platform-api.md`) and build their images as thin layers on the core's.
-The reference pack, with `vehicleRegistration` and `businessRegistration`, is
-[krixerx/eregistrations-reference-pack](https://github.com/krixerx/eregistrations-reference-pack).
-This repository keeps `packs/test/`, a frozen copy of it that the core's tests,
-`docker compose`, `mvn spring-boot:run` and `npm run dev` run on.
+`packs/reference/` holds `vehicleRegistration` and `businessRegistration`;
+the tests, `docker compose`, `mvn spring-boot:run` and `npm run dev` run on
+it. Core and packs live in this one repository and ship from one commit. (They
+were split into two repositories in October 2026 and merged back; the
+standalone pack's history is the `last-standalone` tag of
+krixerx/eregistrations-reference-pack.)
 
 Business services are **spec-first**: a pack's markdown under
 `docs/business/services/<service>/` is the source of truth, and BPMN, DMN,
@@ -74,25 +76,18 @@ Node 24 for `frontend` (npm 10 crashes resolving vitest 4's peers, so write
 locks with npm 11), Node 24 for `mcp`, JDK 21 for both Java
 modules (enforced: the poms refuse another JDK, so point `JAVA_HOME` at a JDK 21).
 
-Package the service-builder skill the way a core release ships it (pack
-repositories vendor this; fails on a link that would be dead there):
-
-```bash
-node scripts/package-service-builder.mjs --version <x.y.z> [--out dist/service-builder]
-```
-
 Check a service pack against the platform API (docs/platform-api.md):
 
 ```bash
-scripts/pack-check.sh [pack-dir]     # default packs/test; runs the checks tagged `pack`
+scripts/pack-check.sh [pack-dir]     # default packs/reference; runs the checks tagged `pack`
 ```
 
 Regenerate a service's flow diagram after touching its BPMN:
 
 ```bash
 cd scripts && npm install
-node bpmn-to-mermaid.mjs ../packs/test/engine/processes/<service>/<service>.bpmn \
-  --out ../packs/test/docs/business/services/<service>/README.md
+node bpmn-to-mermaid.mjs ../packs/reference/engine/processes/<service>/<service>.bpmn \
+  --out ../packs/reference/docs/business/services/<service>/README.md
 # rewrites the block between the bpmn-diagram:start / :end markers in place
 ```
 
@@ -130,7 +125,7 @@ Module responsibilities are strict and worth preserving:
   `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`) and a thin
   layer from the pack's `docker/`. Here compose, the tests (through the pom's
   `services.pack.dir` and `PACK_DIR`), `mvn spring-boot:run` and `npm run dev`
-  use the core test pack `packs/test/`; keep it a valid pack
+  use `packs/reference/`; keep it a valid pack
   (`scripts/pack-check.sh`).
 - **`backend/` owns every `/api/**` surface**: public token-link pages
   (co-signing at `/api/public/consent/<purpose>` from the pack's
@@ -151,8 +146,8 @@ Module responsibilities are strict and worth preserving:
 - **`mcp/` forwards the caller's own Bearer** to `/engine-rest`. There is no AI
   service account, so everything an agent does is attributable to a real
   Keycloak user. Its per-service schemas come from the generated
-  `packs/test/docs/business/services/*/build/mcp-service.json` and the aggregated
-  `packs/test/docs/business/services/build/services.json`.
+  `packs/reference/docs/business/services/*/build/mcp-service.json` and the aggregated
+  `packs/reference/docs/business/services/build/services.json`.
 
 The SPA always calls same-origin paths (`/engine-rest/...`, `/api/...`), so there
 is no CORS config on either Java service. The only cross-origin browser call is
@@ -176,33 +171,30 @@ minor (bump `PackManifest.PLATFORM_MINOR` in both Java modules and the doc),
 breaking is a major. Tests that hold for any pack are tagged `pack`;
 `scripts/pack-check.sh` runs exactly those.
 
-**Releases.** A core release is a `v<x.y.z>` tag on `main`: CI publishes the
-`cib7-poc-*-core` images (plus `cib7-poc-esb` and `cib7-poc-pdf-renderer`)
-as `<x.y.z>` and attaches `service-builder-<x.y.z>.tar.gz` to the GitHub
-release. A pack moves to it with its `scripts/update-core.sh <x.y.z>`
-(Renovate proposes the bump); its CI then runs this release's
-`pack-check.sh`. A release whose image scan failed has no image for that
-tag, so check Docker Hub before a pack moves to it.
+**Images.** Every push to `main` publishes the `cib7-poc-*-core` images
+(plus `cib7-poc-esb` and `cib7-poc-pdf-renderer`) and then the reference
+pack's layers `eregistrations-reference-<layer>` built FROM the core images
+of the same run, all tagged with the commit's short SHA
+(`docker-publish.yml`). An image whose scan failed is not pushed, so a
+commit with a red publish run cannot be deployed.
 
 **Deployment.** `deploy/` is one kit for any number of instances and holds
 nothing of a pack: `.env` names the pack's images (`PACK_IMAGE_PREFIX`,
-`PACK_TAG`) and the core release for the core-only images (`CORE_TAG`), and
-the official Keycloak image mounts the pack's users file and branding from
-the host's `pack/`. The Deploy to VM workflow takes a pack commit
-(`pack_ref`), reads its core release from the pack's `docker/core.conf` and
-ships the pack's data (`docs/ci-cd.md`). Smoke tests in `deploy.sh` must not
-name a pack's services.
+`PACK_TAG`) and the tag of the core-only images (`CORE_TAG`), both the
+deployed commit's SHA, and the official Keycloak image mounts the pack's
+users file and branding from the host's `pack/`. The Deploy to VM workflow
+takes a commit of this repository (`ref`) and ships its kit and the data of
+`packs/<PACK>/` (`docs/ci-cd.md`). Smoke tests in `deploy.sh` must not name
+a pack's services.
 
 ## Changing a service
 
-Services change in their pack's repository, not here: edit the markdown spec
-under `docs/business/services/<service>/` (`README.md`, `forms/*.md`,
-`service-tasks/*.md`, `decisions/*.md`), run the pack's vendored
-`/service-builder` skill, and commit spec and generated output as one atomic
-change; the pack's CI runs this core's `scripts/pack-check.sh`, including the
-specs' service examples. Never hand-edit generated files. In this repository
-the same applies to `packs/test/`, which changes only when a core change needs
-it to (`<pack>` below is `packs/test`).
+Edit the markdown spec under `<pack>/docs/business/services/<service>/`
+(`README.md`, `forms/*.md`, `service-tasks/*.md`, `decisions/*.md`), run
+the `/service-builder` skill, and commit spec and generated output as one
+atomic change. `scripts/pack-check.sh <pack>` runs the checks that hold for
+any pack, including the specs' service examples. Never hand-edit generated
+files. `<pack>` below is `packs/reference` for the reference services.
 
 Generated from the spec (paths in the pack):
 

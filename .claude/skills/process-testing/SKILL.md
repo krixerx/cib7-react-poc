@@ -7,8 +7,8 @@ description: "How a service and a pack are tested here: service examples in the 
 
 Tests that hold for any pack are tagged `pack`; `scripts/pack-check.sh [pack-dir]` runs exactly those
 (engine and backend through Maven with `-Dgroups=pack`, plus `src/pack` in the frontend and
-`pack.test.ts` in `mcp/`). It does not run the mobile tests. A pack's CI runs the same script, so a
-test tagged `pack` must not name a service of the test pack.
+`pack.test.ts` in `mcp/`). It does not run the mobile tests. It runs against any pack directory, so a
+test tagged `pack` must not name a service of `packs/reference`.
 
 ## Service examples are tests
 

@@ -16,4 +16,4 @@ derived:
   ageYears: { yearsSince: year }
 operations:
   list: { access: public }
-  lookup: { access: public }
+  lookup: { access: internal }

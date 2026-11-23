@@ -163,7 +163,7 @@ configured, a leak will fail unrelated files on machines with fewer cores, as it
 **Styling is plain CSS on tokens; no component library.** Every colour is a
 token in `frontend/src/styles/tokens.css` with a light and a dark value, so a
 literal colour in a rule breaks one scheme. The pack's
-`packs/test/branding/tokens.json` overrides the brand tokens listed in
+`packs/reference/branding/tokens.json` overrides the brand tokens listed in
 `frontend/src/pack/brand.ts` (and logo, favicon and portal name come from
 `brand.json` and `locales/<lang>/brand.json` beside it); every other token
 is core. Area styles live in
@@ -180,8 +180,8 @@ only for the `IncidentsPage.tsx` DataGrid, themed per scheme in
 
 **Service texts live in the pack, core texts in the SPA.** A form's texts,
 service summaries, fee and issuer names and the BPMN display names are
-`packs/test/frontend/locales/<lang>/<namespace>.json`, loaded before the
-first render for every namespace `packs/test/frontend/catalog.json`
+`packs/reference/frontend/locales/<lang>/<namespace>.json`, loaded before the
+first render for every namespace `packs/reference/frontend/catalog.json`
 lists; a new form namespace must be listed there. Core screens glob
 `frontend/src/i18n/locales/<lang>/<namespace>.json`. Supported languages are
 `en` and `ar` (RTL), so every namespace needs both files; `src/pack/pack.test.ts`

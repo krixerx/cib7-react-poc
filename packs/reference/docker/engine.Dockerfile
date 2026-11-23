@@ -3,8 +3,8 @@
 # processes/ (BPMN, DMN, variable policies, form schemas), templates/,
 # documents/, branding/ (for the PDF documents) and pack.yaml (the engine
 # refuses a pack built for another platform API). Data only, root-owned and
-# read-only to the app user; a core release reaches this pack by bumping
-# ENGINE_CORE.
+# read-only to the app user. ENGINE_CORE names the core image; compose and
+# docker-publish.yml pass the one built from the same commit.
 #
 # Build context is the pack directory; engine.Dockerfile.dockerignore keeps
 # only engine/, branding/ and pack.yaml in it.

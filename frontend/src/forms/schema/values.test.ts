@@ -10,7 +10,7 @@ import {
 } from './definition';
 import { completion, initialInputs, type FieldError, type Inputs } from './values';
 
-const PACK_FORMS = resolve(__dirname, '../../../../packs/test/frontend/forms');
+const PACK_FORMS = resolve(__dirname, '../../../../packs/reference/frontend/forms');
 
 function raw(id: string): Record<string, unknown> {
   return JSON.parse(readFileSync(resolve(PACK_FORMS, `${id}.json`), 'utf-8'));
@@ -46,7 +46,7 @@ function submit(inputs: Inputs) {
 
 // What each pack form sends, or which errors it shows, is its spec's Behaviour
 // examples, run by src/pack/behaviour.test.ts. Here the renderer itself, on
-// the test pack's forms.
+// the reference pack's forms.
 describe('the renderer on owner-vehicle', () => {
   it('keeps an earlier upload by sending null', () => {
     const d = ownerVehicle();

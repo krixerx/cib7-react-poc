@@ -41,9 +41,9 @@ import org.junit.jupiter.api.Test;
 class DecisionExamplesTest {
 
   private static final Path ENGINE =
-      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"));
+      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"));
   private static final Path SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../packs/test/docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
   private static final String WITHOUT = "Examples without ";
 
   private static final ObjectMapper JSON = new ObjectMapper();

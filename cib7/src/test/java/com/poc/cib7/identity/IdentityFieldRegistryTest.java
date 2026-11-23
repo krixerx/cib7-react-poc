@@ -23,7 +23,7 @@ class IdentityFieldRegistryTest {
   private static final ObjectMapper JSON = new ObjectMapper();
 
   private static final Path ENGINE =
-      Path.of(System.getProperty("services.pack.dir", "../packs/test/engine"));
+      Path.of(System.getProperty("services.pack.dir", "../packs/reference/engine"));
 
   /**
    * Every field a form definition marks {@code identity} is bound in its process's policy, so the

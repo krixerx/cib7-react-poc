@@ -3,9 +3,8 @@ name: Build and push Docker images
 on:
   push:
     branches: [main]
-    # A core release: tag v<major>.<minor>.<patch> and every image is also
-    # published as <major>.<minor>.<patch>, the version a pack's layers name
-    # in their *_CORE argument.
+    # A release tag v<major>.<minor>.<patch> also publishes every core image
+    # as <major>.<minor>.<patch>.
     tags: ["v*.*.*"]
   workflow_dispatch:
 
@@ -28,8 +27,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The *-core images hold no service pack: a pack repository builds
-          # its images FROM them (its docker/*.Dockerfile and publish.yml).
+          # The *-core images hold no service pack: the pack-layers job below
+          # builds the reference pack's images FROM them.
           - image: cib7-poc-frontend-core
             context: .
             dockerfile: ./frontend/Dockerfile
@@ -119,3 +118,101 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           build-args: PACKAGES_REFRESH=${{ steps.refresh.outputs.date }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # The reference pack's images: each a thin layer (packs/reference/docker/
+  # <layer>.Dockerfile) on the core image this run just pushed, named by the
+  # same commit's short SHA, so core and pack are always one build. Pushed as
+  # eregistrations-reference-<layer>, tagged latest, the short SHA and the pack
+  # version from pack.yaml; deploy.yml deploys core and pack by that SHA.
+  pack-layers:
+    name: Build & push pack layer ${{ matrix.layer }}
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    env:
+      PACK_DIR: packs/reference
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { layer: frontend, core: frontend-core, module: frontend, arg: FRONTEND_CORE }
+          - { layer: engine, core: cib7-core, module: cib7, arg: ENGINE_CORE }
+          - { layer: backend, core: backend-core, module: backend, arg: BACKEND_CORE }
+          - { layer: mcp, core: mcp-core, module: mcp, arg: MCP_CORE }
+          - { layer: mobile, core: mobile-core, module: mobile, arg: MOBILE_CORE }
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: core
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          echo "image=docker.io/$DH_USER/cib7-poc-${{ matrix.core }}:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          pack_version=$(sed -n 's/^version: *"\{0,1\}\([0-9.]*\).*/\1/p' "$PACK_DIR/pack.yaml")
+          echo "pack_version=$pack_version" >> "$GITHUB_OUTPUT"
+          # The module's accepted findings, if it has any: the layer adds only
+          # data, so anything else Trivy finds is the core image's to fix.
+          if [ -f "${{ matrix.module }}/.trivyignore.yaml" ]; then
+            echo "trivyignores=${{ matrix.module }}/.trivyignore.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "trivyignores=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/eregistrations-reference-${{ matrix.layer }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short,prefix=
+            type=raw,value=${{ steps.core.outputs.pack_version }}
+
+      - name: Build for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.PACK_DIR }}
+          file: ${{ env.PACK_DIR }}/docker/${{ matrix.layer }}.Dockerfile
+          build-args: ${{ matrix.arg }}=${{ steps.core.outputs.image }}
+          load: true
+          push: false
+          tags: scan/${{ matrix.layer }}:${{ github.sha }}
+
+      # The layers only copy data, so each keeps its core image's non-root
+      # USER (docs/security.md rule 11). Checked on the built image rather
+      # than the Dockerfile text: a layer that switches to root and a core
+      # image that lost its USER both fail here.
+      - name: Image runs as non-root
+        run: |
+          user="$(docker image inspect --format '{{.Config.User}}' scan/${{ matrix.layer }}:${{ github.sha }})"
+          case "${user%%:*}" in
+            "" | root | 0)
+              echo "::error::the ${{ matrix.layer }} image runs as '${user:-root}'; it must keep the core image's non-root USER"
+              exit 1
+              ;;
+          esac
+          echo "the ${{ matrix.layer }} image runs as $user"
+
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: scan/${{ matrix.layer }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          trivyignores: ${{ steps.core.outputs.trivyignores }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.PACK_DIR }}
+          file: ${{ env.PACK_DIR }}/docker/${{ matrix.layer }}.Dockerfile
+          build-args: ${{ matrix.arg }}=${{ steps.core.outputs.image }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

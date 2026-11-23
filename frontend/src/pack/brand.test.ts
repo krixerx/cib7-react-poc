@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidBrand, parseBrand, parseTokens, tokensCss, type Scheme } from './brand';
 
-/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the core test pack (packs/test). */
+/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the reference pack (packs/reference). */
 const BRANDING = resolve(
-  process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/test'),
+  process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/reference'),
   'branding',
 );
 const CORE_TOKENS = resolve(__dirname, '../styles/tokens.css');

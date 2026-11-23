@@ -1,8 +1,8 @@
 # The MCP sidecar image for this pack: the core sidecar image plus the pack's
 # specs folder (per-service manifests and training markdown, the services
 # index) and its engine form schemas, which hold the value rules the sidecar
-# validates with. Data only; a core release reaches this pack by bumping
-# MCP_CORE.
+# validates with. Data only; MCP_CORE names the core image, and compose and
+# docker-publish.yml pass the one built from the same commit.
 #
 # Build context is the pack directory; mcp.Dockerfile.dockerignore keeps
 # only the specs folder and the engine processes in it.

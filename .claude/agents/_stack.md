@@ -9,5 +9,5 @@
 - **Mobile (`mobile/`):** Flutter web, no platform folders committed.
 - **Bus (`esb/`):** Apache Camel JBang, YAML routes, no build step.
 - **pdf-renderer (`pdf-renderer/`):** Node 24, Express, over Gotenberg.
-- **Packs (`packs/test/`):** BPMN, DMN, FreeMarker, form definitions, generated from markdown specs.
+- **Packs (`packs/reference/`):** BPMN, DMN, FreeMarker, form definitions, generated from markdown specs.
 - **Platform:** Keycloak OIDC, Graylog over GELF, nginx or Traefik ingress, Docker Compose.

@@ -1,14 +1,13 @@
 # Deployment (from source)
 
 > **Most administrators should use [`deploy/README.md`](../deploy/README.md)
-> instead** — a pull-only setup: the core's deploy kit with one service
-> pack's images (published by the pack repository on the core images) and
-> the pack's users and branding in `pack/`, deployed by the Deploy to VM
+> instead** — a pull-only setup: the deploy kit with one service pack's
+> images (published by CI as layers on the core images of the same commit)
+> and the pack's users and branding in `pack/`, deployed by the Deploy to VM
 > workflow ([`ci-cd.md`](ci-cd.md)). This document covers deploying **from
-> source**, which you only need when running unpushed core changes. It
-> builds this repository's compose, so the instance runs the core **test
-> pack** (`packs/test/`), a frozen copy of the reference services, not a
-> customer's pack.
+> source**, which you only need when running unpushed changes. It builds
+> this repository's compose, so the instance runs the **reference pack**
+> (`packs/reference/`).
 
 **When to read this:** when deploying the POC to a server other than your
 laptop — anywhere browsers reach the SPA on something other than

@@ -1,8 +1,9 @@
 # The mobile app image for this pack: the core mobile image plus the pack's
 # branding (name, colours, logo) and texts (document labels) under
 # /mobile/pack/, which the app reads at startup (lib/pack.dart) and the start
-# script uses for the page title and install manifest. Data only; a core
-# release reaches this pack by bumping MOBILE_CORE.
+# script uses for the page title and install manifest. Data only;
+# MOBILE_CORE names the core image, and compose and docker-publish.yml pass
+# the one built from the same commit.
 #
 # Build context is the pack directory; mobile.Dockerfile.dockerignore keeps
 # only branding/ and the frontend texts in it.

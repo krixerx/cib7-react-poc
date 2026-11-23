@@ -65,7 +65,7 @@ cib7/
         └── schemas/core-v1.json           — shared value rules for the pack's form schemas
 
 <pack>/engine/                        — a service pack's engine files (on the classpath at runtime;
-                                         here packs/test/, the core test pack)
+                                         here packs/reference/, the reference pack)
     ├── processes/<service>/               — one engine deployment per folder (ServiceDeployments.java)
     │   ├── <service>.bpmn, *.dmn
     │   ├── variable-policy.json           — which variables clients may write (generated, see below)
@@ -343,16 +343,16 @@ camunda.bpm:
 
 `com.poc.cib7.ServiceDeployments` scans `classpath*:processes/*/` at
 startup. Neither the jar nor the core image contains service files: the
-pack's image layer (`packs/test/docker/engine.Dockerfile`, `FROM` the
-core image) copies the service pack (`packs/test/engine/`, its
+pack's image layer (`packs/reference/docker/engine.Dockerfile`, `FROM` the
+core image) copies the service pack (`packs/reference/engine/`, its
 `branding/` and `pack.yaml`) to `/opt/services`, and the core starts through Spring Boot's
 `PropertiesLauncher` with `-Dloader.path=/opt/services`, which puts that
 directory on the classpath. The same mechanism serves the FreeMarker templates
 (BPMN `resource="templates/..."` loads from the classpath) and the
 `variable-policy.json` files. Locally, tests and `mvn spring-boot:run` add the
-core test pack's `packs/test/engine` (a frozen copy of the reference pack)
-through the pom property `services.pack.dir`. A customer pack
-builds the same layer from its own repository on a published core image.
+reference pack's `packs/reference/engine` through the pom property
+`services.pack.dir`. Another pack under `packs/` builds the same layer on the
+core image.
 
 The scan creates **one named engine deployment per service folder**
 (deployment name = folder name = the spec folder name under
@@ -380,8 +380,8 @@ It runs in `@PostConstruct`, before the HTTP port opens, so
 
 ## BPMN files
 
-**Location.** a pack's `engine/processes/<service>/` (in the pack repository;
-`packs/test/engine/processes/` here) — one folder
+**Location.** a pack's `engine/processes/<service>/`
+(`packs/reference/engine/processes/` for the reference pack) — one folder
 per service; the folder name becomes the engine deployment name. A
 service's DMN files live in the same folder (required by the
 `deployment` decision binding).

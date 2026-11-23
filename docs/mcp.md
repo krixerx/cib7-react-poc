@@ -133,7 +133,7 @@ mcp/
 ```
 
 `/app/services-spec` and `/app/pack-engine/processes` are filled by the
-pack's image layer (`packs/test/docker/mcp.Dockerfile`, `FROM` the
+pack's image layer (`packs/reference/docker/mcp.Dockerfile`, `FROM` the
 pack-less core image built from `mcp/Dockerfile`). To add a new service or
 update one, run `/service-builder` and rebuild the pack's image.
 
@@ -312,7 +312,7 @@ scopes `cib7-claims` and `cib7-rest-api-audience`, not on `profile`/`email`.
   pointed at `mailpit:1025`.
 
 The realm lives in `keycloak/cib7-poc-realm.json` (core) and
-`packs/test/keycloak/cib7-poc-users-0.json` (the pack's users); the
+`packs/reference/keycloak/cib7-poc-users-0.json` (the pack's users); the
 deploy bundle carries copies (`deploy/keycloak/`), and `RealmFilesTest`
 fails when a copy differs from its source.
 The realm is imported once, at Keycloak's first start, so a change reaches a
@@ -487,16 +487,16 @@ with its `key`, `name`, `description`, `audience`, and `manifestPath`.
     └── services.json                      aggregated index
 ```
 
-To add MCP support for a new service, in its pack repository:
+To add MCP support for a new service, in its pack (`packs/<pack>/`):
 
 1. Author the spec in `docs/business/services/<service>/`.
 2. Run `/service-builder` — it emits the BPMN, DMN, form definitions, the
    MCP manifest and training markdown, and updates the aggregated index.
-3. The pack's `publish.yml` builds its `mcp` layer, which copies the new
-   manifest and form schemas onto the core image; deploy that pack version.
+3. `docker-publish.yml` builds the pack's `mcp` layer, which copies the new
+   manifest and form schemas onto the core image; deploy that commit.
 
-No code change in `mcp/` for a new service. Locally in this repository the
-same holds for the test pack (`docker compose build mcp`).
+No code change in `mcp/` for a new service. Locally, `docker compose build mcp`
+rebuilds the layer for the reference pack.
 
 ## Discovery surface (`.well-known`, `<meta>` tags)
 
@@ -583,8 +583,8 @@ PORT=8090 \
   BUSINESS_URL=http://localhost:8085 \
   KEYCLOAK_ISSUER_URL=http://localhost:8180/realms/cib7-poc \
   MCP_RESOURCE_URL=http://localhost:3000/mcp \
-  SERVICES_SPEC_DIR=../packs/test/docs/business/services \
-  ENGINE_PROCESSES_DIR=../packs/test/engine/processes \
+  SERVICES_SPEC_DIR=../packs/reference/docs/business/services \
+  ENGINE_PROCESSES_DIR=../packs/reference/engine/processes \
   CORE_SCHEMA_FILE=../cib7/src/main/resources/schemas/core-v1.json \
   npm start
 ```

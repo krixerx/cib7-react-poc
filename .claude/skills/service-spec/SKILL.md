@@ -22,5 +22,5 @@ Start from `.claude/skills/service-builder/spec-template/`; it is the authoritat
 - **Write examples from the policy, never from generated output.** An example copied from what the generator produced proves only that the generator ran. The sections and their tests are in `process-testing`.
 - **Spec and generated output change in one commit.** Hand edits to generated files are lost.
 - **One service, one folder**, with one file per form, service task and decision, named by its id.
-- **Services change in their pack's repository.** Here, `packs/test/` changes only when a core change needs it to, and it stays a valid pack (`scripts/pack-check.sh`).
+- **Services change in their pack's repository.** Here, `packs/reference/` changes only when a core change needs it to, and it stays a valid pack (`scripts/pack-check.sh`).
 - **State fee, documents and consent are spec sections too**: they generate `backend/payment/`, `documents.json` and `backend/consent/`.

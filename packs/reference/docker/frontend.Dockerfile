@@ -1,8 +1,9 @@
 # The portal image for this pack: the core frontend image plus the pack's
 # data under /pack/, which the SPA reads at startup (catalog.json and
 # locales/), per task (forms/<id>.json) and before the first render
-# (branding/). Data only: no build step, nothing of the core changes, so a
-# core release reaches this pack by bumping FRONTEND_CORE.
+# (branding/). Data only: no build step, nothing of the core changes.
+# FRONTEND_CORE names the core image; compose and docker-publish.yml pass the
+# one built from the same commit.
 #
 # Build context is the pack directory; frontend.Dockerfile.dockerignore keeps
 # only frontend/ and branding/ in it.

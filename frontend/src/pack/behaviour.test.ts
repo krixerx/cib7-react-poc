@@ -21,8 +21,8 @@ import { completion, initialInputs, type Inputs } from '../forms/schema/values';
  * it starts with.
  */
 
-/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the core test pack (packs/test). */
-const PACK_ROOT = process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/test');
+/** The pack under test: PACK_DIR (scripts/pack-check.sh), else the reference pack (packs/reference). */
+const PACK_ROOT = process.env.PACK_DIR ?? resolve(__dirname, '../../../packs/reference');
 const SPECS = resolve(PACK_ROOT, 'docs/business/services');
 const FORMS = resolve(PACK_ROOT, 'frontend/forms');
 const HEADING = 'Behaviour examples';

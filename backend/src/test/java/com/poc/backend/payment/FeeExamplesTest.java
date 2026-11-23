@@ -37,9 +37,9 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 class FeeExamplesTest {
 
   private static final Path BACKEND =
-      Path.of(System.getProperty("services.pack.dir", "../packs/test/backend"));
+      Path.of(System.getProperty("services.pack.dir", "../packs/reference/backend"));
   private static final Path SPECS =
-      Path.of(System.getProperty("services.docs.dir", "../packs/test/docs/business/services"));
+      Path.of(System.getProperty("services.docs.dir", "../packs/reference/docs/business/services"));
   private static final String PI = "pi-fee-example";
 
   @Test
