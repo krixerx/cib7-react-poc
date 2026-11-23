@@ -8,6 +8,13 @@
 # We run TypeScript directly via tsx — no tsc build step for this POC.
 FROM node:24.21.0-alpine
 
+# Pull Alpine security fixes newer than the base tag (musl CVE-2026-107891 and
+# zlib CVE-2026-85091 blocked publishing, 2026-11-23). PACKAGES_REFRESH (the
+# build date, docker-publish.yml) changes daily, so the CI layer cache cannot
+# keep serving an older upgrade.
+ARG PACKAGES_REFRESH
+RUN apk upgrade --no-cache
+
 WORKDIR /app
 
 # Dependencies first so subsequent source-only changes don't bust this layer.

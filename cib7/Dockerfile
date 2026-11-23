@@ -24,7 +24,15 @@ FROM eclipse-temurin:21.0.12.1_1-jre
 # Pebble, Canonical's service manager, ships in the Temurin Ubuntu image as a
 # Go binary whose stdlib Trivy flags (CVE-2026-97031 and others, 2026-10-13).
 # The JVM is the entrypoint and nothing starts Pebble, so it goes.
-RUN groupadd --system --gid 10001 app \
+# The base image lags Ubuntu's security pocket, so every package is upgraded
+# (apt CVE-2026-109518 blocked publishing, 2026-11-23). PACKAGES_REFRESH (the
+# build date, docker-publish.yml) changes daily, so the CI layer cache cannot
+# keep serving an upgrade layer older than Ubuntu's newest fixes.
+ARG PACKAGES_REFRESH
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/* \
+ && groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app \
  && rm -f /usr/bin/pebble
 WORKDIR /app
