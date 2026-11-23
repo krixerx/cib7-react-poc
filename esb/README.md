@@ -103,7 +103,7 @@ camel run --source-dir=/routes --logging-config-path=/etc/camel/log4j2-graylog.x
 `log4j2-graylog.xml` keeps the console appender — `docker compose logs -f esb`
 must stay useful — and adds a `Socket` appender with `GelfLayout` pointing at
 `graylog:12201`. Both classes ship inside `log4j-core`, so nothing has to be
-added to a JBang classpath.
+added to the classpath the image resolves at build time.
 
 This is the only service in the stack that ships GELF over **TCP**: Log4j2's
 `GelfLayout` does not implement GELF's UDP chunking protocol, so a large message

@@ -48,14 +48,43 @@ EXPOSE 8080
 USER ubuntu
 
 # camel-jbang-core 4.22.1 pins Jolokia 2.6.0 (CVE-2026-84218, HIGH; Trivy
-# 2026-10-14), and the image pre-warms it in the Maven cache. A direct DEPS line
-# in the launcher script wins over that transitive pin, so JBang resolves the
-# fixed Jolokia set; the 2.6.0 jars go so nothing can load them, and resolving
-# here keeps the new jars in the image instead of downloading them at start.
-# Drop this once a camel-jbang image ships Jolokia >= 2.6.2.
+# 2026-10-14), jackson 2.22.1 (CVE-2026-89407 and others, HIGH) and freemarker
+# 2.3.34 (CVE-2026-84939, CRITICAL; Trivy 2026-11-23), all pre-warmed in the
+# Maven cache. A direct DEPS line in the launcher script wins over a
+# transitive pin, so the fixed versions are resolved here, and the old jars go
+# so nothing can load them. Drop each pin once a camel-jbang image ships the
+# fix.
+#
+# JBang itself only launches the script, and its jar shades httpclient5,
+# httpcore5 and jsoup with HIGH findings that no JBang release fixes yet
+# (0.143.0 checked, 2026-11-23). So the script is compiled here, its resolved
+# classpath goes into a java argument file, and the container starts Camel
+# with plain java (ENTRYPOINT below); JBang leaves the image.
 RUN sed -i '/^\/\/DEPS org.apache.camel:camel-jbang-core/a //DEPS org.jolokia:jolokia-agent-jvm:2.6.3:javaagent' /opt/jbang/CamelJBang.java \
+  && sed -i '/^\/\/DEPS org.jolokia:jolokia-agent-jvm/a //DEPS com.fasterxml.jackson.core:jackson-core:2.22.4' /opt/jbang/CamelJBang.java \
+  && sed -i '/^\/\/DEPS com.fasterxml.jackson.core:jackson-core/a //DEPS com.fasterxml.jackson.core:jackson-databind:2.22.4' /opt/jbang/CamelJBang.java \
+  && sed -i '/^\/\/DEPS com.fasterxml.jackson.core:jackson-databind/a //DEPS org.freemarker:freemarker:2.3.35' /opt/jbang/CamelJBang.java \
   && rm -rf /home/ubuntu/.m2/repository/org/jolokia \
-  && jbang info classpath /opt/jbang/CamelJBang.java > /dev/null
+     /home/ubuntu/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.22.1 \
+     /home/ubuntu/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.22.1 \
+     /home/ubuntu/.m2/repository/org/freemarker/freemarker/2.3.34 \
+  && jbang build /opt/jbang/CamelJBang.java \
+  && cp "$(find /home/ubuntu/.jbang/cache/jars -name CamelJBang.jar | head -n 1)" /tmp/CamelJBang.jar \
+  && echo "-cp /opt/camel/CamelJBang.jar:$(jbang info classpath /opt/jbang/CamelJBang.java)" > /tmp/classpath.args
+
+# The launcher and its argument file are root-owned and read-only to ubuntu.
+# The build fails if an old jar is still on the classpath.
+USER root
+RUN mkdir -p /opt/camel \
+  && mv /tmp/CamelJBang.jar /tmp/classpath.args /opt/camel/ \
+  && chown -R root:root /opt/camel \
+  && rm -rf /opt/jbang /usr/local/bin/camel /usr/local/bin/jbang /home/ubuntu/.jbang \
+  && ! grep -qE 'jackson-(core|databind)-2\.22\.1|freemarker-2\.3\.34|jolokia-agent-jvm-2\.6\.0' /opt/camel/classpath.args
+USER ubuntu
+
+# What the base image's `camel` script ran (`jbang run CamelJBang.java`), as
+# plain java on the classpath resolved above.
+ENTRYPOINT ["java", "--enable-native-access=ALL-UNNAMED", "@/opt/camel/classpath.args", "main.CamelJBang"]
 
 # First start may resolve a few component jars (platform-http, http) before the
 # HTTP server is ready — give it a moment after `docker compose up`.
