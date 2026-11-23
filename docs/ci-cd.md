@@ -40,16 +40,17 @@ Accepted image-scan findings go in a per-image Trivy YAML ignore file that
 `trivyignores` field). Each entry names the CVE, the path it sits in, a
 `statement` saying why, and an `expired_at` date, so the build turns red
 again when the exception lapses. An image without a file is scanned with no
-exceptions. There is one:
+exceptions. Both files are empty now:
 
-- `esb/.trivyignore.yaml`: Jackson and FreeMarker in Camel JBang's
-  dependency cache and libraries inside `jbang.jar` (jsoup among them),
-  which our Dockerfile cannot upgrade. Expires 2026-11-13.
+- `esb/.trivyignore.yaml`: the esb Dockerfile pins fixed Jackson and
+  FreeMarker versions over camel-jbang's and starts Camel with plain java,
+  so the JBang launcher jar and its bundled libraries are gone (2026-11-23).
+- `cib7/.trivyignore.yaml`: the engine's one accepted finding (Spring MVC's
+  XsltView, CVE-2026-47884) went with the move to Spring Boot 4.
 
-`cib7/.trivyignore.yaml` is empty: the engine's one accepted finding
-(Spring MVC's XsltView, CVE-2026-47884) went with the move to Spring Boot 4.
-The file stays, because `security.yml` passes it to the filesystem scan and
-`pack-layers` scans the pack's engine layer with it.
+The files stay because `docker-publish.yml` names them; `security.yml` also
+passes the cib7 one to the filesystem scan, and `pack-layers` scans the
+pack's engine layer with it.
 
 The deploy is manual on purpose: a deploy restarts the engine and can run
 schema migrations against the live Postgres data, which is not something a

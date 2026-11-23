@@ -160,7 +160,7 @@ camel run --source-dir=/routes --logging-config-path=/etc/camel/log4j2-graylog.x
 
 `esb/log4j2-graylog.xml` adds a `Socket` appender with `GelfLayout` next to the
 console one. Both classes ship inside `log4j-core`, so this needs no extra jar
-on a JBang classpath that is awkward to extend.
+on a classpath resolved at image build time.
 
 This is the one service on **TCP**: Log4j2's `GelfLayout` does not implement
 GELF's UDP chunking protocol, so an oversized datagram would simply be lost. A
