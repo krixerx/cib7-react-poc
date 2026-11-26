@@ -17,7 +17,7 @@ class RegistryCatalogTest {
 
   private static final String VALID =
       """
-      platform: 2
+      platform: 3
       entity: vehicles
       table: reg_vehicles
       key: vin
@@ -66,7 +66,7 @@ class RegistryCatalogTest {
     assertRefused(VALID.replace("{ yearsSince: year }", "{ yearsSince: vin }"));
     assertRefused(VALID.replace("{ yearsSince: year }", "{ sql: \"now()\" }"));
     assertRefused(VALID.replace("key: vin", "key: owner"));
-    assertRefused(VALID.replace("platform: 2", "platform: 3"));
+    assertRefused(VALID.replace("platform: 3", "platform: 4"));
   }
 
   private static void assertRefused(String descriptor) {

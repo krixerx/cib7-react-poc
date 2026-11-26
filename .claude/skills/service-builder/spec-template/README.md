@@ -107,7 +107,7 @@ issued certificate is the core's `generated-certificate`; do not declare it.
 ## State fee (optional, only for a service with a payment step)
 
 Generated into the pack's `backend/payment/<service>.yaml`. Add a
-`quote-…` service task (GET `${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}`,
+`quote-…` service task (GET `${backendBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}`,
 output `stateFee`) before the invoice, and print `stateFee` in it.
 
 | Item | Value |

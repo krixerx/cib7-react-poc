@@ -15,8 +15,8 @@
 #     Keycloak's --import-realm runs once). The redirectUris / webOrigins
 #     are handled: they carry ${PUBLIC_FRONTEND_URL} placeholders that
 #     Keycloak resolves at import time.
-#   - Mailpit replacement (the BPMN uses Mailpit's /api/v1/send wire
-#     format — pointing MAIL_API_URL elsewhere requires a compatible API)
+#   - Mailpit replacement (Patchbay's mail-send integration maps to Mailpit's
+#     /api/v1/send; another mail system needs a new version of that package)
 #
 # Routing: Traefik here uses the FILE provider only (routes in
 # /opt/volumes/traefik/dynamic/routes.yml, template in
@@ -67,12 +67,18 @@ services:
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET}
       # Browser-visible SPA URL embedded in confirmation email links.
       FRONTEND_BASE_URL: ${PUBLIC_FRONTEND_URL}
-      # INTERNAL_TASK_TOKEN moved to the esb service — the bus injects
-      # X-Internal-Token now, the engine no longer holds the secret.
-      # The engine's credential towards the bus; must equal esb's BUS_TOKEN.
-      BUS_TOKEN: ${BUS_TOKEN}
+      # Sent as X-Internal-Token on ${backendBaseUrl}/api/internal/ only;
+      # must equal the backend's.
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      # Sent as X-API-Key to Patchbay's integrations; must equal Patchbay's
+      # INBOUND_API_KEY below. `:?` because an empty key would turn Patchbay's
+      # key check off (measured on 0.1.0: no header at all is then accepted).
+      PATCHBAY_API_KEY: ${PATCHBAY_API_KEY:?set PATCHBAY_API_KEY in .env}
       # Signs capability links (co-owner, founder and payment); the backend verifies.
       LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET}
+      # Refuse to start while PATCHBAY_API_KEY or INTERNAL_TASK_TOKEN is still
+      # its committed dev default (DefaultSecretsGuard).
+      APP_REQUIRE_REAL_SECRETS: "true"
     restart: unless-stopped
 
   backend:
@@ -135,16 +141,22 @@ services:
   pdf-renderer:
     restart: unless-stopped
 
-  esb:
-    # Integration bus. The engine inherits BUS_URL=http://esb:8080 from the base
-    # file, so all outbound integration (email, PDF, backend) crosses the bus.
-    # Internal-only (no Traefik route) — only the engine talks to it.
+  patchbay:
+    # No Traefik route in this phase: the console stays on the base file's
+    # loopback binding (127.0.0.1:${PATCHBAY_HTTP_PORT:-8090}), reached over
+    # an SSH tunnel. No ports here: compose would add them to the base
+    # file's, not replace them.
     environment:
-      # Real internal-task secret in prod — the bus injects X-Internal-Token on
-      # the /api/documents route. Must match the backend's INTERNAL_TASK_TOKEN.
-      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
-      # Checked on every call from the engine (X-Bus-Token).
-      BUS_TOKEN: ${BUS_TOKEN}
+      # No dev defaults in prod; must equal cib7's PATCHBAY_API_KEY. Required
+      # (`:?`): Patchbay 0.1.0 with an empty INBOUND_API_KEY accepts integration
+      # calls without any key.
+      INBOUND_API_KEY: ${PATCHBAY_API_KEY:?set PATCHBAY_API_KEY in .env}
+      MAPPER_ADMIN_USER: ${PATCHBAY_ADMIN_USER:-admin}
+      MAPPER_ADMIN_PASSWORD: ${PATCHBAY_ADMIN_PASSWORD:?set PATCHBAY_ADMIN_PASSWORD in .env}
+      # Off by default: the call log keeps the last payloads per integration
+      # in memory (names, addresses, capability links, whole PDFs), readable
+      # by anyone with the console password.
+      MAPPER_CALL_LOG: ${PATCHBAY_CALL_LOG:-off}
     restart: unless-stopped
 
   gotenberg:

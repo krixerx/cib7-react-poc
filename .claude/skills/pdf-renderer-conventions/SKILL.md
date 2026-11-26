@@ -6,7 +6,9 @@ description: Rules for changing the pdf-renderer service (Express facade over Go
 # pdf-renderer conventions
 
 A small Express facade: `POST /render {html, filename}` returns `{filename, base64}`, and
-`GET /health` answers the healthcheck. The engine reaches it only across the bus. It has no tests,
+`GET /health` answers the healthcheck. The engine reaches it only through Patchbay's `pdf-render`
+integration, which maps one to one onto `POST /render` (contract: `pdf-renderer/openapi.json`, which
+changes with `server.js`). It has no tests,
 so verify a change through a real render on the local stack.
 
 Severity: **BLOCKER P1** is a security or data-integrity fault, **BLOCKER P2** a fault that breaks
@@ -18,7 +20,7 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | ID | Severity | Rule |
 |---|---|---|
 | PDF1 | BLOCKER P1 | It has no auth of its own and relies on network isolation; never publish its port or add it to a wider network |
-| PDF2 | BLOCKER P2 | Keep the response contract: the engine reads `base64` back through the bus |
+| PDF2 | BLOCKER P2 | Keep the response contract: the engine reads `base64` back through Patchbay's `pdf-render` integration |
 | PDF3 | BLOCKER P2 | Missing `html` answers 400; a Gotenberg failure answers 502 |
 | PDF4 | WARNING | The JSON body limit is 5 MB, and a larger document must change it deliberately |
 | PDF5 | WARNING | GELF has a 7000-byte cap and trimming covers only `short_message`, so keep other fields short |

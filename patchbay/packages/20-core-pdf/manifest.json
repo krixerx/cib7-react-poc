@@ -1,0 +1,11 @@
+{
+  "format" : "patchbay-package",
+  "formatVersion" : 1,
+  "exportedAt" : "2026-11-26T11:00:21.482728267Z",
+  "integrations" : [ {
+    "id" : "pdf-render",
+    "name" : "pdf-render",
+    "activeVersion" : "1.0.0",
+    "versions" : [ "1.0.0" ]
+  } ]
+}

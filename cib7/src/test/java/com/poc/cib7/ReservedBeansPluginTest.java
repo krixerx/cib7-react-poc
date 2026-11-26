@@ -17,8 +17,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 /**
  * A process variable named like a reserved configuration bean must not change what BPMN expressions
  * and FreeMarker templates resolve (docs/security.md rule 2). The test process resolves {@code
- * busBaseUrl} through JUEL and {@code busBaseUrl}/{@code frontendBaseUrl} through an inline
- * FreeMarker script after the start variables tried to overwrite both.
+ * backendBaseUrl} through JUEL and {@code patchbayBaseUrl}/{@code backendBaseUrl}/{@code
+ * frontendBaseUrl} through an inline FreeMarker script after the start variables tried to overwrite
+ * all three.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -31,8 +32,12 @@ class ReservedBeansPluginTest {
   @Autowired private ProcessEngine processEngine;
 
   @Autowired
-  @Qualifier("busBaseUrl")
-  private String busBaseUrl;
+  @Qualifier("patchbayBaseUrl")
+  private String patchbayBaseUrl;
+
+  @Autowired
+  @Qualifier("backendBaseUrl")
+  private String backendBaseUrl;
 
   @Autowired
   @Qualifier("frontendBaseUrl")
@@ -55,7 +60,8 @@ class ReservedBeansPluginTest {
     }
 
     Map<String, Object> hostile = new HashMap<>();
-    hostile.put("busBaseUrl", EVIL);
+    hostile.put("patchbayBaseUrl", EVIL);
+    hostile.put("backendBaseUrl", EVIL);
     hostile.put("frontendBaseUrl", EVIL);
     String pi =
         processEngine
@@ -63,10 +69,11 @@ class ReservedBeansPluginTest {
             .startProcessInstanceByKey("reservedBeansTest", hostile)
             .getId();
 
-    assertNotEquals(EVIL, busBaseUrl);
-    assertEquals(busBaseUrl, processEngine.getRuntimeService().getVariable(pi, "viaJuel"));
+    assertNotEquals(EVIL, patchbayBaseUrl);
+    assertNotEquals(EVIL, backendBaseUrl);
+    assertEquals(backendBaseUrl, processEngine.getRuntimeService().getVariable(pi, "viaJuel"));
     assertEquals(
-        busBaseUrl + "|" + frontendBaseUrl,
+        patchbayBaseUrl + "|" + backendBaseUrl + "|" + frontendBaseUrl,
         processEngine.getRuntimeService().getVariable(pi, "viaFreemarker"));
   }
 }

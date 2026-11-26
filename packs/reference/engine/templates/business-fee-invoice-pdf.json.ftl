@@ -1,5 +1,5 @@
 <#--
-  pdf-renderer /render payload for the state fee invoice task in business-registration.bpmn: the OÜ state fee invoice.
+  pdf-render payload (Patchbay integration, v1) for the state fee invoice task in business-registration.bpmn: the OÜ state fee invoice.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/business-fee-invoice.ftlh, rendered by the engine's `documents` bean on

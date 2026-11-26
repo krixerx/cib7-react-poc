@@ -13,10 +13,10 @@ Renders the vehicle registration certificate once the state fee is paid.
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/render` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/pdf-render` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: pdf-renderer, which renders HTML to PDF with Gotenberg.
+Downstream: Patchbay integration `pdf-render` (v1), which hands the HTML to the pdf-renderer (Gotenberg).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: certificate-pdf.json.ftl
 
 ```ftl
 <#--
-  pdf-renderer /render payload for Task_GenerateCertificatePdf in vehicle-registration.bpmn: the Vehicle Registration Certificate.
+  pdf-render payload (Patchbay integration, v1) for Task_GenerateCertificatePdf in vehicle-registration.bpmn: the Vehicle Registration Certificate.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/vehicle-certificate.ftlh, rendered by the engine's `documents` bean on

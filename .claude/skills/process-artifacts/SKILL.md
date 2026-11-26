@@ -23,6 +23,7 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | [P4](#p4) | BLOCKER P2 | A payload template cannot `<#include>` |
 | [P5](#p5) | BLOCKER P2 | DMN files declare `historyTimeToLive` |
 | [P6](#p6) | BLOCKER P2 | The namespace is `camunda:`, not `cib:` |
+| [P7](#p7) | BLOCKER P2 | An inline FreeMarker `camunda:script` whose text starts with `${` is evaluated as JUEL first |
 
 ## Details
 
@@ -84,3 +85,14 @@ HTML-escaped automatically) or `${documents.text(...)}` (email body); the
 
 **Namespace is `camunda:`, not `cib:`.** CIB seven 2.2 keeps the Camunda 7
 namespace.
+
+### P7
+
+**BLOCKER P2.** An inline FreeMarker script starting with `${` is evaluated as JUEL first.
+
+The engine treats an inline script whose text starts with `${` as a dynamic script and evaluates
+it as a JUEL expression first, so it does not behave like the same text in a template file. An inline FreeMarker script, a test fixture included, starts with something else,
+such as a FreeMarker comment (`<#-- ... -->`). Verified by the engine programmer on CIB seven 2.2;
+the fixtures of `BeanExposureTest` (`cib7/src/test/resources/authz/bean-exposure-test.bpmn`) start
+with `<#-- FreeMarker -->` for this reason, and `docs/cib7.md` (`ReservedBeansPlugin.java`) records it. Templates
+loaded with `resource=` were not checked against this rule.

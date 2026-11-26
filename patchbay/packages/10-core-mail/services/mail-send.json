@@ -1,0 +1,55 @@
+{
+  "id" : "mail-send",
+  "name" : "mail-send",
+  "request" : {
+    "links" : [ {
+      "from" : "ms-from-email",
+      "to" : "body.From.Email"
+    }, {
+      "from" : "ms-from-name",
+      "to" : "body.From.Name"
+    }, {
+      "from" : "ms-to",
+      "to" : "body.To[]"
+    }, {
+      "from" : "ms-to-email",
+      "to" : "body.To[].Email"
+    }, {
+      "from" : "ms-to-name",
+      "to" : "body.To[].Name"
+    }, {
+      "from" : "ms-subject",
+      "to" : "body.Subject"
+    }, {
+      "from" : "ms-text",
+      "to" : "body.Text"
+    }, {
+      "from" : "ms-attachments",
+      "to" : "body.Attachments[]"
+    }, {
+      "from" : "ms-att-filename",
+      "to" : "body.Attachments[].Filename"
+    }, {
+      "from" : "ms-att-content-type",
+      "to" : "body.Attachments[].ContentType"
+    }, {
+      "from" : "ms-att-base64",
+      "to" : "body.Attachments[].Content"
+    } ]
+  },
+  "response" : {
+    "links" : [ {
+      "from" : "ID",
+      "to" : "msr-message-id"
+    } ]
+  },
+  "input" : "mail-send",
+  "output" : "mail-send-result",
+  "contract" : "mailpit",
+  "operationId" : "SendMessageParams",
+  "target" : {
+    "method" : "POST",
+    "path" : "/api/v1/send",
+    "connection" : "mailpit"
+  }
+}

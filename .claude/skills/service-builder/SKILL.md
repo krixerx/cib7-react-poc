@@ -107,8 +107,8 @@ and ask** rather than guessing.
 | Every `<service>/build/mcp-service.json` across every service | `<pack>/docs/business/services/build/services.json` (aggregated MCP index; § 11) |
 | `<service>/forms/*.md` (Actions `complete-with`) + `<service>/README.md` (§ Variable write policy) | `<pack>/engine/processes/<service>/variable-policy.json` (client-writable variables per start and per form; docs/security.md rule 2; plus `identity`: variable to `givenName`, `familyName` or `email` from the README's **Identity** line) |
 | `<service>/consent.md` | `<pack>/backend/consent/<purpose>.yaml` (co-signing descriptor; step 10c) |
-| Every `<service>/README.md` § Documents | `<pack>/backend/documents.json` (`platform: 2`, `categories: { <name>: { by: applicant \| system } }`, without the core's `generated-certificate`; read by the backend's `DocumentCategories`) and the labels as `documents.<category>` in `<pack>/frontend/locales/{en,ar}/catalog.json` |
-| `<service>/README.md` § State fee | `<pack>/backend/payment/<service>.yaml`: `platform: 2`, `process`, `service` (fee name), `recipient`, `currency`, and `amount: { flat: N }` or `amount: { tiers: { variable, below: [{limit, amount}, ...] ascending, otherwise } }`; read by the backend's `FeeCatalog` |
+| Every `<service>/README.md` § Documents | `<pack>/backend/documents.json` (`platform: 3`, `categories: { <name>: { by: applicant \| system } }`, without the core's `generated-certificate`; read by the backend's `DocumentCategories`) and the labels as `documents.<category>` in `<pack>/frontend/locales/{en,ar}/catalog.json` |
+| `<service>/README.md` § State fee | `<pack>/backend/payment/<service>.yaml`: `platform: 3`, `process`, `service` (fee name), `recipient`, `currency`, and `amount: { flat: N }` or `amount: { tiers: { variable, below: [{limit, amount}, ...] ascending, otherwise } }`; read by the backend's `FeeCatalog` |
 | `<service>/data/<entity>.md` | `<pack>/backend/registry/<entity>.yaml` (descriptor) and `<pack>/backend/db/registry/V<n>__<entity>.sql` (table + seed; step 10b) |
 | `<service>/forms/<id>.md` (Fields `Validation`, Conditional rules) | `<pack>/engine/processes/<service>/schemas/<id>.json` and `schemas/start.json` (value rules the engine enforces on every client; step 10a) |
 
@@ -255,7 +255,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
     Descriptor at `<pack>/backend/registry/<entity>.yaml`:
     ```yaml
     # Generated from <pack>/docs/business/services/<service>/data/<entity>.md. Do not hand-edit.
-    platform: 2
+    platform: 3
     entity: <entity>            # [a-z][a-z0-9-]*, the URL segment
     table: reg_<name>           # must start with reg_
     key: <field>
@@ -287,7 +287,7 @@ generated files get rewritten in place; idempotent runs are a no-op.
 10c. **Emit the co-signing descriptor** when the service has a `consent.md`
     (other parties confirm or sign through emailed capability links), at
     `<pack>/backend/consent/<purpose>.yaml`. Copy the spec's tables
-    into: `platform: 2`, `purpose`, `process`, `applicant: {firstName,
+    into: `platform: 3`, `purpose`, `process`, `applicant: {firstName,
     lastName}`, `variables: {parties, confirmations, rejected, sent}`,
     `messages: {signature, send}`, `wording` (all ten keys: `party`,
     `rejection`, `unknownLink`, `alreadyRejected`, `alreadySent`,
@@ -361,7 +361,7 @@ short-circuit on the first one.
 | MCP manifest user-task coverage | Every user task with a `camunda:formKey="react:<id>"` in the emitted BPMN has a matching `userTasks[]` entry in `mcp-service.json` with the same `formKey` (`mcp/src/services/pack.test.ts`, for every form with a schema). |
 | Security: escaping | Every user-supplied value in a `.json.ftl` uses `?json_string`; in HTML bodies (PDF, email) `?html` as well. User values never go into a connector URL path unvalidated (docs/security.md rule 7). |
 | Security: no client-minted secrets | Forms never generate tokens, link ids, payment references or any other credential in the browser (`crypto.randomUUID()` for a link token is a violation). Capability links are minted server-side (docs/security.md rule 3). |
-| Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].fields` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`busBaseUrl`, `frontendBaseUrl`, `pdf`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
+| Security: system-owned variables | A form's `onComplete` variables and its MCP `userTasks[].fields` contain only the fields the form spec declares. DMN outputs, connector outputs, payment/consent state and config bean names (`ReservedBeansPlugin.RESERVED_NAMES`: `patchbayBaseUrl`, `backendBaseUrl`, `frontendBaseUrl`, `pdf`, `links`, `documents`) are never form output; a decision (`decision`, `medicalResult`, ...) is output only of the reviewer form that owns it; identity fields only of an applicant form whose process binds them in `IdentityFieldRegistry` (docs/security.md rule 2). |
 | Variable policy coverage | `variable-policy.json` exists, its `processDefinitionKey` is the BPMN process id, and its `forms` keys equal the set of `camunda:formKey` ids in the emitted BPMN, no more and no fewer. `VariablePolicyFilesTest` fails the cib7 build otherwise. |
 | Variable policy matches form and MCP | Each `forms.<id>` list equals the names derived from that form's Actions table (step 10), and equals the matching MCP `userTasks[].fields` plus its `notOffered`; `start` equals the MCP `start.fields` plus `start.notOffered`. `VariablePolicyFilesTest` (a pack check) holds them equal. A field the MCP manifest offers but the policy lacks makes `complete_task` fail with 403; a field the policy has but neither the form nor the README names is an open write. |
 | Security: no wildcard grants | The spec never asks for engine grants; access comes from `camunda:assignee="${initiator}"` and `candidateGroups`. If a spec needs a new role, stop and ask (docs/security.md rule 1). |
@@ -421,7 +421,7 @@ HTTP service task (inline payload):
     <camunda:connector>
       <camunda:connectorId>http-connector</camunda:connectorId>
       <camunda:inputOutput>
-        <camunda:inputParameter name="url">${busBaseUrl}/path/${someVar}</camunda:inputParameter>
+        <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/path/${someVar}</camunda:inputParameter>
         <camunda:inputParameter name="method">GET</camunda:inputParameter>
         <camunda:inputParameter name="headers">
           <camunda:map>
@@ -479,29 +479,45 @@ JUEL variables exposed by the engine (use these in URLs; don't hard-code):
 
 | JUEL | Source | Pattern |
 |---|---|---|
-| `${busBaseUrl}` | `BusConfiguration.java` | the integration bus — ALL outbound HTTP goes here |
+| `${patchbayBaseUrl}` | `OutboundConfiguration.java` | Patchbay, the integration service: every external system (mail, PDF, a pack's own) |
+| `${backendBaseUrl}` | `OutboundConfiguration.java` | the backend: registry, documents, payments, case index |
 | `${frontendBaseUrl}` | `FrontendConfiguration.java` | browser links embedded in emails |
 | `${pdf}` | `PdfHelper.java` bean | `${pdf.decode(...)}`, `${pdf.encode(...)}` |
+| `${links}`, `${documents}` | `CapabilityLinks`, `DocumentRenderer` | capability links; pack documents (§ 7) |
 
-**All outbound HTTP goes to `${busBaseUrl}`** — the engine never addresses
-Mailpit, pdf-renderer, or the backend directly. The `esb` service (Apache
-Camel, `esb/routes/*.yaml`) routes each path to the real downstream system:
+These six are `ReservedBeansPlugin.RESERVED_NAMES`, the only beans an
+expression or template can name (docs/platform-api.md).
 
-| Path on `${busBaseUrl}` | Downstream | Use |
+**A connector URL has one of two shapes** (`PackIntegrationTest` refuses any
+other, and any query, fragment or `..`):
+
+| URL | Downstream | Use |
 |---|---|---|
-| `/api/v1/send` | Mailpit | send email |
-| `/render` | pdf-renderer | render a PDF |
-| `/api/public/**` | backend | public reference data (vehicle catalog) |
-| `/api/internal/**` | backend | documents (move-pending, server-upload), case index |
+| `${patchbayBaseUrl}/api/v1/integrations/mail-send` | core integration `mail-send` v1 (Mailpit here) | send email |
+| `${patchbayBaseUrl}/api/v1/integrations/pdf-render` | core integration `pdf-render` v1 (pdf-renderer) | render a PDF |
+| `${patchbayBaseUrl}/api/v1/integrations/pack-<name>` | an integration in the pack's own `patchbay/<package>/` | a pack's external system |
+| `${backendBaseUrl}/api/public/**` | backend | public reference data (vehicle catalog) |
+| `${backendBaseUrl}/api/internal/**` | backend | documents (move-pending, server-upload), payments quote, registry lookups, case index |
 
-Two rules when generating service tasks:
-- **Never** add an `X-Internal-Token` header to `/api/internal/**` calls — the
-  bus injects it. Emitting it would reference a deleted bean and break the task.
+The service-task spec's "Downstream:" line names the integration
+(`Patchbay integration mail-send (v1)`) or the backend module.
+
+Rules when generating service tasks:
+- **Never** set an `X-Internal-Token` or `X-API-Key` header. The engine's
+  `OutboundCredentialsInterceptor` adds `X-API-Key` on Patchbay's
+  `/api/v1/integrations/` and `X-Internal-Token` on the backend's
+  `/api/internal/`, and removes both everywhere else; the pack check refuses a
+  connector that sets either.
 - A backend endpoint the engine calls that writes data or returns personal data
   goes under `/api/internal/**`, never `/api/public/**` (docs/security.md rule 5).
-- If the spec needs a NEW external integration on a new path, add a declarative
-  route to `esb/routes/` (YAML) rather than a hand-written `*Configuration.java`
-  bean; the engine still just calls `${busBaseUrl}/<new-path>`.
+- If the spec needs a NEW external system, it is a Patchbay integration in the
+  pack's `patchbay/<package>/` (slug, payload definitions, contract and
+  connection ids all start with `pack-`; no `connections/`, `secrets/` or
+  literal base URL), built in a Patchbay console and exported, never
+  hand-written and never a `*Configuration.java` bean. The engine calls
+  `${patchbayBaseUrl}/api/v1/integrations/pack-<name>`. A package is not
+  generated from the spec: if the spec names a system no package covers, stop
+  and ask.
 
 ---
 
@@ -547,23 +563,37 @@ Rules:
   hand-designed document in `<pack>/engine/documents/`
   (`email/<name>.ftl`, plain text; `pdf/<name>.ftlh`, HTML on the shared
   `/_brand.ftlh` layout). The generated payload only wraps it:
-  `"Text": "${documents.text("<name>", execution)?json_string}"` or
+  `"text": "${documents.text("<name>", execution)?json_string}"` or
   `"html": "${documents.html("<name>", execution)?json_string}"`. The
   service-task spec names the document; if the document does not exist yet,
   write a first version from the spec's description and say so, since a
   designer owns it from then on. Never `<#include>` in a payload template:
   the engine's FreeMarker has no template loader.
 
+A payload follows the neutral model of its integration (docs/platform-api.md,
+"Integrations offered to a pack"), never a vendor's schema:
+
+- `mail-send` v1: `from {email, name?}`, `to [{email, name?}]` (one or more),
+  `subject`, `text`, optional `attachments [{filename, contentType, base64}]`;
+  answers `{messageId}`, which a mail task does not map.
+- `pdf-render` v1: `{html, filename}`, both required; answers
+  `{filename, base64}`, read with `${pdf.decode(S(response).prop('base64').stringValue())}`.
+
 ```ftl
-<#-- what this payload is for; the body is documents/email/<name>.ftl -->
+<#-- mail-send payload for <task>; the body is documents/email/<name>.ftl -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "<issuer> POC" },
-  "To":   [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "<subject>",
-  "Text":    "${documents.text("<name>", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "<issuer> POC" },
+  "to":   [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "<subject>",
+  "text":    "${documents.text("<name>", execution)?json_string}",
+  "attachments": [
+    { "filename": "${(pdfFilename!"document.pdf")?json_string}", "contentType": "application/pdf", "base64": "${pdf.encode(pdfBytes)}" }
+  ]
 }
 ```
+
+Leave `attachments` out when the mail carries none.
 
 ---
 

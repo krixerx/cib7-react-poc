@@ -1,5 +1,5 @@
 <#--
-  Mailpit /api/v1/send payload for the "Send owner tracking email"
+  mail-send payload (Patchbay integration, v1) for the "Send owner tracking email"
   service task in vehicle-registration.bpmn.
 
   Sent once at the start of the co-owner signing phase. The owner is
@@ -17,8 +17,8 @@
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "Your vehicle registration is awaiting co-owner signatures",
-  "Text": "${documents.text("vehicle-applicant-tracking", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "Your vehicle registration is awaiting co-owner signatures",
+  "text": "${documents.text("vehicle-applicant-tracking", execution)?json_string}"
 }

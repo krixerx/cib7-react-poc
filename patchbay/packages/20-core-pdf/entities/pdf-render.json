@@ -1,0 +1,15 @@
+{
+  "id" : "pdf-render",
+  "name" : "PDF render (v1)",
+  "fields" : [ {
+    "id" : "pr-html",
+    "name" : "html",
+    "type" : "text",
+    "required" : true
+  }, {
+    "id" : "pr-filename",
+    "name" : "filename",
+    "type" : "text",
+    "required" : true
+  } ]
+}

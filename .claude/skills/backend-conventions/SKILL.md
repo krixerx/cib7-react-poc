@@ -120,7 +120,7 @@ concrete shape of `docs/security.md` §13 for endpoints.
 
 An exported OS environment variable outranks every `application*.yaml`, including
 `application-test.yaml`. A developer shell with a deploy value exported (`INTERNAL_TOKEN`,
-`BUS_TOKEN`, client secrets) arms the app under test with it while the test still presents the
+`PATCHBAY_API_KEY`, client secrets) arms the app under test with it while the test still presents the
 literal, and the failure points at the security chain. Set asserted values in
 `@SpringBootTest(properties = ...)` or `@TestPropertySource`, which the shell cannot beat. Never add a
 `src/test/resources/application.yaml`: it replaces the main file instead of layering onto it.
@@ -132,7 +132,7 @@ literal, and the failure points at the security chain. Set asserted values in
 **BLOCKER P2.** Context tests pass with no Docker and no network.
 
 CI runners have neither the compose stack nor spare cores. A test that boots the full context and
-dials Keycloak, the ESB or Postgres at startup passes on a developer machine with the stack up and
+dials Keycloak, Patchbay or Postgres at startup passes on a developer machine with the stack up and
 fails on the runner. Disable such clients through test properties, or use Testcontainers in a test
 that skips without Docker.
 

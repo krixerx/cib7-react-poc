@@ -40,13 +40,13 @@ class DocumentCategoriesTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "{\"platform\": 2, \"categories\": {\"generated-certificate\": {\"by\": \"system\"}}}",
-        "{\"platform\": 2, \"categories\": {\"generated-x\": {\"by\": \"applicant\"}}}",
-        "{\"platform\": 2, \"categories\": {\"id-card\": {\"by\": \"system\"}}}",
-        "{\"platform\": 2, \"categories\": {\"id-card\": {\"by\": \"anyone\"}}}",
-        "{\"platform\": 2, \"categories\": {\"Id Card\": {\"by\": \"applicant\"}}}",
-        "{\"platform\": 2, \"categories\": {}, \"script\": 1}",
-        "{\"platform\": 1, \"categories\": {}}",
+        "{\"platform\": 3, \"categories\": {\"generated-certificate\": {\"by\": \"system\"}}}",
+        "{\"platform\": 3, \"categories\": {\"generated-x\": {\"by\": \"applicant\"}}}",
+        "{\"platform\": 3, \"categories\": {\"id-card\": {\"by\": \"system\"}}}",
+        "{\"platform\": 3, \"categories\": {\"id-card\": {\"by\": \"anyone\"}}}",
+        "{\"platform\": 3, \"categories\": {\"Id Card\": {\"by\": \"applicant\"}}}",
+        "{\"platform\": 3, \"categories\": {}, \"script\": 1}",
+        "{\"platform\": 2, \"categories\": {}}",
       })
   void aMalformedOrDangerousDeclarationIsRefused(String json) {
     assertThrows(

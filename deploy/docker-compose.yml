@@ -10,10 +10,11 @@
 #   ${PACK_IMAGE_PREFIX}-engine:${PACK_TAG}    CIB seven 2.2 process engine
 #   ${PACK_IMAGE_PREFIX}-backend:${PACK_TAG}   business microservice (/api)
 #   ${PACK_IMAGE_PREFIX}-mcp:${PACK_TAG}       MCP sidecar (AI front door)
+#   ${PACK_IMAGE_PREFIX}-patchbay:${PACK_TAG}  Patchbay, the integration service
 #     each a pack's layer on the core image of the same commit
+#     (the Patchbay layer on cib7-poc-patchbay)
 #   docker.io/krixerx/cib7-poc-pdf-renderer:${CORE_TAG}   Gotenberg facade
-#   docker.io/krixerx/cib7-poc-esb:${CORE_TAG}            integration bus
-#     core only, no pack in them; CORE_TAG is the same commit's short SHA
+#     core only, no pack in it; CORE_TAG is the same commit's short SHA
 #
 # The pack's data for the official Keycloak image (its users file and the
 # branding of the login pages) sits in ./pack/, which the Deploy to VM
@@ -25,12 +26,15 @@
 #
 # Quick start (single machine, browsers on the same host):
 #
+#   echo APP_REQUIRE_REAL_SECRETS=false > .env   # or set real secrets, see .env.example
 #   docker compose up -d
 #   open http://localhost:3000        log in with bart/bart or homer/homer
 #
 # Every value an administrator might change is read from .env (see
 # .env.example). With no .env at all, every default targets localhost —
-# correct for a single-machine evaluation, never for a public host.
+# correct for a single-machine evaluation, never for a public host — but the
+# engine refuses to start on its committed dev-default secrets
+# (APP_REQUIRE_REAL_SECRETS, default true), hence the first line above.
 #
 # Real hostnames + TLS: set the PUBLIC_* vars + secrets in .env, edit
 # keycloak/cib7-poc-realm.json, drop certs into ./traefik/certs/, then run
@@ -57,7 +61,7 @@ services:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
       # UI and API live under /mailpit, the path mailpit-auth publishes them on
-      # (the esb's MAILPIT_SEND_URL and mailpit-ui's URL follow it).
+      # (Patchbay's MAPPER_URL_MAILPIT and mailpit-ui's URL follow it).
       MP_WEBROOT: mailpit
       # Any logged-in demo visitor can open the inbox; one click must not
       # empty it for everyone. Traefik also refuses DELETE (routes.yml).
@@ -220,8 +224,9 @@ services:
     image: docker.io/krixerx/cib7-poc-pdf-renderer:${CORE_TAG:-latest}
     container_name: cib7-poc-pdf-renderer
     restart: unless-stopped
-    # pdf: called by the bus (Graylog sits there too). render: Gotenberg.
-    networks: [pdf, render]
+    # pdf: called by Patchbay. render: Gotenberg. gelf-pdf: its own line to
+    # Graylog.
+    networks: [pdf, render, gelf-pdf]
     environment:
       GOTENBERG_URL: http://gotenberg:3000
       # Central logging — see README.md § Centralised logging (Graylog).
@@ -233,42 +238,60 @@ services:
     depends_on:
       - gotenberg
 
-  esb:
-    # Integration bus (Apache Camel). The engine calls no downstream system
-    # directly anymore — every outbound HTTP integration (email, PDF render,
-    # backend calls) POSTs to this bus (see cib7's BUS_URL below), and the
-    # declarative routes baked into the image forward each path to the real
-    # system. The bus also injects the X-Internal-Token secret on the
-    # document-write route, so the engine no longer holds that credential.
-    image: docker.io/krixerx/cib7-poc-esb:${CORE_TAG:-latest}
-    container_name: cib7-poc-esb
+  patchbay:
+    # Patchbay, the integration service. The engine reaches every external
+    # system only through a Patchbay integration, by slug, with X-API-Key;
+    # Patchbay maps the platform's payload to the system's API and holds its
+    # address. The pack's layer on cib7-poc-patchbay: the core packages
+    # (mail-send, pdf-render) plus the pack's own, imported at every start.
+    image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-patchbay:${PACK_TAG:-latest}
+    container_name: cib7-poc-patchbay
     restart: unless-stopped
-    # bus: the engine, its only caller. mail / pdf / esb-backend: one network
-    # per downstream system, so they cannot reach each other or the engine.
-    networks: [bus, mail, pdf, esb-backend]
+    # integration: called by the engine. mail / pdf: the two external systems.
+    # No network with the backend, Keycloak, Postgres, RustFS or Graylog: the
+    # console's Test button and a pack integration can call any host Patchbay
+    # reaches.
+    networks: [integration, mail, pdf]
+    # A pack's own connection variables (MAPPER_URL_PACK_*, MAPPER_HEADER_PACK_*,
+    # MAPPER_SECRET_PACK_*), host-local and never in git; deploy.sh checks the
+    # keys and refuses a URL to a core service. The kit names no pack variable.
+    env_file:
+      - path: patchbay-pack.env
+        required: false
     environment:
-      # The engine authenticates to the bus with this (X-Bus-Token); calls
-      # without it are refused, so nothing else can make the bus inject
-      # X-Internal-Token. Must equal cib7's BUS_TOKEN.
-      BUS_TOKEN: ${BUS_TOKEN:-bus-token-change-me}
-      # Must match the backend's INTERNAL_TASK_TOKEN — the bus sends it, the
-      # backend verifies it.
-      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
-      # Mailpit send endpoint the notification route forwards to. It carries
-      # the mailpit service's MP_WEBROOT (/mailpit); if one moves, the other
-      # must too, or process email silently breaks. The bus talks to Mailpit
+      # Carries the mailpit service's MP_WEBROOT (/mailpit); if one moves, the
+      # other must too, or process email breaks. Patchbay talks to Mailpit
       # directly on the `mail` network, never through mailpit-auth.
-      MAILPIT_SEND_URL: http://mailpit:8025/mailpit/api/v1/send
-      # Central logging. TCP, not UDP: Log4j2's GelfLayout cannot chunk
-      # datagrams, so a large message would be lost.
-      GRAYLOG_HOST: graylog
-      GRAYLOG_GELF_TCP_PORT: "12201"
-      LOG_SERVICE_NAME: esb
-    expose:
-      - "8080" # cib7 reaches it at http://esb:8080 (network-internal)
-    # NB: `backend` is intentionally NOT in depends_on — backend depends_on
-    # cib7 which depends_on esb, so esb→backend would be a startup cycle. The
-    # routes resolve backend:8085 at request time.
+      MAPPER_URL_MAILPIT: http://mailpit:8025/mailpit
+      MAPPER_URL_PDF_RENDERER: http://pdf-renderer:8088
+      # The key the engine sends as X-API-Key; must equal cib7's PATCHBAY_API_KEY.
+      INBOUND_API_KEY: ${PATCHBAY_API_KEY:-patchbay-api-key-change-me}
+      # Console and admin API login (HTTP Basic, no lockout). deploy.sh wants
+      # a password of at least 20 characters on a public host.
+      MAPPER_ADMIN_USER: ${PATCHBAY_ADMIN_USER:-admin}
+      MAPPER_ADMIN_PASSWORD: ${PATCHBAY_ADMIN_PASSWORD:-patchbay-admin-change-me}
+      # Off by default: the call log keeps the last payloads per integration in
+      # memory (names, addresses, capability links, whole PDFs), readable by
+      # anyone with the console password.
+      MAPPER_CALL_LOG: ${PATCHBAY_CALL_LOG:-off}
+      # PDF rendering is the slowest call; 30 s leaves twice the measured time.
+      MAPPER_OUTBOUNDTIMEOUTMS: "30000"
+    # Not persisted: every start imports the packages into an empty /config,
+    # so each integration goes live with the version its package holds and a
+    # console change is gone after a restart.
+    tmpfs:
+      - /config:uid=10001
+    ports:
+      # Console and admin API: an ip:port binding, loopback by default; reach
+      # it over an SSH tunnel (README.md). Never publish it on 0.0.0.0.
+      - "${PATCHBAY_HTTP_PORT:-127.0.0.1:8090}:8080"
+    # Patchbay logs one line per call to stdout and is not in Graylog;
+    # rotation keeps those lines from filling the disk.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     depends_on:
       - mailpit
       - pdf-renderer
@@ -280,9 +303,10 @@ services:
     image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-engine:${PACK_TAG:-latest}
     container_name: cib7-poc-cib7
     restart: unless-stopped
-    # edge: frontend/mobile nginx and Traefik. app: keycloak, and called by
-    # backend + mcp. bus: the ESB (Graylog sits there for the engine's GELF).
-    networks: [edge, app, bus, db]
+    # edge: frontend/mobile nginx and Traefik. app: keycloak, the backend it
+    # calls, and called by backend + mcp. integration: Patchbay, its only way
+    # to an external system. gelf-cib7: its own line to Graylog.
+    networks: [edge, app, integration, gelf-cib7, db]
     expose:
       - "8080"
     environment:
@@ -296,13 +320,18 @@ services:
       KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET:-cib7-backend-secret}
       KEYCLOAK_WEBAPPS_CLIENT_SECRET: ${KEYCLOAK_WEBAPPS_CLIENT_SECRET:-cib7-webapps-secret}
       KEYCLOAK_REST_AUDIENCE: cib7-rest-api
-      # Single integration-bus address — the engine sends ALL outbound HTTP
-      # here (email, PDF, backend calls) and the esb service above routes each
-      # path to the real downstream system. The engine no longer carries
-      # MAIL_API_URL / PDF_API_URL / BACKEND_API_URL / INTERNAL_TASK_TOKEN.
-      BUS_URL: http://esb:8080
-      # Sent as X-Bus-Token on every bus call; must equal esb's BUS_TOKEN.
-      BUS_TOKEN: ${BUS_TOKEN:-bus-token-change-me}
+      # The engine's two outbound addresses: Patchbay for every external
+      # system, the backend for its own API. It calls nothing else.
+      PATCHBAY_URL: http://patchbay:8080
+      BACKEND_URL: http://backend:8085
+      # Sent by destination only: X-API-Key to Patchbay's integrations (must
+      # equal Patchbay's INBOUND_API_KEY), X-Internal-Token to the backend's
+      # /api/internal/ (must equal the backend's INTERNAL_TASK_TOKEN).
+      PATCHBAY_API_KEY: ${PATCHBAY_API_KEY:-patchbay-api-key-change-me}
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-internal-task-token-change-me}
+      # Refuse to start while either of the two above is its dev default
+      # (DefaultSecretsGuard). Set it false in .env only for a local evaluation.
+      APP_REQUIRE_REAL_SECRETS: ${APP_REQUIRE_REAL_SECRETS:-true}
       # HMAC key for the capability links (co-owner, founder and payment) the engine
       # mints; the backend verifies them, so both carry the same value.
       LINK_SIGNING_SECRET: ${LINK_SIGNING_SECRET:-link-signing-secret-change-me}
@@ -321,12 +350,9 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
-      mailpit:
-        condition: service_started
-      pdf-renderer:
-        condition: service_started
-      esb:
-        condition: service_started
+      # Patchbay's own health check (readiness).
+      patchbay:
+        condition: service_healthy
 
   postgres:
     # Persistent database for the engine (database cib7) and the backend
@@ -357,9 +383,9 @@ services:
     image: ${PACK_IMAGE_PREFIX:-docker.io/krixerx/eregistrations-reference}-backend:${PACK_TAG:-latest}
     container_name: cib7-poc-backend
     restart: unless-stopped
-    # edge: nginx/Traefik. app: engine + keycloak, called by mcp. storage:
-    # RustFS. esb-backend: called by the bus (Graylog sits there too).
-    networks: [edge, app, storage, esb-backend, db]
+    # edge: nginx/Traefik. app: engine + keycloak, called by the engine and
+    # mcp. storage: RustFS. gelf-backend: its own line to Graylog.
+    networks: [edge, app, storage, gelf-backend, db]
     expose:
       - "8085"
     environment:
@@ -624,7 +650,8 @@ services:
   # Centralised logging — Graylog + its two stores.
   #
   # Every application service above ships structured GELF here over the docker
-  # network: cib7, backend, mcp and pdf-renderer on UDP, esb on TCP. Each
+  # network: cib7, backend, mcp and pdf-renderer on UDP. Patchbay logs to
+  # stdout only (docker compose logs patchbay). Each
   # message carries `service`, `level` + `level_name`, and `user_id` when the
   # request is attributable to a Keycloak user.
   #
@@ -675,10 +702,10 @@ services:
     image: ${GRAYLOG_IMAGE:-graylog/graylog:7.1.9}
     container_name: cib7-poc-graylog
     restart: unless-stopped
-    # logstore: its own stores. The rest are the networks its shippers sit on
-    # (bus: cib7 + esb, pdf: pdf-renderer, esb-backend: backend, gelf-mcp:
-    # mcp), so logging does not put the shippers on one shared network.
-    networks: [logstore, bus, pdf, esb-backend, gelf-mcp]
+    # logstore: its own stores. The rest are one gelf-<shipper> network per
+    # shipper, so logging does not put the shippers on one shared network.
+    # Graylog is on none of Patchbay's networks.
+    networks: [logstore, gelf-cib7, gelf-backend, gelf-pdf, gelf-mcp]
     environment:
       # At least 16 characters, and it must NOT change once there is data.
       GRAYLOG_PASSWORD_SECRET: ${GRAYLOG_PASSWORD_SECRET:-cib7-poc-graylog-password-secret-change-me}
@@ -705,7 +732,7 @@ services:
       - opensearch
 
   graylog-init:
-    # One-shot: creates the GELF UDP + TCP inputs through Graylog's REST API.
+    # One-shot: creates the GELF UDP input through Graylog's REST API.
     # Graylog stores inputs in MongoDB, so a fresh volume has nothing listening
     # on 12201 and every shipper would write into a closed port. Idempotent —
     # it matches on input title. Watch it with:
@@ -740,17 +767,21 @@ networks:
     name: cib7-poc-app
   storage:      # backend -> rustfs
     name: cib7-poc-storage
-  bus:          # cib7 -> esb (+ graylog)
-    name: cib7-poc-bus
-  esb-backend:  # esb -> backend (+ graylog)
-    name: cib7-poc-esb-backend
-  mail:         # esb, mailpit-auth -> mailpit (+ mailpit-ui)
+  integration:  # cib7 -> patchbay
+    name: cib7-poc-integration
+  mail:         # patchbay, mailpit-auth -> mailpit (+ mailpit-ui)
     name: cib7-poc-mail
-  pdf:          # esb -> pdf-renderer (+ graylog)
+  pdf:          # patchbay -> pdf-renderer
     name: cib7-poc-pdf
   render:       # pdf-renderer -> gotenberg
     name: cib7-poc-render
     internal: true
+  gelf-cib7:    # cib7 -> graylog
+    name: cib7-poc-gelf-cib7
+  gelf-backend: # backend -> graylog
+    name: cib7-poc-gelf-backend
+  gelf-pdf:     # pdf-renderer -> graylog
+    name: cib7-poc-gelf-pdf
   gelf-mcp:     # mcp -> graylog
     name: cib7-poc-gelf-mcp
   logstore:     # graylog <-> mongodb, opensearch; graylog-init

@@ -39,6 +39,31 @@ jobs:
       # `verify` runs spotless:check and the test phase for the module.
       - run: mvn -B -f ${{ matrix.module }}/pom.xml verify
 
+  # A pack's Patchbay packages are proven to load, which the esb's pack routes
+  # never were: build the core patchbay image, layer the reference pack's
+  # docker/patchbay.Dockerfile on it with a fixture package, and check
+  # GET /admin/integrations lists every integration active. The second run
+  # carries a fixture with a broken link and must fail with exit code 1 (an
+  # unreadable pack gives 2, which does not count), so the check cannot go green
+  # by never looking.
+  patchbay-pack-layer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: bash scripts/patchbay-layer-check.sh packs/reference
+      - name: A broken fixture must fail the check
+        run: |
+          set +e
+          bash scripts/patchbay-layer-check.sh packs/reference --broken-link
+          code=$?
+          if [ "$code" -ne 1 ]; then
+            echo "expected exit code 1 for the broken fixture, got $code" >&2
+            exit 1
+          fi
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

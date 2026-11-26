@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Ingest endpoint for case summary cards — the engine's BPMN "Index case" milestone tasks POST here
- * through the integration bus, which injects {@code X-Internal-Token} (SecurityConfig's internal
- * chain on {@code /api/internal/**}, same trust level as the internal document endpoints).
+ * directly, with the {@code X-Internal-Token} the engine attaches (SecurityConfig's internal chain
+ * on {@code /api/internal/**}, same trust level as the internal document endpoints).
  *
  * <p>The primary key is the process instance id, so every milestone re-post <em>replaces</em> the
  * previous card — the table always holds exactly one card per case reflecting its latest status.

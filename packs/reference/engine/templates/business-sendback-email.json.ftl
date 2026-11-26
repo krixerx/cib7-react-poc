@@ -1,5 +1,5 @@
 <#--
-  Mailpit /api/v1/send payload for the businessRegistration send-back email.
+  mail-send payload (Patchbay integration, v1) for the businessRegistration send-back email.
   Variables in scope: companyName, applicantFirstName, applicantLastName,
   applicantEmail (optional), initiator, sendBackReason, frontendBaseUrl
   (from FrontendConfiguration).
@@ -12,8 +12,8 @@
 -->
 <#assign toEmail = ((applicantEmail!"")?contains("@"))?then(applicantEmail, (initiator!"applicant") + "@cib7-poc.local")>
 {
-  "From":    { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
-  "To":      [ { "Email": "${toEmail?json_string}" } ],
-  "Subject": "${("OÜ registration sent back for corrections: " + (companyName!""))?json_string}",
-  "Text":    "${documents.text("business-sendback", execution)?json_string}"
+  "from":    { "email": "process@cib7-poc.local", "name": "Äriregister POC" },
+  "to":      [ { "email": "${toEmail?json_string}" } ],
+  "subject": "${("OÜ registration sent back for corrections: " + (companyName!""))?json_string}",
+  "text":    "${documents.text("business-sendback", execution)?json_string}"
 }

@@ -1,12 +1,12 @@
 <#--
-  Mailpit /api/v1/send payload for Task_SendReminderEmail in
+  mail-send payload (Patchbay integration, v1) for Task_SendReminderEmail in
   vehicle-registration.bpmn: the reminder to the Transport Authority while a
   case waits for review. The body is the pack document
   documents/email/vehicle-reviewer-reminder.ftl.
 -->
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "civil-servant@cib7-poc.local", "Name": "Transport Authority officer" } ],
-  "Subject": "Reminder: vehicle registration awaiting review",
-  "Text": "${documents.text("vehicle-reviewer-reminder", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "civil-servant@cib7-poc.local", "name": "Transport Authority officer" } ],
+  "subject": "Reminder: vehicle registration awaiting review",
+  "text": "${documents.text("vehicle-reviewer-reminder", execution)?json_string}"
 }

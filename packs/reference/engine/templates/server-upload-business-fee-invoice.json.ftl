@@ -9,7 +9,7 @@
   generated-business-fee-invoice.
 
   feeInvoicePdfBytes stays in scope after this task so the subsequent
-  Task_SendApprovalEmail can re-encode it for the Mailpit attachment —
+  Task_SendApprovalEmail can re-encode it for the mail-send attachment —
   same byte[]→base64 trip as the vehicle service's state fee invoice.
 -->
 {

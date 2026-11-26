@@ -1,0 +1,11 @@
+{
+  "format" : "patchbay-package",
+  "formatVersion" : 1,
+  "exportedAt" : "2026-11-26T11:00:21.207343751Z",
+  "integrations" : [ {
+    "id" : "mail-send",
+    "name" : "mail-send",
+    "activeVersion" : "1.0.0",
+    "versions" : [ "1.0.0" ]
+  } ]
+}

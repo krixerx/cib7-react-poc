@@ -155,11 +155,19 @@ Minimum fields: `PUBLIC_KEYCLOAK_URL`, `PUBLIC_FRONTEND_URL`,
 `PUBLIC_ENGINE_URL`, `PUBLIC_S3_URL`, `KEYCLOAK_ADMIN_PASSWORD`,
 `KEYCLOAK_BACKEND_CLIENT_SECRET`, `KEYCLOAK_WEBAPPS_CLIENT_SECRET`,
 `KEYCLOAK_BUSINESS_CLIENT_SECRET`, `RUSTFS_ACCESS_KEY`,
-`RUSTFS_SECRET_KEY`, `INTERNAL_TASK_TOKEN`, `BUS_TOKEN`,
-`LINK_SIGNING_SECRET`, `PAYMENT_PROVIDER_SECRET`. The overlay has no
+`RUSTFS_SECRET_KEY`, `INTERNAL_TASK_TOKEN`, `PATCHBAY_API_KEY`,
+`PATCHBAY_ADMIN_PASSWORD`, `LINK_SIGNING_SECRET`,
+`PAYMENT_PROVIDER_SECRET`. The overlay has no
 defaults for the secrets, so an unset one reaches the service as an empty
-string; generate each with `openssl rand -hex 32`. `.env` is git-ignored,
-as is every `.env.*` except `.env.example`.
+string; generate each with `openssl rand -hex 32`. The engine refuses to
+start while `PATCHBAY_API_KEY` or `INTERNAL_TASK_TOKEN` is its dev default
+(the overlay sets `APP_REQUIRE_REAL_SECRETS=true` on `cib7`, as on the
+backend). `.env` is git-ignored, as is every `.env.*` except `.env.example`.
+
+Patchbay's other settings: `PATCHBAY_ADMIN_USER` (default `admin`),
+`PATCHBAY_CALL_LOG` (`off` in the overlay; see "Patchbay console" under
+[Day-2 operations](#day-2-operations)) and `PATCHBAY_HTTP_PORT`, the host port of the
+loopback-only console binding (default `8090`).
 
 ### 3. Prepare `/opt/volumes/traefik/`
 
@@ -319,6 +327,7 @@ docker compose logs -f cib7        # engine
 docker compose logs -f backend     # business microservice (/api, documents, S3)
 docker compose logs -f keycloak    # auth
 docker compose logs -f mcp         # AI sidecar
+docker compose logs -f patchbay    # every outbound integration call (stdout only)
 docker compose logs -f traefik     # ingress (router + cert decisions)
 
 # Traefik also writes structured access + diagnostic logs to the host:
@@ -326,8 +335,9 @@ tail -F /opt/volumes/traefik/logs/access.log
 tail -F /opt/volumes/traefik/logs/traefik.log
 ```
 
-**Centralised logs.** `cib7`, `backend`, `esb`, `mcp` and `pdf-renderer`
-all ship structured GELF to the in-stack Graylog, tagged with the service
+**Centralised logs.** `cib7`, `backend`, `mcp` and `pdf-renderer`
+all ship structured GELF to the in-stack Graylog (Patchbay is the exception:
+it logs to stdout, read with `docker compose logs patchbay`), tagged with the service
 name, the log level and the Keycloak user id behind the request. Graylog is
 published on `127.0.0.1:9900` on the host only, and its GELF inputs are not
 published at all — reach the UI over an SSH tunnel, never through Traefik:
@@ -343,6 +353,32 @@ has no defaults for the first two on purpose). If the UI loads but every
 request fails, `GRAYLOG_HTTP_EXTERNAL_URI` does not match the URL in your
 address bar. Full detail, including the field contract and troubleshooting,
 is in [`logging.md`](logging.md).
+
+**Patchbay console.** Patchbay's console and admin API are published on the host's loopback only
+(`127.0.0.1:${PATCHBAY_HTTP_PORT:-8090}`) and never through Traefik. Reach
+them over an SSH tunnel and log in with `PATCHBAY_ADMIN_USER` /
+`PATCHBAY_ADMIN_PASSWORD`:
+
+```bash
+ssh -N -L 8090:127.0.0.1:8090 <user>@<host>
+# then open http://localhost:8090
+```
+
+The console is for watching calls, testing an integration and trying a
+change. `/config` is a `tmpfs`, so **everything changed in the console is
+lost on the next restart**: every start imports the packages from the image
+again. A change is kept only by exporting it and unpacking it into git
+(`patchbay/packages/`, or a pack's `patchbay/`; see
+[`patchbay/README.md`](../patchbay/README.md)). The call log
+(`PATCHBAY_CALL_LOG`) keeps the last payloads per integration in memory,
+which here means names, email addresses, capability links and whole PDFs, so
+it is on in the dev compose file and off in the overlay. Patchbay has no
+lockout, so use a random admin password of at least 20 characters.
+
+A pack with integrations of its own reads its connection variables
+(`MAPPER_URL_PACK_*`, `MAPPER_HEADER_PACK_*`, `MAPPER_SECRET_PACK_*`) from
+a host-local `patchbay-pack.env` in the deploy kit
+([`deploy/README.md`](../deploy/README.md)).
 
 **Rotate a TLS certificate.** Replace the files in
 `/opt/volumes/traefik/certs/` (keep the filenames pointed at by
@@ -389,7 +425,7 @@ changing it (the rules themselves are in [`security.md`](security.md)):
   IP (burst 20) and `/mcp` to 5/s (burst 20), in nginx when it is the front
   door and in Traefik when Traefik is. Over the limit the answer is `429`.
 - **Internal paths.** `/api/internal/**` answers `404` at the edge; only
-  the ESB calls it, from inside the `esb-backend` network.
+  the engine calls it, over the `app` network with `X-Internal-Token`.
 - **Networks.** Each pair of containers that talk shares a network, and no
   other pair does (map in [`architecture.md`](architecture.md#networks)).
   Gotenberg sits on an `internal` network with only `pdf-renderer`, renders

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- For BeanExposureTest: each process resolves one expression, once through
+     JUEL (as a connector input would) or once through a FreeMarker script (as a
+     payload template would; the leading FreeMarker comment matters, because
+     the engine evaluates an inline script that starts with "${" as a JUEL
+     expression first), then parks so the test can read the result. Only
+     beanProbeReserved names beans a BPMN may use; every other probe names a
+     Spring bean that is not reserved and must fail to resolve. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_BeanExposureTest"
+                  targetNamespace="http://poc.cib7/test">
+  <bpmn:process id="beanProbeReserved" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="ReservedStart" />
+    <bpmn:sequenceFlow id="ReservedF1" sourceRef="ReservedStart" targetRef="ReservedResolve" />
+    <bpmn:manualTask id="ReservedResolve">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="viaJuel">${backendBaseUrl}|${patchbayBaseUrl}|${pdf != null}</camunda:outputParameter>
+          <camunda:outputParameter name="viaFreemarker">
+            <camunda:script scriptFormat="freemarker"><![CDATA[<#-- FreeMarker, not a dynamic JUEL script -->${backendBaseUrl}|${patchbayBaseUrl}|<#if pdf??>true</#if>]]></camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+    </bpmn:manualTask>
+    <bpmn:sequenceFlow id="ReservedF2" sourceRef="ReservedResolve" targetRef="ReservedWait" />
+    <bpmn:receiveTask id="ReservedWait" />
+    <bpmn:sequenceFlow id="ReservedF3" sourceRef="ReservedWait" targetRef="ReservedEnd" />
+    <bpmn:endEvent id="ReservedEnd" />
+  </bpmn:process>
+
+  <bpmn:process id="beanProbeJuelEnvironment" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="JuelEnvStart" />
+    <bpmn:sequenceFlow id="JuelEnvF1" sourceRef="JuelEnvStart" targetRef="JuelEnvResolve" />
+    <bpmn:manualTask id="JuelEnvResolve">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="leaked">${environment.getProperty('INTERNAL_TASK_TOKEN')}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+    </bpmn:manualTask>
+    <bpmn:sequenceFlow id="JuelEnvF2" sourceRef="JuelEnvResolve" targetRef="JuelEnvWait" />
+    <bpmn:receiveTask id="JuelEnvWait" />
+    <bpmn:sequenceFlow id="JuelEnvF3" sourceRef="JuelEnvWait" targetRef="JuelEnvEnd" />
+    <bpmn:endEvent id="JuelEnvEnd" />
+  </bpmn:process>
+
+  <bpmn:process id="beanProbeJuelInterceptor" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="JuelIcStart" />
+    <bpmn:sequenceFlow id="JuelIcF1" sourceRef="JuelIcStart" targetRef="JuelIcResolve" />
+    <bpmn:manualTask id="JuelIcResolve">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="leaked">${outboundCredentialsInterceptor.toString()}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+    </bpmn:manualTask>
+    <bpmn:sequenceFlow id="JuelIcF2" sourceRef="JuelIcResolve" targetRef="JuelIcWait" />
+    <bpmn:receiveTask id="JuelIcWait" />
+    <bpmn:sequenceFlow id="JuelIcF3" sourceRef="JuelIcWait" targetRef="JuelIcEnd" />
+    <bpmn:endEvent id="JuelIcEnd" />
+  </bpmn:process>
+
+  <bpmn:process id="beanProbeFreemarkerEnvironment" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="FtlEnvStart" />
+    <bpmn:sequenceFlow id="FtlEnvF1" sourceRef="FtlEnvStart" targetRef="FtlEnvResolve" />
+    <bpmn:manualTask id="FtlEnvResolve">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="leaked">
+            <camunda:script scriptFormat="freemarker"><![CDATA[<#-- FreeMarker -->${environment.getProperty('INTERNAL_TASK_TOKEN')}]]></camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+    </bpmn:manualTask>
+    <bpmn:sequenceFlow id="FtlEnvF2" sourceRef="FtlEnvResolve" targetRef="FtlEnvWait" />
+    <bpmn:receiveTask id="FtlEnvWait" />
+    <bpmn:sequenceFlow id="FtlEnvF3" sourceRef="FtlEnvWait" targetRef="FtlEnvEnd" />
+    <bpmn:endEvent id="FtlEnvEnd" />
+  </bpmn:process>
+
+  <bpmn:process id="beanProbeFreemarkerInterceptor" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="FtlIcStart" />
+    <bpmn:sequenceFlow id="FtlIcF1" sourceRef="FtlIcStart" targetRef="FtlIcResolve" />
+    <bpmn:manualTask id="FtlIcResolve">
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="leaked">
+            <camunda:script scriptFormat="freemarker"><![CDATA[<#-- FreeMarker -->${outboundCredentialsInterceptor.toString()}]]></camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+    </bpmn:manualTask>
+    <bpmn:sequenceFlow id="FtlIcF2" sourceRef="FtlIcResolve" targetRef="FtlIcWait" />
+    <bpmn:receiveTask id="FtlIcWait" />
+    <bpmn:sequenceFlow id="FtlIcF3" sourceRef="FtlIcWait" targetRef="FtlIcEnd" />
+    <bpmn:endEvent id="FtlIcEnd" />
+  </bpmn:process>
+</bpmn:definitions>

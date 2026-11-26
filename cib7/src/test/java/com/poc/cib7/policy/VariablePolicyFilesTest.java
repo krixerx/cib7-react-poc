@@ -224,7 +224,8 @@ class VariablePolicyFilesTest {
   void registryRefusesReservedNames() {
     for (String reserved :
         List.of(
-            "busBaseUrl",
+            "patchbayBaseUrl",
+            "backendBaseUrl",
             "frontendBaseUrl",
             "pdf",
             "initiator",

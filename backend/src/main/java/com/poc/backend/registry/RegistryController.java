@@ -22,7 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Serves every registry entity a service pack declares, under the endpoint class its descriptor
  * names (docs/security.md rule 5): {@code /api/public/registry/<entity>[/<key>]} for harmless
- * reference data, {@code /api/internal/registry/<entity>[/<key>]} for the engine through the bus.
+ * reference data, {@code /api/internal/registry/<entity>[/<key>]} for the engine, called directly.
  *
  * <p>An entity, or an operation of it, that the descriptor does not offer on the requested class is
  * a 404, the same answer as an unknown entity, so the public path reveals nothing about internal

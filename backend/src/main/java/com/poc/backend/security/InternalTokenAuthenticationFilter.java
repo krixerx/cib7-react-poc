@@ -12,12 +12,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * Single-header check: every request that reaches this filter must carry {@code X-Internal-Token:
  * <configured-secret>}. Guards every {@code /api/internal/**} endpoint, which only the engine
- * calls, through the ESB.
+ * calls, directly.
  *
  * <p>Replaces a service-account JWT roundtrip for engine→backend calls: the secret travels with the
- * request, the receiver does a constant-time compare, no Keycloak involvement. The engine never
- * holds it; the ESB injects it after authenticating the engine with its own {@code X-Bus-Token}.
- * Rotated by re-issuing the {@code INTERNAL_TASK_TOKEN} env var on the ESB and the backend.
+ * request, the receiver does a constant-time compare, no Keycloak involvement. The engine's {@code
+ * OutboundCredentialsInterceptor} attaches it only to requests for the backend's {@code
+ * /api/internal/}, so no BPMN or template holds it. Rotated by re-issuing the {@code
+ * INTERNAL_TASK_TOKEN} env var on the engine and the backend together.
  */
 public class InternalTokenAuthenticationFilter extends OncePerRequestFilter {
 

@@ -23,7 +23,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 public record PackManifest(String name, String version, int platformMajor, int platformMinor) {
 
   /** The platform API this core provides. Keep in step with docs/platform-api.md. */
-  public static final int PLATFORM_MAJOR = 2;
+  public static final int PLATFORM_MAJOR = 3;
 
   public static final int PLATFORM_MINOR = 0;
 

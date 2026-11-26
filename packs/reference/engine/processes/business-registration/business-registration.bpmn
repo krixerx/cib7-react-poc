@@ -207,9 +207,9 @@
       process/{piId}/... and creates a Camunda Attachment on the process
       instance with type=founder-articles-of-association. Internal-only
       endpoint — DocumentsApiSecurityConfig matches the X-Internal-Token
-      header instead of a JWT. The engine no longer sets that header; the
-      call crosses the integration bus (esb), which injects X-Internal-Token
-      on the /api/internal route.
+      header instead of a JWT. The BPMN never sets that header: the
+      engine's OutboundCredentialsInterceptor adds it on the backend's
+      /api/internal/ paths only.
     -->
     <bpmn:serviceTask id="Task_AttachAoaDocument" name="Attach Articles of Association"
                       camunda:asyncBefore="true">
@@ -217,7 +217,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -291,7 +291,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -349,7 +349,7 @@
           <camunda:connector>
             <camunda:connectorId>http-connector</camunda:connectorId>
             <camunda:inputOutput>
-              <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+              <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
               <camunda:inputParameter name="method">POST</camunda:inputParameter>
               <camunda:inputParameter name="headers">
                 <camunda:map>
@@ -526,7 +526,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -557,7 +557,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/pdf-render</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -586,7 +586,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -613,7 +613,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -680,7 +680,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/pdf-render</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -708,7 +708,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -741,7 +741,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>

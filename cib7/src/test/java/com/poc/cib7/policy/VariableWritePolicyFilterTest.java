@@ -210,7 +210,8 @@ class VariableWritePolicyFilterTest {
   void applicantCannotAddConfigBeanDecisionOrDmnOutputToOwnForm() throws Exception {
     String pi = start("bart", "policyTest", "{}");
     Task task = openTask(pi);
-    for (String forbidden : List.of("busBaseUrl", "decision", "autoDecision", "initiator")) {
+    for (String forbidden :
+        List.of("backendBaseUrl", "patchbayBaseUrl", "decision", "autoDecision", "initiator")) {
       HttpResponse<String> response =
           post(
               "bart",
@@ -366,7 +367,7 @@ class VariableWritePolicyFilterTest {
             "bart",
             "POST",
             "/task/" + taskId + "/localVariables",
-            "{\"modifications\":{\"busBaseUrl\":{\"value\":\"http://evil\",\"type\":\"String\"}}}"));
+            "{\"modifications\":{\"patchbayBaseUrl\":{\"value\":\"http://evil\",\"type\":\"String\"}}}"));
   }
 
   @Test

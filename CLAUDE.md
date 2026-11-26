@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 eRegistrations (POC): a CIB seven 2.2 process engine that runs
 BPMN e-government services, a React SPA that renders each human task, a business
-backend, an integration bus, a Flutter applicant app and an MCP sidecar. Auth is
+backend, an integration service (Patchbay), a Flutter applicant app and an MCP sidecar. Auth is
 Keycloak OIDC throughout; the same deployment is also driveable over MCP.
 
 The code (the **core**) holds no service. Services live in **service packs**
@@ -32,7 +32,8 @@ Full stack (the normal way to test anything end to end):
 docker compose up --build            # SPA + ingress on http://localhost:3000
 docker compose --profile dev up -d mailpit-ui    # Mailpit inbox on :8025 (opt-in)
 docker compose --profile traefik up -d traefik   # Traefik ingress (off by default)
-docker compose logs -f esb           # watch every outbound integration cross the bus
+docker compose logs -f patchbay      # watch every outbound integration call
+# Patchbay console (loopback only): http://127.0.0.1:8090, admin / PATCHBAY_ADMIN_PASSWORD
 ```
 
 Logins: `bart`/`bart` (applicant, PartA), `homer`/`homer` (civil servant, PartB),
@@ -103,12 +104,13 @@ browser ──OIDC PKCE──▶ Keycloak (:8180, realm cib7-poc)
    ├─ /api/*           → backend/ (Spring Boot 4 business microservice, Postgres)
    └─ /mcp             → mcp/ (stateless Bearer-proxy MCP sidecar, 16 tools)
 
-cib7 engine ──all outbound HTTP──▶ esb/ (Apache Camel JBang, YAML routes)
-                                     ├─▶ mailpit  (notification emails)
-                                     ├─▶ pdf-renderer/ ──▶ gotenberg (HTML → PDF)
-                                     └─▶ backend  (registry, documents; bus injects X-Internal-Token)
+cib7 engine ─┬─ X-API-Key ──▶ patchbay/ (Patchbay: mail-send, pdf-render, pack packages)
+             │                  ├─▶ mailpit  (notification emails)
+             │                  └─▶ pdf-renderer/ ──▶ gotenberg (HTML → PDF)
+             └─ X-Internal-Token on /api/internal/ ──▶ backend (registry, documents)
 
-cib7 · backend · esb · mcp · pdf-renderer ──GELF 12201──▶ graylog (+ opensearch, mongodb)
+cib7 · backend · mcp · pdf-renderer ──GELF 12201──▶ graylog (+ opensearch, mongodb)
+patchbay ──stdout──▶ docker compose logs patchbay
 ```
 
 Module responsibilities are strict and worth preserving:
@@ -121,7 +123,7 @@ Module responsibilities are strict and worth preserving:
   (`cib7/Dockerfile`) holds no pack; the pack's layer (its
   `docker/engine.Dockerfile`) copies it to `/opt/services`, which the core
   puts on the classpath with `PropertiesLauncher` and `loader.path`. Backend,
-  mcp, frontend and mobile are built the same way: a pack-less
+  mcp, frontend, mobile and patchbay are built the same way: a pack-less
   `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`) and a thin
   layer from the pack's `docker/`. Here compose, the tests (through the pom's
   `services.pack.dir` and `PACK_DIR`), `mvn spring-boot:run` and `npm run dev`
@@ -134,15 +136,23 @@ Module responsibilities are strict and worth preserving:
   serves the pack's declared registries (`/api/{public,internal}/registry/<entity>`),
   document metadata plus RustFS S3 presigned URLs. It reaches the engine only
   through `/engine-rest` as the `cib7-business` service account.
-- **`esb/` is the only address the engine knows for outbound calls.**
-  `BusConfiguration.java` exposes `${busBaseUrl}` (`http://esb:8080`) to BPMN;
-  per-system addresses and the internal token live in `esb/routes/*.yaml`. A new
-  integration is a new YAML route file, not a new config class in the engine.
-- **Logs go to Graylog, not just stdout.** All five services we write ship
-  structured GELF to `graylog:12201`; see `docs/logging.md`. Graylog is bound to
-  `127.0.0.1:9900` on the host (SSH tunnel to reach it on a server) and its GELF
-  inputs are unpublished. The field contract is `service`, `level` +
-  `level_name`, and `user_id` where a Keycloak user is attributable.
+- **The engine reaches external systems only through Patchbay integrations,
+  and the backend only at its own address; it calls nothing else.** Mailpit
+  and the pdf-renderer count as external. `OutboundConfiguration` exposes
+  `${patchbayBaseUrl}` (`PATCHBAY_URL`, `http://patchbay:8080`) and
+  `${backendBaseUrl}` (`BACKEND_URL`) to BPMN; `OutboundCredentialsInterceptor`
+  adds `X-API-Key` only on `/api/v1/integrations/` and `X-Internal-Token` only
+  on the backend's `/api/internal/`. Patchbay (`patchbay/`) holds each external
+  system's address; its integrations are packages in git, imported at every
+  start (`/config` is a tmpfs, so console changes are lost on restart). A new
+  integration is a new package, not a new config class in the engine.
+- **Logs go to Graylog, not just stdout.** The four services we write (cib7,
+  backend, mcp, pdf-renderer) ship structured GELF to `graylog:12201`; see
+  `docs/logging.md`. Patchbay is the exception and logs to stdout only. Graylog
+  is bound to `127.0.0.1:9900` on the host (SSH tunnel to reach it on a server)
+  and its GELF input is unpublished; Patchbay's console is on `127.0.0.1:8090`
+  the same way. The field contract is `service`, `level` + `level_name`, and
+  `user_id` where a Keycloak user is attributable.
 - **`mcp/` forwards the caller's own Bearer** to `/engine-rest`. There is no AI
   service account, so everything an agent does is attributable to a real
   Keycloak user. Its per-service schemas come from the generated
@@ -164,7 +174,7 @@ same migrations. `docker compose down -v` wipes the data.
 ## The platform API
 
 Core and pack meet only through the formats in `docs/platform-api.md`
-(platform API `2.0`). A pack's `pack.yaml` states the platform API the
+(platform API `3.0`). A pack's `pack.yaml` states the platform API the
 pack needs; the engine and the backend refuse an incompatible pack at
 startup. A change to a pack format is a platform API change: additive is a
 minor (bump `PackManifest.PLATFORM_MINOR` in both Java modules and the doc),
@@ -172,7 +182,7 @@ breaking is a major. Tests that hold for any pack are tagged `pack`;
 `scripts/pack-check.sh` runs exactly those.
 
 **Images.** Every push to `main` publishes the `cib7-poc-*-core` images
-(plus `cib7-poc-esb` and `cib7-poc-pdf-renderer`) and then the reference
+(plus `cib7-poc-patchbay` and `cib7-poc-pdf-renderer`) and then the reference
 pack's layers `eregistrations-reference-<layer>` built FROM the core images
 of the same run, all tagged with the commit's short SHA
 (`docker-publish.yml`). An image whose scan failed is not pushed, so a
@@ -250,13 +260,14 @@ containers. The short form:
 
 ## Contracts and gotchas that bite
 
-Lessons that apply to one area live in its skill in `.claude/skills/`, each with a rule table and the full story behind every rule: `backend-conventions` (B), `frontend-conventions` (F), `deployment-conventions` (D), `process-artifacts` (P), `esb-conventions` (E), `mcp-conventions` (MCP), `mobile-conventions` (MOB) and `pdf-renderer-conventions` (PDF). A new lesson goes into the skill with one line here, so this file stays small: it is loaded into every session and every agent. `.claude/rules/` points each module at its skill when its files are touched.
+Lessons that apply to one area live in its skill in `.claude/skills/`, each with a rule table and the full story behind every rule: `backend-conventions` (B), `frontend-conventions` (F), `deployment-conventions` (D), `process-artifacts` (P), `patchbay-conventions` (PB), `mcp-conventions` (MCP), `mobile-conventions` (MOB) and `pdf-renderer-conventions` (PDF). A new lesson goes into the skill with one line here, so this file stays small: it is loaded into every session and every agent. `.claude/rules/` points each module at its skill when its files are touched.
 
 - A wrong form id shows up only on the task page, as "No form definition found". See `process-artifacts` P1.
 - One engine deployment per service folder; its DMNs live there too. See `process-artifacts` P2.
 - Group ids have no leading slash (`civil-servant`). See `process-artifacts` P3.
 - A payload template cannot `<#include>`; call the `documents` bean. See `process-artifacts` P4.
 - DMN files declare `historyTimeToLive`, and the namespace is `camunda:`. See `process-artifacts` P5, P6.
+- An inline FreeMarker script starting with `${` is evaluated as JUEL first; start it with a FreeMarker comment. See `process-artifacts` P7.
 - Variables over ~4 kB must be `byte[]`. See `backend-conventions` B11.
 - A CIB seven upgrade or an entity change needs a Flyway migration. See `backend-conventions` B10.
 - The `graylog` profile turns GELF on; `MdcUserFilter` stays at order `-99`. See `backend-conventions` B21.
@@ -287,7 +298,7 @@ Services are specified in their pack (see "Changing a service"). Non-trivial **c
 
 Agents do not talk to each other: the session that runs them carries what one leaves for the next, and whatever exists only in a final report is gone when that session ends. So a handoff is written down.
 
-- **Anything another agent needs goes in `openspec/changes/<change>/handoffs.md`**: a bus route specification, the scenarios a test must cover, a question for the analyst. The first agent with something to hand over creates the file. With no OpenSpec change, it goes in the final report under *For others*.
+- **Anything another agent needs goes in `openspec/changes/<change>/handoffs.md`**: an integration package specification, the scenarios a test must cover, a question for the analyst. The first agent with something to hand over creates the file. With no OpenSpec change, it goes in the final report under *For others*.
 - **One entry per handoff, newest last:**
 
   ```markdown

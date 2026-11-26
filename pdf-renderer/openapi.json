@@ -1,0 +1,86 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "pdf-renderer",
+    "version": "1.0.0",
+    "description": "JSON facade over Gotenberg's HTML to PDF conversion. Changes together with server.js."
+  },
+  "paths": {
+    "/render": {
+      "post": {
+        "operationId": "render",
+        "summary": "Render an HTML document to PDF",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RenderRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The rendered PDF, base64-encoded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RenderResult" }
+              }
+            }
+          },
+          "400": {
+            "description": "html is missing or empty",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "502": {
+            "description": "Gotenberg is unreachable or failed",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpstreamError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RenderRequest": {
+        "type": "object",
+        "required": ["html"],
+        "properties": {
+          "html": { "type": "string", "description": "The whole HTML document" },
+          "filename": { "type": "string", "description": "Defaults to document.pdf" }
+        }
+      },
+      "RenderResult": {
+        "type": "object",
+        "required": ["filename", "base64"],
+        "properties": {
+          "filename": { "type": "string" },
+          "base64": { "type": "string", "format": "byte" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "UpstreamError": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" },
+          "status": { "type": "integer", "description": "Gotenberg's status, when it answered" },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  }
+}

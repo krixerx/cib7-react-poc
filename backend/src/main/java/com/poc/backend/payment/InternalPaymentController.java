@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The state fee of a case, for the engine only (through the ESB, {@code X-Internal-Token} on {@code
+ * The state fee of a case, for the engine only (directly, {@code X-Internal-Token} on {@code
  * /api/internal/**}). A process asks for it before it renders the invoice, so the invoice prints
  * the amount the checkout will charge: both come from {@link FeeSchedule}, the one place a fee is
  * computed.

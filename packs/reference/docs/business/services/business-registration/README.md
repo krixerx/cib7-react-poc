@@ -76,18 +76,18 @@ flow               send-approval-email -> approved
 
 ## Service tasks
 
-One spec per BPMN service task; each gives the request, the payload template and the response mapping. Outbound calls all go to `${busBaseUrl}` (the bus). Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
+One spec per BPMN service task; each gives the request, the payload template and the response mapping. Mail and PDF calls go to the core Patchbay integrations `mail-send` and `pdf-render` at `${patchbayBaseUrl}/api/v1/integrations/<slug>`; backend calls go to `${backendBaseUrl}/api/...`, and the engine adds `X-Internal-Token` on `/api/internal/` itself. Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
 
 | BPMN task | Name | Kind | Spec |
 |---|---|---|---|
 | `Task_AttachAoaDocument` | Attach Articles of Association | case document (backend) | [`service-tasks/attach-aoa-document.md`](service-tasks/attach-aoa-document.md) |
-| `Task_GenerateBcardPdf` | Generate B-card extract | PDF (pdf-renderer) | [`service-tasks/generate-bcard-pdf.md`](service-tasks/generate-bcard-pdf.md) |
-| `Task_GenerateFeeInvoicePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-business-fee-invoice-pdf.md`](service-tasks/generate-business-fee-invoice-pdf.md) |
+| `Task_GenerateBcardPdf` | Generate B-card extract | PDF (`pdf-render`) | [`service-tasks/generate-bcard-pdf.md`](service-tasks/generate-bcard-pdf.md) |
+| `Task_GenerateFeeInvoicePdf` | Generate state fee invoice | PDF (`pdf-render`) | [`service-tasks/generate-business-fee-invoice-pdf.md`](service-tasks/generate-business-fee-invoice-pdf.md) |
 | `Task_QuoteFee` | Quote state fee | fee quote (backend) | [`service-tasks/quote-business-state-fee.md`](service-tasks/quote-business-state-fee.md) |
-| `Task_SendApprovalEmail` | Send approval email | email (Mailpit) | [`service-tasks/send-business-approval-email.md`](service-tasks/send-business-approval-email.md) |
-| `Task_SendBackEmail` | Send sent-back email | email (Mailpit) | [`service-tasks/send-business-sendback-email.md`](service-tasks/send-business-sendback-email.md) |
-| `Task_SendFounderSigningEmail` | Send co-founder signing email | email (Mailpit) | [`service-tasks/send-founder-signing-email.md`](service-tasks/send-founder-signing-email.md) |
-| `Task_SendApplicantTrackingEmail` | Send applicant tracking email | email (Mailpit) | [`service-tasks/send-founder-tracking-email.md`](service-tasks/send-founder-tracking-email.md) |
+| `Task_SendApprovalEmail` | Send approval email | email (`mail-send`) | [`service-tasks/send-business-approval-email.md`](service-tasks/send-business-approval-email.md) |
+| `Task_SendBackEmail` | Send sent-back email | email (`mail-send`) | [`service-tasks/send-business-sendback-email.md`](service-tasks/send-business-sendback-email.md) |
+| `Task_SendFounderSigningEmail` | Send co-founder signing email | email (`mail-send`) | [`service-tasks/send-founder-signing-email.md`](service-tasks/send-founder-signing-email.md) |
+| `Task_SendApplicantTrackingEmail` | Send applicant tracking email | email (`mail-send`) | [`service-tasks/send-founder-tracking-email.md`](service-tasks/send-founder-tracking-email.md) |
 | `Task_StoreBcardPdf` | Store B-card extract | case document (backend) | [`service-tasks/store-bcard-pdf.md`](service-tasks/store-bcard-pdf.md) |
 | `Task_StoreFeeInvoicePdf` | Store fee invoice | case document (backend) | [`service-tasks/store-business-fee-invoice-pdf.md`](service-tasks/store-business-fee-invoice-pdf.md) |
 

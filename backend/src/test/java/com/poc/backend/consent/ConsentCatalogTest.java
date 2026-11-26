@@ -16,7 +16,7 @@ class ConsentCatalogTest {
 
   private static final String VALID =
       """
-      platform: 2
+      platform: 3
       purpose: owner
       process: vehicleRegistration
       applicant: { firstName: firstName, lastName: lastName }
@@ -66,7 +66,7 @@ class ConsentCatalogTest {
     assertRefused(VALID.replace("parties: additionalOwners", "parties: \"x' or 1=1\""));
     assertRefused(VALID.replace("  notReady: Not ready.\n", ""));
     assertRefused(VALID.replace("party: Owner", "party: \"" + "x".repeat(301) + "\""));
-    assertRefused(VALID.replace("platform: 2", "platform: 1"));
+    assertRefused(VALID.replace("platform: 3", "platform: 2"));
   }
 
   private static void assertRefused(String descriptor) {

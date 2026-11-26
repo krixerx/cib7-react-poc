@@ -21,7 +21,7 @@ or deployment unit; when debugging "who calls whom" questions.
 **Repo shape — core and service packs.** This repository holds the core: the
 CIB seven engine module (`cib7/`), the business microservice (`backend/`),
 the frontend (`frontend/`), the mobile app (`mobile/`), the MCP sidecar
-(`mcp/`), the bus (`esb/`), the core Keycloak realm and login theme
+(`mcp/`), the core Patchbay image and packages (`patchbay/`), the core Keycloak realm and login theme
 (`keycloak/`), Docker orchestration and the docs, built together as the
 images `cib7-poc-*-core`, so one change can still cross the React ↔ engine
 boundary atomically. The services are **service packs** in the same
@@ -38,22 +38,27 @@ links, the registry module, document storage) lives in `backend/`,
 a separate Spring Boot 4 microservice that reaches the engine exclusively
 over `/engine-rest` using the `cib7-business` Keycloak service account.
 
+**Outbound rule.** The engine reaches external systems only through Patchbay
+integrations, and the backend only at its own address; it calls nothing
+else. "External" means anything that is not one of our own core services:
+Mailpit and the pdf-renderer count as external, because they are the
+stand-ins for systems a real deployment swaps out.
+
 ```
   Browser (React SPA) ──OIDC login──▶ Keycloak
    │  (PKCE)
    │  Bearer JWT
    ├─ /engine-rest ───▶  CIB seven 2.2 engine + REST API     (cib7/, Postgres)
    │                     │
-   │                     │  http-connector → ${busBaseUrl}
-   │                     ▼
-   │                  esb — integration bus (Apache Camel, YAML routes)
-   │                     │  routes each path to the real downstream system:
-   │                     ├──▶ Mailpit /api/v1/send       (email + attachments)
-   │                     ├──▶ pdf-renderer /render ──▶ Gotenberg (Chromium → PDF)
-   │                     └──▶ backend /api/...           (vehicle lookup, document
-   │                                                      move-pending/server-upload,
-   │                                                      case-card index-case;
-   │                                                      bus injects X-Internal-Token)
+   │                     ├─ ${patchbayBaseUrl}/api/v1/integrations/<slug>  (X-API-Key)
+   │                     │     ▼
+   │                     │  patchbay — integration service (Patchbay, packages from git)
+   │                     │     ├──▶ mail-send:  Mailpit /api/v1/send   (email + attachments)
+   │                     │     └──▶ pdf-render: pdf-renderer /render ──▶ Gotenberg
+   │                     │
+   │                     └─ ${backendBaseUrl}/api/...   (vehicle lookup, document
+   │                           move-pending/server-upload, case-card index-case;
+   │                           the engine adds X-Internal-Token on /api/internal/ only)
    │
    └─ /api/... ───────▶  backend — business microservice  (backend/, Spring Boot 4)
                           │  public confirmations / payments / vehicle registry,
@@ -66,9 +71,10 @@ over `/engine-rest` using the `cib7-business` Keycloak service account.
                        mcp sidecar ◀── Claude Desktop / Cursor / Codex
                        (Bearer-proxy → /engine-rest, documents → backend /api)
 
-  cib7 · backend · esb · mcp · pdf-renderer ──GELF 12201──▶ graylog
-                                                            (loopback-only UI,
-                                                             SSH tunnel to reach it)
+  cib7 · backend · mcp · pdf-renderer ──GELF 12201──▶ graylog
+                                                     (loopback-only UI,
+                                                      SSH tunnel to reach it)
+  patchbay ──stdout──▶ docker compose logs patchbay  (console on loopback :8090)
 ```
 
 The runtime pieces:
@@ -105,17 +111,20 @@ The runtime pieces:
   browser moves bytes directly; port `9000` stays host-published because S3
   signature v4 hashes the host header.
 - **Mailpit** — local SMTP+HTTP test server. Notifications (reminder,
-  send-back, approval) reach its `/api/v1/send` endpoint through the
-  integration bus; the inbox at `:8025` renders them with attachments.
-- **Integration bus (`esb`)** — Apache Camel JBang running declarative YAML
-  routes (`esb/routes/*.yaml`, no Java). The engine makes every outbound HTTP
-  call to a single address (`${busBaseUrl}` = `http://esb:8080`) and the bus
-  routes each path to the real downstream system — `/api/v1/send`→Mailpit,
-  `/render`→pdf-renderer, `/api/public/**` and `/api/internal/**`→backend
-  (injecting `X-Internal-Token` on the internal calls). Every route first
-  checks the engine's `X-Bus-Token` (`esb/routes/bus-auth.yaml`). Demonstrates the
-  RFP's "all integration crosses the Central Integration Platform" mandate as
-  a mediated bus instead of point-to-point connector calls.
+  send-back, approval) reach its `/api/v1/send` endpoint through Patchbay's
+  `mail-send` integration; the inbox at `:8025` renders them with attachments.
+- **Integration service (`patchbay`)** — [Patchbay](../patchbay/README.md), a
+  pinned upstream release plus the core packages `mail-send` and
+  `pdf-render`, kept in git as unpacked console exports and imported at every
+  start. The engine calls an integration by slug at
+  `${patchbayBaseUrl}/api/v1/integrations/<slug>` with `X-API-Key`; Patchbay
+  maps the platform's neutral payload to the external system's API and back
+  and holds the system's address. `/config` is a `tmpfs`, so the console
+  (loopback only, HTTP Basic) is for watching calls, testing and trying a
+  change: a change is kept only by exporting it into git, and is lost on the
+  next restart otherwise. A pack adds its own packages in its
+  `docker/patchbay.Dockerfile` layer. Patchbay logs to stdout only, not to
+  Graylog.
 - **PDF stack** — two collaborating sidecars: **Gotenberg** (headless
   Chromium) handles the actual rendering, and **pdf-renderer** (a 20-line
   Node sidecar) sits in front of it to give the engine a JSON-in / JSON-out
@@ -156,8 +165,8 @@ The runtime pieces:
 | Object storage | RustFS (S3-compatible) | compose service | Applicant uploads + generated PDFs under `process/{piId}/…`; presigned URLs minted by the backend |
 | Process engine | CIB seven 2.2 (Camunda 7 fork) | starter dep | Executes BPMN, exposes `/engine-rest` |
 | Connect plugin | `cibseven-engine-plugin-connect` | registered by the CIB seven Spring Boot starter | Enables `<camunda:connector>` service tasks |
-| Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin. Every call now targets `${busBaseUrl}` (the integration bus), not a downstream system directly |
-| Integration bus | Apache Camel JBang (`apache/camel-jbang`) | `esb/` (declarative YAML routes) | Mediates every engine→downstream HTTP call; engine talks only to `${busBaseUrl}` and the bus routes each path to mailpit / pdf-renderer / backend (injecting `X-Internal-Token` on `/api/documents`) |
+| Connector | `cibseven-connect-http-client` (official `http-connector`) | declared in `cib7/pom.xml` | HTTP request via Apache HttpClient 5; response body parsed inline with Spin. Every call targets `${patchbayBaseUrl}/api/v1/integrations/<slug>` or `${backendBaseUrl}/api/...`; `OutboundCredentialsInterceptor` adds `X-API-Key` or `X-Internal-Token` by destination and strips both everywhere else |
+| Integration service | Patchbay (`krixerx/patchbay`, pinned) | `patchbay/` (Dockerfile, `packages/`) | Maps the platform's `mail-send` and `pdf-render` payloads to Mailpit and the pdf-renderer; a pack's own integrations come from its `patchbay/` packages |
 | Identity provider plugin | `cibseven-keycloak` 2.2.1 | wired in `com/poc/cib7/keycloak/KeycloakIdentityProvider.java` | `ReadOnlyIdentityProvider`: engine reads users/groups from Keycloak |
 | REST API and webapp security | `cibseven-bpm-spring-boot-starter-security-4` (OAuth2 resource server and client) | `cib7/pom.xml`, `application.yaml`; `keycloak/EngineRestSecurityConfig.java` closes the engine's anonymous whitelist | Validates Bearer JWTs on `/engine-rest` and pushes the user into `IdentityService` per request; Authorization Code login for `/camunda` |
 | Engine authorization bootstrap | `com/poc/cib7/AuthorizationBootstrap.java` | local | The only group-level engine grants: applicants list and start services, civil servants read every case and retry jobs. Per-case access comes from `authorization/InitiatorAuthorizationListener.java` and the engine's default task authorizations (admins are handled by the plugin's `administratorGroupName`) |
@@ -170,8 +179,8 @@ The runtime pieces:
 | Per-service MCP manifests | `<pack>/docs/business/services/<svc>/build/mcp-service.json` (generated) | `/service-builder` skill | Variable schemas + audience metadata; loaded by the MCP sidecar at startup |
 | Aggregated MCP index | `<pack>/docs/business/services/build/services.json` (generated) | `/service-builder` skill | Top-level catalog of MCP-callable services |
 | Centralised logging | Graylog 7.1 + OpenSearch 2.19 + MongoDB 7 | `docker-compose.yml` (`graylog`, `opensearch`, `graylog-mongodb`, `graylog-init`) | GELF sink for every service we write. Each message carries `service`, `level` + `level_name`, and `user_id` where a Keycloak user is attributable. Web UI bound to `127.0.0.1:9900` only (SSH tunnel); GELF inputs unpublished. Inputs are provisioned by the one-shot `graylog-init` curl sidecar. See [`logging.md`](logging.md) |
-| Log shippers | `logback-gelf` (cib7, backend) · Log4j2 `GelfLayout` (esb) · hand-rolled GELF UDP module (mcp, pdf-renderer) | `*/logback-spring.xml`, `esb/log4j2-graylog.xml`, `mcp/src/logging/gelf.ts`, `pdf-renderer/gelf.js` | Three mechanisms because the three runtimes differ; one field contract. JVM services carry `user_id` from the SLF4J MDC, populated by `MdcUserFilter` after Spring Security's chain |
-| Container orchestration | Docker Compose | `docker-compose.yml` | Application services: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mobile`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `esb`. Observability: `graylog`, `opensearch`, `graylog-mongodb`, `graylog-init` |
+| Log shippers | `logback-gelf` (cib7, backend) · hand-rolled GELF UDP module (mcp, pdf-renderer) | `*/logback-spring.xml`, `mcp/src/logging/gelf.ts`, `pdf-renderer/gelf.js` | Two mechanisms because the runtimes differ; one field contract. JVM services carry `user_id` from the SLF4J MDC, populated by `MdcUserFilter` after Spring Security's chain. Patchbay logs to stdout only (json-file rotation) |
+| Container orchestration | Docker Compose | `docker-compose.yml` | Application services: `traefik`, `keycloak`, `cib7`, `backend`, `frontend`, `mobile`, `mailpit` (+ `mailpit-ui` in the `dev` profile), `gotenberg`, `pdf-renderer`, `rustfs`, `mcp`, `patchbay`. Observability: `graylog`, `opensearch`, `graylog-mongodb`, `graylog-init` |
 
 Detailed file-level wiring lives in [`frontend.md`](frontend.md) and
 [`cib7.md`](cib7.md).
@@ -200,16 +209,16 @@ A single "Vehicle Registration" process instance:
      SPA → POST /engine-rest/task/{taskId}/complete
      ↓
 6. Engine promotes the staged upload + looks the vehicle up (job executor)
-     Engine → POST {busBaseUrl}/api/internal/documents/move-pending   (bus injects X-Internal-Token)
-     Engine → GET  {busBaseUrl}/api/public/registry/vehicles/{vin}
+     Engine → POST {backendBaseUrl}/api/internal/documents/move-pending   (engine adds X-Internal-Token)
+     Engine → GET  {backendBaseUrl}/api/public/registry/vehicles/{vin}
      Spin reads value/age inline; engine writes `price`, `vehicleAgeYears`
      ↓
 7. DMN auto-approval policy decides: auto-approve, or create the
    "Transport Authority review" user task (candidateGroup civil-servant)
      Reviewer approves → {decision: "approve"} — or sends back to step 3
      ↓
-8. Engine generates + stores the state-fee invoice PDF (both via the bus)
-     Engine → {busBaseUrl}/render (→ pdf-renderer) → {busBaseUrl}/api/internal/documents/server-upload (→ backend)
+8. Engine generates + stores the state-fee invoice PDF
+     Engine → {patchbayBaseUrl}/api/v1/integrations/pdf-render (→ pdf-renderer) → {backendBaseUrl}/api/internal/documents/server-upload
    then parks on "Wait for state fee payment" (receive task)
      Payer → public /pay/{token} page → POST /api/public/payments/{token}/checkout
            → payment provider (demo: MockPaymentProvider, /mock-bank/{sessionId})
@@ -236,14 +245,21 @@ crosses origins: document uploads/downloads go directly to RustFS on
 `localhost:9000` with presigned URLs; the backend's `BucketBootstrap` sets
 the bucket's CORS policy to the SPA origin for exactly that.)
 
+Patchbay is not routed by any ingress. In Docker the engine reaches it at
+`http://patchbay:8080` and its console is on `http://127.0.0.1:8090`
+(`PATCHBAY_HTTP_PORT`); an engine run with `mvn spring-boot:run` defaults to
+`PATCHBAY_URL=http://localhost:8090` and `BACKEND_URL=http://localhost:8085`,
+so it reaches the compose Patchbay through that loopback binding.
+
 ### Deliberately not published
 
 | Surface | Why | How to reach it |
 |---|---|---|
 | Graylog web UI | central log store; holds user ids and message content | published on `127.0.0.1:9900` only — `ssh -N -L 9900:127.0.0.1:9900 <user>@<host>` |
-| Graylog GELF inputs (`12201` UDP + TCP) | shippers are sibling containers | docker networks only (Graylog joins each shipper's network, see [Networks](#networks)), no host port |
-| Backend `/api/internal/**` | engine-only endpoints, called by the ESB with `X-Internal-Token` | `esb-backend` network only; nginx and Traefik answer 404 |
-| ESB, Gotenberg, pdf-renderer, Mailpit API | integration plumbing | only from the one service that calls each, see [Networks](#networks) |
+| Graylog GELF inputs (`12201` UDP) | shippers are sibling containers | docker networks only (one `gelf-<shipper>` network each, see [Networks](#networks)), no host port |
+| Backend `/api/internal/**` | engine-only endpoints, called by the engine with `X-Internal-Token` | the `app` network, token checked in constant time; nginx and Traefik answer 404 |
+| Patchbay console and admin API | HTTP Basic, no lockout; the Test button calls any host Patchbay reaches | published on `127.0.0.1:8090` only (`PATCHBAY_HTTP_PORT`) — `ssh -N -L 8090:127.0.0.1:8090 <user>@<host>` |
+| Patchbay integration API, Gotenberg, pdf-renderer, Mailpit API | integration plumbing | only from the one service that calls each, see [Networks](#networks) |
 | Mailpit web UI | unauthenticated inbox | opt-in `dev` compose profile |
 | Mailpit at `/mailpit` (deploy bundle, `tls` profile) | shared demo inbox: any logged-in user reads every mail | `mailpit-auth` (oauth2-proxy, Keycloak client `cib7-mailpit`); `DELETE` and the send API unrouted; a demo exemption in `docs/security.md` |
 | Traefik dashboard | auth-free | `127.0.0.1:8081` only |
@@ -267,23 +283,23 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   Network-internal on port `8080` (reached through Traefik / the frontend
   nginx). Reaches Keycloak over the docker network at `http://keycloak:8080`
   (internal), while the browser uses `http://localhost:8180` (external) —
-  see the "issuer-URL split" note below. Depends on `keycloak` (healthy),
-  `mailpit` (started), `pdf-renderer` (started), and `esb` (started); reads
-  `BUS_URL=http://esb:8080` (exposed to BPMN as `${busBaseUrl}`). Every
-  outbound HTTP call — email, PDF, and the document/vehicle-registry tasks —
-  goes to the integration bus, which routes each path to the real downstream
-  system. The engine no longer carries `MAIL_API_URL` / `PDF_API_URL` /
-  `BACKEND_API_URL` / `INTERNAL_TASK_TOKEN`, and no longer knows any
-  individual system's address.
+  see the "issuer-URL split" note below. Depends on `postgres` and `keycloak`
+  (healthy) and `patchbay` (healthy). Reads `PATCHBAY_URL=http://patchbay:8080`
+  and `BACKEND_URL=http://backend:8085` (exposed to BPMN as
+  `${patchbayBaseUrl}` and `${backendBaseUrl}`): email and PDF go through
+  Patchbay integrations, the document, registry and case-index tasks to the
+  backend. It holds `PATCHBAY_API_KEY` (sent as `X-API-Key` to
+  `/api/v1/integrations/` only) and `INTERNAL_TASK_TOKEN` (sent as
+  `X-Internal-Token` to `/api/internal/` only), and knows no external
+  system's address.
 - **backend** — core image from `backend/Dockerfile`, pack layer
   `packs/reference/docker/backend.Dockerfile`. Network-internal on port
   `8085`; Traefik (and the frontend nginx fallback) route `/api` to it.
   Owns the `/api/**` business surface; depends on `keycloak` (healthy),
   `rustfs` (healthy), and `cib7` (started). Authenticates its
   `/engine-rest` calls with the `cib7-business` service account and shares
-  `INTERNAL_TASK_TOKEN` with the integration bus (`esb`), which injects the
-  `X-Internal-Token` header on the BPMN-called `/api/internal/**` endpoints
-  — the engine never holds that secret.
+  `INTERNAL_TASK_TOKEN` with the engine, which sends the `X-Internal-Token`
+  header on the BPMN-called `/api/internal/**` endpoints.
 - **rustfs** — S3-compatible object storage, host-published on `:9000` (the
   browser hits it directly with presigned URLs; S3 signature v4 hashes the
   host header, so it stays off the proxy). Bucket, CORS, and a 24h
@@ -303,8 +319,8 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   `packs/reference/docker/mobile.Dockerfile`; its start script also fills
   the page title and install manifest from the pack's branding).
 - **mailpit** — `axllent/mailpit:v1.31.3`. Network-internal: web UI and send
-  API on `8025`, SMTP on `1025` (unused — the engine uses the HTTP API via
-  the bus). The UI is published on `:8025` only through the `dev`-profile
+  API on `8025`, SMTP on `1025` (unused — Patchbay's `mail-send` uses the
+  HTTP API). The UI is published on `:8025` only through the `dev`-profile
   `mailpit-ui` socat sidecar.
 - **gotenberg** — `gotenberg/gotenberg:8.37.0`. Headless Chromium wrapped in
   a REST API. Internal only (no host port mapping) on an `internal` network
@@ -315,17 +331,23 @@ the bucket's CORS policy to the SPA origin for exactly that.)
   Express). Internal only on port 8088. JSON-in / JSON-out adapter in
   front of Gotenberg. Hides Gotenberg's multipart input format and binary
   output from the http-connector, which only handles plain
-  `application/json` cleanly.
-- **esb** — built from `esb/Dockerfile` (`apache/camel-jbang`). Internal only
-  on port `8080`. The integration bus: the engine POSTs every outbound call to
-  `http://esb:8080` and the declarative YAML routes (`esb/routes/*.yaml`,
-  loaded via `camel run --source-dir`) forward each path to mailpit /
-  pdf-renderer / backend. Accepts a call only with `X-Bus-Token` equal to its
-  `BUS_TOKEN` (the engine sends it; the bus strips it before forwarding).
-  Holds `INTERNAL_TASK_TOKEN` and injects `X-Internal-Token` on the
-  `/api/internal` route. Not in `esb.depends_on`'s
-  `backend` (that would be a `backend → cib7 → esb` startup cycle); the route
-  resolves the backend at request time.
+  `application/json` cleanly. Called by Patchbay's `pdf-render`.
+- **patchbay** — the reference pack's layer
+  (`packs/reference/docker/patchbay.Dockerfile`, which adds the pack's own
+  packages, none for this pack) on the core image compose builds from
+  `patchbay/Dockerfile` as `patchbay-core` (`scale: 0`; CI publishes it as
+  `cib7-poc-patchbay`). Runs as uid 10001. Engine-facing API on `8080` inside
+  the `integration` network; console and admin API published on
+  `127.0.0.1:${PATCHBAY_HTTP_PORT:-8090}` only. `/config` is a `tmpfs`
+  (`/config:uid=10001`), so every start imports the packages into an empty
+  folder: each integration goes live with the version its package holds, and
+  a console change is gone after a restart. Connection addresses come from
+  `MAPPER_URL_MAILPIT` and `MAPPER_URL_PDF_RENDERER`, the inbound key from
+  `PATCHBAY_API_KEY`, the console login from `PATCHBAY_ADMIN_USER` /
+  `PATCHBAY_ADMIN_PASSWORD`; the call log is on locally and off in the deploy
+  kit. Its health check is the readiness endpoint, which the engine waits
+  for. Logs to stdout with json-file rotation:
+  `docker compose logs -f patchbay`.
 - **mcp** — core image from `mcp/Dockerfile` (repo root as context, for
   the core's `core-v1.json`), pack layer `packs/reference/docker/mcp.Dockerfile`
   (the pack's specs folder and engine form schemas). Node 24 +
@@ -342,12 +364,12 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 - **graylog / opensearch / graylog-mongodb / graylog-init** — the centralised
   log store. `graylog` publishes its web UI on `127.0.0.1:9900` only
   (Graylog's native 9000 is taken by RustFS on the host) and keeps its GELF
-  UDP + TCP inputs on port 12201 **unpublished**, because every shipper is a
+  UDP input on port 12201 **unpublished**, because every shipper is a
   sibling container. OpenSearch is wired directly via
   `GRAYLOG_ELASTICSEARCH_HOSTS` with `GRAYLOG_SKIP_PREFLIGHT_CHECKS=true`, so
   no Data Node and no interactive preflight UI stands between
   `docker compose up` and a working stack. `graylog-init` is a one-shot
-  `curlimages/curl` sidecar that creates the two inputs through the REST API —
+  `curlimages/curl` sidecar that creates the input through the REST API —
   Graylog keeps inputs in MongoDB, so a fresh volume would otherwise have
   nothing listening. Unlike every other service here these four use **named
   volumes** (`graylog-data`, `graylog-opensearch-data`,
@@ -360,27 +382,31 @@ the bucket's CORS policy to the SPA origin for exactly that.)
 Containers share a network only when one of them calls the other
 (`docs/security.md` rule 9). All three compose files use the same map; the
 networks have explicit names (`cib7-poc-<name>`), so
-`docker network inspect cib7-poc-bus` lists who is on one.
+`docker network inspect cib7-poc-integration` lists who is on one.
 
 | Network | Members | Carries |
 |---|---|---|
 | `edge` | traefik, frontend, mobile, cib7, backend, mcp | ingress (Traefik or the frontend/mobile nginx) to the services it routes |
 | `app` | cib7, backend, mcp, keycloak | backend → cib7, mcp → cib7 / backend, all three → `keycloak:8080` (JWKS, tokens, admin API) |
 | `storage` | backend, rustfs | the backend's S3 client |
-| `bus` | cib7, esb, graylog | the engine's only outbound channel; GELF from cib7 and esb |
-| `esb-backend` | esb, backend, graylog | the bus calling `/api/public` and `/api/internal`; the backend's GELF |
-| `mail` | esb, mailpit, mailpit-ui | outbound email |
-| `pdf` | esb, pdf-renderer, graylog | PDF rendering requests; pdf-renderer's GELF |
+| `integration` | cib7, patchbay | the engine calling Patchbay integrations |
+| `mail` | patchbay, mailpit, mailpit-ui (and mailpit-auth in `deploy/`) | outbound email |
+| `pdf` | patchbay, pdf-renderer | PDF rendering requests |
 | `render` (internal) | pdf-renderer, gotenberg | HTML → PDF; no route off the host |
-| `gelf-mcp` | mcp, graylog | the MCP sidecar's GELF |
+| `gelf-cib7`, `gelf-backend`, `gelf-pdf`, `gelf-mcp` | each shipper with graylog | GELF from cib7, backend, pdf-renderer and mcp |
 | `logstore` (internal) | graylog, opensearch, graylog-mongodb, graylog-init | Graylog's own stores and its input provisioning |
 | `ingress-idp`, `ingress-s3` (prod overlay, `deploy/`) | traefik + keycloak / rustfs | only used when `routes.yml` routes the Keycloak or S3 hostname |
 
-Graylog joins its shippers' networks rather than every shipper joining one
-log network, because a shared log network would connect every shipper to
-every other one, the ESB included. Two consequences to keep in mind:
+The engine calls the backend over `app`, which they already share. Graylog
+joins one `gelf-<shipper>` network per shipper rather than every shipper
+joining one log network, because a shared log network would connect every
+shipper to every other one. Patchbay shares no network with the backend,
+Keycloak, Postgres, RustFS or Graylog: the console's Test button and a pack
+integration can call any host Patchbay reaches, and Graylog's API listens on
+all of Graylog's networks. It shares `integration` with the engine, whose
+endpoints there need a JWT or the webapp login. Two consequences to keep in mind:
 adding a call between two services means putting both on a common network
-here, and the eleven-or-so bridge networks take a visible share of Docker's
+here, and the thirteen-or-so bridge networks take a visible share of Docker's
 default address pool (`could not find an available, non-overlapping IPv4
 address pool` means prune unused networks or widen `default-address-pools`).
 
@@ -533,13 +559,18 @@ End-to-end Keycloak authentication, authorization, and a single seeded user:
   plugin strips the leading slash from the Keycloak group path even with
   `useGroupPathAsCamundaGroupId: true`. See
   [`cib7.md` § BPMN files](cib7.md#bpmn-files) for the full note.
-- **Reserved expression names.** `busBaseUrl`, `frontendBaseUrl` and `pdf`
-  resolve to their Spring beans before any process variable of the same
-  name, in JUEL and in FreeMarker (`ReservedBeansPlugin`), so a client
-  cannot redirect a case's connectors by writing a variable.
-- **Engine to bus.** Every http-connector call to `${busBaseUrl}` carries
-  `X-Bus-Token` (`BusTokenInterceptor`, env `BUS_TOKEN`); the bus refuses
-  calls without it and strips it before forwarding.
+- **Reserved expression names.** `patchbayBaseUrl`, `backendBaseUrl`,
+  `frontendBaseUrl`, `pdf`, `links` and `documents` resolve to their Spring
+  beans before any process variable of the same name, in JUEL and in
+  FreeMarker (`ReservedBeansPlugin`), so a client cannot redirect a case's
+  connectors by writing a variable.
+- **Engine credentials by destination.** `OutboundCredentialsInterceptor`
+  compares each http-connector request's parsed origin and normalized path:
+  `X-API-Key` (`PATCHBAY_API_KEY`) only on `${patchbayBaseUrl}/api/v1/integrations/`,
+  `X-Internal-Token` (`INTERNAL_TASK_TOKEN`) only on
+  `${backendBaseUrl}/api/internal/`, and both removed everywhere else, a
+  header the BPMN set included. Patchbay refuses an integration call without
+  the key.
 - **`/api/**` trust levels (backend).** One Spring Security chain per
   endpoint class ([`security.md` rule 5](security.md#5-backend-endpoint-classes)):
   `/api/public/**` is unauthenticated by design (the capability token in the
@@ -554,8 +585,8 @@ End-to-end Keycloak authentication, authorization, and a single seeded user:
   body signed with `PAYMENT_PROVIDER_SECRET` for the amount the server
   charged ([rule 4](security.md#4-external-facts-need-proof)); `/api/internal/**` holds every
   endpoint only the engine calls and accepts only the shared
-  `X-Internal-Token` header, which the integration bus injects after checking
-  the engine's `X-Bus-Token` (the ingress never routes this prefix);
+  `X-Internal-Token` header, which the engine sends on that prefix only
+  (the ingress never routes it);
   `/api/documents/**` and `/api/cases/**` are a JWT resource server
   validating the same issuer + `cib7-rest-api` audience as the engine. A
   final deny-all chain refuses any other path. Storage keys a client hands

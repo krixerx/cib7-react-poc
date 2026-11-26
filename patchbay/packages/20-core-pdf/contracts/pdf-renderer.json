@@ -1,0 +1,45 @@
+{
+  "id" : "pdf-renderer",
+  "name" : "pdf-renderer",
+  "sourceFile" : "pdf-renderer.openapi.json",
+  "importedAt" : "2026-11-26T10:59:58.023258797Z",
+  "servers" : [ "/" ],
+  "operations" : [ {
+    "id" : "render",
+    "method" : "POST",
+    "path" : "/render",
+    "summary" : "Render an HTML document to PDF",
+    "parameters" : [ ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : true,
+      "fields" : [ {
+        "name" : "html",
+        "type" : "text",
+        "required" : true
+      }, {
+        "name" : "filename",
+        "type" : "text",
+        "required" : false
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "filename",
+        "type" : "text",
+        "required" : true
+      }, {
+        "name" : "base64",
+        "type" : "text",
+        "required" : true,
+        "format" : "byte"
+      } ]
+    }
+  } ],
+  "warnings" : [ ]
+}

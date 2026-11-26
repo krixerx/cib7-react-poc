@@ -1,0 +1,63 @@
+{
+  "version" : "1.0.0",
+  "publishedAt" : "2026-11-26T10:59:59.118388688Z",
+  "service" : {
+    "id" : "pdf-render",
+    "version" : "1.0.0",
+    "input" : "pdf-render",
+    "output" : "pdf-render-result",
+    "target" : {
+      "method" : "POST",
+      "path" : "/render",
+      "connection" : "pdf-renderer"
+    },
+    "request" : {
+      "links" : [ {
+        "from" : "pr-html",
+        "to" : "body.html"
+      }, {
+        "from" : "pr-filename",
+        "to" : "body.filename"
+      } ]
+    },
+    "response" : {
+      "links" : [ {
+        "from" : "filename",
+        "to" : "prr-filename"
+      }, {
+        "from" : "base64",
+        "to" : "prr-base64"
+      } ]
+    }
+  },
+  "input" : {
+    "id" : "pdf-render",
+    "name" : "PDF render (v1)",
+    "fields" : [ {
+      "id" : "pr-html",
+      "name" : "html",
+      "type" : "text",
+      "required" : true
+    }, {
+      "id" : "pr-filename",
+      "name" : "filename",
+      "type" : "text",
+      "required" : true
+    } ]
+  },
+  "output" : {
+    "id" : "pdf-render-result",
+    "name" : "PDF render result (v1)",
+    "fields" : [ {
+      "id" : "prr-filename",
+      "name" : "filename",
+      "type" : "text",
+      "required" : false
+    }, {
+      "id" : "prr-base64",
+      "name" : "base64",
+      "type" : "text",
+      "required" : false
+    } ]
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "version" : "1.0.0",
+  "publishedAt" : "2026-11-26T10:59:58.240275503Z",
+  "service" : {
+    "id" : "mail-send",
+    "version" : "1.0.0",
+    "input" : "mail-send",
+    "output" : "mail-send-result",
+    "target" : {
+      "method" : "POST",
+      "path" : "/api/v1/send",
+      "connection" : "mailpit"
+    },
+    "request" : {
+      "links" : [ {
+        "from" : "ms-from-email",
+        "to" : "body.From.Email"
+      }, {
+        "from" : "ms-from-name",
+        "to" : "body.From.Name"
+      }, {
+        "from" : "ms-to",
+        "to" : "body.To[]"
+      }, {
+        "from" : "ms-to-email",
+        "to" : "body.To[].Email"
+      }, {
+        "from" : "ms-to-name",
+        "to" : "body.To[].Name"
+      }, {
+        "from" : "ms-subject",
+        "to" : "body.Subject"
+      }, {
+        "from" : "ms-text",
+        "to" : "body.Text"
+      }, {
+        "from" : "ms-attachments",
+        "to" : "body.Attachments[]"
+      }, {
+        "from" : "ms-att-filename",
+        "to" : "body.Attachments[].Filename"
+      }, {
+        "from" : "ms-att-content-type",
+        "to" : "body.Attachments[].ContentType"
+      }, {
+        "from" : "ms-att-base64",
+        "to" : "body.Attachments[].Content"
+      } ]
+    },
+    "response" : {
+      "links" : [ {
+        "from" : "ID",
+        "to" : "msr-message-id"
+      } ]
+    }
+  },
+  "input" : {
+    "id" : "mail-send",
+    "name" : "Mail send (v1)",
+    "fields" : [ {
+      "id" : "ms-from",
+      "name" : "from",
+      "type" : "object",
+      "required" : true,
+      "fields" : [ {
+        "id" : "ms-from-email",
+        "name" : "email",
+        "type" : "text",
+        "required" : true
+      }, {
+        "id" : "ms-from-name",
+        "name" : "name",
+        "type" : "text",
+        "required" : false
+      } ]
+    }, {
+      "id" : "ms-to",
+      "name" : "to",
+      "type" : "list",
+      "required" : true,
+      "items" : {
+        "id" : "ms-to-item",
+        "name" : "item",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "id" : "ms-to-email",
+          "name" : "email",
+          "type" : "text",
+          "required" : true
+        }, {
+          "id" : "ms-to-name",
+          "name" : "name",
+          "type" : "text",
+          "required" : false
+        } ]
+      }
+    }, {
+      "id" : "ms-subject",
+      "name" : "subject",
+      "type" : "text",
+      "required" : true
+    }, {
+      "id" : "ms-text",
+      "name" : "text",
+      "type" : "text",
+      "required" : true
+    }, {
+      "id" : "ms-attachments",
+      "name" : "attachments",
+      "type" : "list",
+      "required" : false,
+      "items" : {
+        "id" : "ms-att-item",
+        "name" : "item",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "id" : "ms-att-filename",
+          "name" : "filename",
+          "type" : "text",
+          "required" : true
+        }, {
+          "id" : "ms-att-content-type",
+          "name" : "contentType",
+          "type" : "text",
+          "required" : true
+        }, {
+          "id" : "ms-att-base64",
+          "name" : "base64",
+          "type" : "text",
+          "required" : true
+        } ]
+      }
+    } ]
+  },
+  "output" : {
+    "id" : "mail-send-result",
+    "name" : "Mail send result (v1)",
+    "fields" : [ {
+      "id" : "msr-message-id",
+      "name" : "messageId",
+      "type" : "text",
+      "required" : false
+    } ]
+  }
+}

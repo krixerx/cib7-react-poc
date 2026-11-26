@@ -13,10 +13,10 @@ Asks one co-owner to review the registration and sign or reject it.
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/v1/send` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/mail-send` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: Mailpit (the bus routes `/api/v1/send`).
+Downstream: Patchbay integration `mail-send` (v1), which hands the mail to the mail system (Mailpit here).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: owner-confirmation-email.json.ftl
 
 ```ftl
 <#--
-  Mailpit /api/v1/send payload for the "Send co-owner signing email"
+  mail-send payload (Patchbay integration, v1) for the "Send co-owner signing email"
   service task inside SubProcess_OwnerConfirmations in
   vehicle-registration.bpmn.
 
@@ -52,10 +52,10 @@ payload-template: owner-confirmation-email.json.ftl
 <#assign ownerEmail = owner.prop("email").stringValue()>
 <#assign applicantName = (firstName!"") + " " + (lastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "${ownerEmail?json_string}", "Name": "${ownerName?json_string}" } ],
-  "Subject": "Please sign: vehicle registration with ${applicantName?json_string}",
-  "Text": "${documents.text("vehicle-owner-signing", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "${ownerEmail?json_string}", "name": "${ownerName?json_string}" } ],
+  "subject": "Please sign: vehicle registration with ${applicantName?json_string}",
+  "text": "${documents.text("vehicle-owner-signing", execution)?json_string}"
 }
 ```
 
@@ -78,7 +78,9 @@ Rendered with these case variables by the core's pack checks
 
 | Path | Expected |
 |---|---|
-| `/Text` | `matches "/consent/owner/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
+| `/from/email` | `"process@cib7-poc.local"` |
+| `/to/0/email` | `"olga@example.com"` |
+| `/text` | `matches "/consent/owner/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
 
 ## Example: a hostile co-owner name
 
@@ -96,8 +98,8 @@ Rendered with these case variables by the core's pack checks
 
 | Path | Expected |
 |---|---|
-| `/To/0/Name` | `"Ka\"rl \\ O'Kaasa\nsutaja"` |
-| `/Text` | `contains "Hello Ka\"rl \\ O'Kaasa\nsutaja"` |
+| `/to/0/name` | `"Ka\"rl \\ O'Kaasa\nsutaja"` |
+| `/text` | `contains "Hello Ka\"rl \\ O'Kaasa\nsutaja"` |
 
 ## Response mapping
 

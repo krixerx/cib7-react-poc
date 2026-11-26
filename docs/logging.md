@@ -5,10 +5,12 @@ Graylog; when adding a new service to the stack; when the Graylog UI is
 unreachable or a service's messages are missing; when changing the field
 contract that searches and dashboards are built on.
 
-Every service in this stack writes its logs twice: to stdout, so
+Every service we write writes its logs twice: to stdout, so
 `docker compose logs -f <service>` keeps working, and to **Graylog** as a
 structured **GELF** message carrying the service name, the log level and — where
-a request is attributable to a person — the Keycloak user id. Graylog itself is
+a request is attributable to a person — the Keycloak user id. The one exception
+is Patchbay, which logs to stdout only (see
+[What is not shipped](#what-is-not-shipped)). Graylog itself is
 not reachable from any network but the docker one; the web UI is bound to the
 deployment host's loopback interface and reached over an SSH tunnel.
 
@@ -28,12 +30,13 @@ deployment host's loopback interface and reached over an SSH tunnel.
 
 ```
 cib7          ──GELF/UDP 12201──┐
-backend       ──GELF/UDP 12201──┤
-mcp           ──GELF/UDP 12201──┼──▶ graylog ──▶ opensearch   (message store)
-pdf-renderer  ──GELF/UDP 12201──┤        │
-esb           ──GELF/TCP 12201──┘        └────▶ graylog-mongodb (config store)
+backend       ──GELF/UDP 12201──┼──▶ graylog ──▶ opensearch   (message store)
+mcp           ──GELF/UDP 12201──┤        │
+pdf-renderer  ──GELF/UDP 12201──┘        └────▶ graylog-mongodb (config store)
 
-graylog-init  ──REST /api/system/inputs──▶ graylog   (creates the two inputs, once)
+graylog-init  ──REST /api/system/inputs──▶ graylog   (creates the input, once)
+
+patchbay      ──stdout only──▶ docker compose logs patchbay
 
 host 127.0.0.1:9900 ──▶ graylog:9000   (web UI, loopback only)
 ```
@@ -52,8 +55,11 @@ Two decisions worth knowing:
 - **Inputs are provisioned by a sidecar, not by hand.** Graylog stores inputs in
   MongoDB, so a fresh volume has nothing listening on 12201 and every shipper
   would quietly write into a closed port. `graylog/provision-inputs.sh` waits
-  for the API, then creates `GELF UDP` and `GELF TCP` if they are missing. It is
-  idempotent — it matches on input title — so it is safe on every start.
+  for the API, then creates `GELF UDP` if it is missing. It is idempotent — it
+  matches on input title — so it is safe on every start. Every shipper uses
+  UDP; the `GELF TCP` input existed only for the integration bus, which is
+  gone. A Graylog volume provisioned before keeps that input until it is
+  deleted under System → Inputs; it is harmless.
 
 Both an SSH tunnel and a `docker compose down -v` are documented below because
 those are the two operations you will actually perform.
@@ -65,7 +71,7 @@ dashboards should be built on them:
 
 | Field | Example | Where it comes from |
 |---|---|---|
-| `service` | `cib7`, `backend`, `esb`, `mcp`, `pdf-renderer` | static per service, overridable with `LOG_SERVICE_NAME` |
+| `service` | `cib7`, `backend`, `mcp`, `pdf-renderer` | static per service, overridable with `LOG_SERVICE_NAME` |
 | `level` | `3` (error), `6` (info) | GELF numeric **syslog severity**, not a log4j ordinal |
 | `level_name` | `ERROR`, `INFO` | the readable level, so a search can say `level_name:ERROR` |
 | `user_id` | `bart`, `homer` | Keycloak `preferred_username` of the caller — **present only when a user is attributable** |
@@ -74,7 +80,7 @@ dashboards should be built on them:
 | `logger_name`, `thread_name` | | JVM services only |
 
 `user_id` is absent, not empty, when there is no user behind a request. That is
-the honest answer for the `esb` bus, the `pdf-renderer` facade, the backend's
+the honest answer for the `pdf-renderer` facade, the backend's
 `/api/public/**` token-link endpoints (the URL token is the credential, there is
 no session) and the engine→backend calls authenticated with `X-Internal-Token`.
 For a service-account token the value is the client id
@@ -122,8 +128,8 @@ For a local `docker compose up` on your own machine no tunnel is needed:
 
 ## Per-service wiring
 
-Three different mechanisms, because the three runtimes have different
-constraints. All five produce the same fields.
+Two mechanisms, because the two runtimes have different constraints. All four
+services produce the same fields.
 
 ### cib7 and backend (Spring Boot)
 
@@ -148,23 +154,6 @@ for the duration of the request; the GELF encoder copies MDC entries into
 additional fields. The filter is registered at servlet order `-99`, one step
 **after** Spring Security's filter chain at `-100`, which is what guarantees the
 `SecurityContext` is populated by the time it runs.
-
-### esb (Apache Camel JBang)
-
-Camel JBang logs through Log4j2 and owns that setup itself, so the bus gets its
-configuration through the supported flag:
-
-```
-camel run --source-dir=/routes --logging-config-path=/etc/camel/log4j2-graylog.xml
-```
-
-`esb/log4j2-graylog.xml` adds a `Socket` appender with `GelfLayout` next to the
-console one. Both classes ship inside `log4j-core`, so this needs no extra jar
-on a classpath resolved at image build time.
-
-This is the one service on **TCP**: Log4j2's `GelfLayout` does not implement
-GELF's UDP chunking protocol, so an oversized datagram would simply be lost. A
-null-delimited TCP stream has no size ceiling — hence the second input.
 
 ### mcp and pdf-renderer (Node)
 
@@ -215,16 +204,28 @@ civil ids and scanned identity documents.
 
 ## Adding a new service
 
-1. Pick the mechanism that matches the runtime (one of the three above).
+1. Pick the mechanism that matches the runtime (one of the two above).
 2. Send `service`, `level`, `level_name`, and `user_id` when a user is known —
    same names, same meaning. A new field name breaks existing searches.
 3. Point it at `graylog:12201` over the docker network. Do not publish a port.
 4. Add `GRAYLOG_HOST`, the port, and `LOG_SERVICE_NAME` to the service's
    `environment:` block in `docker-compose.yml`.
-5. No new Graylog input is needed — reuse the UDP or TCP one.
+5. No new Graylog input is needed — reuse the UDP one.
 
 ## What is not shipped
 
+- **Patchbay** (`patchbay`, the integration service) writes one plain stdout
+  line per call and has no GELF transport. Read it with
+  `docker compose logs -f patchbay`; compose rotates it with the json-file
+  driver's `max-size` and `max-file`. Docker's `gelf` log driver was rejected:
+  the daemon sends from the host, so Graylog's input would have to be
+  published on the host, which [Access](#access--ssh-tunnel-only) rules out,
+  and the lines would still lack `level` and `user_id`. Patchbay shares no
+  network with Graylog on purpose (`docs/security.md` rule 9), and GELF in
+  Patchbay itself is an upstream follow-up. `docs/security.md` lists this
+  among the demo exemptions. Its console's Calls view keeps the last 100
+  payloads per integration in memory when the call log is on (locally; off
+  on the VM).
 - **Infrastructure containers**: Keycloak, Mailpit, Gotenberg, RustFS,
   OpenSearch, MongoDB and Traefik log to stdout only. They are third-party
   images, and instrumenting them would mean either a log-driver change on the

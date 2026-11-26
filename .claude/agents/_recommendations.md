@@ -8,7 +8,7 @@ In roppoc this role hand-writes BPMN, DMN and forms. Here they are generated, so
 
 ## Programmer variants
 
-- `programmer-backend`: the Java modules, the bus and the two Node services.
+- `programmer-backend`: the Java modules, the Patchbay packages and the two Node services.
 - `programmer-frontend`: the SPA and the Flutter app.
 
 **Rationale:** roppoc's split carries over. `mcp/` and `pdf-renderer/` go with the server side and `mobile/` with the client side, because each is too small to justify its own persona; their rule tables are separate skills.

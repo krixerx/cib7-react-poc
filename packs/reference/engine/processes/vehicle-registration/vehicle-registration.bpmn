@@ -194,9 +194,9 @@
       process/{piId}/... and creates a Camunda Attachment on the process
       instance with type=applicant-id-document. Internal-only endpoint —
       DocumentsApiSecurityConfig matches the X-Internal-Token header
-      instead of a JWT. The engine no longer sets that header; the call
-      crosses the integration bus (esb), which injects X-Internal-Token on
-      the /api/internal route.
+      instead of a JWT. The BPMN never sets that header: the engine's
+      OutboundCredentialsInterceptor adds it on the backend's /api/internal/
+      paths only.
     -->
     <bpmn:serviceTask id="Task_AttachIdDocument" name="Attach owner ID document"
                       camunda:asyncBefore="true">
@@ -204,7 +204,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/documents/move-pending</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -265,7 +265,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -322,7 +322,7 @@
           <camunda:connector>
             <camunda:connectorId>http-connector</camunda:connectorId>
             <camunda:inputOutput>
-              <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+              <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
               <camunda:inputParameter name="method">POST</camunda:inputParameter>
               <camunda:inputParameter name="headers">
                 <camunda:map>
@@ -416,7 +416,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/registry/vehicles/${objectId}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/registry/vehicles/${objectId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -520,7 +520,7 @@
                        sourceRef="BoundaryEvent_ReviewReminder" targetRef="Task_SendReminderEmail" />
 
     <!--
-      Reminder email to the Transport Authority, through the bus to Mailpit.
+      Reminder email to the Transport Authority, through the mail-send integration.
       Spec: docs/business/services/vehicle-registration/service-tasks/send-reviewer-reminder-email.md
     -->
     <bpmn:serviceTask id="Task_SendReminderEmail" name="Send reviewer reminder email"
@@ -529,7 +529,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -608,7 +608,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}</camunda:inputParameter>
             <camunda:inputParameter name="method">GET</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -641,7 +641,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/pdf-render</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -688,7 +688,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -743,7 +743,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/render</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/pdf-render</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -771,7 +771,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
+            <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/documents/server-upload</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -793,7 +793,7 @@
                        sourceRef="Task_StoreCertificatePdf" targetRef="EndEvent_Approved" />
 
     <!--
-      Approval email via the Mailpit HTTP API. The payload is rendered from
+      Approval email via the mail-send integration. The payload is rendered from
       a FreeMarker template on the classpath (src/main/resources/templates/
       approval-email.json.ftl) so the body is editable without touching this
       BPMN. The connect plugin discovers FreeMarker via JSR-223 once the
@@ -806,7 +806,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>
@@ -857,7 +857,7 @@
         <camunda:connector>
           <camunda:connectorId>http-connector</camunda:connectorId>
           <camunda:inputOutput>
-            <camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
+            <camunda:inputParameter name="url">${patchbayBaseUrl}/api/v1/integrations/mail-send</camunda:inputParameter>
             <camunda:inputParameter name="method">POST</camunda:inputParameter>
             <camunda:inputParameter name="headers">
               <camunda:map>

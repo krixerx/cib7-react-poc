@@ -13,10 +13,10 @@ Stores the generated state fee invoice as a case document (category `generated-a
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/internal/documents/server-upload` |
+| URL | `${backendBaseUrl}/api/internal/documents/server-upload` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: backend documents module (the bus adds `X-Internal-Token`).
+Downstream: backend documents module (the engine adds `X-Internal-Token` on `/api/internal/`).
 
 ## Payload (request body)
 
@@ -34,7 +34,7 @@ payload-template: server-upload-approval.json.ftl
   generated-approval-pdf.
 
   approvalPdfBytes stays in scope after this task so the subsequent
-  Task_SendApprovalEmail can still re-encode it for the Mailpit
+  Task_SendApprovalEmail can still re-encode it for the mail-send
   attachment — see approval-email.json.ftl.
 -->
 {
