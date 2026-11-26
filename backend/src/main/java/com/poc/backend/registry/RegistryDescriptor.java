@@ -53,7 +53,7 @@ public record RegistryDescriptor(
   public enum Access {
     /** {@code /api/public/**}: unauthenticated, so harmless reference data only. */
     PUBLIC,
-    /** {@code /api/internal/**}: the engine through the bus, with {@code X-Internal-Token}. */
+    /** {@code /api/internal/**}: the engine, directly, with {@code X-Internal-Token}. */
     INTERNAL
   }
 

@@ -35,7 +35,7 @@ updates:
       - "/mobile"
       - "/mcp"
       - "/pdf-renderer"
-      - "/esb"
+      - "/patchbay"
     schedule:
       interval: weekly
     groups:

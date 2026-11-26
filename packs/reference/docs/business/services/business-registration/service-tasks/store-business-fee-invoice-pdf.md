@@ -13,10 +13,10 @@ Stores the state fee invoice as a case document (category `generated-business-fe
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/internal/documents/server-upload` |
+| URL | `${backendBaseUrl}/api/internal/documents/server-upload` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: backend documents module (the bus adds `X-Internal-Token`).
+Downstream: backend documents module (the engine adds `X-Internal-Token` on `/api/internal/`).
 
 ## Payload (request body)
 
@@ -36,7 +36,7 @@ payload-template: server-upload-business-fee-invoice.json.ftl
   generated-business-fee-invoice.
 
   feeInvoicePdfBytes stays in scope after this task so the subsequent
-  Task_SendApprovalEmail can re-encode it for the Mailpit attachment —
+  Task_SendApprovalEmail can re-encode it for the mail-send attachment —
   same byte[]→base64 trip as the vehicle service's state fee invoice.
 -->
 {

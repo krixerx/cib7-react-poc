@@ -1,0 +1,80 @@
+{
+  "id" : "mail-send",
+  "name" : "Mail send (v1)",
+  "fields" : [ {
+    "id" : "ms-from",
+    "name" : "from",
+    "type" : "object",
+    "required" : true,
+    "fields" : [ {
+      "id" : "ms-from-email",
+      "name" : "email",
+      "type" : "text",
+      "required" : true
+    }, {
+      "id" : "ms-from-name",
+      "name" : "name",
+      "type" : "text",
+      "required" : false
+    } ]
+  }, {
+    "id" : "ms-to",
+    "name" : "to",
+    "type" : "list",
+    "required" : true,
+    "items" : {
+      "id" : "ms-to-item",
+      "name" : "item",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "id" : "ms-to-email",
+        "name" : "email",
+        "type" : "text",
+        "required" : true
+      }, {
+        "id" : "ms-to-name",
+        "name" : "name",
+        "type" : "text",
+        "required" : false
+      } ]
+    }
+  }, {
+    "id" : "ms-subject",
+    "name" : "subject",
+    "type" : "text",
+    "required" : true
+  }, {
+    "id" : "ms-text",
+    "name" : "text",
+    "type" : "text",
+    "required" : true
+  }, {
+    "id" : "ms-attachments",
+    "name" : "attachments",
+    "type" : "list",
+    "required" : false,
+    "items" : {
+      "id" : "ms-att-item",
+      "name" : "item",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "id" : "ms-att-filename",
+        "name" : "filename",
+        "type" : "text",
+        "required" : true
+      }, {
+        "id" : "ms-att-content-type",
+        "name" : "contentType",
+        "type" : "text",
+        "required" : true
+      }, {
+        "id" : "ms-att-base64",
+        "name" : "base64",
+        "type" : "text",
+        "required" : true
+      } ]
+    }
+  } ]
+}

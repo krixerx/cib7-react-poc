@@ -107,11 +107,18 @@ app:
       # Docker-network address of the GELF UDP input; see docs/logging.md.
       host: ${GRAYLOG_HOST:graylog}
       port: ${GRAYLOG_GELF_UDP_PORT:12201}
-  bus:
-    # Sent as X-Bus-Token on every http-connector call to ${busBaseUrl}
-    # (BusTokenInterceptor); the ESB refuses requests without it. The default is
-    # a documented demo value, like the other `-change-me` secrets.
-    token: ${BUS_TOKEN:bus-token-change-me}
+  # Outbound credentials, attached by OutboundCredentialsInterceptor only to
+  # their own destination. The defaults are documented demo values, like the
+  # other `-change-me` secrets; DefaultSecretsGuard refuses them when real
+  # secrets are required.
+  patchbay:
+    # Sent as X-API-Key on calls to ${patchbayBaseUrl}/api/v1/integrations/;
+    # must equal Patchbay's INBOUND_API_KEY.
+    api-key: ${PATCHBAY_API_KEY:patchbay-api-key-change-me}
+  backend:
+    # Sent as X-Internal-Token on calls to ${backendBaseUrl}/api/internal/;
+    # must equal the backend's INTERNAL_TASK_TOKEN.
+    internal-token: ${INTERNAL_TASK_TOKEN:internal-task-token-change-me}
   # Capability links in emails (co-owner confirmation, founder signature,
   # payment). CapabilityLinks (bean `links`) signs them with this key; the
   # backend verifies them with the same LINK_SIGNING_SECRET. The default is a
@@ -120,10 +127,6 @@ app:
     secret: ${LINK_SIGNING_SECRET:link-signing-secret-change-me}
     consent-ttl: ${LINK_CONSENT_TTL:P14D}
     payment-ttl: ${LINK_PAYMENT_TTL:P30D}
-  # Document storage, public confirmation/payment endpoints, and the vehicle
-  # registry all moved to the `backend` business microservice. The engine
-  # only keeps the connector wiring to reach it — see BackendConfiguration
-  # (BACKEND_API_URL + INTERNAL_TASK_TOKEN env vars, read directly there).
 
 camunda.bpm:
   # The starter's auto-deploy would bundle every BPMN/DMN on the classpath

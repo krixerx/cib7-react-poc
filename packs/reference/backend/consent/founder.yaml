@@ -1,6 +1,6 @@
 # Generated from docs/business/services/business-registration/consent.md.
 # Do not hand-edit. Read by the backend's ConsentCatalog.
-platform: 2
+platform: 3
 purpose: founder
 process: businessRegistration
 applicant: { firstName: applicantFirstName, lastName: applicantLastName }

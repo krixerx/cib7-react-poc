@@ -1,0 +1,3 @@
+# Only the pack's Patchbay packages.
+*
+!patchbay

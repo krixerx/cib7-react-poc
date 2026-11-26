@@ -1,5 +1,5 @@
 <#--
-  Mailpit /api/v1/send payload for the "Send state fee invoice email"
+  mail-send payload (Patchbay integration, v1) for the "Send state fee invoice email"
   service task in vehicle-registration.bpmn. Sent when the applicant
   provided an email address; attaches the State fee invoice PDF
   produced by the preceding "Generate state fee invoice" task.
@@ -29,15 +29,15 @@
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "Your vehicle registration is approved — state fee invoice attached",
-  "Text": "${documents.text("vehicle-approval", execution)?json_string}",
-  "Attachments": [
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "Your vehicle registration is approved — state fee invoice attached",
+  "text": "${documents.text("vehicle-approval", execution)?json_string}",
+  "attachments": [
     {
-      "Filename": "${(approvalPdfFilename!"state-fee-invoice.pdf")?json_string}",
-      "ContentType": "application/pdf",
-      "Content": "${pdf.encode(approvalPdfBytes)}"
+      "filename": "${(approvalPdfFilename!"state-fee-invoice.pdf")?json_string}",
+      "contentType": "application/pdf",
+      "base64": "${pdf.encode(approvalPdfBytes)}"
     }
   ]
 }

@@ -13,10 +13,10 @@ Tells the applicant that the registration waits for co-founder signatures and gi
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/v1/send` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/mail-send` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: Mailpit (the bus routes `/api/v1/send`).
+Downstream: Patchbay integration `mail-send` (v1), which hands the mail to the mail system (Mailpit here).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: founder-tracking-email.json.ftl
 
 ```ftl
 <#--
-  Mailpit /api/v1/send payload for the "Send applicant tracking email"
+  mail-send payload (Patchbay integration, v1) for the "Send applicant tracking email"
   service task in business-registration.bpmn.
 
   Sent once at the start of the co-founder signing phase. The applicant is
@@ -47,10 +47,10 @@ payload-template: founder-tracking-email.json.ftl
 -->
 <#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
-  "To": [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "${("Your OÜ registration is awaiting co-founder signatures: " + (companyName!""))?json_string}",
-  "Text": "${documents.text("business-founder-tracking", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Äriregister POC" },
+  "to": [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "${("Your OÜ registration is awaiting co-founder signatures: " + (companyName!""))?json_string}",
+  "text": "${documents.text("business-founder-tracking", execution)?json_string}"
 }
 ```
 
@@ -79,6 +79,11 @@ Rendered with these case variables by the core's pack checks
   }
 }
 ```
+
+| Path | Expected |
+|---|---|
+| `/from/email` | `"process@cib7-poc.local"` |
+| `/to/0/email` | `"ants@example.com"` |
 
 ## Response mapping
 

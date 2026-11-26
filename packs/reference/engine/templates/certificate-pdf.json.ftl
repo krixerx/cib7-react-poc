@@ -1,5 +1,5 @@
 <#--
-  pdf-renderer /render payload for Task_GenerateCertificatePdf in vehicle-registration.bpmn: the Vehicle Registration Certificate.
+  pdf-render payload (Patchbay integration, v1) for Task_GenerateCertificatePdf in vehicle-registration.bpmn: the Vehicle Registration Certificate.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/vehicle-certificate.ftlh, rendered by the engine's `documents` bean on

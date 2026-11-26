@@ -153,20 +153,20 @@ endpoint configured by [`consent.md`](consent.md)
 
 ## Service tasks (integrations)
 
-One spec per BPMN service task; each gives the request, the payload template and the response mapping. Outbound calls all go to `${busBaseUrl}` (the bus). Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
+One spec per BPMN service task; each gives the request, the payload template and the response mapping. Mail and PDF calls go to the core Patchbay integrations `mail-send` and `pdf-render` at `${patchbayBaseUrl}/api/v1/integrations/<slug>`; backend calls go to `${backendBaseUrl}/api/...`, and the engine adds `X-Internal-Token` on `/api/internal/` itself. Email bodies and PDFs are hand-designed pack documents under `packs/reference/engine/documents/`, which the payload templates only wrap.
 
 | BPMN task | Name | Kind | Spec |
 |---|---|---|---|
 | `Task_AttachIdDocument` | Attach owner ID document | case document (backend) | [`service-tasks/attach-id-document.md`](service-tasks/attach-id-document.md) |
-| `Task_GenerateCertificatePdf` | Generate vehicle registration certificate | PDF (pdf-renderer) | [`service-tasks/generate-certificate-pdf.md`](service-tasks/generate-certificate-pdf.md) |
-| `Task_GeneratePdf` | Generate state fee invoice | PDF (pdf-renderer) | [`service-tasks/generate-fee-invoice-pdf.md`](service-tasks/generate-fee-invoice-pdf.md) |
+| `Task_GenerateCertificatePdf` | Generate vehicle registration certificate | PDF (`pdf-render`) | [`service-tasks/generate-certificate-pdf.md`](service-tasks/generate-certificate-pdf.md) |
+| `Task_GeneratePdf` | Generate state fee invoice | PDF (`pdf-render`) | [`service-tasks/generate-fee-invoice-pdf.md`](service-tasks/generate-fee-invoice-pdf.md) |
 | `Task_GetPrice` | Look up vehicle in registry | registry read (backend) | [`service-tasks/look-up-vehicle.md`](service-tasks/look-up-vehicle.md) |
 | `Task_QuoteFee` | Quote state fee | fee quote (backend) | [`service-tasks/quote-state-fee.md`](service-tasks/quote-state-fee.md) |
-| `Task_SendApprovalEmail` | Send state fee invoice email | email (Mailpit) | [`service-tasks/send-fee-invoice-email.md`](service-tasks/send-fee-invoice-email.md) |
-| `Task_SendOwnerConfirmEmail` | Send co-owner signing email | email (Mailpit) | [`service-tasks/send-owner-signing-email.md`](service-tasks/send-owner-signing-email.md) |
-| `Task_SendApplicantTrackingEmail` | Send owner tracking email | email (Mailpit) | [`service-tasks/send-owner-tracking-email.md`](service-tasks/send-owner-tracking-email.md) |
-| `Task_SendReminderEmail` | Send reviewer reminder email | email (Mailpit) | [`service-tasks/send-reviewer-reminder-email.md`](service-tasks/send-reviewer-reminder-email.md) |
-| `Task_SendBackEmail` | Send "sent back" email | email (Mailpit) | [`service-tasks/send-sendback-email.md`](service-tasks/send-sendback-email.md) |
+| `Task_SendApprovalEmail` | Send state fee invoice email | email (`mail-send`) | [`service-tasks/send-fee-invoice-email.md`](service-tasks/send-fee-invoice-email.md) |
+| `Task_SendOwnerConfirmEmail` | Send co-owner signing email | email (`mail-send`) | [`service-tasks/send-owner-signing-email.md`](service-tasks/send-owner-signing-email.md) |
+| `Task_SendApplicantTrackingEmail` | Send owner tracking email | email (`mail-send`) | [`service-tasks/send-owner-tracking-email.md`](service-tasks/send-owner-tracking-email.md) |
+| `Task_SendReminderEmail` | Send reviewer reminder email | email (`mail-send`) | [`service-tasks/send-reviewer-reminder-email.md`](service-tasks/send-reviewer-reminder-email.md) |
+| `Task_SendBackEmail` | Send "sent back" email | email (`mail-send`) | [`service-tasks/send-sendback-email.md`](service-tasks/send-sendback-email.md) |
 | `Task_StoreCertificatePdf` | Store registration certificate | case document (backend) | [`service-tasks/store-certificate-pdf.md`](service-tasks/store-certificate-pdf.md) |
 | `Task_StoreApprovalPdf` | Store fee invoice | case document (backend) | [`service-tasks/store-fee-invoice-pdf.md`](service-tasks/store-fee-invoice-pdf.md) |
 
@@ -192,10 +192,13 @@ confirmations, 30 for payment). The token is never stored; the backend's
 round equals the case's current `consentRound`. Any failure is the same 404
 (docs/security.md rule 3).
 
-`busBaseUrl` (the integration bus address) and `frontendBaseUrl` are exposed
-as JUEL variables by `BusConfiguration` and `FrontendConfiguration` in the
-engine. Outbound email/PDF/backend calls all go to `${busBaseUrl}`; the bus
-(`esb`, Apache Camel) routes each path to the real downstream system. The
+`patchbayBaseUrl` (Patchbay, the integration service) and `backendBaseUrl` are
+exposed as JUEL variables by `OutboundConfiguration`, `frontendBaseUrl` by
+`FrontendConfiguration`. Email and PDF calls go to the core integrations
+`mail-send` and `pdf-render` at `${patchbayBaseUrl}/api/v1/integrations/<slug>`;
+backend calls go to `${backendBaseUrl}/api/...`. The engine adds `X-API-Key`
+on Patchbay's integrations and `X-Internal-Token` on the backend's
+`/api/internal/` itself, so no connector sets either header. The
 `pdf` bean is `PdfHelper`, the `links` bean `CapabilityLinks`. See [`docs/cib7.md`](../../../../../../docs/cib7.md) for the
 wiring.
 

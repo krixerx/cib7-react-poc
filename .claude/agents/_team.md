@@ -22,7 +22,7 @@ Implementation across modules, for work that crosses the backend and frontend va
 
 ## Programmer (backend)
 
-Java 21, Spring Boot 4, CIB seven 2.2 (`cib7/`, `backend/`), Camel routes (`esb/`), Node services (`mcp/`, `pdf-renderer/`).
+Java 21, Spring Boot 4, CIB seven 2.2 (`cib7/`, `backend/`), Patchbay packages (`patchbay/`), Node services (`mcp/`, `pdf-renderer/`).
 
 ## Programmer (frontend)
 

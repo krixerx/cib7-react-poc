@@ -41,7 +41,7 @@ class PackManifestTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"1.0", "3.0", "2.99"})
+  @ValueSource(strings = {"2.0", "4.0", "3.99"})
   void anotherMajorOrANewerMinorIsRefused(String platform) {
     IllegalStateException e =
         assertThrows(IllegalStateException.class, () -> manifest(platform).requireCompatible());

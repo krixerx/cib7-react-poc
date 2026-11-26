@@ -13,10 +13,10 @@ Stores the certificate as a case document (category `generated-certificate`), wh
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/internal/documents/server-upload` |
+| URL | `${backendBaseUrl}/api/internal/documents/server-upload` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: backend documents module (the bus adds `X-Internal-Token`).
+Downstream: backend documents module (the engine adds `X-Internal-Token` on `/api/internal/`).
 
 ## Payload (request body)
 

@@ -21,9 +21,8 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
- * Document endpoints only the engine calls, through the ESB, authenticated by {@code
- * X-Internal-Token} on {@code /api/internal/**} (see {@link
- * com.poc.backend.security.SecurityConfig}).
+ * Document endpoints only the engine calls, directly, authenticated by {@code X-Internal-Token} on
+ * {@code /api/internal/**} (see {@link com.poc.backend.security.SecurityConfig}).
  *
  * <p>{@code move-pending} still treats its input as untrusted: the pending key comes from a process
  * variable the applicant's form wrote, so it is only moved when it lies under the case initiator's

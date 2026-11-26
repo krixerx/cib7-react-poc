@@ -13,10 +13,10 @@ Tells the applicant the OÜ is approved, attaches the state fee invoice and give
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/v1/send` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/mail-send` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: Mailpit (the bus routes `/api/v1/send`).
+Downstream: Patchbay integration `mail-send` (v1), which hands the mail to the mail system (Mailpit here).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: business-approval-email.json.ftl
 
 ```ftl
 <#--
-  Mailpit /api/v1/send payload for the businessRegistration approval email.
+  mail-send payload (Patchbay integration, v1) for the businessRegistration approval email.
   Variables in scope: companyName, shareCapital, applicantFirstName,
   applicantLastName, applicantEmail, boardMembers (Spin Json list),
   autoDecision, decision, feeInvoicePdfBytes (raw PDF bytes, written by
@@ -59,15 +59,15 @@ payload-template: business-approval-email.json.ftl
 -->
 <#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 {
-  "From":    { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
-  "To":      [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "${("Estonian OÜ registered: " + (companyName!""))?json_string}",
-  "Text":    "${documents.text("business-approval", execution)?json_string}",
-  "Attachments": [
+  "from":    { "email": "process@cib7-poc.local", "name": "Äriregister POC" },
+  "to":      [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "${("Estonian OÜ registered: " + (companyName!""))?json_string}",
+  "text":    "${documents.text("business-approval", execution)?json_string}",
+  "attachments": [
     {
-      "Filename": "${(feeInvoicePdfFilename!"state-fee-invoice.pdf")?json_string}",
-      "ContentType": "application/pdf",
-      "Content": "${pdf.encode(feeInvoicePdfBytes)}"
+      "filename": "${(feeInvoicePdfFilename!"state-fee-invoice.pdf")?json_string}",
+      "contentType": "application/pdf",
+      "base64": "${pdf.encode(feeInvoicePdfBytes)}"
     }
   ]
 }
@@ -110,7 +110,12 @@ Rendered with these case variables by the core's pack checks
 
 | Path | Expected |
 |---|---|
-| `/Text` | `matches "/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
+| `/from/email` | `"process@cib7-poc.local"` |
+| `/to/0/email` | `"ants@example.com"` |
+| `/to/0/name` | `"Frida Asutaja"` |
+| `/attachments/0/contentType` | `"application/pdf"` |
+| `/attachments/0/base64` | `"ZmFrZS1pbnZvaWNlLXBkZg=="` |
+| `/text` | `matches "/pay/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
 
 ## Response mapping
 

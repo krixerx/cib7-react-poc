@@ -7,7 +7,7 @@
   generated-approval-pdf.
 
   approvalPdfBytes stays in scope after this task so the subsequent
-  Task_SendApprovalEmail can still re-encode it for the Mailpit
+  Task_SendApprovalEmail can still re-encode it for the mail-send
   attachment — see approval-email.json.ftl.
 -->
 {

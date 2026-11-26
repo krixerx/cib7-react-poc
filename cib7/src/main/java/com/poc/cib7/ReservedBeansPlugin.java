@@ -1,6 +1,8 @@
 package com.poc.cib7;
 
 import java.beans.FeatureDescriptor;
+import java.util.AbstractMap;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -19,14 +21,22 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 /**
- * Makes configuration beans used in BPMN expressions and FreeMarker templates win over process
- * variables of the same name.
+ * Limits the Spring beans that BPMN expressions and FreeMarker templates can reach to {@link
+ * #RESERVED_NAMES}, and makes those beans win over process variables of the same name.
+ *
+ * <p>Out of the box the Spring engine resolves every bean of the application context by name, so a
+ * pack's connector input could read {@code ${environment.getProperty('INTERNAL_TASK_TOKEN')}} or
+ * any secret a bean holds and post it to a host of its choosing ({@code BeanExposureTest} shows it
+ * did on CIB seven 2.2). Setting the engine's {@code beans} map makes the Spring expression manager
+ * use that map instead of the application context, and stops the Spring configuration from adding
+ * its application-context script resolver; the map here holds the reserved names only and looks
+ * each bean up when it is first read.
  *
  * <p>Out of the box the engine's JUEL resolver chain asks the variable scope before the Spring
- * context, so a client that writes a variable called {@code busBaseUrl} would redirect every
- * connector of that case (and the bus token with it) to a host of its choosing. This plugin puts a
- * resolver for {@link #RESERVED_NAMES} at the front of the JUEL chain, and appends a matching
- * resolver to the script bindings, where the last resolver that knows a key wins.
+ * context, so a client that writes a variable called {@code patchbayBaseUrl} or {@code
+ * backendBaseUrl} would redirect every connector of that case to a host of its choosing. This
+ * plugin puts a resolver for {@link #RESERVED_NAMES} at the front of the JUEL chain, and appends a
+ * matching resolver to the script bindings, where the last resolver that knows a key wins.
  *
  * <p>Add a name here whenever a new bean is referenced from BPMN or a template.
  */
@@ -35,7 +45,7 @@ public class ReservedBeansPlugin extends AbstractProcessEnginePlugin {
 
   /** Spring bean names that a process variable may never shadow. */
   public static final Set<String> RESERVED_NAMES =
-      Set.of("busBaseUrl", "frontendBaseUrl", "pdf", "links", "documents");
+      Set.of("patchbayBaseUrl", "backendBaseUrl", "frontendBaseUrl", "pdf", "links", "documents");
 
   private final ApplicationContext applicationContext;
 
@@ -50,6 +60,7 @@ public class ReservedBeansPlugin extends AbstractProcessEnginePlugin {
    */
   @Override
   public void preInit(ProcessEngineConfigurationImpl configuration) {
+    configuration.setBeans(new ReservedBeansMap(applicationContext));
     configuration.setExpressionManager(
         new ReservedFirstExpressionManager(applicationContext, configuration.getBeans()));
   }
@@ -59,6 +70,41 @@ public class ReservedBeansPlugin extends AbstractProcessEnginePlugin {
     List<ResolverFactory> factories =
         configuration.getScriptingEngines().getScriptBindingsFactory().getResolverFactories();
     factories.add(new ReservedBeansResolverFactory(applicationContext));
+  }
+
+  /**
+   * The reserved beans as a read-only map, looked up in the application context on read so that
+   * building the engine does not create them early.
+   */
+  static final class ReservedBeansMap extends AbstractMap<Object, Object> {
+
+    private final ApplicationContext applicationContext;
+
+    ReservedBeansMap(ApplicationContext applicationContext) {
+      this.applicationContext = applicationContext;
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+      return key instanceof String name && RESERVED_NAMES.contains(name);
+    }
+
+    @Override
+    public Object get(Object key) {
+      return containsKey(key) ? applicationContext.getBean((String) key) : null;
+    }
+
+    @Override
+    public Set<Object> keySet() {
+      return Set.<Object>copyOf(RESERVED_NAMES);
+    }
+
+    @Override
+    public Set<Entry<Object, Object>> entrySet() {
+      Map<Object, Object> beans = new HashMap<>();
+      RESERVED_NAMES.forEach(name -> beans.put(name, applicationContext.getBean(name)));
+      return Set.copyOf(beans.entrySet());
+    }
   }
 
   static final class ReservedFirstExpressionManager extends SpringExpressionManager {

@@ -1,5 +1,5 @@
 <#--
-  Mailpit /api/v1/send payload for the "Send applicant tracking email"
+  mail-send payload (Patchbay integration, v1) for the "Send applicant tracking email"
   service task in business-registration.bpmn.
 
   Sent once at the start of the co-founder signing phase. The applicant is
@@ -18,8 +18,8 @@
 -->
 <#assign fullName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
-  "To": [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "${("Your OÜ registration is awaiting co-founder signatures: " + (companyName!""))?json_string}",
-  "Text": "${documents.text("business-founder-tracking", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Äriregister POC" },
+  "to": [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "${("Your OÜ registration is awaiting co-founder signatures: " + (companyName!""))?json_string}",
+  "text": "${documents.text("business-founder-tracking", execution)?json_string}"
 }

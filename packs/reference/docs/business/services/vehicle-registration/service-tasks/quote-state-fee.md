@@ -13,10 +13,10 @@ Asks the backend for the case's state fee, so the invoice prints exactly the amo
 | Field | Value |
 |---|---|
 | Method | `GET` |
-| URL | `${busBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}` |
+| URL | `${backendBaseUrl}/api/internal/payments/quote/${execution.processInstanceId}` |
 | Headers | `Accept: application/json` |
 
-Downstream: backend payment module, which computes the fee from the pack's `backend/payment/` rule (the bus adds `X-Internal-Token`).
+Downstream: backend payment module, which computes the fee from the pack's `backend/payment/` rule (the engine adds `X-Internal-Token` on `/api/internal/`).
 
 ## Payload (request body)
 

@@ -1,5 +1,5 @@
 <#--
-  Mailpit /api/v1/send payload for the "Send co-founder signing email"
+  mail-send payload (Patchbay integration, v1) for the "Send co-founder signing email"
   service task inside SubProcess_FounderSignatures in
   business-registration.bpmn.
 
@@ -24,8 +24,8 @@
 <#assign founderEmail = founder.prop("email").stringValue()>
 <#assign applicantName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
-  "To": [ { "Email": "${founderEmail?json_string}", "Name": "${founderName?json_string}" } ],
-  "Subject": "${("Please sign: " + (companyName!"") + " (founder: " + applicantName + ")")?json_string}",
-  "Text": "${documents.text("business-founder-signing", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Äriregister POC" },
+  "to": [ { "email": "${founderEmail?json_string}", "name": "${founderName?json_string}" } ],
+  "subject": "${("Please sign: " + (companyName!"") + " (founder: " + applicantName + ")")?json_string}",
+  "text": "${documents.text("business-founder-signing", execution)?json_string}"
 }

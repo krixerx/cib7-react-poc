@@ -19,8 +19,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *       token in the URL is the credential, or the endpoint serves reference data that holds no
  *       personal data (the vehicle catalog).
  *   <li><b>Internal</b> (@Order(1)) — {@code /api/internal/**}, called only by the engine through
- *       the ESB, which injects the shared {@code X-Internal-Token}. No JWT because the caller is
- *       the engine, not a logged-in user. The ingress never routes this prefix.
+ *       directly, with the shared {@code X-Internal-Token}. No JWT because the caller is the
+ *       engine, not a logged-in user. The ingress never routes this prefix.
  *   <li><b>JWT</b> (@Order(2)) — {@code /api/documents/**}, {@code /api/cases/**} and {@code
  *       /api/statistics/**}, called by the SPA, the mobile app and MCP with the user's Keycloak
  *       Bearer. Validation (signature via the internal JWKS URL, issuer string-compare against the

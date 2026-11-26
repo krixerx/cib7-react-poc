@@ -1,5 +1,5 @@
 <#--
-  pdf-renderer /render payload for the B-card extract task in business-registration.bpmn: the B-card extract.
+  pdf-render payload (Patchbay integration, v1) for the B-card extract task in business-registration.bpmn: the B-card extract.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/bcard-extract.ftlh, rendered by the engine's `documents` bean on

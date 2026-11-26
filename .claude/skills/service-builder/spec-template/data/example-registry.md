@@ -42,7 +42,7 @@
 
 `public` only for harmless reference data with nothing about a person in it
 (docs/security.md rule 5); everything else is `internal`, which only the
-engine reaches through the bus.
+engine reaches with its internal token.
 
 ## Seed
 

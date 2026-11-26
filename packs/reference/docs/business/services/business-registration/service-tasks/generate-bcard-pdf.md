@@ -13,10 +13,10 @@ Renders the B-card extract, the company's registration certificate, once the sta
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/render` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/pdf-render` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: pdf-renderer, which renders HTML to PDF with Gotenberg.
+Downstream: Patchbay integration `pdf-render` (v1), which hands the HTML to the pdf-renderer (Gotenberg).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: bcard-pdf.json.ftl
 
 ```ftl
 <#--
-  pdf-renderer /render payload for the B-card extract task in business-registration.bpmn: the B-card extract.
+  pdf-render payload (Patchbay integration, v1) for the B-card extract task in business-registration.bpmn: the B-card extract.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/bcard-extract.ftlh, rendered by the engine's `documents` bean on

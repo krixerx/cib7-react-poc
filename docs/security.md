@@ -8,19 +8,20 @@ that breaks one needs a written reason in this file, not just in a commit.
 Contents:
 
 1. [Demo exemptions](#demo-exemptions)
-2. [Engine authorization](#1-engine-authorization)
-3. [Process variables are untrusted input](#2-process-variables-are-untrusted-input)
-4. [Capability links](#3-capability-links)
-5. [External facts need proof](#4-external-facts-need-proof)
-6. [Backend endpoint classes](#5-backend-endpoint-classes)
-7. [Object references need an ownership check](#6-object-references-need-an-ownership-check)
-8. [Encoding at every boundary](#7-encoding-at-every-boundary)
-9. [Ingress](#8-ingress)
-10. [Internal network](#9-internal-network)
-11. [MCP and LLM agents](#10-mcp-and-llm-agents)
-12. [Containers and supply chain](#11-containers-and-supply-chain)
-13. [Secrets](#12-secrets)
-14. [Every security rule has a test](#13-every-security-rule-has-a-test)
+2. [A service pack is reviewed code](#a-service-pack-is-reviewed-code)
+3. [Engine authorization](#1-engine-authorization)
+4. [Process variables are untrusted input](#2-process-variables-are-untrusted-input)
+5. [Capability links](#3-capability-links)
+6. [External facts need proof](#4-external-facts-need-proof)
+7. [Backend endpoint classes](#5-backend-endpoint-classes)
+8. [Object references need an ownership check](#6-object-references-need-an-ownership-check)
+9. [Encoding at every boundary](#7-encoding-at-every-boundary)
+10. [Ingress](#8-ingress)
+11. [Internal network](#9-internal-network)
+12. [MCP and LLM agents](#10-mcp-and-llm-agents)
+13. [Containers and supply chain](#11-containers-and-supply-chain)
+14. [Secrets](#12-secrets)
+15. [Every security rule has a test](#13-every-security-rule-has-a-test)
 
 ---
 
@@ -57,10 +58,64 @@ findings:
   `PACK_TAG` / `CORE_TAG` defaults in `deploy/docker-compose.yml`. The
   published pack images and the deploy workflow never use them (see rule 11).
   A real deployment replaces every `latest` with a pinned version.
+- Patchbay, the integration service, logs to stdout only, not to Graylog
+  (`docs/logging.md`, "What is not shipped"): Docker's `gelf` driver would
+  need Graylog's input published on the host, and Patchbay has no GELF
+  transport of its own yet. `docker compose logs patchbay` is its log, with
+  json-file rotation.
+- Patchbay's call log is on in the local `docker-compose.yml`
+  (`MAPPER_CALL_LOG`). It keeps the last 100 payloads per integration in
+  memory, which here means names, email addresses, capability links and
+  whole PDFs, readable by anyone with the console login. The deploy kit
+  turns it off by default (`PATCHBAY_CALL_LOG`); a real deployment keeps it
+  off.
 
 Everything below applies regardless. In particular, a self-registered user is
 an ordinary applicant, so the authorization rules must hold against anyone on
 the internet.
+
+## A service pack is reviewed code
+
+A pack is data (BPMN, DMN, FreeMarker, JSON), but its BPMN expressions and
+templates run inside the engine. **A pack is reviewed code with the engine's
+power, not a sandboxed plug-in.** A pull request that touches `packs/` is
+reviewed like core code. The engine holds `INTERNAL_TASK_TOKEN`,
+`PATCHBAY_API_KEY`, `LINK_SIGNING_SECRET`, the Keycloak client secrets and
+the database login, and an expression that reaches the process environment
+or the engine configuration can read them.
+
+What is guaranteed, and by what:
+
+- *At run time, in the engine.* Expressions and templates resolve by name
+  only case variables, `execution`, Spin and the reserved beans of
+  `ReservedBeansPlugin.RESERVED_NAMES`; no other Spring bean resolves, so
+  `${environment.getProperty('INTERNAL_TASK_TOKEN')}` fails with an incident
+  (`BeanExposureTest`). Payload templates (`engine/templates/`) refuse
+  FreeMarker's `?new` and `?api`, with the settings `DocumentRenderer` already
+  uses for `engine/documents/` (`PayloadTemplatesPlugin`,
+  `PayloadTemplateHardeningTest`).
+- *In the pack check.* `PackIntegrationTest` (tagged `pack`) refuses
+  connector URLs other than the offered destinations, connectors that set
+  `X-API-Key` or `X-Internal-Token`, and reflection-like expressions in BPMN,
+  DMN, templates and documents (`getClass`, `forName`, `processEngine…`,
+  `?new`, `?api`, `Execute`, `ObjectConstructor`). That last check is a text
+  scan: it catches the honest mistake and the lazy attack, and a determined
+  pack gets past it (string concatenation, `?interpret`, other paths to the
+  same objects). It gates the reference pack, today the only pack, because
+  `docker-publish.yml` builds the pack layers only after the `quality` job
+  has run the pack tests.
+- *Not guaranteed.* Through `execution` and Java method calls, a BPMN
+  expression can still reach `execution.processEngine.processEngineConfiguration`
+  (and its data source) and, by reflection from a string, the process
+  environment. An image built without the pack check is not protected at
+  all. Closing this at run time needs a JUEL resolver that refuses
+  reflection types and `processEngine…` navigation; it is a recorded
+  follow-up, required before a second pack is added or any pack is built
+  outside this repository's CI (design D17 of `replace-esb-with-patchbay`).
+
+What a pack cannot do as data (call another destination, set a credential,
+reach a core host through its own integrations) is listed in
+`docs/platform-api.md`, "What a pack cannot do".
 
 ## 1. Engine authorization
 
@@ -122,10 +177,12 @@ the internet.
   in an applicant form's allowlist, because the SPA resubmits the prefilled
   value; `IdentityValidationListener` rejects any value that differs from the
   validated token, so the allowlist entry cannot change them.
-- Configuration beans used in expressions and templates (`busBaseUrl`,
-  `frontendBaseUrl`, `pdf`, ...) are registered as reserved names that resolve
-  before process variables (`ReservedBeansPlugin`). A variable with the same
-  name can never shadow them.
+- Configuration beans used in expressions and templates (`patchbayBaseUrl`,
+  `backendBaseUrl`, `frontendBaseUrl`, `pdf`, ...) are registered as reserved
+  names that resolve before process variables (`ReservedBeansPlugin`,
+  `ReservedBeansPluginTest`). A variable with the same name can never shadow
+  them, so a client cannot redirect a connector. They are also the only
+  beans that resolve at all (`BeanExposureTest`).
 
 ## 3. Capability links
 
@@ -198,13 +255,24 @@ Every `/api/**` path belongs to exactly one class, chosen by its prefix:
 | Prefix | Who calls it | Authentication |
 |---|---|---|
 | `/api/public/**` | a citizen following a capability link, or anonymous read-only reference data (public registries, the service list) | the capability token (rule 3); read-only reference data only if it holds no personal data |
-| `/api/internal/**` | the engine, through the ESB | `X-Internal-Token`; never routed by the ingress |
+| `/api/internal/**` | the engine, directly | `X-Internal-Token`, which the engine attaches only to its calls to the backend's `/api/internal/`; never routed by the ingress |
 | everything else | the SPA, the mobile app, MCP | Keycloak JWT with the `cib7-rest-api` audience |
 
 Inside the JWT class, `/api/statistics/**` additionally requires the
 `statistics-viewer` realm role, read from `realm_access.roles` by
 `RealmRoleAuthorities`. Other JWT endpoints decide access per object
 (rule 6) rather than by role.
+
+The engine is the only caller of `/api/internal/**`. Its
+`OutboundCredentialsInterceptor` adds `X-Internal-Token` (`INTERNAL_TASK_TOKEN`)
+only when a connector's target, parsed and normalised, has the origin of
+`backendBaseUrl` and a path under `/api/internal/`, and removes it from every
+other request, a header the BPMN set included
+(`OutboundCredentialsInterceptorTest`). The backend compares it in constant time
+and answers 401 to a missing, empty or wrong token
+(`InternalTokenAuthenticationFilterTest`). Patchbay never holds the token and
+shares no network with the backend (rule 9). The token still stops any other
+container on the networks the backend shares (`edge`, `app`).
 
 `SecurityConfig` ends with a deny-all chain, so a new path outside these
 prefixes is rejected rather than silently open. An endpoint that writes data
@@ -258,23 +326,37 @@ stays.
 
 ## 9. Internal network
 
-- Containers that have no reason to talk share no network. Only the engine
-  reaches the ESB; only the PDF renderer reaches Gotenberg. The map is in
-  `docs/architecture.md` § Networks. Graylog is the one deliberate extra
-  member: it joins the networks its GELF shippers sit on (including the
-  engine–ESB `bus`), so that logging does not need one network connecting
-  every shipper to every other.
-- The ESB adds `X-Internal-Token` only for callers that authenticate to it:
-  every route first requires `X-Bus-Token` equal to `BUS_TOKEN`
-  (`esb/routes/bus-auth.yaml`) and strips it before forwarding. Exception to
-  rule 12: that comparison is plain string equality, because Camel's simple
-  language has no constant-time compare and the bus has no listener outside
-  the internal network.
-- A service pack's own bus routes (`esb/routes/pack-*.yaml`) start with the
-  same `direct:bus-auth`, listen only under `/pack/`, and cannot set or read
-  `X-Internal-Token` or `X-Bus-Token`, read an environment variable other
-  than `PACK_*`, call a host of this stack or run code; a pack's BPMN calls
-  only the bus paths the platform API offers it. `PackBusTest` checks both.
+- Containers that have no reason to talk share no network. The engine
+  reaches external systems only through Patchbay (network `integration`,
+  engine and Patchbay only) and the backend directly over `app`, which they
+  already shared. Patchbay reaches Mailpit (`mail`) and the PDF renderer
+  (`pdf`); only the PDF renderer reaches Gotenberg. The map is in
+  `docs/architecture.md` § Networks.
+- Patchbay shares no network with the backend, Keycloak, Postgres, RustFS or
+  Graylog. Its console's Test button and a pack's integration can call any
+  host Patchbay reaches, so what it cannot reach is the bound. Graylog
+  therefore gets each GELF shipper on its own network (`gelf-cib7`,
+  `gelf-backend`, `gelf-pdf`, `gelf-mcp`) and sits on none of Patchbay's.
+- Patchbay requires `X-API-Key` on every integration call (`INBOUND_API_KEY`,
+  compared in constant time by Patchbay). The engine adds it from
+  `PATCHBAY_API_KEY` only to calls under Patchbay's `/api/v1/integrations/`
+  and removes it everywhere else (`OutboundCredentialsInterceptor`,
+  `OutboundCredentialsInterceptorTest`). Caller headers never reach the
+  external system. Patchbay's console and `/admin` take its own login
+  (`PATCHBAY_ADMIN_USER`/`PATCHBAY_ADMIN_PASSWORD`); in phase 1 they are on
+  `127.0.0.1` only (an SSH tunnel on a server).
+- Patchbay holds each external system's address and credentials, from the
+  environment, never from a package. The core's packages live in
+  `patchbay/packages/`, a pack's in `<pack>/patchbay/`; a pack's ids start
+  with `pack-` and its packages carry no connection, secret or base URL
+  (`PackIntegrationTest`). A pack's addresses and secrets come from the
+  host's `patchbay-pack.env` (`MAPPER_URL_PACK_*`, `MAPPER_HEADER_PACK_*`,
+  `MAPPER_SECRET_PACK_*`), which `deploy.sh` refuses when it holds another
+  key or a URL naming a core service. `/config` is not persisted, so the
+  packages in git are the only source of integrations.
+- A pack's BPMN calls only `${patchbayBaseUrl}/api/v1/integrations/<slug>`
+  for a core slug or one of its own, and `${backendBaseUrl}` with the paths
+  the platform API offers (`PackIntegrationTest`).
 - Gotenberg renders with JavaScript disabled and a deny list covering every
   internal host.
 
@@ -299,7 +381,10 @@ stays.
   of `docker-publish.yml` refuses to push a layer whose image user is
   empty, `root` or `0`.
 - Base and third-party images are pinned to a version, never `latest`.
-  Exception: our own images in `deploy/docker-compose.yml` default to
+  Patchbay is one of them: `patchbay/Dockerfile` builds `cib7-poc-patchbay`
+  FROM `krixerx/patchbay:0.1.0`, and a pack's `docker/patchbay.Dockerfile`
+  builds on that core image; both run as Patchbay's own non-root user
+  (uid 10001). Exception: our own images in `deploy/docker-compose.yml` default to
   `latest` (`PACK_TAG`, `CORE_TAG`) for a quick single-machine evaluation;
   the deploy workflow always pins the deployed commit's SHA for both.
   Likewise a pack's `docker/*.Dockerfile` defaults its `*_CORE` base image
@@ -325,3 +410,19 @@ stays.
 
 A fix for any rule above lands with a negative test: the wrong user, a forged
 token, an unlisted variable or an internal path from outside gets refused.
+
+The tests that hold the outbound and pack boundary:
+
+| Rule | Test | What it refuses |
+|---|---|---|
+| Pack trust, 2 | `BeanExposureTest` | a deployed BPMN or template naming a bean outside the reserved names |
+| Pack trust | `PayloadTemplateHardeningTest` | a payload template using `?new` or `?api`; no request is sent |
+| Pack trust, 9 | `PackIntegrationTest` | other connector destinations, credential headers in a connector, reflection-like expressions, a pack package with non-`pack-` ids, a connection, a secret or a base URL, a pack layer that zips anything but its packages |
+| 2 | `ReservedBeansPluginTest` | a process variable shadowing a reserved bean |
+| 5, 9 | `OutboundCredentialsInterceptorTest` | `X-Internal-Token` or `X-API-Key` on any other destination, host-suffix and userinfo tricks, a header the BPMN set |
+| 5 | `InternalTokenAuthenticationFilterTest` | a missing, empty, wrong or wrong-length `X-Internal-Token` |
+| 12 | `DefaultSecretsGuardTest` (engine and backend) | starting with a `-change-me` default when real secrets are required |
+
+Still proved by hand on the running stack, not by a test: Patchbay's 401
+without `X-API-Key`, and that Patchbay cannot reach the backend, Keycloak or
+Graylog (task 8.2 of `replace-esb-with-patchbay`).

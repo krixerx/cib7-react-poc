@@ -1,6 +1,6 @@
 ---
 name: deployment-conventions
-description: Rules for writing, changing or reviewing deployment files: docker-compose*.yml, deploy/, frontend/nginx.conf and mobile/nginx.conf with their snippets, esb/routes, keycloak/ realm and themes, traefik/, Dockerfiles and .github/workflows. Use before changing any of them, before a deploy, and when running /review.
+description: Rules for writing, changing or reviewing deployment files: docker-compose*.yml, deploy/, frontend/nginx.conf and mobile/nginx.conf with their snippets, keycloak/ realm and themes, traefik/, Dockerfiles and .github/workflows. Use before changing any of them, before a deploy, and when running /review.
 ---
 
 # Deployment conventions
@@ -26,7 +26,7 @@ to skip. **INFO** is advice. `/review` uses these levels.
 | D3 | BLOCKER P1 | A `location` with its own `add_header` includes a complete header snippet | `frontend/nginx.conf` header comment; `docs/security.md` §8 |
 | D4 | BLOCKER P1 | The CSP allows no inline script; per-deployment origins are written at container start | `frontend/docker/40-runtime-env.sh`; F2 |
 | D5 | BLOCKER P1 | `/api/internal/**` answers 404 at every ingress | `docs/security.md` §5, §8 |
-| D6 | BLOCKER P1 | The ESB injects `X-Internal-Token` only for callers presenting `X-Bus-Token` | `docs/security.md` §9 |
+| D6 | BLOCKER P1 | The engine sends `X-Internal-Token` only to the backend's `/api/internal/`; Patchbay requires `X-API-Key` | `docs/security.md` §5, §9; `OutboundCredentialsInterceptorTest` |
 | D7 | BLOCKER P1 | A port published by the deploy kit is a configurable binding or profile-gated | [D7](#d7) |
 | D8 | BLOCKER P1 | No secret literal in the realm export or compose files; realm placeholders are `${VAR}` | [D8](#d8); `docs/security.md` §12 |
 | D9 | BLOCKER P2 | `frontendUrl` and `KC_HOSTNAME` are placeholders; a realm change needs Keycloak recreated | [D9](#d9) |

@@ -23,7 +23,7 @@ is and how to operate the host) and [`deployment.md`](deployment.md)
 | Workflow | Runs when | Does |
 |---|---|---|
 | [`quality.yml`](../.github/workflows/quality.yml) | every PR; on `main` as the first job of `docker-publish.yml` (reusable workflow) | `mvn verify` for `cib7` + `backend` (Spotless included) and format/lint/typecheck/test/build for `frontend` and `mcp`, all run on the reference pack `packs/reference/`. The same commands as the ones in `CLAUDE.md`, so a green local run means a green CI run. |
-| [`docker-publish.yml`](../.github/workflows/docker-publish.yml) | every push to `main`, a `v<x.y.z>` tag, or by hand | Runs `quality.yml`, and only if it passes builds the seven core images (`krixerx/cib7-poc-*-core` for frontend, mobile, cib7, backend and mcp, plus `cib7-poc-pdf-renderer` and `cib7-poc-esb`, which hold nothing of a pack), scans each with Trivy (fails on a fixable HIGH or CRITICAL vulnerability, before anything is pushed) and pushes them, each tagged `latest` and the commit's 7-character SHA, and on a `v<x.y.z>` tag also `<x.y.z>`. Then job `pack-layers` builds the reference pack's five layers (`packs/reference/docker/<layer>.Dockerfile`, each FROM the core image of the same commit through its `*_CORE` build argument), checks that each runs as non-root, scans it with Trivy (with the module's own `.trivyignore.yaml`) and pushes it as `eregistrations-reference-<layer>`, tagged `latest`, the short SHA and the pack version from `pack.yaml`. |
+| [`docker-publish.yml`](../.github/workflows/docker-publish.yml) | every push to `main`, a `v<x.y.z>` tag, or by hand | Runs `quality.yml`, and only if it passes builds the seven core images (`krixerx/cib7-poc-*-core` for frontend, mobile, cib7, backend and mcp, plus `cib7-poc-pdf-renderer` and `cib7-poc-patchbay`, the pinned Patchbay release with the core packages, which hold nothing of a pack), scans each with Trivy (fails on a fixable HIGH or CRITICAL vulnerability, before anything is pushed) and pushes them, each tagged `latest` and the commit's 7-character SHA, and on a `v<x.y.z>` tag also `<x.y.z>`. Then job `pack-layers` builds the reference pack's six layers (frontend, engine, backend, mcp, mobile and patchbay) (`packs/reference/docker/<layer>.Dockerfile`, each FROM the core image of the same commit through its `*_CORE` build argument), checks that each runs as non-root, scans it with Trivy (with the module's own `.trivyignore.yaml`) and pushes it as `eregistrations-reference-<layer>`, tagged `latest`, the short SHA and the pack version from `pack.yaml`. |
 | [`security.yml`](../.github/workflows/security.yml) | every PR, every push to `main`, Mondays 05:17 UTC | `npm audit --audit-level=high` for `frontend`, `mcp`, `scripts` and `pdf-renderer`, and a Trivy filesystem scan (Maven poms, npm locks, committed secrets; HIGH and CRITICAL with a fix). Not a publish gate, so a new advisory turns it red without blocking unrelated merges. |
 | [`codeql.yml`](../.github/workflows/codeql.yml) | **only when you ask** (`workflow_dispatch`) | CodeQL static analysis with the `security-extended` queries for `java-kotlin` (`cib7`, `backend`), `javascript-typescript` (`frontend`, `mcp`, `pdf-renderer`, `scripts`) and `actions`, all in build-mode none. Findings go to Security > Code scanning. Fails only if the analysis itself fails, not on findings. |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | **only when you ask** (`workflow_dispatch`) | Ships the `deploy/` bundle to the VM over SSH and runs the host's `deploy.sh`. Builds nothing. |
@@ -40,15 +40,13 @@ Accepted image-scan findings go in a per-image Trivy YAML ignore file that
 `trivyignores` field). Each entry names the CVE, the path it sits in, a
 `statement` saying why, and an `expired_at` date, so the build turns red
 again when the exception lapses. An image without a file is scanned with no
-exceptions. Both files are empty now:
+exceptions. The one file there is, `cib7/.trivyignore.yaml`, is empty
+now: the engine's one accepted finding (Spring MVC's XsltView,
+CVE-2026-47884) went with the move to Spring Boot 4. The Patchbay images
+(`cib7-poc-patchbay` and the pack's layer) have no file, so they are scanned
+with no exceptions.
 
-- `esb/.trivyignore.yaml`: the esb Dockerfile pins fixed Jackson and
-  FreeMarker versions over camel-jbang's and starts Camel with plain java,
-  so the JBang launcher jar and its bundled libraries are gone (2026-11-23).
-- `cib7/.trivyignore.yaml`: the engine's one accepted finding (Spring MVC's
-  XsltView, CVE-2026-47884) went with the move to Spring Boot 4.
-
-The files stay because `docker-publish.yml` names them; `security.yml` also
+The file stays because `docker-publish.yml` names it; `security.yml` also
 passes the cib7 one to the filesystem scan, and `pack-layers` scans the
 pack's engine layer with it.
 
@@ -88,8 +86,8 @@ What the run does:
    both `PACK_TAG` and `CORE_TAG`. The pack is `packs/$PACK` (variable
    `PACK`, default `reference`), which must hold
    `keycloak/cib7-poc-users-0.json` and `branding/brand.json`.
-3. **Verifies the images exist**: the pack's five layers and the core-only
-   images (esb, pdf-renderer), all under that SHA. The
+3. **Verifies the images exist**: the pack's six layers and the core-only
+   image (pdf-renderer), all under that SHA. The
    image names are read out of `deploy/docker-compose.yml` itself, so
    this check cannot drift from what compose will pull, and a tag nobody
    built fails the run in ten seconds instead of half-way through.
@@ -106,7 +104,9 @@ What the run does:
    someone types on the host: without them, a plain `docker compose up -d`
    there would silently move the whole stack to `latest`.
 6. **Runs `deploy.sh --yes --no-git`** on the host: volume backup,
-   `compose pull`, `up -d --remove-orphans`, then the public smoke tests.
+   `compose pull`, `up -d --remove-orphans`, then the public smoke tests
+   and, inside the `patchbay` container, a check that its admin API lists
+   `mail-send` and `pdf-render` active and nothing broken.
    Those tests run on the host deliberately — the runner's only route in
    is port 22, so probing from the runner would fail a good deploy.
 7. **Asserts the running images are the expected builds**: the pack's
@@ -281,4 +281,11 @@ engine means the cases running right now are gone, see below.
   `*_SECRET`) is unset in `.env` or still that default: compose would
   otherwise run silently on a value published in this repo. The list is
   read from the compose file, so a new secret is covered automatically,
-  and only variable names are printed.
+  and only variable names are printed. There it also wants
+  `PATCHBAY_ADMIN_PASSWORD` of at least 20 characters and refuses
+  `APP_REQUIRE_REAL_SECRETS=false`. On every run it checks the host's
+  `patchbay-pack.env`, if there is one: only `MAPPER_URL_PACK_*`,
+  `MAPPER_HEADER_PACK_*` and `MAPPER_SECRET_PACK_*` keys, and no URL to a
+  core service name. The workflow never writes or ships that file; secrets
+  stay in the host's `.env` and `patchbay-pack.env`, so `deploy.yml`
+  forwards none.

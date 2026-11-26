@@ -1,6 +1,6 @@
 # Generated from docs/business/services/vehicle-registration/consent.md.
 # Do not hand-edit. Read by the backend's ConsentCatalog.
-platform: 2
+platform: 3
 purpose: owner
 process: vehicleRegistration
 applicant: { firstName: firstName, lastName: lastName }

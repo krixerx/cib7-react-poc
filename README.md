@@ -125,7 +125,7 @@ Vehicle Registration (BPMN + DMN)
     ▼  Co-owner signatures        multi-instance subprocess (email links,  │
     │    public /consent/<purpose>/{token} pages, message correlation)     │
     ▼  Look up vehicle in registry  service task (http-connector)          │
-    │    GET {busBaseUrl}/api/public/registry/vehicles/{vin}       │
+    │    GET {backendBaseUrl}/api/internal/registry/vehicles/{vin}         │
     │    → price, vehicleAgeYears, make/model/year/fuelType                │
     ▼  Auto-approval policy       business rule task (DMN)                 │
     │    age + price + vehicleAgeYears → autoDecision                      │
@@ -150,7 +150,7 @@ labels in the back-office worklist.
 ## Service packs — one core, a pack per instance
 
 The platform is a **core** (engine, backend, portal, mobile app, MCP sidecar,
-bus) built as images that hold no services, and **service packs**, one
+integration service) built as images that hold no services, and **service packs**, one
 directory `packs/<name>/` per country or customer, holding only data: the
 services' specs and what is generated from them (BPMN, DMN, FreeMarker
 payloads, form definitions, texts, branding, registries, users). Both live in
@@ -284,9 +284,9 @@ not a certification. No external penetration test has been done.
 | A05 Security misconfiguration | CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`. Rate limits on public endpoints and MCP. Engine-only endpoints return 404 at the edge. `DefaultSecretsGuard` refuses dev-default secrets when `APP_REQUIRE_REAL_SECRETS=true`. |
 | A06 Vulnerable components | Pinned images, Dependabot, `npm audit` and Trivy scans. Images are published only after the quality workflow passes. |
 | A07 Authentication failures | Keycloak OIDC with PKCE. Tokens are kept in memory. JWT signature, issuer and audience are checked by the engine, the backend and MCP. |
-| A08 Integrity failures | Internal calls need `X-Bus-Token` at the ESB and `X-Internal-Token` at the backend. CI deploys pin the image tag to the commit SHA. |
+| A08 Integrity failures | Internal calls need `X-API-Key` at Patchbay and `X-Internal-Token` at the backend; the engine attaches each only to its own destination. CI deploys pin the image tag to the commit SHA. |
 | A09 Logging and monitoring | Structured GELF logs with the acting user id go to Graylog, which is loopback-only. The engine history records who did what. |
-| A10 SSRF | Every connector URL is built on a reserved `busBaseUrl` bean. Separate Docker networks isolate the services, and Gotenberg renders with JavaScript off and internal hosts on a deny list. |
+| A10 SSRF | Every connector URL is built on a reserved `patchbayBaseUrl` or `backendBaseUrl` bean, and the pack check refuses any other destination. Separate Docker networks isolate the services, and Gotenberg renders with JavaScript off and internal hosts on a deny list. |
 
 **Code scanning:** besides the dependency, secret and image scans that run on
 every push, the [`codeql`](.github/workflows/codeql.yml) workflow runs GitHub
@@ -414,7 +414,8 @@ cib7-react-poc/
 │   └── src/main/
 │       ├── java/com/poc/cib7/
 │       │   ├── Cib7PocApplication.java
-│       │   ├── BusConfiguration.java         exposes ${busBaseUrl} (integration bus)
+│       │   ├── OutboundConfiguration.java    exposes ${patchbayBaseUrl} and ${backendBaseUrl}
+│       │   ├── OutboundCredentialsInterceptor.java  X-API-Key / X-Internal-Token by destination
 │       │   ├── FrontendConfiguration.java    exposes ${frontendBaseUrl} (email links)
 │       │   ├── PdfHelper.java                @Component("pdf") base64↔byte[]
 │       │   ├── AuthorizationBootstrap.java   grants /applicant engine perms
@@ -445,12 +446,12 @@ cib7-react-poc/
 │   ├── gelf.js                     GELF UDP logger (service / level / no user)
 │   ├── package.json
 │   └── Dockerfile
-├── esb/                            Integration bus (Apache Camel JBang, YAML routes)
-│   ├── routes/*.yaml               one file per integration
-│   ├── log4j2-graylog.xml          console + GELF TCP appender
-│   └── Dockerfile
+├── patchbay/                       Integration service (Patchbay, pinned release)
+│   ├── packages/                   core packages as exported JSON: mail-send, pdf-render
+│   ├── README.md                   how a package is changed (console export, never by hand)
+│   └── Dockerfile                  zips the packages into /import
 ├── graylog/
-│   └── provision-inputs.sh         creates the GELF UDP + TCP inputs, once
+│   └── provision-inputs.sh         creates the GELF UDP input, once
 ├── mcp/                            MCP sidecar — AI-callable surface (see docs/mcp.md)
 │   ├── src/
 │   │   ├── server.ts               Express + per-request MCP server/transport + 11 tools + LLM instructions
@@ -719,7 +720,7 @@ It is wired in two places:
   <camunda:connector>
     <camunda:connectorId>http-connector</camunda:connectorId>
     <camunda:inputOutput>
-      <camunda:inputParameter name="url">${busBaseUrl}/api/public/registry/vehicles/${objectId}</camunda:inputParameter>
+      <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/registry/vehicles/${objectId}</camunda:inputParameter>
       <camunda:inputParameter name="method">GET</camunda:inputParameter>
       <camunda:inputParameter name="headers">
         <camunda:map>
@@ -773,28 +774,29 @@ The **Review application** user task carries a non-interrupting timer
 boundary event (`R/PT2M`). Every two minutes while the task is open the
 engine job executor fires a parallel branch into a **Send reminder email**
 service task — the user task itself stays open and can fire again. The
-service task is just the `http-connector` POSTing to the integration bus,
-which forwards to Mailpit's `/api/v1/send` JSON endpoint:
+service task is just the `http-connector` POSTing the platform's neutral
+`mail-send` model to Patchbay's `mail-send` integration, which maps it to
+Mailpit's `/api/v1/send`. The URL is
+`${patchbayBaseUrl}/api/v1/integrations/mail-send`, and the payload comes from
+the template `reviewer-reminder-email.json.ftl`:
 
-```xml
-<camunda:inputParameter name="url">${busBaseUrl}/api/v1/send</camunda:inputParameter>
-<camunda:inputParameter name="method">POST</camunda:inputParameter>
-<camunda:inputParameter name="payload">{
-  "From": { "Email": "process@cib7-poc.local", "Name": "CIB7 POC" },
-  "To":   [ { "Email": "civil-servant@cib7-poc.local" } ],
-  "Subject": "Reminder: application waiting for review",
-  "Text": "An application from ${firstName} ${lastName} has been waiting…"
-}</camunda:inputParameter>
+```ftl
+{
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "civil-servant@cib7-poc.local", "name": "Transport Authority officer" } ],
+  "subject": "Reminder: vehicle registration awaiting review",
+  "text": "${documents.text("vehicle-reviewer-reminder", execution)?json_string}"
+}
 ```
 
-The same connector is reused on the send-back path to email the applicant
-(`${initiator}@cib7-poc.local`) the rejection reason before looping back. The
-`${busBaseUrl}` variable is exposed by
-[`BusConfiguration.java`](cib7/src/main/java/com/poc/cib7/BusConfiguration.java)
-as a Spring bean, driven by the `BUS_URL` env var (`http://esb:8080` in
-Docker). It points at the integration bus (`esb`, Apache Camel), which routes
-`/api/v1/send` to Mailpit — the engine never addresses Mailpit directly. See
-the [Integration bus](docs/architecture.md#system-overview) note.
+The same integration is used on the send-back path to email the applicant the
+rejection reason before looping back. `${patchbayBaseUrl}` is exposed by
+[`OutboundConfiguration.java`](cib7/src/main/java/com/poc/cib7/OutboundConfiguration.java)
+as a Spring bean, driven by the `PATCHBAY_URL` env var. The engine never
+addresses Mailpit directly: Patchbay holds Mailpit's address and the mapping
+(`patchbay/packages/10-core-mail/`), and the engine adds the `X-API-Key`
+header Patchbay requires (`OutboundCredentialsInterceptor`). The model is in
+[`docs/platform-api.md`](docs/platform-api.md#integrations-offered-to-a-pack).
 
 [Mailpit](https://mailpit.axllent.org/) (`axllent/mailpit:latest`) is a tiny
 SMTP server + web UI; the inbox at <http://localhost:8025> visualizes every
@@ -807,9 +809,9 @@ dev up -d mailpit-ui`, which spins up a socat sidecar that publishes
 
 When the case ends in approval and the applicant provided an email, a
 **Generate approval PDF** service task runs before the approval email. It is
-yet another `http-connector` call — this time to the bus at
-`${busBaseUrl}/render`, which routes to the `pdf-renderer/` sidecar; it takes
-JSON `{html, filename}`
+yet another `http-connector` call — this time to Patchbay's `pdf-render`
+integration at `${patchbayBaseUrl}/api/v1/integrations/pdf-render`, which maps
+it to the `pdf-renderer/` sidecar; it takes JSON `{html, filename}`
 and returns JSON `{filename, base64}`. The sidecar internally POSTs
 `multipart/form-data` to **Gotenberg** (`gotenberg/gotenberg:8`, headless
 Chromium) and base64-encodes the binary response — both warts that would
@@ -820,7 +822,7 @@ The decoded PDF lands in the `approvalPdfBytes` process variable as a
 `byte[]` (not `String`), so the engine spills it into `ACT_GE_BYTEARRAY`
 instead of the 4000-char `ACT_HI_VARINST.TEXT_` column. The
 `approval-email.json.ftl` template re-encodes to base64 with
-`${pdf.encode(approvalPdfBytes)}` when assembling the Mailpit attachment.
+`${pdf.encode(approvalPdfBytes)}` when assembling the `mail-send` attachment.
 See [`docs/cib7.md` § Large process variables](docs/cib7.md#large-process-variables-bytes-typed)
 for the rationale and the corresponding `PdfHelper` bean.
 
@@ -856,8 +858,10 @@ locked out).
 
 ## Centralised logging (Graylog)
 
-Every service in this stack logs twice: to stdout, so `docker compose logs -f
+Every service we write logs twice: to stdout, so `docker compose logs -f
 <service>` keeps working, and to **Graylog** as a structured **GELF** message.
+Patchbay is the exception and logs to stdout only (`docker compose logs -f
+patchbay`).
 Each message carries the **service name**, the **log level** (both GELF's
 numeric syslog severity and a readable `level_name`), and the **Keycloak user
 id** of the person whose request produced it, where there is one. Full detail —
@@ -866,10 +870,9 @@ the field contract, the per-runtime wiring, troubleshooting — is in
 
 ```
 cib7          ──GELF/UDP 12201──┐
-backend       ──GELF/UDP 12201──┤
-mcp           ──GELF/UDP 12201──┼──▶ graylog ──▶ opensearch       (message store)
-pdf-renderer  ──GELF/UDP 12201──┤        └─────▶ graylog-mongodb  (config store)
-esb           ──GELF/TCP 12201──┘
+backend       ──GELF/UDP 12201──┼──▶ graylog ──▶ opensearch       (message store)
+mcp           ──GELF/UDP 12201──┤        └─────▶ graylog-mongodb  (config store)
+pdf-renderer  ──GELF/UDP 12201──┘
 ```
 
 ### Access is loopback + SSH tunnel, never public
@@ -904,14 +907,14 @@ service:mcp AND _tool:start_process
 ```
 
 `user_id` is deliberately **absent** rather than empty when no user is
-attributable: the `esb` bus and `pdf-renderer` handle machine-to-machine calls,
+attributable: `pdf-renderer` handles machine-to-machine calls,
 the backend's `/api/public/**` token links have no session, and engine→backend
 calls authenticate with a shared header. For a service-account token the value
 is the client id.
 
 ### First start
 
-The two GELF inputs are created automatically by a one-shot `curl` sidecar
+The GELF UDP input is created automatically by a one-shot `curl` sidecar
 (`graylog/provision-inputs.sh`), because Graylog keeps inputs in MongoDB and a
 fresh volume has nothing listening on 12201. It is idempotent. If no messages
 ever show up, that is the first place to look:

@@ -1,0 +1,15 @@
+{
+  "id" : "pdf-render-result",
+  "name" : "PDF render result (v1)",
+  "fields" : [ {
+    "id" : "prr-filename",
+    "name" : "filename",
+    "type" : "text",
+    "required" : false
+  }, {
+    "id" : "prr-base64",
+    "name" : "base64",
+    "type" : "text",
+    "required" : false
+  } ]
+}

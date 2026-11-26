@@ -17,7 +17,7 @@ import org.yaml.snakeyaml.constructor.SafeConstructor;
 class FeeCatalogTest {
 
   private static final String HEAD =
-      "platform: 2\nprocess: p\nservice: S\nrecipient: R\ncurrency: EUR\n";
+      "platform: 3\nprocess: p\nservice: S\nrecipient: R\ncurrency: EUR\n";
 
   private static Object yaml(String text) {
     return new Yaml(new SafeConstructor(new LoaderOptions())).load(text);
@@ -66,7 +66,7 @@ class FeeCatalogTest {
         IllegalArgumentException.class,
         () ->
             FeeCatalog.parse(
-                yaml(HEAD.replace("platform: 2", "platform: 1") + "amount: { flat: 1 }\n")));
+                yaml(HEAD.replace("platform: 3", "platform: 2") + "amount: { flat: 1 }\n")));
     assertThrows(
         IllegalArgumentException.class,
         () -> FeeCatalog.parse(yaml(HEAD.replace("EUR", "euro") + "amount: { flat: 1 }\n")));

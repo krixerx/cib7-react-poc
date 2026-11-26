@@ -52,9 +52,10 @@ app:
   # Engine REST base URL (docker-network alias in compose, localhost for a
   # bare `mvn spring-boot:run` next to a locally running engine).
   engine-url: ${ENGINE_URL:http://localhost:8080}
-  # Shared secret for every /api/internal/** endpoint (engine calls via the
-  # ESB). The ESB injects it as X-Internal-Token after checking the engine's
-  # X-Bus-Token; SecurityConfig's internal chain compares it.
+  # Shared secret for every /api/internal/** endpoint, which only the engine
+  # calls, directly. The engine sends it as X-Internal-Token on its calls to
+  # /api/internal/ only (OutboundCredentialsInterceptor), so it must equal the
+  # engine's INTERNAL_TASK_TOKEN; SecurityConfig's internal chain compares it.
   internal-task-token: ${INTERNAL_TASK_TOKEN:internal-task-token-change-me}
   # Verifies the capability links the engine signs into emails (co-owner
   # confirmation, founder signature, payment); must equal the engine's

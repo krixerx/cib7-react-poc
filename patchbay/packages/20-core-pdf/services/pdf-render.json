@@ -1,0 +1,31 @@
+{
+  "id" : "pdf-render",
+  "name" : "pdf-render",
+  "request" : {
+    "links" : [ {
+      "from" : "pr-html",
+      "to" : "body.html"
+    }, {
+      "from" : "pr-filename",
+      "to" : "body.filename"
+    } ]
+  },
+  "response" : {
+    "links" : [ {
+      "from" : "filename",
+      "to" : "prr-filename"
+    }, {
+      "from" : "base64",
+      "to" : "prr-base64"
+    } ]
+  },
+  "input" : "pdf-render",
+  "output" : "pdf-render-result",
+  "contract" : "pdf-renderer",
+  "operationId" : "render",
+  "target" : {
+    "method" : "POST",
+    "path" : "/render",
+    "connection" : "pdf-renderer"
+  }
+}

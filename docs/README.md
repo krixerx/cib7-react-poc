@@ -7,7 +7,7 @@ correct changes without re-deriving everything from source.
 
 **Repo shape — the core.** The CIB seven engine module (Spring Boot, `cib7/`),
 the backend, the frontend (React + Vite, `frontend/`), the mobile app, the MCP
-sidecar, the bus, the core Keycloak realm (`keycloak/`), Docker orchestration
+sidecar, the integration service (`patchbay/`), the core Keycloak realm (`keycloak/`), Docker orchestration
 (`docker-compose.yml`) and these docs (`docs/`) are built together as core
 images, which hold no services. The services are service packs under
 `packs/<pack>/` in this repository (the reference pack, `packs/reference/`,

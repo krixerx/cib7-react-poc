@@ -13,10 +13,10 @@ Asks one co-founder to review the founding details and sign or reject the Articl
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/v1/send` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/mail-send` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: Mailpit (the bus routes `/api/v1/send`).
+Downstream: Patchbay integration `mail-send` (v1), which hands the mail to the mail system (Mailpit here).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: founder-signing-email.json.ftl
 
 ```ftl
 <#--
-  Mailpit /api/v1/send payload for the "Send co-founder signing email"
+  mail-send payload (Patchbay integration, v1) for the "Send co-founder signing email"
   service task inside SubProcess_FounderSignatures in
   business-registration.bpmn.
 
@@ -53,10 +53,10 @@ payload-template: founder-signing-email.json.ftl
 <#assign founderEmail = founder.prop("email").stringValue()>
 <#assign applicantName = (applicantFirstName!"") + " " + (applicantLastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Äriregister POC" },
-  "To": [ { "Email": "${founderEmail?json_string}", "Name": "${founderName?json_string}" } ],
-  "Subject": "${("Please sign: " + (companyName!"") + " (founder: " + applicantName + ")")?json_string}",
-  "Text": "${documents.text("business-founder-signing", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Äriregister POC" },
+  "to": [ { "email": "${founderEmail?json_string}", "name": "${founderName?json_string}" } ],
+  "subject": "${("Please sign: " + (companyName!"") + " (founder: " + applicantName + ")")?json_string}",
+  "text": "${documents.text("business-founder-signing", execution)?json_string}"
 }
 ```
 
@@ -77,6 +77,12 @@ Rendered with these case variables by the core's pack checks
   }
 }
 ```
+
+| Path | Expected |
+|---|---|
+| `/from/email` | `"process@cib7-poc.local"` |
+| `/to/0/email` | `"karl@example.com"` |
+| `/to/0/name` | `"Karl Kaasasutaja"` |
 
 ## Response mapping
 

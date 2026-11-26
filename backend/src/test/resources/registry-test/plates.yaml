@@ -1,6 +1,6 @@
 # Test-only entity served on the internal class only: proves the public path
 # cannot reach it.
-platform: 2
+platform: 3
 entity: plates
 table: reg_plates
 key: plate

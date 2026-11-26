@@ -1,5 +1,5 @@
 <#--
-  Mailpit /api/v1/send payload for the "Send co-owner signing email"
+  mail-send payload (Patchbay integration, v1) for the "Send co-owner signing email"
   service task inside SubProcess_OwnerConfirmations in
   vehicle-registration.bpmn.
 
@@ -23,8 +23,8 @@
 <#assign ownerEmail = owner.prop("email").stringValue()>
 <#assign applicantName = (firstName!"") + " " + (lastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "${ownerEmail?json_string}", "Name": "${ownerName?json_string}" } ],
-  "Subject": "Please sign: vehicle registration with ${applicantName?json_string}",
-  "Text": "${documents.text("vehicle-owner-signing", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "${ownerEmail?json_string}", "name": "${ownerName?json_string}" } ],
+  "subject": "Please sign: vehicle registration with ${applicantName?json_string}",
+  "text": "${documents.text("vehicle-owner-signing", execution)?json_string}"
 }

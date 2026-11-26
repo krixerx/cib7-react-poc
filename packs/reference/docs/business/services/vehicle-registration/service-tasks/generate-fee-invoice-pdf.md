@@ -13,10 +13,10 @@ Renders the state fee invoice for an approved registration as a PDF.
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/render` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/pdf-render` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: pdf-renderer, which renders HTML to PDF with Gotenberg.
+Downstream: Patchbay integration `pdf-render` (v1), which hands the HTML to the pdf-renderer (Gotenberg).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: approval-pdf.json.ftl
 
 ```ftl
 <#--
-  pdf-renderer /render payload for Task_GeneratePdf in vehicle-registration.bpmn: the vehicle state fee invoice.
+  pdf-render payload (Patchbay integration, v1) for Task_GeneratePdf in vehicle-registration.bpmn: the vehicle state fee invoice.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/vehicle-fee-invoice.ftlh, rendered by the engine's `documents` bean on

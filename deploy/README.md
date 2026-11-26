@@ -36,12 +36,18 @@ deploy/
 
 ## Prerequisites
 
-- **Docker ≥ 24 with the Compose plugin** — `docker compose version` must
-  work (the standalone `docker-compose` binary is not tested).
+- **Docker ≥ 24 with the Compose plugin ≥ 2.24.0** — `docker compose version`
+  must work (the standalone `docker-compose` binary is not tested). Compose
+  2.24.0 is the first that accepts an optional `env_file` (`required: false`),
+  which the `patchbay` service uses for `patchbay-pack.env`; an older Compose
+  refuses the file. Checked with Compose v5.5.0 (Docker Engine 29.7.2); the
+  VM's own version has not been checked yet: run `docker compose version`
+  there before the first deploy of this kit.
 - ~4 GB free RAM for the stack (two JVMs, Keycloak, headless Chromium).
 - Free host ports — single-machine mode: **3000** (app), **3001** (mobile
   app direct door), **8180** (Keycloak), **9000** (object storage),
-  optionally 8025 (mail inbox). TLS mode additionally: **80** and **443**.
+  **127.0.0.1:8090** (Patchbay console, loopback only), optionally 8025
+  (mail inbox). TLS mode additionally: **80** and **443**.
 
 No git, no JDK, no Node.
 
@@ -60,12 +66,16 @@ cd deploy
 ## Quick start — single machine
 
 For evaluating the POC on one machine where the browser runs on (or can
-reach) the Docker host as `localhost`. **No configuration needed** — all
-defaults target localhost and match the shipped Keycloak realm:
+reach) the Docker host as `localhost`. All defaults target localhost and
+match the shipped Keycloak realm; the one setting needed is to let the
+engine start on its dev-default secrets, which it otherwise refuses:
 
 ```bash
+echo APP_REQUIRE_REAL_SECRETS=false > .env
 docker compose up -d
 ```
+
+Never keep that line on a public host; `deploy.sh` refuses it there.
 
 First start pulls ~2 GB of images and takes a couple of minutes; the
 process engine intentionally waits for Keycloak to become healthy. Watch
@@ -118,9 +128,9 @@ docker compose up -d        # recreates only the affected containers
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PACK_IMAGE_PREFIX` | `docker.io/krixerx/eregistrations-reference` | The service pack's images: `<prefix>-frontend`, `-engine`, `-backend`, `-mcp`, `-mobile`. |
+| `PACK_IMAGE_PREFIX` | `docker.io/krixerx/eregistrations-reference` | The service pack's images: `<prefix>-frontend`, `-engine`, `-backend`, `-mcp`, `-mobile`, `-patchbay`. |
 | `PACK_TAG` | `latest` | The pack's image tag (the deployed commit's 7-char SHA; the Deploy to VM workflow pins it). |
-| `CORE_TAG` | `latest` | The tag of the core-only images (esb, pdf-renderer): the same commit SHA as `PACK_TAG`. |
+| `CORE_TAG` | `latest` | The tag of the core-only image (pdf-renderer): the same commit SHA as `PACK_TAG`. |
 | `PUBLIC_KEYCLOAK_URL` | `http://localhost:8180` | Browser-visible Keycloak URL. Stamped into every JWT — must match the address bar exactly. |
 | `PUBLIC_FRONTEND_URL` | `http://localhost:3000` | Browser-visible app URL. Embedded in confirmation-email links. |
 | `PUBLIC_S3_URL` | `http://localhost:9000` | Browser-visible object-storage URL (presigned upload/download links). |
@@ -134,7 +144,12 @@ docker compose up -d        # recreates only the affected containers
 | `KEYCLOAK_MAILPIT_CLIENT_SECRET` | dev value | Same, for the `cib7-mailpit` client that `mailpit-auth` logs users in with (tls profile). |
 | `MAILPIT_PROXY_COOKIE_SECRET` | dev value | Encrypts `mailpit-auth`'s session cookie. Exactly 32 characters: `openssl rand -hex 16`. |
 | `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` | dev values | Object-storage root credentials. |
-| `INTERNAL_TASK_TOKEN` | dev value | Shared secret for the internal document-write calls; the integration bus (`esb`) injects it as `X-Internal-Token`, the backend verifies it. |
+| `INTERNAL_TASK_TOKEN` | dev value | Shared secret for the backend's `/api/internal/**` calls; the engine sends it as `X-Internal-Token` on those paths only, the backend verifies it. |
+| `APP_REQUIRE_REAL_SECRETS` | `true` | The engine refuses to start while `PATCHBAY_API_KEY` or `INTERNAL_TASK_TOKEN` is its dev default. `false` only for a single-machine evaluation. |
+| `PATCHBAY_API_KEY` | dev value | The key the engine sends as `X-API-Key` to Patchbay's integrations; Patchbay's `INBOUND_API_KEY`. |
+| `PATCHBAY_ADMIN_USER` / `PATCHBAY_ADMIN_PASSWORD` | `admin` / dev value | Patchbay console and admin API login (HTTP Basic, no lockout). `deploy.sh` wants at least 20 characters on a public host. |
+| `PATCHBAY_CALL_LOG` | `off` | `on` keeps the last payloads per integration in memory for the console's Calls view: names, addresses, capability links, whole PDFs. Only while debugging. |
+| `PATCHBAY_HTTP_PORT` | `127.0.0.1:8090` | The console's `ip:port` binding. Keep it on loopback (see [Patchbay console](#patchbay-console)). |
 | `GRAYLOG_PASSWORD_SECRET` | dev value | Encrypts secrets Graylog stores in MongoDB. At least 16 characters; must NOT change once there is data. |
 | `GRAYLOG_ROOT_PASSWORD` | `admin` | Graylog web UI password for `admin`, in plaintext. Used by the `graylog-init` sidecar, which calls the REST API. |
 | `GRAYLOG_ROOT_PASSWORD_SHA2` | sha256 of `admin` | The same password as a SHA-256 hash, which is the only form Graylog itself takes. |
@@ -322,6 +337,7 @@ docker compose logs -f cib7           # process engine
 docker compose logs -f backend        # business API
 docker compose logs -f keycloak       # auth
 docker compose logs -f mcp            # AI sidecar
+docker compose logs -f patchbay       # every outbound integration call
 tail -F traefik/logs/access.log       # ingress access log (TLS mode)
 ```
 
@@ -331,8 +347,10 @@ the tool for anything spanning more than one container — see
 
 ### Centralised logging (Graylog)
 
-`cib7`, `backend`, `esb`, `mcp` and `pdf-renderer` all send their logs to a
-Graylog instance inside the stack, as structured GELF. Each message carries the
+`cib7`, `backend`, `mcp` and `pdf-renderer` all send their logs to a
+Graylog instance inside the stack, as structured GELF. Patchbay is the one
+service that does not: it logs one line per call to stdout, read with
+`docker compose logs patchbay` (rotated by Docker's json-file driver). Each message carries the
 **service name**, the **log level** (`level` as a numeric syslog severity plus a
 readable `level_name`), and the **Keycloak user id** of whoever's request
 produced it, where there is one. That makes questions like "what failed for
@@ -369,7 +387,7 @@ head -c 96 /dev/urandom | base64 | tr -d '\n=+/' | head -c 96   # PASSWORD_SECRE
 echo -n 'your-password' | sha256sum                             # ROOT_PASSWORD_SHA2
 ```
 
-The two GELF inputs are created automatically on first start by the one-shot
+The GELF UDP input is created automatically on first start by the one-shot
 `graylog-init` sidecar (Graylog keeps inputs in MongoDB, so a fresh volume has
 nothing listening on 12201). If no messages ever appear, that is the first place
 to look:
@@ -385,6 +403,39 @@ Budget roughly **2 GB of extra memory** for the three Graylog containers
 Graylog is **not** a replacement for Cockpit: a failed connector, DMN or
 FreeMarker template still shows up as a retryable engine incident at
 `/camunda/app/cockpit/`.
+
+### Patchbay console
+
+Patchbay maps the platform's `mail-send` and `pdf-render` payloads to Mailpit
+and the pdf-renderer (and a pack's own integrations to its systems). Its
+console and admin API are published on the host's loopback only
+(`PATCHBAY_HTTP_PORT`, default `127.0.0.1:8090`) and Traefik has no route to
+them. From your workstation:
+
+```bash
+ssh -N -L 8090:127.0.0.1:8090 <user>@<host>
+# then open http://localhost:8090 — PATCHBAY_ADMIN_USER / PATCHBAY_ADMIN_PASSWORD
+```
+
+The console is for watching calls, testing an integration and trying a
+change. **A change made there is lost on the next restart**: `/config` is a
+`tmpfs`, and every start imports the packages baked into the image again.
+To keep a change, export it and unpack it into the repository's
+`patchbay/packages/` (or the pack's `patchbay/`), then build and deploy
+that commit. The Calls view stays empty unless `PATCHBAY_CALL_LOG=on`.
+
+**A pack's own connections.** A pack whose packages call systems of its own
+reads their addresses and credentials from `patchbay-pack.env` beside
+`.env`: only `MAPPER_URL_PACK_*`, `MAPPER_HEADER_PACK_*` and
+`MAPPER_SECRET_PACK_*` keys, one `KEY=VALUE` per line. It is host-local like
+`.env` (git-ignored, never shipped by the workflow) and optional: without it
+the `patchbay` service starts with the core connections only. `deploy.sh`
+refuses the file if it holds any other key, a `MAPPER_URL_PACK_*` that is not
+an http(s) URL, or a URL to a core service (any service or container name in
+`docker-compose.yml`, or loopback), because Patchbay would call that host
+for the pack. It does not catch a raw IP address or a network-qualified name
+(`backend.cib7-poc-app`); there the network map is the guard, since Patchbay
+shares a network with no core service but the engine.
 
 ### Upgrading — from GitHub Actions
 
@@ -414,10 +465,17 @@ pulls images, restarts what changed, and smoke-tests the public endpoints:
 ```
 
 Every run starts with the host checks and stops before touching anything if
-one fails: `routes.yml` out of step with `routes.yml.example`, or, when
-`PUBLIC_FRONTEND_URL` is not localhost, a secret from
-`docker-compose.yml` that is unset in `.env` or still its committed
-`change-me` default. Fix the `FAIL` lines and re-run.
+one fails: `routes.yml` out of step with `routes.yml.example`; a
+`patchbay-pack.env` with a key or URL it may not hold (see [Patchbay
+console](#patchbay-console)); or, when `PUBLIC_FRONTEND_URL` is not
+localhost, a secret from `docker-compose.yml` that is unset in `.env` or
+still its committed `change-me` default, a `PATCHBAY_ADMIN_PASSWORD` under
+20 characters, or `APP_REQUIRE_REAL_SECRETS=false`; on a local run,
+`PATCHBAY_API_KEY` or `INTERNAL_TASK_TOKEN` unset while the engine would
+refuse its defaults. Fix the `FAIL` lines and
+re-run. After the start it also waits for Patchbay's readiness and checks,
+inside the container, that its admin API lists `mail-send` and `pdf-render`
+active and nothing broken.
 
 Set `COMPOSE_PROFILES=tls` in `.env` once and every compose command —
 including the script's — picks the TLS profile up automatically;
@@ -463,6 +521,7 @@ docker compose up -d
 | Process instances, tasks, history | engine's in-memory H2 | **no** |
 | Keycloak users created at runtime | Keycloak's dev H2 | **no** (realm re-imported from JSON) |
 | Emails | Mailpit (in-memory) | no |
+| Changes made in the Patchbay console | Patchbay's `tmpfs` `/config` | **no** (packages re-imported from the image) |
 | Logs | named volumes `graylog-data`, `graylog-opensearch-data`, `graylog-mongodb-data` | **yes** (wiped by `docker compose down -v`) |
 
 To back up the one persistent piece:

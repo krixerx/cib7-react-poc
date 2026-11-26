@@ -48,10 +48,12 @@ jobs:
           - image: cib7-poc-pdf-renderer
             context: ./pdf-renderer
             dockerfile: ./pdf-renderer/Dockerfile
-          - image: cib7-poc-esb
-            context: ./esb
-            dockerfile: ./esb/Dockerfile
-            trivyignores: esb/.trivyignore.yaml
+          # The pinned Patchbay release plus the core packages; like the
+          # pdf-renderer it holds nothing of a pack, and the pack's layer
+          # (pack-layers below) adds the pack's own packages.
+          - image: cib7-poc-patchbay
+            context: ./patchbay
+            dockerfile: ./patchbay/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -139,6 +141,7 @@ jobs:
           - { layer: backend, core: backend-core, module: backend, arg: BACKEND_CORE }
           - { layer: mcp, core: mcp-core, module: mcp, arg: MCP_CORE }
           - { layer: mobile, core: mobile-core, module: mobile, arg: MOBILE_CORE }
+          - { layer: patchbay, core: patchbay, module: patchbay, arg: PATCHBAY_CORE }
     steps:
       - uses: actions/checkout@v4
 

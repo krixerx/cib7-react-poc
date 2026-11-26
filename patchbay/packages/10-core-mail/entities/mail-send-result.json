@@ -1,0 +1,10 @@
+{
+  "id" : "mail-send-result",
+  "name" : "Mail send result (v1)",
+  "fields" : [ {
+    "id" : "msr-message-id",
+    "name" : "messageId",
+    "type" : "text",
+    "required" : false
+  } ]
+}

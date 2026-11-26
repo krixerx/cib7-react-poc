@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- For PayloadTemplateHardeningTest: each process sends one http-connector
+     request whose payload is a FreeMarker template loaded with resource=, the
+     way a pack's service task does. payloadAllowed is the control and must
+     send its request; every other process uses ?new or ?api and must fail
+     before the request leaves. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_PayloadTemplateHardeningTest"
+                  targetNamespace="http://poc.cib7/test">
+  <bpmn:process id="payloadAllowed" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="payloadAllowed_Start" />
+    <bpmn:sequenceFlow id="payloadAllowed_F1" sourceRef="payloadAllowed_Start" targetRef="payloadAllowed_Send" />
+    <bpmn:serviceTask id="payloadAllowed_Send">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${probeUrl}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="freemarker-hardening/allowed.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="payloadAllowed_F2" sourceRef="payloadAllowed_Send" targetRef="payloadAllowed_End" />
+    <bpmn:endEvent id="payloadAllowed_End" />
+  </bpmn:process>
+  <bpmn:process id="payloadObjectConstructor" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="payloadObjectConstructor_Start" />
+    <bpmn:sequenceFlow id="payloadObjectConstructor_F1" sourceRef="payloadObjectConstructor_Start" targetRef="payloadObjectConstructor_Send" />
+    <bpmn:serviceTask id="payloadObjectConstructor_Send">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${probeUrl}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="freemarker-hardening/object-constructor.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="payloadObjectConstructor_F2" sourceRef="payloadObjectConstructor_Send" targetRef="payloadObjectConstructor_End" />
+    <bpmn:endEvent id="payloadObjectConstructor_End" />
+  </bpmn:process>
+  <bpmn:process id="payloadTemplateModel" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="payloadTemplateModel_Start" />
+    <bpmn:sequenceFlow id="payloadTemplateModel_F1" sourceRef="payloadTemplateModel_Start" targetRef="payloadTemplateModel_Send" />
+    <bpmn:serviceTask id="payloadTemplateModel_Send">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${probeUrl}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="freemarker-hardening/template-model.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="payloadTemplateModel_F2" sourceRef="payloadTemplateModel_Send" targetRef="payloadTemplateModel_End" />
+    <bpmn:endEvent id="payloadTemplateModel_End" />
+  </bpmn:process>
+  <bpmn:process id="payloadApi" isExecutable="true" camunda:historyTimeToLive="P1D">
+    <bpmn:startEvent id="payloadApi_Start" />
+    <bpmn:sequenceFlow id="payloadApi_F1" sourceRef="payloadApi_Start" targetRef="payloadApi_Send" />
+    <bpmn:serviceTask id="payloadApi_Send">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">${probeUrl}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+            <camunda:inputParameter name="headers">
+              <camunda:map>
+                <camunda:entry key="Content-Type">application/json</camunda:entry>
+              </camunda:map>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="payload">
+              <camunda:script scriptFormat="freemarker" resource="freemarker-hardening/api-builtin.json.ftl" />
+            </camunda:inputParameter>
+          </camunda:inputOutput>
+        </camunda:connector>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="payloadApi_F2" sourceRef="payloadApi_Send" targetRef="payloadApi_End" />
+    <bpmn:endEvent id="payloadApi_End" />
+  </bpmn:process>
+</bpmn:definitions>

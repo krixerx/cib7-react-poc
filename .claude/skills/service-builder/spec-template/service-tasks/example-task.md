@@ -23,23 +23,26 @@
 | Field | Value |
 |---|---|
 | Method | `GET` \| `POST` \| `PUT` \| `DELETE` |
-| URL | `${busBaseUrl}/path/${someProcessVar}` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/<slug>` \| `${backendBaseUrl}/api/internal/<path>` |
 | Headers | `Accept: application/json`, `Content-Type: application/json`, … |
 
-All outbound HTTP goes to `${busBaseUrl}` — the integration bus (`esb`, Apache
-Camel) routes the path to the real downstream system. **Don't hard-code** a
-system URL, and **don't** add an `X-Internal-Token` header to `/api/internal/**`
-calls — the bus injects it.
+Downstream: <Patchbay integration `mail-send` (v1) | Patchbay integration `pdf-render` (v1) | backend <module> (the engine adds `X-Internal-Token` on `/api/internal/`)>.
 
-| Path on `${busBaseUrl}` | Downstream | When |
+A URL has one of these shapes and no query, fragment or `..`. **Don't
+hard-code** a system URL, and **don't** set an `X-Internal-Token` or
+`X-API-Key` header: the engine adds `X-API-Key` on Patchbay's integrations and
+`X-Internal-Token` on the backend's `/api/internal/` itself.
+
+| URL | Downstream | When |
 |---|---|---|
-| `/api/v1/send` | Mailpit | sending mail |
-| `/render` | pdf-renderer | rendering PDFs |
-| `/api/internal/**` | backend | business calls / document writes (engine-only) |
-| `/api/public/**` | backend | public reference data without personal data |
+| `${patchbayBaseUrl}/api/v1/integrations/mail-send` | core integration `mail-send` v1 | sending mail |
+| `${patchbayBaseUrl}/api/v1/integrations/pdf-render` | core integration `pdf-render` v1 | rendering PDFs |
+| `${patchbayBaseUrl}/api/v1/integrations/pack-<name>` | an integration in the pack's `patchbay/<package>/` | the pack's own external system |
+| `${backendBaseUrl}/api/internal/**` | backend | business calls / document writes (engine-only) |
+| `${backendBaseUrl}/api/public/**` | backend | public reference data without personal data |
 
-If the request targets a NEW external system on a new path, add a declarative
-route to `esb/routes/` rather than inlining a literal URL or a new
+A NEW external system is a Patchbay integration exported into the pack's
+`patchbay/<package>/` with `pack-` names, not a literal URL or a new
 `*Configuration.java` bean.
 
 ## Payload (request body)
@@ -76,6 +79,10 @@ Required template rules:
 - Default every process variable that might be null: `${(varName!"")}`
   (string) or `${(varName!0)}` (number).
 - For `byte[]` attachments, re-encode with `${pdf.encode(varName)}`.
+- Follow the integration's neutral model, never a vendor's schema:
+  `mail-send` v1 takes `from {email, name?}`, `to [{email, name?}]`,
+  `subject`, `text` and optional `attachments [{filename, contentType, base64}]`;
+  `pdf-render` v1 takes `{html, filename}` and answers `{filename, base64}`.
 
 ```ftl
 <#-- describe the variables in scope -->

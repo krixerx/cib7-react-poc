@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- For ReservedBeansPluginTest: resolves busBaseUrl once through JUEL and
+<!-- For ReservedBeansPluginTest: resolves backendBaseUrl once through JUEL and
      once through a FreeMarker script, then parks so the test can read both. -->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
@@ -11,9 +11,9 @@
     <bpmn:manualTask id="Resolve">
       <bpmn:extensionElements>
         <camunda:inputOutput>
-          <camunda:outputParameter name="viaJuel">${busBaseUrl}</camunda:outputParameter>
+          <camunda:outputParameter name="viaJuel">${backendBaseUrl}</camunda:outputParameter>
           <camunda:outputParameter name="viaFreemarker">
-            <camunda:script scriptFormat="freemarker">${busBaseUrl}|${frontendBaseUrl}</camunda:script>
+            <camunda:script scriptFormat="freemarker"><![CDATA[<#-- FreeMarker, not a dynamic JUEL script -->${patchbayBaseUrl}|${backendBaseUrl}|${frontendBaseUrl}]]></camunda:script>
           </camunda:outputParameter>
         </camunda:inputOutput>
       </bpmn:extensionElements>

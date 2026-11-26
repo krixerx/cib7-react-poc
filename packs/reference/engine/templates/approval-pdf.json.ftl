@@ -1,5 +1,5 @@
 <#--
-  pdf-renderer /render payload for Task_GeneratePdf in vehicle-registration.bpmn: the vehicle state fee invoice.
+  pdf-render payload (Patchbay integration, v1) for Task_GeneratePdf in vehicle-registration.bpmn: the vehicle state fee invoice.
 
   The document itself (layout, values, fee rules) is the pack's
   documents/pdf/vehicle-fee-invoice.ftlh, rendered by the engine's `documents` bean on

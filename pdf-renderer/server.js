@@ -6,6 +6,10 @@
 //
 // Request:  POST /render  { "html": "<html>...</html>", "filename": "x.pdf" }
 // Response: 200 { "filename": "x.pdf", "base64": "JVBERi0x..." }
+//
+// openapi.json describes this contract for Patchbay, which maps the core
+// pdf-render integration onto it. Change it in the same commit as this file,
+// and re-import it into the core package patchbay/packages/20-core-pdf/.
 
 const express = require('express');
 const { log } = require('./gelf');

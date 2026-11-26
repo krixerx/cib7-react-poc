@@ -1,0 +1,1722 @@
+{
+  "id" : "mailpit",
+  "name" : "mailpit",
+  "sourceFile" : "mailpit.openapi.json",
+  "importedAt" : "2026-11-26T10:59:57.945700267Z",
+  "servers" : [ "/" ],
+  "operations" : [ {
+    "id" : "getChaos",
+    "method" : "GET",
+    "path" : "/api/v1/chaos",
+    "summary" : "Get Chaos triggers",
+    "parameters" : [ ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Authentication",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      }, {
+        "name" : "Recipient",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      }, {
+        "name" : "Sender",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      } ]
+    }
+  }, {
+    "id" : "setChaosParams",
+    "method" : "PUT",
+    "path" : "/api/v1/chaos",
+    "summary" : "Set Chaos triggers",
+    "parameters" : [ ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Authentication",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      }, {
+        "name" : "Recipient",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      }, {
+        "name" : "Sender",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Authentication",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      }, {
+        "name" : "Recipient",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      }, {
+        "name" : "Sender",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "ErrorCode",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        }, {
+          "name" : "Probability",
+          "type" : "integer",
+          "required" : true,
+          "format" : "int64"
+        } ]
+      } ]
+    }
+  }, {
+    "id" : "AppInformation",
+    "method" : "GET",
+    "path" : "/api/v1/info",
+    "summary" : "Get application information",
+    "parameters" : [ ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Database",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "DatabaseSize",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "LatestVersion",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "Messages",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "RuntimeStats",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "Memory",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        }, {
+          "name" : "MessagesDeleted",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        }, {
+          "name" : "SMTPAccepted",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        }, {
+          "name" : "SMTPAcceptedSize",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        }, {
+          "name" : "SMTPIgnored",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        }, {
+          "name" : "SMTPRejected",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        }, {
+          "name" : "Uptime",
+          "type" : "integer",
+          "required" : false,
+          "format" : "uint64"
+        } ]
+      }, {
+        "name" : "Tags",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ ]
+      }, {
+        "name" : "Unread",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "Version",
+        "type" : "text",
+        "required" : false
+      } ]
+    }
+  }, {
+    "id" : "GetMessageParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}",
+    "summary" : "Get message summary",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Attachments",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Checksums",
+            "type" : "object",
+            "required" : false,
+            "fields" : [ {
+              "name" : "MD5",
+              "type" : "text",
+              "required" : false
+            }, {
+              "name" : "SHA1",
+              "type" : "text",
+              "required" : false
+            }, {
+              "name" : "SHA256",
+              "type" : "text",
+              "required" : false
+            } ]
+          }, {
+            "name" : "ContentID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "ContentType",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "FileName",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "PartID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Size",
+            "type" : "integer",
+            "required" : false,
+            "format" : "uint64"
+          } ]
+        }
+      }, {
+        "name" : "Bcc",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Address",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "Cc",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Address",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "Date",
+        "type" : "datetime",
+        "required" : false,
+        "format" : "date-time"
+      }, {
+        "name" : "From",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "Address",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "Name",
+          "type" : "text",
+          "required" : false
+        } ]
+      }, {
+        "name" : "HTML",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "ID",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "Inline",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Checksums",
+            "type" : "object",
+            "required" : false,
+            "fields" : [ {
+              "name" : "MD5",
+              "type" : "text",
+              "required" : false
+            }, {
+              "name" : "SHA1",
+              "type" : "text",
+              "required" : false
+            }, {
+              "name" : "SHA256",
+              "type" : "text",
+              "required" : false
+            } ]
+          }, {
+            "name" : "ContentID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "ContentType",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "FileName",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "PartID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Size",
+            "type" : "integer",
+            "required" : false,
+            "format" : "uint64"
+          } ]
+        }
+      }, {
+        "name" : "ListUnsubscribe",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "Errors",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "Header",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "HeaderPost",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "Links",
+          "type" : "list",
+          "required" : false,
+          "items" : {
+            "type" : "text",
+            "required" : false
+          }
+        } ]
+      }, {
+        "name" : "MessageID",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "ReplyTo",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Address",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "ReturnPath",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "Size",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "Subject",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "Tags",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "Text",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "To",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Address",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "Username",
+        "type" : "text",
+        "required" : false
+      } ]
+    }
+  }, {
+    "id" : "GetHeadersParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/headers",
+    "summary" : "Get message headers",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ ]
+    }
+  }, {
+    "id" : "HTMLCheckParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/html-check",
+    "summary" : "HTML check",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Platforms",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ ]
+      }, {
+        "name" : "Total",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "Nodes",
+          "type" : "integer",
+          "required" : false,
+          "format" : "int64"
+        }, {
+          "name" : "Partial",
+          "type" : "number",
+          "required" : false,
+          "format" : "float"
+        }, {
+          "name" : "Supported",
+          "type" : "number",
+          "required" : false,
+          "format" : "float"
+        }, {
+          "name" : "Tests",
+          "type" : "integer",
+          "required" : false,
+          "format" : "int64"
+        }, {
+          "name" : "Unsupported",
+          "type" : "number",
+          "required" : false,
+          "format" : "float"
+        } ]
+      }, {
+        "name" : "Warnings",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Category",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Description",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Keywords",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "NotesByNumber",
+            "type" : "object",
+            "required" : false,
+            "fields" : [ ]
+          }, {
+            "name" : "Results",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Family",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "NoteNumber",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Platform",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Support",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Version",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Score",
+            "type" : "object",
+            "required" : false,
+            "fields" : [ {
+              "name" : "Found",
+              "type" : "integer",
+              "required" : false,
+              "format" : "int64"
+            }, {
+              "name" : "Partial",
+              "type" : "number",
+              "required" : false,
+              "format" : "float"
+            }, {
+              "name" : "Supported",
+              "type" : "number",
+              "required" : false,
+              "format" : "float"
+            }, {
+              "name" : "Unsupported",
+              "type" : "number",
+              "required" : false,
+              "format" : "float"
+            } ]
+          }, {
+            "name" : "Slug",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Tags",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "text",
+              "required" : false
+            }
+          }, {
+            "name" : "Title",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "URL",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      } ]
+    }
+  }, {
+    "id" : "LinkCheckParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/link-check",
+    "summary" : "Link check",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    }, {
+      "name" : "follow",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Errors",
+        "type" : "integer",
+        "required" : false,
+        "format" : "int64"
+      }, {
+        "name" : "Links",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Status",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "StatusCode",
+            "type" : "integer",
+            "required" : false,
+            "format" : "int64"
+          }, {
+            "name" : "URL",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      } ]
+    }
+  }, {
+    "id" : "AttachmentParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/part/{PartID}",
+    "summary" : "Get message attachment",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    }, {
+      "name" : "PartID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "ThumbnailParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/part/{PartID}/thumb",
+    "summary" : "Get an attachment image thumbnail",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    }, {
+      "name" : "PartID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "DownloadRawParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/raw",
+    "summary" : "Get message source",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "ReleaseMessageParams",
+    "method" : "POST",
+    "path" : "/api/v1/message/{ID}/release",
+    "summary" : "Release message",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "To",
+        "type" : "list",
+        "required" : true,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "SpamAssassinCheckParams",
+    "method" : "GET",
+    "path" : "/api/v1/message/{ID}/sa-check",
+    "summary" : "SpamAssassin check",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Error",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "IsSpam",
+        "type" : "boolean",
+        "required" : false
+      }, {
+        "name" : "Rules",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Description",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Score",
+            "type" : "number",
+            "required" : false,
+            "format" : "double"
+          } ]
+        }
+      }, {
+        "name" : "Score",
+        "type" : "number",
+        "required" : false,
+        "format" : "double"
+      } ]
+    }
+  }, {
+    "id" : "GetMessagesParams",
+    "method" : "GET",
+    "path" : "/api/v1/messages",
+    "summary" : "List messages",
+    "parameters" : [ {
+      "name" : "start",
+      "in" : "query",
+      "required" : false,
+      "type" : "integer"
+    }, {
+      "name" : "limit",
+      "in" : "query",
+      "required" : false,
+      "type" : "integer"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "messages",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Attachments",
+            "type" : "integer",
+            "required" : false,
+            "format" : "int64"
+          }, {
+            "name" : "Bcc",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Cc",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Created",
+            "type" : "datetime",
+            "required" : false,
+            "format" : "date-time"
+          }, {
+            "name" : "From",
+            "type" : "object",
+            "required" : false,
+            "fields" : [ {
+              "name" : "Address",
+              "type" : "text",
+              "required" : false
+            }, {
+              "name" : "Name",
+              "type" : "text",
+              "required" : false
+            } ]
+          }, {
+            "name" : "ID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "MessageID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Read",
+            "type" : "boolean",
+            "required" : false
+          }, {
+            "name" : "ReplyTo",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Size",
+            "type" : "integer",
+            "required" : false,
+            "format" : "uint64"
+          }, {
+            "name" : "Snippet",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Subject",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Tags",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "text",
+              "required" : false
+            }
+          }, {
+            "name" : "To",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Username",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "messages_count",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "messages_unread",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "start",
+        "type" : "integer",
+        "required" : false,
+        "format" : "int64"
+      }, {
+        "name" : "tags",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "total",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "unread",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      } ]
+    }
+  }, {
+    "id" : "SetReadStatusParams",
+    "method" : "PUT",
+    "path" : "/api/v1/messages",
+    "summary" : "Set read status",
+    "parameters" : [ {
+      "name" : "tz",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    } ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "IDs",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "Read",
+        "type" : "boolean",
+        "required" : false
+      }, {
+        "name" : "Search",
+        "type" : "text",
+        "required" : false
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "DeleteMessagesParams",
+    "method" : "DELETE",
+    "path" : "/api/v1/messages",
+    "summary" : "Delete messages",
+    "parameters" : [ ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "IDs",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "SearchParams",
+    "method" : "GET",
+    "path" : "/api/v1/search",
+    "summary" : "Search messages",
+    "parameters" : [ {
+      "name" : "query",
+      "in" : "query",
+      "required" : true,
+      "type" : "text"
+    }, {
+      "name" : "start",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    }, {
+      "name" : "limit",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    }, {
+      "name" : "tz",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "messages",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Attachments",
+            "type" : "integer",
+            "required" : false,
+            "format" : "int64"
+          }, {
+            "name" : "Bcc",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Cc",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Created",
+            "type" : "datetime",
+            "required" : false,
+            "format" : "date-time"
+          }, {
+            "name" : "From",
+            "type" : "object",
+            "required" : false,
+            "fields" : [ {
+              "name" : "Address",
+              "type" : "text",
+              "required" : false
+            }, {
+              "name" : "Name",
+              "type" : "text",
+              "required" : false
+            } ]
+          }, {
+            "name" : "ID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "MessageID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Read",
+            "type" : "boolean",
+            "required" : false
+          }, {
+            "name" : "ReplyTo",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Size",
+            "type" : "integer",
+            "required" : false,
+            "format" : "uint64"
+          }, {
+            "name" : "Snippet",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Subject",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Tags",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "text",
+              "required" : false
+            }
+          }, {
+            "name" : "To",
+            "type" : "list",
+            "required" : false,
+            "items" : {
+              "type" : "object",
+              "required" : false,
+              "fields" : [ {
+                "name" : "Address",
+                "type" : "text",
+                "required" : false
+              }, {
+                "name" : "Name",
+                "type" : "text",
+                "required" : false
+              } ]
+            }
+          }, {
+            "name" : "Username",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "messages_count",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "messages_unread",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "start",
+        "type" : "integer",
+        "required" : false,
+        "format" : "int64"
+      }, {
+        "name" : "tags",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "total",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      }, {
+        "name" : "unread",
+        "type" : "integer",
+        "required" : false,
+        "format" : "uint64"
+      } ]
+    }
+  }, {
+    "id" : "DeleteSearchParams",
+    "method" : "DELETE",
+    "path" : "/api/v1/search",
+    "summary" : "Delete messages by search",
+    "parameters" : [ {
+      "name" : "query",
+      "in" : "query",
+      "required" : true,
+      "type" : "text"
+    }, {
+      "name" : "tz",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "SendMessageParams",
+    "method" : "POST",
+    "path" : "/api/v1/send",
+    "summary" : "Send a message",
+    "parameters" : [ ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Attachments",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Content",
+            "type" : "text",
+            "required" : true
+          }, {
+            "name" : "ContentID",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "ContentType",
+            "type" : "text",
+            "required" : false
+          }, {
+            "name" : "Filename",
+            "type" : "text",
+            "required" : true
+          } ]
+        }
+      }, {
+        "name" : "Bcc",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "Cc",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Email",
+            "type" : "text",
+            "required" : true
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "From",
+        "type" : "object",
+        "required" : true,
+        "fields" : [ {
+          "name" : "Email",
+          "type" : "text",
+          "required" : true
+        }, {
+          "name" : "Name",
+          "type" : "text",
+          "required" : false
+        } ]
+      }, {
+        "name" : "HTML",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "Headers",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ ]
+      }, {
+        "name" : "ReplyTo",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Email",
+            "type" : "text",
+            "required" : true
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      }, {
+        "name" : "Subject",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "Tags",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "Text",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "To",
+        "type" : "list",
+        "required" : false,
+        "items" : {
+          "type" : "object",
+          "required" : false,
+          "fields" : [ {
+            "name" : "Email",
+            "type" : "text",
+            "required" : true
+          }, {
+            "name" : "Name",
+            "type" : "text",
+            "required" : false
+          } ]
+        }
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "ID",
+        "type" : "text",
+        "required" : false
+      } ]
+    }
+  }, {
+    "id" : "GetAllTags",
+    "method" : "GET",
+    "path" : "/api/v1/tags",
+    "summary" : "Get all current tags",
+    "parameters" : [ ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "list",
+      "required" : false,
+      "items" : {
+        "type" : "text",
+        "required" : false
+      }
+    }
+  }, {
+    "id" : "SetTagsParams",
+    "method" : "PUT",
+    "path" : "/api/v1/tags",
+    "summary" : "Set message tags",
+    "parameters" : [ ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "IDs",
+        "type" : "list",
+        "required" : true,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      }, {
+        "name" : "Tags",
+        "type" : "list",
+        "required" : true,
+        "items" : {
+          "type" : "text",
+          "required" : false
+        }
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "RenameTagParams",
+    "method" : "PUT",
+    "path" : "/api/v1/tags/{Tag}",
+    "summary" : "Rename a tag",
+    "parameters" : [ {
+      "name" : "Tag",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "requestBody" : {
+      "name" : "body",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "Name",
+        "type" : "text",
+        "required" : true
+      } ]
+    },
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "DeleteTagParams",
+    "method" : "DELETE",
+    "path" : "/api/v1/tags/{Tag}",
+    "summary" : "Delete a tag",
+    "parameters" : [ {
+      "name" : "Tag",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "WebUIConfigurationResponse",
+    "method" : "GET",
+    "path" : "/api/v1/webui",
+    "summary" : "Get web UI configuration",
+    "parameters" : [ ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "object",
+      "required" : false,
+      "fields" : [ {
+        "name" : "ChaosEnabled",
+        "type" : "boolean",
+        "required" : false
+      }, {
+        "name" : "DuplicatesIgnored",
+        "type" : "boolean",
+        "required" : false
+      }, {
+        "name" : "HideDeleteAllButton",
+        "type" : "boolean",
+        "required" : false
+      }, {
+        "name" : "Label",
+        "type" : "text",
+        "required" : false
+      }, {
+        "name" : "MessageRelay",
+        "type" : "object",
+        "required" : false,
+        "fields" : [ {
+          "name" : "AllowedRecipients",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "BlockedRecipients",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "Enabled",
+          "type" : "boolean",
+          "required" : false
+        }, {
+          "name" : "OverrideFrom",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "PreserveMessageIDs",
+          "type" : "boolean",
+          "required" : false
+        }, {
+          "name" : "ReturnPath",
+          "type" : "text",
+          "required" : false
+        }, {
+          "name" : "SMTPServer",
+          "type" : "text",
+          "required" : false
+        } ]
+      }, {
+        "name" : "SpamAssassin",
+        "type" : "boolean",
+        "required" : false
+      } ]
+    }
+  }, {
+    "id" : "GetMessageHTMLParams",
+    "method" : "GET",
+    "path" : "/view/{ID}.html",
+    "summary" : "Render message HTML part",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    }, {
+      "name" : "embed",
+      "in" : "query",
+      "required" : false,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  }, {
+    "id" : "GetMessageTextParams",
+    "method" : "GET",
+    "path" : "/view/{ID}.txt",
+    "summary" : "Render message text part",
+    "parameters" : [ {
+      "name" : "ID",
+      "in" : "path",
+      "required" : true,
+      "type" : "text"
+    } ],
+    "responseStatus" : "200",
+    "response" : {
+      "name" : "response",
+      "type" : "text",
+      "required" : false
+    }
+  } ],
+  "warnings" : [ "Swagger 2.0 file converted to OpenAPI 3" ]
+}

@@ -50,11 +50,12 @@ cib7/
 └── src/main/
     ├── java/com/poc/cib7/
     │   ├── Cib7PocApplication.java        — @SpringBootApplication entry point
-    │   ├── BusTokenInterceptor.java       — adds X-Bus-Token to every http-connector call to the bus
-    │   ├── BusConfiguration.java          — exposes ${busBaseUrl} to BPMN JUEL (the integration bus)
+    │   ├── OutboundCredentialsInterceptor.java — X-API-Key to Patchbay, X-Internal-Token to the backend's /api/internal/, nothing elsewhere
+    │   ├── OutboundConfiguration.java     — exposes ${patchbayBaseUrl} and ${backendBaseUrl}, the two outbound addresses
     │   ├── FrontendConfiguration.java     — exposes ${frontendBaseUrl} (links in emails)
     │   ├── PdfHelper.java                 — @Component("pdf") — base64 ↔ byte[] bridge
-    │   ├── ReservedBeansPlugin.java       — config beans resolve before same-named process variables
+    │   ├── ReservedBeansPlugin.java       — only the reserved beans reach expressions, and they win over same-named variables
+    │   ├── secrets/DefaultSecretsGuard.java — refuses the -change-me outbound secrets when real ones are required
     │   ├── AuthorizationBootstrap.java    — the group-level engine grants (applicant, civil-servant)
     │   ├── authorization/                 — InitiatorAuthorizationListener + plugin: per-case grants for the initiator
     │   ├── policy/                        — VariableWritePolicyFilter + VariablePolicyRegistry + FormSchemaRegistry: per-form variable allowlist and value rules
@@ -98,40 +99,50 @@ endpoints go in `backend/`.
 A bare `@SpringBootApplication`. The CIB seven starter embeds the engine and
 exposes `/engine-rest`. No additional configuration is needed here.
 
-### `BusTokenInterceptor.java`
+### `OutboundCredentialsInterceptor.java`
 
 The CIB seven Spring Boot starter registers the Connect and Spin engine
 plugins by itself whenever they are on the classpath
 (`CamundaBpmPluginConfiguration`), so there is no configuration class for
-them. `BusTokenInterceptor` is a small engine plugin of its own: in `postInit`,
-after Connect has loaded the http-connector, it adds itself as a request
-interceptor. It sets `X-Bus-Token: <app.bus.token>` (env `BUS_TOKEN`, demo
-default `bus-token-change-me`) on every request whose URL starts with
-`${busBaseUrl}`, replacing any value the BPMN set, and adds nothing to
-requests for other hosts. The ESB refuses calls without it
-(`esb/routes/bus-auth.yaml`), so the token lives in one place in the engine
-and no BPMN or template sees it.
+them. `OutboundCredentialsInterceptor` is a small engine plugin of its own: in
+`postInit`, after Connect has loaded the http-connector, it adds itself as a
+request interceptor. For every request it first removes `X-API-Key` and
+`X-Internal-Token`, whatever the BPMN set, then compares the parsed target
+(scheme, host, effective port, path with dot segments removed) with the two
+configured addresses:
+
+| Target | Header added | Value from |
+|---|---|---|
+| `${patchbayBaseUrl}` origin, path under `/api/v1/integrations/` | `X-API-Key` | `app.patchbay.api-key` (`PATCHBAY_API_KEY`), equal to Patchbay's `INBOUND_API_KEY` |
+| `${backendBaseUrl}` origin, path under `/api/internal/` | `X-Internal-Token` | `app.backend.internal-token` (`INTERNAL_TASK_TOKEN`), which the backend checks |
+| anything else, the backend's `/api/public/**` included | none | |
+
+Origins are compared as parsed values, never by string prefix, so
+`http://backend:8085.evil/` and `http://backend:8085@evil/` match nothing.
+The secrets live in one place in the engine and no BPMN or template sees
+them; `OutboundCredentialsInterceptorTest` covers each case.
+
+`secrets/DefaultSecretsGuard` refuses to start the engine while either secret
+is still its `-change-me` default and the `prod` profile or
+`APP_REQUIRE_REAL_SECRETS=true` is set; otherwise it logs a warning.
 
 Another engine plugin (e.g. an LDAP identity provider) is just another
 `ProcessEnginePlugin` bean; the starter picks it up.
 
-### `BusConfiguration.java` / `FrontendConfiguration.java`
+### `OutboundConfiguration.java` / `FrontendConfiguration.java`
 
-Each exposes a Spring `String` bean driven by an env var. The engine's
-expression manager auto-binds beans by name, so the BPMN can reference them
-without any further wiring:
+Each exposes a Spring `String` bean driven by an env var. Expressions and
+templates reach a bean by name only when it is in
+`ReservedBeansPlugin.RESERVED_NAMES` (see below):
 
 | Bean | Env var | Used by BPMN as |
 |---|---|---|
-| `busBaseUrl` | `BUS_URL` | `${busBaseUrl}/...` for ALL outbound HTTP. The integration bus (`esb`, Apache Camel) routes each path: `/api/v1/send`→Mailpit, `/render`→pdf-renderer, `/api/public/**` and `/api/internal/**`→backend |
+| `patchbayBaseUrl` | `PATCHBAY_URL` (default `http://localhost:8090`) | `${patchbayBaseUrl}/api/v1/integrations/<slug>` for every external system: `mail-send`, `pdf-render` and a pack's own integrations. Patchbay holds each system's address, mapping and secrets |
+| `backendBaseUrl` | `BACKEND_URL` (default `http://localhost:8085`) | `${backendBaseUrl}/api/...` for the backend paths the platform API offers (`/api/internal/**`, `/api/public/**`) |
 | `frontendBaseUrl` | `FRONTEND_BASE_URL` | links embedded in confirmation / payment emails |
 
-The former `MailConfiguration` / `PdfConfiguration` / `BackendConfiguration`
-beans (one per downstream system) were collapsed into the single `busBaseUrl`;
-the per-system addresses now live in `esb/routes/*.yaml`. The internal
-`X-Internal-Token` secret also moved to the bus — the engine no longer sets it
-(the bus injects it on `/api/internal`), so `INTERNAL_TASK_TOKEN` is an `esb`
-env var, not an engine one.
+The engine reaches external systems only through Patchbay integrations, and
+the backend only at its own address; it calls nothing else.
 
 Defaults target `localhost` ports for `mvn spring-boot:run`; docker-compose
 overrides them to docker-network aliases (`mailpit`, `pdf-renderer`,
@@ -246,15 +257,61 @@ nobody else's.
 ### `ReservedBeansPlugin.java`
 
 Configuration beans used in BPMN expressions and FreeMarker templates
-(`busBaseUrl`, `frontendBaseUrl`, `pdf`, `links`, `documents`, listed once in
-`ReservedBeansPlugin.RESERVED_NAMES`) resolve before process variables of the
-same name. Stock JUEL asks the variable scope before the Spring context, so a
-variable called `busBaseUrl` would otherwise redirect that case's connectors.
+(`patchbayBaseUrl`, `backendBaseUrl`, `frontendBaseUrl`, `pdf`, `links`,
+`documents`, listed once in `ReservedBeansPlugin.RESERVED_NAMES`) are the only
+Spring beans expressions and templates can reach, and they resolve before
+process variables of the same name.
+
+Out of the box the Spring engine resolves every bean of the application
+context by name, so a connector input could read
+`${environment.getProperty('INTERNAL_TASK_TOKEN')}`; `BeanExposureTest` showed
+it did on CIB seven 2.2. The plugin sets the engine's `beans` map to the
+reserved names (looked up lazily), which makes the Spring expression manager
+use that map instead of the application context and keeps the Spring
+configuration from adding its application-context script resolver. Stock JUEL
+also asks the variable scope before any bean, so a variable called
+`backendBaseUrl` would otherwise redirect that case's connectors.
+
+The limit is on lookup by bean name only. A JUEL expression can still call
+methods, so `${execution.processEngine...}` or reflection from a string
+literal reaches engine internals and the environment. A pack's BPMN and
+templates are therefore reviewed code with the engine's power (design D17 of
+`replace-esb-with-patchbay`): the pack check refuses such expressions, and
+FreeMarker's `?new` and `?api` are refused at run time (see
+`PayloadTemplatesPlugin.java` below).
 The plugin swaps in a `SpringExpressionManager` subclass whose resolver chain
 starts with a reserved-name resolver, and appends a matching resolver to the
 script bindings (where the last resolver that knows a key wins). Add a name
 there whenever a new bean is referenced from BPMN or a template;
-`ReservedBeansPluginTest` checks both paths.
+`ReservedBeansPluginTest` checks both paths for shadowing and
+`BeanExposureTest` that other beans do not resolve.
+
+An inline FreeMarker script whose text starts with `${` is evaluated as a JUEL
+expression first (the engine's dynamic-script rule), so a test that means to
+exercise FreeMarker starts its script with a FreeMarker comment.
+
+### `PayloadTemplatesPlugin.java`
+
+Payload templates (`camunda:script scriptFormat="freemarker"`, inline or
+`resource=`) run with the settings `DocumentRenderer` uses: `?new` resolves no
+class (`TemplateClassResolver.ALLOWS_NOTHING_RESOLVER`) and `?api` is off. With
+FreeMarker's defaults, which the stock engine uses, `?new` instantiates any
+`TemplateModel` class, `freemarker.template.utility.ObjectConstructor`
+included, and from there any Java class.
+
+The stock `cibseven-template-engines-freemarker` 2.2 engine exposes no setting
+for this: its `Configuration` is a protected field that
+`FreeMarkerScriptEngine.initConfiguration()` creates on first use
+(`VERSION_2_3_29`, everything else default), shared by `eval` and `compile`.
+The plugin's `postInit` registers a factory subclass on the engine's
+`ScriptEngineManager` under every name of the stock factory (`freemarker`,
+`Freemarker`, `FreeMarker`); a registered name wins over the factory found on
+the classpath, and no script engine has been looked up or cached yet at that
+point. Its engine subclass sets the restricted `Configuration` in its
+constructor, still at `VERSION_2_3_29`, so nothing else about a rendered
+payload changes. `PayloadTemplateHardeningTest` deploys an http-connector
+whose `resource=` template uses `?new` or `?api` and checks that it fails
+before sending anything, against a control template that does send.
 
 ### `policy/VariableWritePolicyFilter.java`
 
@@ -556,8 +613,8 @@ It is wired inline inside every integration service task across the two
 BPMNs: registry lookup (`Task_GetPrice`), document promotion and storage
 (`Task_AttachIdDocument` / `Task_AttachAoaDocument` → backend
 `/api/internal/documents/move-pending`; the `Task_Store*Pdf` tasks → backend
-`/api/internal/documents/server-upload`), email sends (Mailpit), and PDF renders
-(pdf-renderer). For `Task_GetPrice` the response body is parsed with Spin
+`/api/internal/documents/server-upload`), email sends (Patchbay `mail-send`),
+and PDF renders (Patchbay `pdf-render`). For `Task_GetPrice` the response body is parsed with Spin
 (bundled with the CIB seven engine), with per-property fallbacks so a
 malformed response degrades to "review" instead of crashing the activity:
 
@@ -565,7 +622,7 @@ malformed response degrades to "review" instead of crashing the activity:
 <camunda:connector>
   <camunda:connectorId>http-connector</camunda:connectorId>
   <camunda:inputOutput>
-    <camunda:inputParameter name="url">${busBaseUrl}/api/public/registry/vehicles/${objectId}</camunda:inputParameter>
+    <camunda:inputParameter name="url">${backendBaseUrl}/api/internal/registry/vehicles/${objectId}</camunda:inputParameter>
     <camunda:inputParameter name="method">GET</camunda:inputParameter>
     <camunda:inputParameter name="headers">
       <camunda:map>
@@ -583,17 +640,16 @@ after the previous user task is completed, the call happens on a background
 thread; the next user task appears a moment later. The Tasks page **Refresh**
 button is the polling mechanism.
 
-The two email service tasks reuse the same connector. The target URL is built
-from a Spring bean `busBaseUrl` registered by `BusConfiguration.java`; in JUEL
-`${busBaseUrl}` resolves to whatever the `BUS_URL` env var is set to
-(`http://esb:8080` inside docker-compose). The engine POSTs to the integration
-bus, which routes `/api/v1/send` to Mailpit.
-Mailpit's HTTP API is intentionally Mailpit-flavoured — `From`/`To` lists,
-`Subject`, `Text` — there is no SMTP traffic involved.
+The email service tasks reuse the same connector. The target URL is
+`${patchbayBaseUrl}/api/v1/integrations/mail-send` (`PATCHBAY_URL`,
+`http://patchbay:8080` inside docker-compose), and the payload is the
+platform's neutral `mail-send` model (`from`, `to[]`, `subject`, `text`,
+`attachments[]`, docs/platform-api.md). Patchbay maps it to Mailpit's
+`/api/v1/send`; there is no SMTP traffic involved.
 
-`Task_GeneratePdf` follows the same pattern, posting to the bus
-(`${busBaseUrl}/render`), which routes to the [`pdf-renderer/`](../pdf-renderer/)
-sidecar.
+`Task_GeneratePdf` follows the same pattern, posting `{html, filename}` to
+`${patchbayBaseUrl}/api/v1/integrations/pdf-render`, which Patchbay maps to the
+[`pdf-renderer/`](../pdf-renderer/) sidecar.
 pdf-renderer is a 20-line Express app that hides two warts Gotenberg
 exposes: it accepts JSON (Gotenberg requires multipart/form-data) and
 returns base64 inside JSON (Gotenberg returns raw binary, which the
@@ -667,7 +723,8 @@ that service account in `/cib7-admin`.
 | `camunda.bpm.authorization.enabled: true` | Required for candidateGroups to be enforced |
 | `camunda.bpm.generic-properties.properties.enable-historic-instance-permissions: true` | History queries accept per-instance `HISTORIC_PROCESS_INSTANCE` / `HISTORIC_TASK` grants, which is how applicants read their own history |
 | `camunda.bpm.generic-properties.properties.default-user-permission-name-for-task: UPDATE` | Permission the assignee/candidates get on a task besides READ (the default, set explicitly). `TASK_WORK` is narrower but blocks the SPA's `setAssignee` before completing a group task |
-| `app.bus.token` (`BUS_TOKEN`) | Value of `X-Bus-Token` on calls to the ESB |
+| `app.patchbay.api-key` (`PATCHBAY_API_KEY`) | Value of `X-API-Key` on calls to Patchbay's `/api/v1/integrations/` |
+| `app.backend.internal-token` (`INTERNAL_TASK_TOKEN`) | Value of `X-Internal-Token` on calls to the backend's `/api/internal/` |
 | `camunda.bpm.admin-user.id: admin` | Bootstraps admin authorizations on the dedicated `admin` user (in `/cib7-admin`) so the engine doesn't 403 the very first call. Was `homer` before — split out so the admin role is separate from the civil-servant role. |
 | `plugin.identity.keycloak.administratorGroupName: cib7-admin` | Grants engine admin authorizations to everyone in the `/cib7-admin` Keycloak group on every startup |
 

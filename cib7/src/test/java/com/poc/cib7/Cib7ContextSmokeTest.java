@@ -97,7 +97,7 @@ class Cib7ContextSmokeTest {
   }
 
   @Test
-  void starterRegistersConnectAndSpinAndTheBusTokenRidesOnTheHttpConnector() {
+  void starterRegistersConnectAndSpinAndTheOutboundCredentialsRideOnTheHttpConnector() {
     // No configuration class of ours registers Connect or Spin: the starter
     // does when they are on the classpath. If it ever stops, connectors and
     // S(response) break in every service.
@@ -116,7 +116,7 @@ class Cib7ContextSmokeTest {
     assertEquals(
         1,
         Connectors.getConnector(Connectors.HTTP_CONNECTOR_ID).getRequestInterceptors().stream()
-            .filter(BusTokenInterceptor.class::isInstance)
+            .filter(OutboundCredentialsInterceptor.class::isInstance)
             .count());
   }
 

@@ -13,10 +13,10 @@ Tells the applicant that the registration waits for co-owner signatures and give
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/v1/send` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/mail-send` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: Mailpit (the bus routes `/api/v1/send`).
+Downstream: Patchbay integration `mail-send` (v1), which hands the mail to the mail system (Mailpit here).
 
 ## Payload (request body)
 
@@ -28,7 +28,7 @@ payload-template: applicant-tracking-email.json.ftl
 
 ```ftl
 <#--
-  Mailpit /api/v1/send payload for the "Send owner tracking email"
+  mail-send payload (Patchbay integration, v1) for the "Send owner tracking email"
   service task in vehicle-registration.bpmn.
 
   Sent once at the start of the co-owner signing phase. The owner is
@@ -46,10 +46,10 @@ payload-template: applicant-tracking-email.json.ftl
 -->
 <#assign fullName = (firstName!"") + " " + (lastName!"")>
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "${(applicantEmail!"")?json_string}", "Name": "${fullName?json_string}" } ],
-  "Subject": "Your vehicle registration is awaiting co-owner signatures",
-  "Text": "${documents.text("vehicle-applicant-tracking", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "${(applicantEmail!"")?json_string}", "name": "${fullName?json_string}" } ],
+  "subject": "Your vehicle registration is awaiting co-owner signatures",
+  "text": "${documents.text("vehicle-applicant-tracking", execution)?json_string}"
 }
 ```
 
@@ -80,7 +80,9 @@ Rendered with these case variables by the core's pack checks
 
 | Path | Expected |
 |---|---|
-| `/Text` | `matches "/consent/owner/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
+| `/from/email` | `"process@cib7-poc.local"` |
+| `/to/0/email` | `"ants@example.com"` |
+| `/text` | `matches "/consent/owner/[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+"` |
 
 ## Response mapping
 

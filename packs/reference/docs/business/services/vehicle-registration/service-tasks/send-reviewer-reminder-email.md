@@ -13,10 +13,10 @@ Reminds the Transport Authority that a registration still waits for review.
 | Field | Value |
 |---|---|
 | Method | `POST` |
-| URL | `${busBaseUrl}/api/v1/send` |
+| URL | `${patchbayBaseUrl}/api/v1/integrations/mail-send` |
 | Headers | `Content-Type: application/json` |
 
-Downstream: Mailpit (the bus routes `/api/v1/send`).
+Downstream: Patchbay integration `mail-send` (v1), which hands the mail to the mail system (Mailpit here).
 
 ## Payload (request body)
 
@@ -28,16 +28,16 @@ payload-template: reviewer-reminder-email.json.ftl
 
 ```ftl
 <#--
-  Mailpit /api/v1/send payload for Task_SendReminderEmail in
+  mail-send payload (Patchbay integration, v1) for Task_SendReminderEmail in
   vehicle-registration.bpmn: the reminder to the Transport Authority while a
   case waits for review. The body is the pack document
   documents/email/vehicle-reviewer-reminder.ftl.
 -->
 {
-  "From": { "Email": "process@cib7-poc.local", "Name": "Transpordiamet POC" },
-  "To": [ { "Email": "civil-servant@cib7-poc.local", "Name": "Transport Authority officer" } ],
-  "Subject": "Reminder: vehicle registration awaiting review",
-  "Text": "${documents.text("vehicle-reviewer-reminder", execution)?json_string}"
+  "from": { "email": "process@cib7-poc.local", "name": "Transpordiamet POC" },
+  "to": [ { "email": "civil-servant@cib7-poc.local", "name": "Transport Authority officer" } ],
+  "subject": "Reminder: vehicle registration awaiting review",
+  "text": "${documents.text("vehicle-reviewer-reminder", execution)?json_string}"
 }
 ```
 
@@ -53,6 +53,11 @@ Rendered with these case variables by the core's pack checks
 }
 ```
 
+| Path | Expected |
+|---|---|
+| `/from/email` | `"process@cib7-poc.local"` |
+| `/to/0/email` | `"civil-servant@cib7-poc.local"` |
+
 ## Example: hostile names
 
 ```json
@@ -64,7 +69,7 @@ Rendered with these case variables by the core's pack checks
 
 | Path | Expected |
 |---|---|
-| `/Text` | `contains "An\"ts\\ Ava\nldaja\t<b>"` |
+| `/text` | `contains "An\"ts\\ Ava\nldaja\t<b>"` |
 
 ## Response mapping
 
