@@ -30,7 +30,7 @@
     <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
     <java.version>21</java.version>
     <logback-gelf.version>6.1.2</logback-gelf.version>
-    <cibseven.version>2.2.0</cibseven.version>
+    <cibseven.version>3.0.0</cibseven.version>
     <!-- The service pack's engine files (processes/, templates/, documents/). They are not
          in this module: at runtime the image puts them on the classpath from
          /opt/services, and for tests and `mvn spring-boot:run` this directory
