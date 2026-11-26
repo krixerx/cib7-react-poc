@@ -92,7 +92,7 @@ http:
       tls: true
 
     backend-api:
-      # /api/internal/** (engine-only, reached through the bus) is excluded:
+      # /api/internal/** (engine-only, called directly with X-Internal-Token) is excluded:
       # it is never routed from outside (docs/security.md rule 5).
       rule: "PathPrefix(`/api`) && !PathPrefix(`/api/internal`) && !PathPrefix(`/api/public`)"
       entryPoints: ["websecure"]

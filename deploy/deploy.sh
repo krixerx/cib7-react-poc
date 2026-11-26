@@ -164,6 +164,9 @@ pack_env_checks() {
         *" $h "*) echo "FAIL  patchbay-pack.env: $key points at core host '$h'"; bad=1 ;;
         *) case "$h" in
              127.*|0.0.0.0|::1|cib7-poc-*) echo "FAIL  patchbay-pack.env: $key points at core host '$h'"; bad=1 ;;
+             # A container's address would slip past the name check.
+             10.*|192.168.*|169.254.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*|[Ff][CcDd]*:*|[Ff][Ee]80:*)
+               echo "FAIL  patchbay-pack.env: $key points at private address '$h'; use the outside system's host name"; bad=1 ;;
            esac ;;
       esac
     done
@@ -290,6 +293,16 @@ host_checks() {
   elif [ -n "$pw" ]; then
     echo "ok    PATCHBAY_ADMIN_PASSWORD length"
   fi
+  # The dev file uses this name for a bare port, which here would publish the console on every address.
+  local pb_bind
+  pb_bind=$(env_get PATCHBAY_HTTP_PORT)
+  case "$pb_bind" in
+    "" | 127.*:[0-9]* | "[::1]":[0-9]*)
+      echo "ok    PATCHBAY_HTTP_PORT on loopback (${pb_bind:-default 127.0.0.1:8090})" ;;
+    *)
+      echo "FAIL  PATCHBAY_HTTP_PORT=$pb_bind must be ip:port on loopback, e.g. 127.0.0.1:8090"
+      bad=1 ;;
+  esac
   # The engine's DefaultSecretsGuard only warns when this is false.
   case "$(env_get APP_REQUIRE_REAL_SECRETS)" in
     [Ff][Aa][Ll][Ss][Ee])
@@ -436,9 +449,9 @@ check "MCP manifest    " "$base/.well-known/mcp.json" "mcp"
 
 # The core integrations went live from their packages (an import that failed
 # shows up under broken, not in the logs of a call). The container's shell
-# expands the login, so the password never appears in the host's process list.
+# passes the login to curl on stdin, so the password is on no command line.
 if body=$(docker compose "${PROFILES[@]}" exec -T patchbay sh -c \
-     'curl -fsS --max-time 10 -u "$MAPPER_ADMIN_USER:$MAPPER_ADMIN_PASSWORD" http://localhost:8080/admin/integrations' 2>&1); then
+     'printf "user = \"%s:%s\"\n" "$MAPPER_ADMIN_USER" "$(printf "%s" "$MAPPER_ADMIN_PASSWORD" | sed "s/[\\\\\"]/\\\\&/g")" | curl -fsS --max-time 10 -K - http://localhost:8080/admin/integrations' 2>&1); then
   printf '%s' "$body" | patchbay_integrations_ok || fail=1
 else
   echo "FAIL  patchbay integrations (GET /admin/integrations failed)"; fail=1

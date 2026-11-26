@@ -122,6 +122,18 @@ Origins are compared as parsed values, never by string prefix, so
 The secrets live in one place in the engine and no BPMN or template sees
 them; `OutboundCredentialsInterceptorTest` covers each case.
 
+The header is chosen on the first request only, and HttpClient 5 copies a
+request's headers onto a redirect it follows: with the stock client a GET to
+`/api/internal/` answered by a 302 to another host took `X-Internal-Token`
+along (POSTs were not followed, their body is not repeatable). So the same
+`postInit` gives the http-connector a client built with
+`disableRedirectHandling()`, which a connector's `redirectsEnabled` option
+cannot turn back on, and the interceptor fails any 3xx answer. This holds
+for every connector call, not only credentialed ones: the engine talks only
+to Patchbay and the backend, neither redirects, and an unfollowed 3xx would
+otherwise reach the process as a normal answer. A 3xx therefore surfaces as
+an incident in Cockpit; `OutboundRedirectTest` covers it.
+
 `secrets/DefaultSecretsGuard` refuses to start the engine while either secret
 is still its `-change-me` default and the `prod` profile or
 `APP_REQUIRE_REAL_SECRETS=true` is set; otherwise it logs a warning.

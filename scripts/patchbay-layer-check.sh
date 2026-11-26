@@ -8,14 +8,21 @@
 #   scripts/patchbay-layer-check.sh [pack-dir] [--broken-link]
 #
 # --broken-link makes the fixture's request link point at a field that does not
-# exist; the check must then FAIL. CI runs both and expects the second to fail
-# (quality.yml, job patchbay-pack-layer).
+# exist; the check must then FAIL for that reason. CI runs both and expects the
+# second to fail (quality.yml, job patchbay-pack-layer).
+#
+# Exit codes: 0 the layer loads as expected; 1 the fixture's integration did
+# not go live while the core's two did (the expected outcome of --broken-link,
+# a failure otherwise); 2 anything else (a build, a start, a missing answer, a
+# fixture edit that no longer matches the export), so a broken-link run can
+# only pass CI by catching the broken link itself.
 #
 # The fixture is derived from the core's packages/20-core-pdf at run time, with
 # every id renamed to pack-fixture-*, so it always has the layout the pinned
 # Patchbay exports. Containers and images are named pb-test-*; the container
 # publishes on a random loopback port. Needs docker, node and curl.
-set -euo pipefail
+set -eEuo pipefail
+trap 'echo "patchbay-layer-check: setup failed (line $LINENO)" >&2; exit 2' ERR
 
 core="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 broken=false
@@ -82,7 +89,7 @@ cp -R "$core/patchbay/packages/20-core-pdf" "$fixture"
   if [ "$broken" = true ]; then
     sed -i 's/"from" : "pr-html"/"from" : "pr-missing-field"/' \
         services/pack-fixture.json services/pack-fixture.versions/1.0.0.json
-    grep -q pr-missing-field services/pack-fixture.json
+    grep -q pr-missing-field services/pack-fixture.json       && grep -q pr-missing-field services/pack-fixture.versions/1.0.0.json
   fi
 )
 
@@ -111,17 +118,32 @@ echo "$answer"
 if [ -z "$answer" ]; then
   docker logs "$container" 2>&1 | tail -30 >&2
   echo "patchbay-layer-check: GET /admin/integrations gave no answer" >&2
-  exit 1
+  exit 2
 fi
+verdict=0
 ANSWER="$answer" node -e '
   const a = JSON.parse(process.env.ANSWER);
-  const want = ["mail-send", "pdf-render", "pack-fixture"];
-  const missing = want.filter((id) => !(a.active && a.active[id]));
+  const active = (id) => Boolean(a.active && a.active[id]);
   const broken = Object.keys(a.broken || {});
-  if (missing.length || broken.length) {
-    console.error("patchbay-layer-check: not active: " + missing.join(", ") +
+  const core = ["mail-send", "pdf-render"].filter((id) => !active(id));
+  if (core.length || broken.some((id) => id !== "pack-fixture")) {
+    console.error("patchbay-layer-check: core not active: " + core.join(", ") +
       "; broken: " + broken.join(", "));
+    process.exit(2);
+  }
+  if (!active("pack-fixture")) {
+    console.error("patchbay-layer-check: pack-fixture is not active" +
+      (broken.includes("pack-fixture") ? " (listed as broken)" : ""));
     process.exit(1);
   }
-'
+' || verdict=$?
+if [ "$verdict" -eq 1 ] && [ "$broken" = true ]; then
+  if ! docker logs "$container" 2>&1 | grep -q "pr-missing-field is not a field of pack-fixture"; then
+    echo "patchbay-layer-check: pack-fixture is not active, but not because of the broken link" >&2
+    exit 2
+  fi
+fi
+if [ "$verdict" -ne 0 ]; then
+  exit "$verdict"
+fi
 echo "patchbay-layer-check: $pack layer loads pack-fixture, mail-send and pdf-render active, nothing broken"

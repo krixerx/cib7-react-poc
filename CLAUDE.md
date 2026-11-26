@@ -125,7 +125,8 @@ Module responsibilities are strict and worth preserving:
   puts on the classpath with `PropertiesLauncher` and `loader.path`. Backend,
   mcp, frontend, mobile and patchbay are built the same way: a pack-less
   `<module>/Dockerfile` (compose service `<name>-core`, `scale: 0`) and a thin
-  layer from the pack's `docker/`. Here compose, the tests (through the pom's
+  layer from the pack's `docker/` (Patchbay's published core image is
+  `cib7-poc-patchbay`, without the `-core` suffix). Here compose, the tests (through the pom's
   `services.pack.dir` and `PACK_DIR`), `mvn spring-boot:run` and `npm run dev`
   use `packs/reference/`; keep it a valid pack
   (`scripts/pack-check.sh`).

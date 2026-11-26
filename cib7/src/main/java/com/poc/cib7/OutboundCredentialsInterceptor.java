@@ -5,10 +5,15 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.core5.io.CloseMode;
 import org.cibseven.bpm.engine.impl.cfg.AbstractProcessEnginePlugin;
 import org.cibseven.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.cibseven.connect.Connectors;
+import org.cibseven.connect.httpclient.impl.AbstractHttpConnector;
 import org.cibseven.connect.spi.Connector;
 import org.cibseven.connect.spi.ConnectorInvocation;
 import org.cibseven.connect.spi.ConnectorRequestInterceptor;
@@ -28,6 +33,10 @@ import org.springframework.stereotype.Component;
  * dot segments removed, never as string prefixes: {@code http://backend:8085.evil/} has no valid
  * port and so no host, and {@code http://backend:8085@evil/} has the host {@code evil}.
  *
+ * <p>The choice is made on the first request only, and HttpClient 5 copies a request's headers onto
+ * a redirect it follows, so this plugin also gives the http-connector a client that follows no
+ * redirect, and turns any 3xx answer into a failed call (an incident) instead of a normal response.
+ *
  * <p>The Spring Boot starter registers the Connect plugin itself; this class is also an engine
  * plugin only to attach itself to the http-connector, which the Connect plugin loads in its {@code
  * preInit}, before any plugin's {@code postInit} runs.
@@ -38,6 +47,9 @@ public class OutboundCredentialsInterceptor extends AbstractProcessEnginePlugin
 
   static final String API_KEY_HEADER = "X-API-Key";
   static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+
+  private static final CloseableHttpClient NO_REDIRECTS =
+      HttpClients.custom().useSystemProperties().disableRedirectHandling().build();
 
   private final Destination patchbay;
   private final Destination backend;
@@ -64,6 +76,19 @@ public class OutboundCredentialsInterceptor extends AbstractProcessEnginePlugin
     interceptors.removeIf(OutboundCredentialsInterceptor.class::isInstance);
     interceptors.add(this);
     http.setRequestInterceptors(interceptors);
+    useClientWithoutRedirects((AbstractHttpConnector<?, ?>) http);
+  }
+
+  // On the client rather than per request, so a connector's redirectsEnabled option cannot undo it.
+  private static synchronized void useClientWithoutRedirects(AbstractHttpConnector<?, ?> http) {
+    if (http.getHttpClient() == NO_REDIRECTS) {
+      return;
+    }
+    CloseableHttpClient replaced = http.getHttpClient();
+    http.setHttpClient(NO_REDIRECTS);
+    if (replaced != null) {
+      replaced.close(CloseMode.GRACEFUL);
+    }
   }
 
   @Override
@@ -78,7 +103,19 @@ public class OutboundCredentialsInterceptor extends AbstractProcessEnginePlugin
         request.setHeader(INTERNAL_TOKEN_HEADER, internalToken);
       }
     }
-    return invocation.proceed();
+    Object response = invocation.proceed();
+    // Unfollowed, a 3xx would reach the process as an ordinary answer; it becomes an incident.
+    if (response instanceof ClassicHttpResponse answer
+        && answer.getCode() >= 300
+        && answer.getCode() < 400) {
+      int status = answer.getCode();
+      answer.close();
+      throw new IllegalStateException(
+          "Outbound call answered "
+              + status
+              + "; connector calls do not follow a redirect (docs/cib7.md)");
+    }
+    return response;
   }
 
   private static URI target(HttpRequest request) {

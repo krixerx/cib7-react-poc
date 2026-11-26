@@ -52,6 +52,11 @@ content.
    so the folder holds the new version file next to the old ones.
 5. Rebuild the image and check `GET /admin/integrations` lists it active and nothing as broken.
 
+`scripts/build.mjs` is how `10-core-mail` and `20-core-pdf` were first built: it replays the whole
+build through `/admin/api` against a fresh Patchbay (`node scripts/build.mjs <baseUrl> <user:password>
+<mailpit swagger.json> <pdf-renderer/openapi.json> publish`), so the export step above can be
+repeated without the console. Keep it in step when you change a core integration by hand.
+
 A new integration of the core gets its own folder (`30-core-<name>/`) with its own package. One
 integration per package keeps a change reviewable on its own.
 
