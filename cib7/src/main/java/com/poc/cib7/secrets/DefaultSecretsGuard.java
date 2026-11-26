@@ -63,10 +63,7 @@ public class DefaultSecretsGuard implements InitializingBean {
         hits);
   }
 
-  /**
-   * A blank value counts as a default: Patchbay 0.1.0 lets every integration call through when its
-   * key is empty, so an engine with no key means an open integration API, not a real secret.
-   */
+  // Patchbay 0.1.0 lets every integration call through when its key is empty.
   private static boolean isDefaultOrBlank(String value, String devDefault) {
     return value == null || value.isBlank() || devDefault.equals(value);
   }

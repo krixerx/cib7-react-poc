@@ -5,8 +5,8 @@
 // for 60 lines. The field contract is what must stay in sync, and it is written
 // down once in docs/logging.md.
 //
-// No user_id here: the renderer is called by the bus on behalf of a BPMN service
-// task, so there is no Keycloak user behind a request.
+// No user_id here: Patchbay's pdf-render integration calls the renderer for a
+// BPMN service task, so there is no Keycloak user behind a request.
 
 const { createSocket } = require('node:dgram');
 const { hostname } = require('node:os');

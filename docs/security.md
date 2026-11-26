@@ -341,7 +341,9 @@ stays.
   compared in constant time by Patchbay). The engine adds it from
   `PATCHBAY_API_KEY` only to calls under Patchbay's `/api/v1/integrations/`
   and removes it everywhere else (`OutboundCredentialsInterceptor`,
-  `OutboundCredentialsInterceptorTest`). Caller headers never reach the
+  `OutboundCredentialsInterceptorTest`). Connector calls follow no redirect
+  and fail on a 3xx, so neither credential follows one to another host
+  (`OutboundRedirectTest`). Caller headers never reach the
   external system. Patchbay's console and `/admin` take its own login
   (`PATCHBAY_ADMIN_USER`/`PATCHBAY_ADMIN_PASSWORD`); in phase 1 they are on
   `127.0.0.1` only (an SSH tunnel on a server).
@@ -420,6 +422,7 @@ The tests that hold the outbound and pack boundary:
 | Pack trust, 9 | `PackIntegrationTest` | other connector destinations, credential headers in a connector, reflection-like expressions, a pack package with non-`pack-` ids, a connection, a secret or a base URL, a pack layer that zips anything but its packages |
 | 2 | `ReservedBeansPluginTest` | a process variable shadowing a reserved bean |
 | 5, 9 | `OutboundCredentialsInterceptorTest` | `X-Internal-Token` or `X-API-Key` on any other destination, host-suffix and userinfo tricks, a header the BPMN set |
+| 5, 9 | `OutboundRedirectTest` | a 3xx from the backend or Patchbay pointing at another host; it is not followed, no credential leaves, the call fails |
 | 5 | `InternalTokenAuthenticationFilterTest` | a missing, empty, wrong or wrong-length `X-Internal-Token` |
 | 12 | `DefaultSecretsGuardTest` (engine and backend) | starting with a `-change-me` default when real secrets are required |
 

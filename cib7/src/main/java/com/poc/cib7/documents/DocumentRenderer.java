@@ -39,7 +39,7 @@ public class DocumentRenderer {
 
   private static final Pattern NAME = Pattern.compile("^[a-z0-9][a-z0-9-]{0,62}$");
 
-  /** The reserved beans a document may use; the bus URL and the PDF helper stay out. */
+  /** The reserved beans a document may use; the outbound base URLs and the PDF helper stay out. */
   private static final String[] BEANS = {"frontendBaseUrl", "links"};
 
   private final Configuration configuration;

@@ -118,7 +118,7 @@ http:
       tls: true
 
     backend-api:
-      # /api/internal/** (engine-only, reached through the bus) is excluded:
+      # /api/internal/** (engine-only, called directly with X-Internal-Token) is excluded:
       # it is never routed from outside (docs/security.md rule 5).
       rule: "PathPrefix(`/api`) && !PathPrefix(`/api/internal`) && !PathPrefix(`/api/public`)"
       entryPoints: ["websecure"]
@@ -148,8 +148,8 @@ http:
       # any logged-in user reads every message, a documented demo exemption.
       # DELETE and Mailpit's send API are left unrouted, so a visitor can
       # neither empty the inbox for everyone nor plant a fake process mail;
-      # those requests fall through to the frontend, which refuses them. The
-      # bus sends mail to Mailpit directly, not through here.
+      # those requests fall through to the frontend, which refuses them.
+      # Patchbay sends mail to Mailpit directly, not through here.
       rule: "PathPrefix(`/mailpit`) && !Method(`DELETE`) && !PathPrefix(`/mailpit/api/v1/send`)"
       entryPoints: ["websecure"]
       service: mailpit-auth
